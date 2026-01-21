@@ -1118,11 +1118,12 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
-            @testset "CHP to Waste Heat" begin
+            @testset "CHP to Waste Heat + Absorption Chiller" begin
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 results = run_reopt(m, d)
                 @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 4174.455 atol=1e-3
+                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) + sum(results["CHP"]["thermal_to_absorption_chiller_mmbtu_per_hour"]) ≈ results["CHP"]["annual_thermal_production_mmbtu"] atol=1e-3
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()

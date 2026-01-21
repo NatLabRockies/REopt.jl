@@ -93,7 +93,8 @@
             5.07,
             6.04
         ],
-        "federal_itc_fraction": 0.3
+        "federal_itc_fraction": 0.3,
+        "serve_absorption_chiller_only": true 
     },
     "DomesticHotWaterLoad": {
         "monthly_mmbtu": [
