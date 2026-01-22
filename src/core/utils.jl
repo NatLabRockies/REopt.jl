@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function time_step_wrap_around(time_step::Int; time_steps_per_hour::Int=1)::Int
     time_steps_per_year = 8760 * time_steps_per_hour
     ((time_step - 1) % time_steps_per_year) + 1
@@ -596,8 +596,16 @@ end
 
 function check_api_key()
     if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
-        throw(@error("No NREL Developer API Key provided when trying to call PVWatts or Wind Toolkit.
+        throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
                     Within your Julia environment, specify ENV['NREL_DEVELOPER_API_KEY']='your API key'
+                    See https://nrel.github.io/REopt.jl/dev/ for more information."))
+    end
+end
+
+function check_api_email()
+    if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
+        throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
+                    Within your Julia environment, specify ENV['NREL_DEVELOPER_EMAIL']='your contact email'
                     See https://nrel.github.io/REopt.jl/dev/ for more information."))
     end
 end

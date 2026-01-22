@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 struct Scenario <: AbstractScenario
     settings::Settings
     site::Site
@@ -650,7 +650,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "Automatic hybrid GHX sizing complete using GhpGhx.jl"
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment"))
                 end
 
