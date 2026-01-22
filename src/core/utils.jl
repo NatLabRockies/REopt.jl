@@ -598,7 +598,7 @@ function check_api_key()
     if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
         throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
                     Within your Julia environment, specify ENV['NREL_DEVELOPER_API_KEY']='your API key'
-                    See https://nrel.github.io/REopt.jl/dev/ for more information."))
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
     end
 end
 
@@ -606,7 +606,7 @@ function check_api_email()
     if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
         throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
                     Within your Julia environment, specify ENV['NREL_DEVELOPER_EMAIL']='your contact email'
-                    See https://nrel.github.io/REopt.jl/dev/ for more information."))
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
     end
 end
 
