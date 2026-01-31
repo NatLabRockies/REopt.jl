@@ -145,18 +145,18 @@ else  # run HiGHS tests
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
             @test dataset == "nsrdb"
 
-            # 3. Oulu, Findland
+            # 3. Oulu, Finland
             latitude, longitude = 65.0102196310875, 25.465387094897675
             radius = 0
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "intl"
+            @test dataset == "nsrdb"
 
             # 4. Fairbanks, AK 
             site = "Fairbanks"
             latitude, longitude = 64.84112047064114, -147.71570239058084 
             radius = 20
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "tmy3"  
+            @test dataset == "nsrdb"  
         end
 
         @testset "ASHP min allowable size and COP, CF Profiles" begin
