@@ -1152,6 +1152,10 @@ else  # run HiGHS tests
             @testset "Avoid CHP Binary" begin
                 include("test_avoid_chp_binary.jl")
             end
+
+            @testset "Off-Grid CHP" begin
+                include("test_chp_offgrid.jl")
+            end
         end
         
         @testset verbose=true "FlexibleHVAC" begin

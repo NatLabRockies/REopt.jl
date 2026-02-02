@@ -1,14 +1,14 @@
-using Revise
-using REopt
-using JSON
-using DelimitedFiles
-using PlotlyJS
-using Dates
-using Test
-using JuMP
-using HiGHS
-using DotEnv
-DotEnv.load!()
+# using Revise
+# using REopt
+# using JSON
+# using DelimitedFiles
+# using PlotlyJS
+# using Dates
+# using Test
+# using JuMP
+# using HiGHS
+# using DotEnv
+# DotEnv.load!()
 
 ###############   Off-Grid CHP with Operating Reserves Test    ###################
 
@@ -30,7 +30,7 @@ s = Scenario(input_data)
 inputs = REoptInputs(s)
 
 println("\nScenario Setup:")
-println("  - CHP operating_reserve_required_fraction: ", s.chp.operating_reserve_required_fraction)
+println("  - CHP operating_reserve_required_fraction: ", s.chps[1].operating_reserve_required_fraction)
 println("  - ElectricLoad operating_reserve_required_fraction: ", s.electric_load.operating_reserve_required_fraction)
 println("  - Off-grid flag: ", s.settings.off_grid_flag)
 
@@ -49,7 +49,7 @@ println("  - Load met fraction: ", round(results["ElectricLoad"]["offgrid_load_m
 
 # Calculate operating reserve requirements
 chp_production_to_load = results["CHP"]["electric_to_load_series_kw"]
-chp_or_required = sum(chp_production_to_load .* s.chp.operating_reserve_required_fraction)
+chp_or_required = sum(chp_production_to_load .* s.chps[1].operating_reserve_required_fraction)
 load_or_required = sum(s.electric_load.critical_loads_kw .* s.electric_load.operating_reserve_required_fraction)
 total_or_required = chp_or_required + load_or_required
 
