@@ -42,6 +42,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.0 : 0.0 # If off grid, 10%, else 0%. Applied to each time_step as a % of CHP generation. When positive, CHP requires reserves from Generator or Battery; when 0, CHP can provide reserves.
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing # Optional user-provided production factor time-series (length of time_steps_per_hour * 8760). If provided, this will override the production factor calculated from unavailability.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -118,6 +119,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
     operating_reserve_required_fraction::Real = 0.0
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
