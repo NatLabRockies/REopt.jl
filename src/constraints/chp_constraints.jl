@@ -163,6 +163,22 @@ function add_chp_rated_prod_constraint(m, p; _n="")
 end
 
 
+function add_chp_ramp_rate_constraints(m, p; _n="")
+    # Ramp rate constraints limit how quickly CHP production can change between consecutive timesteps
+    # Ramp up constraint
+    @constraint(m, CHPRampUp[t in p.techs.chp, ts in p.time_steps[2:end]],
+        m[Symbol("dvRatedProduction"*_n)][t, ts] - m[Symbol("dvRatedProduction"*_n)][t, ts-1] <=
+        p.s.chp.ramp_rate_fraction_per_hour * m[Symbol("dvSize"*_n)][t] / p.s.settings.time_steps_per_hour
+    )
+    
+    # Ramp down constraint
+    @constraint(m, CHPRampDown[t in p.techs.chp, ts in p.time_steps[2:end]],
+        m[Symbol("dvRatedProduction"*_n)][t, ts-1] - m[Symbol("dvRatedProduction"*_n)][t, ts] <=
+        p.s.chp.ramp_rate_fraction_per_hour * m[Symbol("dvSize"*_n)][t] / p.s.settings.time_steps_per_hour
+    )
+end
+
+
 """
     add_chp_hourly_om_charges(m, p; _n="")
 
@@ -258,6 +274,11 @@ function add_chp_constraints(m, p; _n="")
     add_chp_fuel_burn_constraints(m, p; _n=_n)
     add_chp_thermal_production_constraints(m, p; _n=_n)
     add_chp_rated_prod_constraint(m, p; _n=_n)
+    
+    # Add ramp rate constraints if ramp_rate_fraction_per_hour < 1.0
+    if p.s.chp.ramp_rate_fraction_per_hour < 1.0 / p.s.settings.time_steps_per_hour
+        add_chp_ramp_rate_constraints(m, p; _n=_n)
+    end
 
     # These constraints are only needed if binary was created
     if binary_needed

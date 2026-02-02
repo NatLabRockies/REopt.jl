@@ -82,7 +82,16 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 		CHPtoBatt = zeros(length(p.time_steps))
 	end
 	r["electric_to_storage_series_kw"] = round.(CHPtoBatt, digits=3)
-	CHPtoLoad = [value(m[Symbol("dvRatedProduction"*_n)][chp_name, ts]) * p.production_factor[chp_name, ts] * p.levelization_factor[chp_name] - CHPtoBatt[ts] - CHPtoGrid[ts] for ts in p.time_steps]
+	
+	# Check if this specific CHP can curtail
+	if chp.can_curtail
+		CHPtoCurtail = [value(m[Symbol("dvCurtail"*_n)][chp_name,ts]) for ts in p.time_steps]
+	else
+		CHPtoCurtail = zeros(length(p.time_steps))
+	end
+	r["electric_curtailed_series_kw"] = round.(CHPtoCurtail, digits=3)
+	
+	CHPtoLoad = [value(m[Symbol("dvRatedProduction"*_n)][chp_name, ts]) * p.production_factor[chp_name, ts] * p.levelization_factor[chp_name] - CHPtoBatt[ts] - CHPtoGrid[ts] - CHPtoCurtail[ts] for ts in p.time_steps]
 	r["electric_to_load_series_kw"] = round.(CHPtoLoad, digits=3)
 	# Thermal dispatch breakdown
     if !isempty(p.s.storage.types.hot)

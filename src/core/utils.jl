@@ -223,6 +223,17 @@ function dictkeys_tosymbols(d::Dict)
                 end
             end
         end
+        # Convert numeric boolean values (0.0/1.0) to proper Bool type
+        if k in [
+            "off_grid_flag", "add_soc_incentive", "include_climate_in_objective", 
+            "include_health_in_objective", "include_export_cost_series_in_results"
+        ] && !isnothing(v) && !(typeof(v) <: Bool)
+            try
+                v = Bool(v)
+            catch
+                throw(@error("Unable to convert $k to Bool. Expected boolean or 0/1, got: $v"))
+            end
+        end
         if k in [
             "fuel_cost_per_mmbtu", "wholesale_rate", "export_rate_beyond_net_metering_limit",
             # for ERP
