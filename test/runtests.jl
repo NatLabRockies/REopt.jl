@@ -1156,6 +1156,10 @@ else  # run HiGHS tests
             @testset "Off-Grid CHP" begin
                 include("test_chp_offgrid.jl")
             end
+
+            @testset "CHP Ramp Rate" begin
+                include("test_ramp.jl")
+            end
         end
         
         @testset verbose=true "FlexibleHVAC" begin

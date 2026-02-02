@@ -128,60 +128,60 @@ println("Utility to Load (kWh): ", round(sum(results["ElectricUtility"]["annual_
 # println("Simple Payback (years): ", round(results["Financial"]["simple_payback_years"], digits=2))
 println("==========================================\n")
 
-# Create stacked area chart showing how CHP and battery serve the load
-load_series = results["ElectricLoad"]["load_series_kw"]
-chp_to_load = results["CHP"]["electric_to_load_series_kw"]
-batt_to_load = results["ElectricStorage"]["storage_to_load_series_kw"]
-grid_to_load = results["ElectricUtility"]["electric_to_load_series_kw"]
+# # Create stacked area chart showing how CHP and battery serve the load
+# load_series = results["ElectricLoad"]["load_series_kw"]
+# chp_to_load = results["CHP"]["electric_to_load_series_kw"]
+# batt_to_load = results["ElectricStorage"]["storage_to_load_series_kw"]
+# grid_to_load = results["ElectricUtility"]["electric_to_load_series_kw"]
 
-# Create time steps array (in hours for x-axis)
-time_hours = collect(1:length(load_series)) ./ ts_per_hour
+# # Create time steps array (in hours for x-axis)
+# time_hours = collect(1:length(load_series)) ./ ts_per_hour
 
-# Create stacked area chart
-plt = plot(
-    [
-        scatter(
-            x=time_hours, 
-            y=grid_to_load, 
-            mode="lines", 
-            name="Grid to Load",
-            fill="tozeroy",
-            line=attr(width=0.5, color="rgb(128,128,128)"),
-            fillcolor="rgba(128,128,128,0.5)"
-        ),
-        scatter(
-            x=time_hours, 
-            y=grid_to_load .+ chp_to_load, 
-            mode="lines", 
-            name="CHP to Load",
-            fill="tonexty",
-            line=attr(width=0.5, color="rgb(255,128,0)"),
-            fillcolor="rgba(255,128,0,0.6)"
-        ),
-        scatter(
-            x=time_hours, 
-            y=grid_to_load .+ chp_to_load .+ batt_to_load, 
-            mode="lines", 
-            name="Battery to Load",
-            fill="tonexty",
-            line=attr(width=0.5, color="rgb(0,128,255)"),
-            fillcolor="rgba(0,128,255,0.6)"
-        ),
-        scatter(
-            x=time_hours, 
-            y=load_series, 
-            mode="lines", 
-            name="Total Load",
-            line=attr(width=2, color="rgb(0,0,0)", dash="dot")
-        )
-    ],
-    Layout(
-        title="Electric Load Service Breakdown - CHP with Ramp Rate and Battery Support",
-        xaxis=attr(title="Time (hours)", range=[0, 8760]),
-        yaxis=attr(title="Power (kW)"),
-        showlegend=true,
-        hovermode="x unified",
-        legend=attr(x=1.02, y=1, xanchor="left", yanchor="top")
-    )
-)
-display(plt)
+# # Create stacked area chart
+# plt = plot(
+#     [
+#         scatter(
+#             x=time_hours, 
+#             y=grid_to_load, 
+#             mode="lines", 
+#             name="Grid to Load",
+#             fill="tozeroy",
+#             line=attr(width=0.5, color="rgb(128,128,128)"),
+#             fillcolor="rgba(128,128,128,0.5)"
+#         ),
+#         scatter(
+#             x=time_hours, 
+#             y=grid_to_load .+ chp_to_load, 
+#             mode="lines", 
+#             name="CHP to Load",
+#             fill="tonexty",
+#             line=attr(width=0.5, color="rgb(255,128,0)"),
+#             fillcolor="rgba(255,128,0,0.6)"
+#         ),
+#         scatter(
+#             x=time_hours, 
+#             y=grid_to_load .+ chp_to_load .+ batt_to_load, 
+#             mode="lines", 
+#             name="Battery to Load",
+#             fill="tonexty",
+#             line=attr(width=0.5, color="rgb(0,128,255)"),
+#             fillcolor="rgba(0,128,255,0.6)"
+#         ),
+#         scatter(
+#             x=time_hours, 
+#             y=load_series, 
+#             mode="lines", 
+#             name="Total Load",
+#             line=attr(width=2, color="rgb(0,0,0)", dash="dot")
+#         )
+#     ],
+#     Layout(
+#         title="Electric Load Service Breakdown - CHP with Ramp Rate and Battery Support",
+#         xaxis=attr(title="Time (hours)", range=[0, 8760]),
+#         yaxis=attr(title="Power (kW)"),
+#         showlegend=true,
+#         hovermode="x unified",
+#         legend=attr(x=1.02, y=1, xanchor="left", yanchor="top")
+#     )
+# )
+# display(plt)
