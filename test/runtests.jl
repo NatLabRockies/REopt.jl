@@ -1160,6 +1160,11 @@ else  # run HiGHS tests
             @testset "CHP Ramp Rate" begin
                 include("test_ramp.jl")
             end
+
+            @testset "CHP Production Factor" begin
+                include("test_chp_prodfactor.jl")
+            end
+                        
         end
         
         @testset verbose=true "FlexibleHVAC" begin

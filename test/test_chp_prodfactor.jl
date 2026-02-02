@@ -1,14 +1,14 @@
-using Revise
-using REopt
-using JSON
-using DelimitedFiles
-using PlotlyJS
-using Dates
-using Test
-using JuMP
-using HiGHS
-using DotEnv
-DotEnv.load!()
+# using Revise
+# using REopt
+# using JSON
+# using DelimitedFiles
+# using PlotlyJS
+# using Dates
+# using Test
+# using JuMP
+# using HiGHS
+# using DotEnv
+# DotEnv.load!()
 
 
 ###########   CHP production_factor_series test   #############
@@ -39,10 +39,10 @@ DotEnv.load!()
     p = REoptInputs(s)
     
     # Verify the production factor series was properly assigned
-    @test !isnothing(s.chp.production_factor_series)
-    @test length(s.chp.production_factor_series) == 8760
-    @test s.chp.production_factor_series[1] ≈ 0.5 atol=0.001
-    @test s.chp.production_factor_series[8760] ≈ 1.0 atol=0.001
+    @test !isnothing(s.chps[1].production_factor_series)
+    @test length(s.chps[1].production_factor_series) == 8760
+    @test s.chps[1].production_factor_series[1] ≈ 0.5 atol=0.001
+    @test s.chps[1].production_factor_series[8760] ≈ 1.0 atol=0.001
     
     # Run the optimization
     m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
