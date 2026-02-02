@@ -839,12 +839,12 @@ function setup_absorption_chiller_inputs(s::AbstractScenario, max_sizes, min_siz
     if isempty(s.chps)
         thermal_factor = 1.0
     else
-        # Use the maximum cooling_thermal_factor from all CHPs that can supply the absorption chiller
-        chps_serving_absorption_chiller = filter(chp -> chp.can_serve_cooling, s.chps)
-        if isempty(chps_serving_absorption_chiller)
+        # Use the maximum cooling_thermal_factor from all CHPs that have thermal output (not electric-only)
+        chps_with_thermal = filter(chp -> !chp.is_electric_only, s.chps)
+        if isempty(chps_with_thermal)
             thermal_factor = 1.0
         else
-            thermal_factor = maximum(chp.cooling_thermal_factor for chp in chps_serving_absorption_chiller)
+            thermal_factor = maximum(chp.cooling_thermal_factor for chp in chps_with_thermal)
             if thermal_factor == 0.0
                 throw(@error("All CHPs have cooling_thermal_factor of 0.0 which implies that CHP cannot serve AbsorptionChiller. If you
                     want to model CHP and AbsorptionChiller, you must specify a cooling_thermal_factor greater than 0.0 for at least one CHP"))
