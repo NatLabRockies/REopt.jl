@@ -908,7 +908,8 @@ function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, cap_cost_sl
             :min_turn_down_fraction => chp.min_turn_down_fraction,
             :supplementary_firing_efficiency => chp.supplementary_firing_efficiency,
             :supplementary_firing_max_steam_ratio => chp.supplementary_firing_max_steam_ratio,
-            :om_cost_per_kwh => chp.om_cost_per_kwh
+            :om_cost_per_kwh => chp.om_cost_per_kwh,
+            :ramp_rate_fraction_per_hour => chp.ramp_rate_fraction_per_hour
         )
     end
     return nothing
