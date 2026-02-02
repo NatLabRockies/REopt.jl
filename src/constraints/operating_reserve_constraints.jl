@@ -42,11 +42,9 @@ function add_operating_reserve_constraints(m, p; _n="")
         m[Symbol("dvOpResFromTechs"*_n)][t,ts] <= p.max_sizes[t] 
     )
     # 5c. Upper bound on dvOpResFromTechs (for CHP techs)
-    if "CHP" in p.techs.providing_oper_res
-        @constraint(m, [ts in p.time_steps_without_grid],
-            m[Symbol("dvOpResFromTechs"*_n)]["CHP",ts] <= m[:binCHPIsOnInTS]["CHP", ts] * p.max_sizes["CHP"] 
-        )
-    end
+    @constraint(m, [t in intersect(p.techs.chp, p.techs.providing_oper_res), ts in p.time_steps_without_grid],
+        m[Symbol("dvOpResFromTechs"*_n)][t,ts] <= m[:binCHPIsOnInTS][t, ts] * p.max_sizes[t] 
+    )
 
     m[:OpResProvided] = @expression(m, [ts in p.time_steps_without_grid],
         sum(m[Symbol("dvOpResFromTechs"*_n)][t,ts] for t in p.techs.providing_oper_res)

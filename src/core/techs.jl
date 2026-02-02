@@ -203,10 +203,10 @@ function Techs(s::Scenario)
             push!(techs_can_serve_process_heat, chp.name)
         end
         if s.settings.off_grid_flag
-            if s.chp.operating_reserve_required_fraction > 0.0
-                push!(requiring_oper_res, "CHP")
+            if chp.operating_reserve_required_fraction > 0.0
+                push!(requiring_oper_res, chp.name)
             else
-                push!(providing_oper_res, "CHP")
+                push!(providing_oper_res, chp.name)
             end
         end
     end

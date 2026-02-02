@@ -839,12 +839,16 @@ function setup_absorption_chiller_inputs(s::AbstractScenario, max_sizes, min_siz
     if isempty(s.chps)
         thermal_factor = 1.0
     else
-        # Use the cooling_thermal_factor from the first CHP
-        if s.chps[1].cooling_thermal_factor == 0.0
-            throw(@error("The CHP cooling_thermal_factor is 0.0 which implies that CHP cannot serve AbsorptionChiller. If you
-                want to model CHP and AbsorptionChiller, you must specify a cooling_thermal_factor greater than 0.0"))
+        # Use the maximum cooling_thermal_factor from all CHPs that can supply the absorption chiller
+        chps_serving_absorption_chiller = filter(chp -> chp.can_serve_cooling, s.chps)
+        if isempty(chps_serving_absorption_chiller)
+            thermal_factor = 1.0
         else
-            thermal_factor = s.chps[1].cooling_thermal_factor
+            thermal_factor = maximum(chp.cooling_thermal_factor for chp in chps_serving_absorption_chiller)
+            if thermal_factor == 0.0
+                throw(@error("All CHPs have cooling_thermal_factor of 0.0 which implies that CHP cannot serve AbsorptionChiller. If you
+                    want to model CHP and AbsorptionChiller, you must specify a cooling_thermal_factor greater than 0.0 for at least one CHP"))
+            end
         end
     end    
     thermal_cop["AbsorptionChiller"] = s.absorption_chiller.cop_thermal * thermal_factor
@@ -1362,8 +1366,8 @@ function setup_operating_reserve_fraction(s::AbstractScenario, techs_operating_r
 
     techs_operating_reserve_req_fraction["Wind"] = s.wind.operating_reserve_required_fraction
 
-    if !isnothing(s.chp)
-        techs_operating_reserve_req_fraction["CHP"] = s.chp.operating_reserve_required_fraction
+    for chp in s.chps
+        techs_operating_reserve_req_fraction[chp.name] = chp.operating_reserve_required_fraction
     end
 
     return nothing
