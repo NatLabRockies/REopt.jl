@@ -729,17 +729,29 @@ function setup_wind_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_s
 end
 
 function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs)
-    water_power_inputs["existing_kw_per_turbine"] = s.water_power.existing_kw_per_turbine
-     for i in 1:s.water_power.number_of_turbines
-        # TODO: update so that water_power works with 15 min and 30 min interval data too
-        production_factor["WaterPower_Turbine"*string(i),:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
+    #water_power_inputs["existing_kw_per_turbine"] = s.water_power.existing_kw_per_turbine
+    for i in 1:s.water_power.number_of_turbines
+        turbine_tech_name = "WaterPower_Turbine"*string(i)
+        production_factor[turbine_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
         fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Turbine"*string(i))
         
         if !(s.water_power.can_curtail)
             push!(techs.no_curtail, "WaterPower_Turbine"*string(i))
         end
-        
+        cap_cost_slope[turbine_tech_name] = s.water_power.turbine_cost_per_kw
     end
+
+    for i in 1:s.water_power.number_of_pumps
+        pump_tech_name = "WaterPower_Pump"*string(i)
+        production_factor[pump_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
+        fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Pump"*string(i))
+        
+        push!(techs.no_curtail, "WaterPower_Pump"*string(i)) # Pumps cannot curtail
+        
+        cap_cost_slope[pump_tech_name] = s.water_power.pump_cost_per_kw
+
+    end
+
     return nothing 
 end
 
