@@ -66,7 +66,7 @@ struct REoptInputs <: AbstractInputs
     cooling_cf::Dict{String, Array{<:Real, 1}} # (techs.ashp)
     heating_loads_kw::Dict{String, <:Real} # (heating_loads)
     unavailability::Dict{String, Array{Float64,1}}  # Dict by tech of unavailability profile
-    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing hydropower inputs
+    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing water_power inputs
 end
 ```
 """
@@ -138,7 +138,7 @@ struct REoptInputs{ScenarioType <: AbstractScenario} <: AbstractInputs
     heating_loads_served_by_tes::Dict{String, Array{String,1}} # ("HotThermalStorage" or empty)
     unavailability::Dict{String, Array{Float64,1}} # (techs.elec)
     absorption_chillers_using_heating_load::Dict{String,Array{String,1}} # ("AbsorptionChiller" or empty)
-    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing hydropower inputs
+    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing water_power inputs
     avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
 end
 
@@ -486,11 +486,11 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
         setup_cst_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, heating_cop, heating_cf)
     end
     
-    if "ExistingHydropower_Turbine1" in techs.all   # Note: the setup_water_power_inputs function adds inputs for the other turbine numbers
-        print("\n Setting up Existing Hydropower in the reopt inputs file")
+    if "WaterPower_Turbine1" in techs.all   # Note: the setup_water_power_inputs function adds inputs for the other turbine numbers
+        print("\n Setting up Existing WaterPower in the reopt inputs file")
         setup_water_power_inputs(s, water_power_inputs, techs_by_exportbin, production_factor, techs)
     else
-        print("\n Existing Hydropower is not in the techs")
+        print("\n Existing WaterPower is not in the techs")
         #water_power["existing_kw_per_turbine"] = 0
     end
 
@@ -731,12 +731,12 @@ end
 function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs)
     water_power_inputs["existing_kw_per_turbine"] = s.water_power.existing_kw_per_turbine
      for i in 1:s.water_power.number_of_turbines
-        # TODO: update so that hydropower works with 15 min and 30 min interval data too
-        production_factor["ExistingHydropower_Turbine"*string(i),:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
-        fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "ExistingHydropower_Turbine"*string(i))
+        # TODO: update so that water_power works with 15 min and 30 min interval data too
+        production_factor["WaterPower_Turbine"*string(i),:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
+        fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Turbine"*string(i))
         
         if !(s.water_power.can_curtail)
-            push!(techs.no_curtail, "ExistingHydropower_Turbine"*string(i))
+            push!(techs.no_curtail, "WaterPower_Turbine"*string(i))
         end
         
     end

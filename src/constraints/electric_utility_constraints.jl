@@ -163,7 +163,7 @@ function add_export_constraints(m, p; _n="")
                 @constraint(m,
                     binWHL => {WHL_benefit >= p.pwf_e * p.hours_per_time_step *
                         ((sum(m[Symbol("dvStorageToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
-                        # Hydropower is part of dvProductionToGrid
+                        # WaterPower is part of dvProductionToGrid
                         #(sum(m[Symbol("dvHydroToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
                         sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
                                 for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
@@ -175,7 +175,7 @@ function add_export_constraints(m, p; _n="")
                 @constraint(m,
                     WHL_benefit >= p.pwf_e * p.hours_per_time_step *
                     ((sum(m[Symbol("dvStorageToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
-                    # Hydropower is part of dvProductionToGrid
+                    # WaterPower is part of dvProductionToGrid
                     #(sum(m[Symbol("dvHydroToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
                         sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
                                 for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
@@ -406,7 +406,7 @@ end
 
 
 function add_elec_utility_expressions(m, p; _n="")
-    # TODO: if prefered, change the if statement below so that the hydropower does not need to be called out separately (note: hydro is removed from p.techs.all in reopt.jl in this line of code: NonHydroTechs = filter!(x->x != hydropower_tech, p.techs.all))
+    # TODO: if prefered, change the if statement below so that the water_power does not need to be called out separately (note: hydro is removed from p.techs.all in reopt.jl in this line of code: NonHydroTechs = filter!(x->x != water_power_tech, p.techs.all))
     if (!isempty(p.s.electric_tariff.export_bins) && !isempty(p.techs.all)) || (!isempty(p.techs.water_power))
         # NOTE: levelization_factor is baked into dvProductionToGrid
         m[Symbol("TotalExportBenefit"*_n)] = m[Symbol("NEM_benefit"*_n)] + m[Symbol("WHL_benefit"*_n)] +

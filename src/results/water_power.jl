@@ -1,6 +1,6 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 """
-`ExistingHydropower` results keys:
+`WaterPower` results keys:
 - `size_kw` the turbine input into the model capacity
 - `electric_to_storage_series_kw` Vector of power sent to battery in an average year
 - `electric_to_grid_series_kw` Vector of power sent to grid in an average year
@@ -14,9 +14,9 @@
 """
 
 function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
-	# Adds the `ExistingHydropower` results to the dictionary passed back from `run_reopt` using the solved model `m` and the `REoptInputs` for node `_n`.
+	# Adds the `WaterPower` results to the dictionary passed back from `run_reopt` using the solved model `m` and the `REoptInputs` for node `_n`.
 	# Note: the node number is an empty string if evaluating a single `Site`.
-	# TODO: add _n to the hydropower code
+	# TODO: add _n to the water_power code
 
     r = Dict{String, Any}()
 
@@ -37,38 +37,38 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 	# sum these power flows from all of the turbines
 	if !isempty(p.s.storage.types.elec)
-		hydropowerToBatt_raw_data = @expression(m, [ts in p.time_steps],
+		water_powerToBatt_raw_data = @expression(m, [ts in p.time_steps],
 			sum(m[:dvProductionToStorage][b, t, ts] for b in p.s.storage.types.elec, t in p.techs.water_power))
-		hydropowerToBatt = round.(value.(hydropowerToBatt_raw_data).data, digits=3)
+		water_powerToBatt = round.(value.(water_powerToBatt_raw_data).data, digits=3)
 	else
-		hydropowerToBatt = zeros(length(p.time_steps))
+		water_powerToBatt = zeros(length(p.time_steps))
 	end
-	r["electric_to_storage_series_kw_all_turbines_combined"] = hydropowerToBatt
+	r["electric_to_storage_series_kw_all_turbines_combined"] = water_powerToBatt
 	# Compute the curtailed power
 	HydroCurtailment = @expression(m, [ts in p.time_steps],
 		sum(m[Symbol("dvCurtail")][t, ts] for t in p.techs.water_power))
 	
 	r["electric_curtailed_series_kw_all_turbines_combined"] = round.(value.(HydroCurtailment).data, digits=3)
 
-	# Hydropower to grid
-	hydropowerToGrid = @expression(m, [ts in p.time_steps],
+	# WaterPower to grid
+	water_powerToGrid = @expression(m, [ts in p.time_steps],
 		sum(m[:dvProductionToGrid][t, u, ts] for t in p.techs.water_power, u in p.export_bins_by_tech[t])
 	)
-	r["electric_to_grid_series_kw_all_turbines_combined"] = round.(value.(hydropowerToGrid).data, digits=3)
+	r["electric_to_grid_series_kw_all_turbines_combined"] = round.(value.(water_powerToGrid).data, digits=3)
 
-	# Hydropower to load
-	hydropowerToLoad = @expression(m, [ts in p.time_steps],
+	# WaterPower to load
+	water_powerToLoad = @expression(m, [ts in p.time_steps],
 		sum(m[:dvRatedProduction][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
 			for t in p.techs.water_power) -
-			hydropowerToBatt[ts] - hydropowerToGrid[ts] - HydroCurtailment[ts]
+			water_powerToBatt[ts] - water_powerToGrid[ts] - HydroCurtailment[ts]
 	)
-	r["electric_to_load_series_kw_all_turbines_combined"] = round.(value.(hydropowerToLoad).data, digits=3)
-	# Total hydropower power output
-	TotalHydropowerPowerOutput = @expression(m, [ts in p.time_steps],
+	r["electric_to_load_series_kw_all_turbines_combined"] = round.(value.(water_powerToLoad).data, digits=3)
+	# Total water_power power output
+	TotalWaterPowerPowerOutput = @expression(m, [ts in p.time_steps],
 		sum(m[:dvRatedProduction][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
 			for t in p.techs.water_power) - HydroCurtailment[ts]
 	)
-	r["total_power_output_series_kw_all_turbines_combined"] = round.(value.(TotalHydropowerPowerOutput).data, digits=3)
+	r["total_power_output_series_kw_all_turbines_combined"] = round.(value.(TotalWaterPowerPowerOutput).data, digits=3)
 	
 	# Upstream reservoir volume
 	upstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[:dvWaterVolume][ts])
@@ -91,12 +91,12 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		r["downstream_reservoir_water_outflow_cubic_meters_per_second"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
 	end
 	# Annual power production
-	AnnualExistingHydropowerProd = @expression(m,
+	AnnualWaterPowerProd = @expression(m,
 		p.hours_per_time_step * sum(m[:dvRatedProduction][t,ts] * p.production_factor[t, ts] *
 		p.levelization_factor[t]
 			for t in p.techs.water_power, ts in p.time_steps)
 	)
-	r["annual_energy_produced_kwh"] = round(value(AnnualExistingHydropowerProd), digits=0) # includes curtailment
+	r["annual_energy_produced_kwh"] = round(value(AnnualWaterPowerProd), digits=0) # includes curtailment
     
 	
 	if p.s.water_power.model_downstream_reservoir
@@ -171,8 +171,8 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		r["individual_turbine_results"][string(i)*"_results"]["power_to_battery_kw"] = round.(individual_turbine_power_to_batt, digits=3)
 		r["individual_turbine_results"][string(i)*"_results"]["power_to_grid_kw"] = round.(value.(individual_turbine_power_to_grid).data, digits=3)
 	end
-	d["ExistingHydropower"] = r
+	d["WaterPower"] = r
     nothing
 end
 
-# TODO: add results for hydropower MPC
+# TODO: add results for water_power MPC

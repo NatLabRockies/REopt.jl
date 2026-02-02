@@ -1,6 +1,6 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 """
-`ExistingHydropower` is an optional REopt input with the following keys and default values:
+`WaterPower` is an optional REopt input with the following keys and default values:
 ```julia
     existing_kw_per_turbine::Real=0,
     number_of_turbines::Real=0, 
@@ -44,7 +44,7 @@
 ```
 """
 
-mutable struct ExistingHydropower <: AbstractTech
+mutable struct WaterPower <: AbstractTech
 
     existing_kw_per_turbine
     number_of_turbines
@@ -84,7 +84,7 @@ mutable struct ExistingHydropower <: AbstractTech
     water_pump_average_cubic_meters_per_second_per_kw
     existing_kw_per_pump
 
-    function ExistingHydropower(;
+    function WaterPower(;
         existing_kw_per_turbine::Real=0.0,
         number_of_turbines::Real=0,
         computation_type::String="average_power_conversion",
@@ -125,9 +125,9 @@ mutable struct ExistingHydropower <: AbstractTech
         )
         
         #=
-        # TODO: implement off_grid capability for hydropower
+        # TODO: implement off_grid capability for water_power
         if off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
-            @warn "Setting Existing Hydropower can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
+            @warn "Setting Existing WaterPower can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
             can_net_meter = false
             can_wholesale = false
             can_export_beyond_nem_limit = false

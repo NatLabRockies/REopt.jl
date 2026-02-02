@@ -1,10 +1,10 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
 function add_water_power_constraints(m,p)
-	@info "Adding constraints for existing hydropower"
+	@info "Adding constraints for existing water_power"
 		
 	if p.s.water_power.computation_type == "quadratic_partially_discretized"	
-		@info "Adding quadratic_partially_discretized constraint type for the hydropower power output: model with with a discretized hydropower efficiency"
+		@info "Adding quadratic_partially_discretized constraint type for the water_power power output: model with with a discretized water_power efficiency"
 		
 		@variable(m, reservoir_head[ts in p.time_steps] >= 0)
 		@variable(m, turbine_efficiency[t in p.techs.water_power, ts in p.time_steps] >= 0)
@@ -69,7 +69,7 @@ function add_water_power_constraints(m,p)
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power], sum(m[:waterflow_range_binary][ts,t,i] for i in efficiency_bins) <= 1)
 
 	elseif p.s.water_power.computation_type == "fixed_efficiency_linearized_reservoir_head"
-		@info "Adding hydropower power output constraint using a fixed efficiency and linearized reservoir head"
+		@info "Adding water_power power output constraint using a fixed efficiency and linearized reservoir head"
 		# TODO: make an option that is like this, but linearized using discretization
 
         @variable(m, reservoir_head[ts in p.time_steps] >= 0)
@@ -88,7 +88,7 @@ function add_water_power_constraints(m,p)
 
 	elseif p.s.water_power.computation_type == "average_power_conversion"
 		# This is a simplified constraint that uses an average conversion for water flow and kW output
-		@info "Adding hydropower power output constraint using the average power conversion"
+		@info "Adding water_power power output constraint using the average power conversion"
 
 		Hydro_techs = p.techs.water_power
 		for t in 1:Int(length(Hydro_techs))
@@ -98,7 +98,7 @@ function add_water_power_constraints(m,p)
 		end
 	
 	elseif p.s.water_power.computation_type == "quadratic_unsimplified" # This equation has not been tested directly
-		@info "Adding quadratic1 constraint for the hydropower power output"
+		@info "Adding quadratic1 constraint for the water_power power output"
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power],
 		m[:dvRatedProduction][t,ts] == 9810*0.001 * m[:dvWaterOutFlow][t,ts] *
 											(p.s.water_power.coefficient_a_efficiency*((m[:dvWaterOutFlow][t,ts]*m[:dvWaterOutFlow][t,ts])) + (p.s.water_power.coefficient_b_efficiency* m[:dvWaterOutFlow][t,ts]) + p.s.water_power.coefficient_c_efficiency ) *
@@ -153,7 +153,7 @@ function add_water_power_constraints(m,p)
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[:dvWaterVolume][1] == m[:dvWaterVolume][maximum(p.time_steps)])
 	
-	# Limit power output from the hydropower turbines to the existing kW capacity:
+	# Limit power output from the water_power turbines to the existing kW capacity:
 	@constraint(m, [ts in p.time_steps, t in p.techs.water_power], m[:dvRatedProduction][t,ts] <= m[:binTurbineActive][t,ts]*p.s.water_power.existing_kw_per_turbine)
 	
 	# Limit the water flow through the spillway, if a value was input
@@ -250,7 +250,7 @@ function add_water_power_constraints(m,p)
 	end
 
 
-	# Define the minimum operating time (in time steps) for the hydropower turbine
+	# Define the minimum operating time (in time steps) for the water_power turbine
 	if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1
 		print("\n Adding minimum operating time constraint \n")
 		@variable(m, indicator_min_operating_time[t in p.techs.water_power, ts in p.time_steps, dv in dvs], Bin)
@@ -262,7 +262,7 @@ function add_water_power_constraints(m,p)
 		end
 	end
 	
-	# Define the minimum operating time for the maximum water flow (in time steps) for a hydropower turbine
+	# Define the minimum operating time for the maximum water flow (in time steps) for a water_power turbine
 	if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
 		print("\n Adding a constraint for the minimum operating time at a local maximum water flow \n")
 		@variable(m, indicator_turn_down[t in p.techs.water_power, ts in p.time_steps, dv in dvs], Bin)	

@@ -25,7 +25,7 @@ struct Scenario <: AbstractScenario
     cooling_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}
     steam_turbine::Union{SteamTurbine, Nothing}
     electric_heater::Union{ElectricHeater, Nothing}
-    water_power::ExistingHydropower
+    water_power::WaterPower
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
@@ -59,7 +59,7 @@ A Scenario struct can contain the following keys:
 - [GHP](@ref) (optional, can be Array)
 - [SteamTurbine](@ref) (optional)
 - [ElectricHeater](@ref) (optional)
-- [ExistingHydropower](@ref) (optional)
+- [WaterPower](@ref) (optional)
 - absorption_chillers_using_heating_load
 - [CST](@ref) (optional)
 - [ASHPSpaceHeater](@ref) (optional)
@@ -235,7 +235,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     storage = Storage(storage_structs)
     
     if haskey(d, "water_power")
-        # TODO: change the method for creating the ExistingHydropower input (mirror the other methods which don't require every input to be provided in the inputs dictionary into REopt)
+        # TODO: change the method for creating the WaterPower input (mirror the other methods which don't require every input to be provided in the inputs dictionary into REopt)
                 
         tribuary_flow = d["water_power"]["water_inflow_cubic_meter_per_second"]
         tributary_flow_length = length(d["water_power"]["water_inflow_cubic_meter_per_second"])
@@ -254,7 +254,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             print("\n No changes made to the tributary flow input vector \n")
         end
 
-        water_power = ExistingHydropower(; 
+        water_power = WaterPower(; 
                 existing_kw_per_turbine = d["water_power"]["existing_kw_per_turbine"],
                 number_of_turbines = d["water_power"]["number_of_turbines"],
                 computation_type = d["water_power"]["computation_type"],
@@ -295,7 +295,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     ) 
 
     else
-        water_power = ExistingHydropower(; existing_kw_per_turbine = 0)
+        water_power = WaterPower(; existing_kw_per_turbine = 0)
     end 
     
     if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            

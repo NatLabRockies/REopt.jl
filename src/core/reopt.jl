@@ -347,7 +347,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         end
 
 		if !isempty(p.techs.water_power)
-			print("\n Adding existing hydropower constraints")
+			print("\n Adding existing water_power constraints")
 			add_water_power_constraints(m,p)
 		end
 
@@ -400,10 +400,10 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         add_coincident_peak_charge_constraints(m, p)
     end
 
-	# Remove hydropower from the calculation:
+	# Remove water_power from the calculation:
 	NonHydroTechs=[]
-	for hydropower_tech in p.techs.water_power
-		NonHydroTechs = filter!(x->x != hydropower_tech, p.techs.all) # TODO: remove this line somehow
+	for water_power_tech in p.techs.water_power
+		NonHydroTechs = filter!(x->x != water_power_tech, p.techs.all) # TODO: remove this line somehow
 	end
 	print("\n Non hydro techs are:")
 	print(NonHydroTechs)
@@ -568,7 +568,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	if p.s.settings.include_health_in_objective
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
 	end
-	if "ExistingHydropower_Turbine1" in p.techs.elec
+	if "WaterPower_Turbine1" in p.techs.elec
 		print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
 		add_to_expression!(Costs, sum(m[:dvSpillwayWaterFlow][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 	end
@@ -716,7 +716,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 	#print("\n p.s.water_power is:")
 	#print(p.s.water_power)
 	if !isempty(p.techs.water_power)
-		print("\n Creating variables for existing hydropower")
+		print("\n Creating variables for existing water_power")
 		@variables m begin
 			dvWaterVolume[p.time_steps] >= 0			
 			dvWaterOutFlow[p.techs.water_power, p.time_steps] >= 0  #p.techs.water_power - index on this as well in the future
@@ -726,7 +726,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			dvSpillwayWaterFlow[p.time_steps] >= 0
 			dvPumpPowerInput[p.techs.water_power, p.time_steps] >= 0
 			dvPumpedWaterFlow[p.techs.water_power, p.time_steps] >= 0
-			# Note: the power flow from the hydropower are part of: dvRatedProduction, dvProductionToGrid, and dvProductionToStorage
+			# Note: the power flow from the water_power are part of: dvRatedProduction, dvProductionToGrid, and dvProductionToStorage
 		end
 		if p.s.water_power.model_downstream_reservoir
 			@variables m begin

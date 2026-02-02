@@ -61,8 +61,8 @@ function Techs(p::REoptInputs, s::BAUScenario)
 
     if !isnothing(s.water_power)
         if p.s.water_power.existing_kw_per_turbine > 0
-            push!(all_techs, "ExistingHydropower")
-            push!(elec, "ExistingHydropower")
+            push!(all_techs, "WaterPower")
+            push!(elec, "WaterPower")
         end
     end
 
@@ -239,10 +239,10 @@ function Techs(s::Scenario)
             #print("\n Number of turbines is ")
             #print(s.water_power.number_of_turbines)
             for i in 1:s.water_power.number_of_turbines
-                hydropower_name = "ExistingHydropower_Turbine"*string(i)
-                push!(all_techs, hydropower_name)
-                push!(elec, hydropower_name)
-                push!(water_power, hydropower_name)
+                water_power_name = "WaterPower_Turbine"*string(i)
+                push!(all_techs, water_power_name)
+                push!(elec, water_power_name)
+                push!(water_power, water_power_name)
             end
         end
     end
