@@ -407,7 +407,7 @@ end
 
 function add_elec_utility_expressions(m, p; _n="")
     # TODO: if prefered, change the if statement below so that the hydropower does not need to be called out separately (note: hydro is removed from p.techs.all in reopt.jl in this line of code: NonHydroTechs = filter!(x->x != hydropower_tech, p.techs.all))
-    if (!isempty(p.s.electric_tariff.export_bins) && !isempty(p.techs.all)) || (!isempty(p.techs.existing_hydropower))
+    if (!isempty(p.s.electric_tariff.export_bins) && !isempty(p.techs.all)) || (!isempty(p.techs.water_power))
         # NOTE: levelization_factor is baked into dvProductionToGrid
         m[Symbol("TotalExportBenefit"*_n)] = m[Symbol("NEM_benefit"*_n)] + m[Symbol("WHL_benefit"*_n)] +
                                              m[Symbol("EXC_benefit"*_n)]

@@ -346,9 +346,9 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_thermal_load_constraints(m, p)  # split into heating and cooling constraints?
         end
 
-		if !isempty(p.techs.existing_hydropower)
+		if !isempty(p.techs.water_power)
 			print("\n Adding existing hydropower constraints")
-			add_existing_hydropower_constraints(m,p)
+			add_water_power_constraints(m,p)
 		end
 
         if !isempty(p.ghp_options)
@@ -402,7 +402,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 	# Remove hydropower from the calculation:
 	NonHydroTechs=[]
-	for hydropower_tech in p.techs.existing_hydropower
+	for hydropower_tech in p.techs.water_power
 		NonHydroTechs = filter!(x->x != hydropower_tech, p.techs.all) # TODO: remove this line somehow
 	end
 	print("\n Non hydro techs are:")
@@ -713,28 +713,28 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		@variable(m, binNoGridPurchases[p.time_steps], Bin)
 	end
 
-	#print("\n p.s.existing_hydropower is:")
-	#print(p.s.existing_hydropower)
-	if !isempty(p.techs.existing_hydropower)
+	#print("\n p.s.water_power is:")
+	#print(p.s.water_power)
+	if !isempty(p.techs.water_power)
 		print("\n Creating variables for existing hydropower")
 		@variables m begin
 			dvWaterVolume[p.time_steps] >= 0			
-			dvWaterOutFlow[p.techs.existing_hydropower, p.time_steps] >= 0  #p.techs.existing_hydropower - index on this as well in the future
-			binTurbineActive[p.techs.existing_hydropower, p.time_steps], Bin
-			TurbineEfficiency[p.techs.existing_hydropower, p.time_steps] >= 0
+			dvWaterOutFlow[p.techs.water_power, p.time_steps] >= 0  #p.techs.water_power - index on this as well in the future
+			binTurbineActive[p.techs.water_power, p.time_steps], Bin
+			TurbineEfficiency[p.techs.water_power, p.time_steps] >= 0
 			ReservoirHead[p.time_steps] >= 0
 			dvSpillwayWaterFlow[p.time_steps] >= 0
-			dvPumpPowerInput[p.techs.existing_hydropower, p.time_steps] >= 0
-			dvPumpedWaterFlow[p.techs.existing_hydropower, p.time_steps] >= 0
+			dvPumpPowerInput[p.techs.water_power, p.time_steps] >= 0
+			dvPumpedWaterFlow[p.techs.water_power, p.time_steps] >= 0
 			# Note: the power flow from the hydropower are part of: dvRatedProduction, dvProductionToGrid, and dvProductionToStorage
 		end
-		if p.s.existing_hydropower.model_downstream_reservoir
+		if p.s.water_power.model_downstream_reservoir
 			@variables m begin
 				dvDownstreamReservoirWaterVolume[p.time_steps] >= 0
 				dvDownstreamReservoirWaterOutflow[p.time_steps] >= 0
-				binPumpingWaterActive[p.techs.existing_hydropower, p.time_steps], Bin
+				binPumpingWaterActive[p.techs.water_power, p.time_steps], Bin
 				binTurbineOrPump[p.time_steps], Bin
-				dvPumpEfficiency[p.techs.existing_hydropower, p.time_steps] >= 0
+				dvPumpEfficiency[p.techs.water_power, p.time_steps] >= 0
 			end	
 		end
 	end

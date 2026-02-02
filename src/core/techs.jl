@@ -25,7 +25,7 @@ function Techs(p::REoptInputs, s::BAUScenario)
     steam_turbines = String[]
     techs_can_supply_steam_turbine = String[]
     electric_heaters = String[]
-    existing_hydropower = String[]
+    water_power = String[]
     techs_can_serve_space_heating = String[]
     techs_can_serve_dhw = String[]
     techs_can_serve_process_heat = String[]
@@ -59,8 +59,8 @@ function Techs(p::REoptInputs, s::BAUScenario)
         push!(electric_chillers, "ExistingChiller")
     end
 
-    if !isnothing(s.existing_hydropower)
-        if p.s.existing_hydropower.existing_kw_per_turbine > 0
+    if !isnothing(s.water_power)
+        if p.s.water_power.existing_kw_per_turbine > 0
             push!(all_techs, "ExistingHydropower")
             push!(elec, "ExistingHydropower")
         end
@@ -96,7 +96,7 @@ function Techs(p::REoptInputs, s::BAUScenario)
         techs_can_serve_dhw,
         techs_can_serve_process_heat,
         ghp_techs,
-        existing_hydropower        
+        water_power        
         ashp_techs,
         ashp_wh_techs
     )
@@ -137,7 +137,7 @@ function Techs(s::Scenario)
     techs_can_serve_dhw = String[] 
     techs_can_serve_process_heat = String[]
     ghp_techs = String[]
-    existing_hydropower = String[]    
+    water_power = String[]    
     ashp_techs = String[]
     ashp_wh_techs = String[]
 
@@ -233,16 +233,16 @@ function Techs(s::Scenario)
         end
     end
     
-    if !isnothing(s.existing_hydropower)
-        if s.existing_hydropower.existing_kw_per_turbine > 0
+    if !isnothing(s.water_power)
+        if s.water_power.existing_kw_per_turbine > 0
             # Add a tech for each turbine separately
             #print("\n Number of turbines is ")
-            #print(s.existing_hydropower.number_of_turbines)
-            for i in 1:s.existing_hydropower.number_of_turbines
+            #print(s.water_power.number_of_turbines)
+            for i in 1:s.water_power.number_of_turbines
                 hydropower_name = "ExistingHydropower_Turbine"*string(i)
                 push!(all_techs, hydropower_name)
                 push!(elec, hydropower_name)
-                push!(existing_hydropower, hydropower_name)
+                push!(water_power, hydropower_name)
             end
         end
     end
@@ -418,7 +418,7 @@ function Techs(s::Scenario)
         techs_can_serve_dhw,
         techs_can_serve_process_heat,
         ghp_techs,
-        existing_hydropower
+        water_power
         ashp_techs,
         ashp_wh_techs
     )

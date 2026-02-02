@@ -48,7 +48,7 @@ mutable struct Techs
     ghp::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
-    existing_hydropower::Vector{String} 
+    water_power::Vector{String} 
 end
 ```
 """
@@ -78,7 +78,7 @@ mutable struct Techs
     can_serve_dhw::Vector{String}
     can_serve_process_heat::Vector{String}
     ghp::Vector{String}
-    existing_hydropower::Vector{String}
+    water_power::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
 end
