@@ -1,0 +1,86 @@
+{
+    "Financial": {
+        "offtaker_tax_rate_fraction": 0.26,
+        "elec_cost_escalation_rate_fraction": 0.017,
+        "chp_fuel_cost_escalation_rate_fraction": 0.015,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "om_cost_escalation_rate_fraction": 0.025
+    },
+    "Settings": {
+        "solver_name": "HiGHS",
+        "off_grid_flag": false,
+        "include_climate_in_objective": false,
+        "include_health_in_objective": false
+    },
+    "Site": {
+        "latitude": 41.8809434,
+        "longitude": -72.2600655,
+        "include_exported_renewable_electricity_in_total": true,
+        "include_exported_elec_emissions_in_total": true,
+        "land_acres": 1000000.0,
+        "roof_squarefeet": 0
+    },
+    "ElectricLoad": {
+        "monthly_totals_kwh": [
+            921984.0,
+            884352.0,
+            912576.0,
+            921984.0,
+            950208.0,
+            903168.0,
+            1025472.0,
+            978432.0,
+            1072512.0,
+            1044288.0,
+            987840.0,
+            950208.0
+        ],
+        "critical_load_fraction": 0.8,
+        "doe_reference_name": "FlatLoad"
+    },
+    "ElectricTariff": {
+        "blended_annual_demand_rate": 21.487,
+        "blended_annual_energy_rate": 0.0788
+    },
+    "ElectricUtility": {
+        "net_metering_limit_kw": 0.0,
+        "avert_emissions_region": "New England",
+        "cambium_location_type": "GEA Regions 2023",
+        "cambium_levelization_years": 1,
+        "cambium_co2_metric": "lrmer_co2e",
+        "cambium_scenario": "Mid-case",
+        "cambium_grid_level": "enduse"
+    },
+    "Generator": {
+        "max_kw": 0,
+        "existing_kw": 0
+    },
+    "CHP": {
+        "can_net_meter": false,
+        "prime_mover": "recip_engine",
+        "size_class": 5,
+        "min_kw": 1104.0,
+        "min_allowable_kw": 1104.0,
+        "max_kw": 1104.0,
+        "fuel_type": "natural_gas",
+        "can_wholesale": false,
+        "fuel_cost_per_mmbtu": 10.55,
+        "federal_itc_fraction": 0.3,
+        "macrs_option_years": 5,
+        "macrs_bonus_fraction": 0.8,
+        "macrs_itc_reduction": 0.5        
+    },
+    "DomesticHotWaterLoad": {
+        "annual_mmbtu": 6795.0,
+        "doe_reference_name": "FlatLoad"
+    },
+    "SpaceHeatingLoad": {
+        "annual_mmbtu": 36205.0,
+        "doe_reference_name": "FlatLoad"
+    },
+    "ExistingBoiler": {
+        "fuel_type": "natural_gas",
+        "production_type": "hot_water",
+        "fuel_cost_per_mmbtu": 10.55
+    }
+}

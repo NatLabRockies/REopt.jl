@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 struct MPCInputs <: AbstractInputs
     s::MPCScenario
@@ -20,7 +20,7 @@ struct MPCInputs <: AbstractInputs
     ratchets::UnitRange
     techs_by_exportbin::DenseAxisArray{Array{String,1}}  # indexed on [:NEM, :WHL]
     export_bins_by_tech::Dict{String, Array{Symbol, 1}}
-    cop::Dict{String, Float64}  # (techs.cooling)
+    cooling_cop::Dict{String, Array{Float64,1}}  # (techs.cooling, time_steps)
     thermal_cop::Dict{String, Float64}  # (techs.absorption_chiller)
     ghp_options::UnitRange{Int64}  # Range of the number of GHP options
     fuel_cost_per_kwh::Dict{String, AbstractArray}  # Fuel cost array for all time_steps
@@ -66,7 +66,7 @@ function MPCInputs(s::MPCScenario)
     # TODO implement export bins by tech (rather than assuming that all techs share the export_bins)
  
     #Placeholder COP because the REopt model expects it
-    cop = Dict("ExistingChiller" => s.cooling_load.cop)
+    cooling_cop = Dict("ExistingChiller" => ones(length(s.electric_load.loads_kw)) .* s.cooling_load.cop)
     thermal_cop = Dict{String, Float64}()
     ghp_options = 1:0
     heating_loads = Vector{String}()
@@ -92,7 +92,7 @@ function MPCInputs(s::MPCScenario)
         1:length(s.electric_tariff.tou_demand_ratchet_time_steps),  # ratchets
         techs_by_exportbin,
         export_bins_by_tech,
-        cop,
+        cooling_cop,
         thermal_cop,
         ghp_options,
         # s.site.min_resil_time_steps,

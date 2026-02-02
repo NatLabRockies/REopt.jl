@@ -7,8 +7,8 @@ NOTE you have to dev REopt in the `docs` environment to get local changes.
 e.g. 
 ```julia
 [~/.julia/dev/REopt/docs]
-(REopt) pkg> activate .
-(REopt) pkg> dev REopt
+(docs) pkg> activate .
+(docs) pkg> dev REopt
 julia> include("devdeploy.jl")
 [ Info: Precompiling REopt [d36ad4e8-d74a-4f7a-ace1-eaea049febf6]
 ...

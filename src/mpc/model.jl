@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     run_mpc(m::JuMP.AbstractModel, fp::String)
 
@@ -115,7 +115,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	end
 
 	if any(size_kw->size_kw > 0, (p.s.storage.attr[b].size_kw for b in p.s.storage.types.all))
-		add_storage_sum_constraints(m, p)
+		add_storage_sum_grid_constraints(m, p)
 	end
 
 	add_production_constraints(m, p)

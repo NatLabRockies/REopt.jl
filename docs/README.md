@@ -29,8 +29,8 @@ Serving HTTP on ::1 port 8000 (http://[::1]:8000/) ...
 Alternatively, you can use `LiveServer.jl` to host the documentation locally by running `docs/src/devdeploy.jl`; e.g.: 
 ```julia
 [~/.julia/dev/REopt/docs]
-(REopt) pkg> activate .
-(REopt) pkg> dev REopt
+(docs) pkg> activate .
+(docs) pkg> dev REopt
 julia> include("devdeploy.jl")
 [ Info: Precompiling REopt [d36ad4e8-d74a-4f7a-ace1-eaea049febf6]
 ...

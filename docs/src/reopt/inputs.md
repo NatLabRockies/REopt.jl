@@ -1,5 +1,5 @@
 # REopt Inputs
-Inputs to `run_reopt` can be provided in one of four formats:
+Inputs to the `run_reopt` function can be provided in one of four formats:
 1. a file path (string) to a JSON file,
 2. a `Dict`, 
 3. using the `Scenario` struct, or
@@ -132,24 +132,24 @@ REopt.Boiler
 REopt.HotThermalStorageDefaults
 ```
 
+## HighTempThermalStorage
+```@docs
+REopt.HighTempThermalStorageDefaults
+```
+
 ## ColdThermalStorage
 ```@docs
 REopt.ColdThermalStorageDefaults
 ```
 
-## DomesticHotWaterLoad
+## HeatingLoad
 ```@docs
-REopt.DomesticHotWaterLoad
+REopt.HeatingLoad()
 ```
 
-## SpaceHeatingLoad
+## CoolingLoad
 ```@docs
-REopt.SpaceHeatingLoad
-```
-
-## ProcessHeatLoad
-```@docs
-REopt.ProcessHeatLoad
+REopt.CoolingLoad
 ```
 
 ## FlexibleHVAC
@@ -175,4 +175,14 @@ REopt.SteamTurbine
 ## ElectricHeater
 ```@docs
 REopt.ElectricHeater
+```
+
+## ASHP
+```@docs
+REopt.ASHP
+```
+
+## CST
+```@docs
+REopt.CST
 ```

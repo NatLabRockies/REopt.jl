@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 function get_production_factor(pv::PV, latitude::Real, longitude::Real; timeframe="hourly", 
     time_steps_per_hour::Int=1)
@@ -7,7 +7,7 @@ function get_production_factor(pv::PV, latitude::Real, longitude::Real; timefram
         return pv.production_factor_series
     end
 
-    watts, ambient_temp_celcius = call_pvwatts_api(latitude, longitude; tilt=pv.tilt, azimuth=pv.azimuth, module_type=pv.module_type, 
+    watts, ambient_temp_celsius = call_pvwatts_api(latitude, longitude; tilt=pv.tilt, azimuth=pv.azimuth, module_type=pv.module_type, 
         array_type=pv.array_type, losses=round(pv.losses*100, digits=3), dc_ac_ratio=pv.dc_ac_ratio,
         gcr=pv.gcr, inv_eff=pv.inv_eff*100, timeframe=timeframe, radius=pv.radius,
         time_steps_per_hour=time_steps_per_hour)
@@ -72,7 +72,7 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
             resource = []
             try
                 @info "Querying Wind Toolkit for resource data ..."
-                r = HTTP.get(url; retries=5)
+                r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; retries=5)
                 if r.status != 200
                     throw(@error("Bad response from Wind Toolkit: $(response["errors"])"))
                 end
@@ -128,7 +128,14 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
 
     try        
         if Sys.isapple() 
-            libfile = "libssc.dylib"
+            if Sys.ARCH == :aarch64
+                libfile = "libssc_arm.dylib"
+            elseif Sys.ARCH == :x86_64
+                libfile = "libssc.dylib"
+            else
+                throw(@error("Unsupported platform for using the SAM Wind module. 
+                      You can alternatively provide the Wind `production_factor_series`"))
+            end
         elseif Sys.islinux()
             libfile = "libssc.so"
         elseif Sys.iswindows()

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     run_mpc(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
@@ -76,13 +76,13 @@ function build_mpc!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 				elseif b in p.s.storage.types.cold
 					add_cold_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				else
-					@error("Invalid storage does not fall in a thermal or electrical set")
+					throw(@error("Invalid storage does not fall in a thermal or electrical set"))
 				end
 			end
 		end
 
 		if any(size_kw->size_kw > 0, (p.s.storage.attr[b].size_kw for b in p.s.storage.types.elec))
-			add_storage_sum_constraints(m, p; _n=_n)
+			add_storage_sum_grid_constraints(m, p; _n=_n)
 		end
 
 		add_production_constraints(m, p; _n=_n)

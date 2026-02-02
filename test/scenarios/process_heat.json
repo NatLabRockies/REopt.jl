@@ -30,7 +30,8 @@
         "doe_reference_name": "FlatLoad"
     },
     "ProcessHeatLoad": {
-        "annual_mmbtu": 87600.0
+        "annual_mmbtu": 87600.0,
+        "industrial_reference_name": "FlatLoad"
     },
     "Boiler": {
         "min_mmbtu_per_hour": 0.0,

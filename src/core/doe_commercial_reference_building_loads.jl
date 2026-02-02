@@ -1,5 +1,5 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
-const default_buildings = [
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
+const DEFAULT_BUILDINGS = [
     "FastFoodRest",
     "FullServiceRest",
     "Hospital",
@@ -24,6 +24,16 @@ const default_buildings = [
     "FlatLoad_8_5"    
 ]
 
+const DEFAULT_PROCESS_TYPES = [
+    "Chemical", 
+    "Warehouse",
+    "FlatLoad", 
+    "FlatLoad_24_5", 
+    "FlatLoad_16_7", 
+    "FlatLoad_16_5",
+    "FlatLoad_8_7",
+    "FlatLoad_8_5"
+]
 
 function find_ashrae_zone_city(lat, lon; get_zone=false)
     file_path = joinpath(@__DIR__, "..", "..", "data", "climate_cities.shp")
@@ -95,48 +105,83 @@ end
 
 
 """
-    built_in_load(type::String, city::String, buildingtype::String, 
-        year::Int, annual_energy::Real, monthly_energies::AbstractArray{<:Real,1}
-        boiler_efficiency_input::Union{Real,Nothing}=nothing
+    built_in_load(
+        type::String, 
+        city::String, 
+        buildingtype::String, 
+        year::Int, 
+        annual_energy::Real, 
+        monthly_energies::AbstractArray{<:Real,1},
+        boiler_efficiency_input::Union{Real,Nothing}=nothing,
+        normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[];
+        time_steps_per_hour::Int = 1 # only used with normalized_profile      
     )
 Scale a normalized Commercial Reference Building according to inputs provided and return the 8760.
 """
-function built_in_load(type::String, city::String, buildingtype::String, 
-    year::Int, annual_energy::R, monthly_energies::AbstractArray{R,1},
-    boiler_efficiency_input::Union{R,Nothing}=nothing) where {R <: Real}
 
-    @assert type in ["electric", "domestic_hot_water", "space_heating", "cooling"]
+function built_in_load(
+    type::String, 
+    city::String, 
+    buildingtype::String, 
+    year::Int, 
+    annual_energy::Real, 
+    monthly_energies::AbstractArray{<:Real,1},
+    boiler_efficiency_input::Union{Real,Nothing}=nothing,
+    normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[]; # provided as function input for customer loads, not CRBs
+    time_steps_per_hour::Int = 1 # only used with user-provided normalized_profile. CRB loads are always hourly when this function is called.
+    )
+
+    @assert type in ["electric", "domestic_hot_water", "space_heating", "cooling", "process_heat"]
     monthly_scalers = ones(12)
     lib_path = joinpath(@__DIR__, "..", "..", "data", "load_profiles", type)
 
     profile_path = joinpath(lib_path, string("crb8760_norm_" * city * "_" * buildingtype * ".dat"))
-    if occursin("FlatLoad", buildingtype)
-        normalized_profile = custom_normalized_flatload(buildingtype, year)
-    else 
-        normalized_profile = vec(readdlm(profile_path, '\n', Float64, '\n'))
+    input_normalized = false
+    shift_possible = false
+    monthly_timesteps = get_monthly_time_steps(year; time_steps_per_hour=time_steps_per_hour)
+
+    if isempty(normalized_profile) # Not user-provided
+        if occursin("FlatLoad", buildingtype)
+            normalized_profile = custom_normalized_flatload(buildingtype, year)
+        else 
+            normalized_profile = vec(readdlm(profile_path, '\n', Float64, '\n'))
+            shift_possible = true
+        end
+    else
+        input_normalized = true
+    end
+
+    # The normalized_profile for CRBs (not FlatLoads, which use the year input) is based on year 2017 which starts on a Sunday. 
+    # If the year is not 2017 and we're using a CRB, we shift the 2017 CRB profile to match the weekday/weekend profile of the input year.
+    # We remove the CRB start day Sunday, and shift the CRB profile to the left until reaching the start day of the input year (e.g. Friday for 2021), and 
+    #  the shifted days (but not Sunday) get wrapped around to the end of the year, and the year's start day gets duplicated at the end of the year to match the year's ending day of the week.
+    # We then re-normalize the profile because we've removed the previously-normalized year's first day Sunday and duplicated the year's start day profile
+    if !(year == 2017) && shift_possible
+        crb_start_day = Dates.dayofweek(DateTime(2017,1,1))
+        load_start_day = Dates.dayofweek(DateTime(year,1,1))
+        cut_days = 7 - (crb_start_day - load_start_day) # Ex: = 7-(7-5) = 5 --> cut Sun, Mon, Tues, Wed, Thurs for 2021 load year
+        wrap_ts = normalized_profile[25*time_steps_per_hour: (24+24*cut_days)*time_steps_per_hour] # Ex: = crb_profile[25:144] wrap Mon-Fri to end for 2021
+        normalized_profile = append!(normalized_profile[(24*cut_days+1)*time_steps_per_hour:end], wrap_ts) # Ex: now starts on Fri and end Fri to align with 2021 cal
+        normalized_profile = normalized_profile ./ sum(normalized_profile)
     end
 
     if length(monthly_energies) == 12
         annual_energy = 1.0  # do not scale based on annual_energy
-        t0 = 1
         for month in 1:12
-            plus_hours = daysinmonth(Date(string(year) * "-" * string(month))) * 24
-            if month == 2 && isleapyear(year)
-                plus_hours -= 24
-            end
-            month_total = sum(normalized_profile[t0:t0+plus_hours-1])
+            start_idx = monthly_timesteps[month][1]
+            end_idx = monthly_timesteps[month][end]
+            month_total = sum(normalized_profile[start_idx:end_idx])
             if month_total == 0.0  # avoid division by zero
                 monthly_scalers[month] = 0.0
             else
                 monthly_scalers[month] = monthly_energies[month] / month_total
             end
-            t0 += plus_hours
         end
     end
 
     scaled_load = Float64[]
     used_kwh_per_mmbtu = 1.0  # do not convert electric loads
-    if type in ["domestic_hot_water", "space_heating"]
+    if type in ["domestic_hot_water", "space_heating", "process_heat"]
         # CRB thermal "loads" are in terms of energy input required (boiler fuel), not the actual energy demand.
         # So we multiply the fuel energy by the boiler_efficiency to get the actual energy demand.
         boiler_efficiency = isnothing(boiler_efficiency_input) ? EXISTING_BOILER_EFFICIENCY : boiler_efficiency_input
@@ -144,11 +189,11 @@ function built_in_load(type::String, city::String, buildingtype::String,
     else
         boiler_efficiency = 1.0
     end
-    datetime = DateTime(year, 1, 1, 1)
-    for ld in normalized_profile
-        month = Month(datetime).value
-        push!(scaled_load, ld * annual_energy * monthly_scalers[month] * boiler_efficiency * used_kwh_per_mmbtu)
-        datetime += Dates.Hour(1)
+
+    for (month, timesteps) in enumerate(monthly_timesteps)
+        for t in timesteps
+            push!(scaled_load, normalized_profile[t] * annual_energy * monthly_scalers[month] * time_steps_per_hour * boiler_efficiency * used_kwh_per_mmbtu)
+        end
     end
 
     return scaled_load
@@ -172,10 +217,10 @@ end
 Given `blended_doe_reference_names` and `blended_doe_reference_percents` use the `constructor` function to load in DoE 
     CRB profiles and create a single profile, where `constructor` is one of:
     - BuiltInElectricLoad
-    - BuiltInDomesticHotWaterLoad
-    - BuiltInSpaceHeatingLoad
+    - BuiltInHeatingLoad
     - BuiltInCoolingLoad
 """
+
 function blend_and_scale_doe_profiles(
     constructor,
     latitude::Real,
@@ -187,21 +232,24 @@ function blend_and_scale_doe_profiles(
     annual_energy::Union{Real, Nothing} = nothing,
     monthly_energies::Array{<:Real,1} = Real[],
     addressable_load_fraction::Union{<:Real, AbstractVector{<:Real}} = 1.0,
-    boiler_efficiency_input::Union{Real,Nothing}=nothing
+    boiler_efficiency_input::Union{Real,Nothing}=nothing,
+    heating_load_type::String=""
     )
 
     @assert sum(blended_doe_reference_percents) ≈ 1 "The sum of the blended_doe_reference_percents must equal 1"
-    if year != 2017
-        @debug "Changing ElectricLoad.year to 2017 because DOE reference profiles start on a Sunday."
-    end
-    year = 2017
+    
     if isempty(city)
-        city = find_ashrae_zone_city(latitude, longitude)  # avoid redundant look-ups
+        if heating_load_type === "process_heat"
+            city = "Industrial"
+        else
+            city = find_ashrae_zone_city(latitude, longitude)
+        end
     end
+
     profiles = Array[]  # collect the built in profiles
-    if constructor in [BuiltInSpaceHeatingLoad, BuiltInDomesticHotWaterLoad]
+    if constructor == BuiltInHeatingLoad
         for name in blended_doe_reference_names
-            push!(profiles, constructor(city, name, latitude, longitude, year, addressable_load_fraction, annual_energy, monthly_energies, boiler_efficiency_input))
+            push!(profiles, constructor(heating_load_type, city, name, latitude, longitude, year, addressable_load_fraction, annual_energy, monthly_energies, boiler_efficiency_input))
         end
     else
         for name in blended_doe_reference_names
@@ -228,6 +276,7 @@ function blend_and_scale_doe_profiles(
     end
     sum(profiles)
 end
+
 
 function custom_normalized_flatload(doe_reference_name, year)
     # built in profiles are assumed to be hourly
@@ -282,20 +331,21 @@ Get monthly energy from an hourly load profile.
 """
 function get_monthly_energy(power_profile::AbstractArray{<:Real,1}; 
                             year::Int64=2017)
-    t0 = 1
+    if length(power_profile) != 8760
+        throw(@error("get_monthly_energy can only be used for hourly profiles"))
+    end
+    monthly_timesteps = get_monthly_time_steps(year)
     monthly_energy_total = zeros(12)
     for month in 1:12
-        plus_hours = daysinmonth(Date(string(year) * "-" * string(month))) * 24
-        if month == 2 && isleapyear(year)
-            plus_hours -= 24
-        end
+        start_idx = monthly_timesteps[month][1]
+        end_idx = monthly_timesteps[month][end]
         if !isempty(power_profile)
-            monthly_energy_total[month] = sum(power_profile[t0:t0+plus_hours-1])
+            monthly_energy_total[month] = sum(power_profile[start_idx:end_idx])
         else
             throw(@error("Must provide power_profile"))
         end
-        t0 += plus_hours
     end
 
     return monthly_energy_total
 end
+

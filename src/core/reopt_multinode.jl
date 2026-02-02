@@ -13,11 +13,12 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 	]
 	dvs_idx_on_storagetypes = String[
 		"dvStoragePower",
-		"dvStorageEnergy",
+		"dvStorageEnergy"
 	]
 	dvs_idx_on_storagetypes_time_steps = String[
 		"dvDischargeFromStorage"
 	]
+	
 	for p in ps
 		_n = string("_", p.s.site.node)
 		for dv in dvs_idx_on_techs
@@ -77,6 +78,44 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 			+ sum(p.s.storage.attr[b].net_present_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b] for b in p.s.storage.types.all)
 		)
 
+		if !isempty(p.s.storage.types.elec)
+			for b in p.s.storage.types.elec
+				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+					@warn "Adding binary variable for the battery cost constant. Some solvers are slow with binaries."
+					dv = "binIncludeStorageCostConstant"*_n
+					m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec], base_name=dv, binary=true)
+					break # If one of the elec storages has a battery constant, then do not need to create another binIncludeStorageCostConstraint because by default the binIncludeStorageCostConstraint is index on all elec storage types
+				end
+			end
+
+			for b in p.s.storage.types.elec
+				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+					add_to_expression!(m[Symbol(ex_name)], sum(p.s.storage.attr[b].net_present_cost_cost_constant * m[Symbol("binIncludeStorageCostConstant"*_n)][b] ))
+				end
+			end
+		end
+
+        # Add ElectricStorageCapCost and ElectricStorageOMCost expressions (like in reopt.jl)
+        ex_name = "ElectricStorageCapCost"*_n
+        m[Symbol(ex_name)] = @expression(m, 
+            sum(p.s.storage.attr[b].installed_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b] for b in p.s.storage.types.elec) +
+            sum(p.s.storage.attr[b].installed_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b] for b in p.s.storage.types.elec)
+        )
+        # Add installed_cost_constant if needed
+        if !isempty(p.s.storage.types.elec)
+            for b in p.s.storage.types.elec
+                if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+                    m[Symbol(ex_name)] = m[Symbol(ex_name)] + sum(p.s.storage.attr[b].installed_cost_constant * m[Symbol("binIncludeStorageCostConstant"*_n)][b])
+                end
+            end
+        end
+
+        ex_name_om = "ElectricStorageOMCost"*_n
+        m[Symbol(ex_name_om)] = @expression(m,
+            p.third_party_factor * p.pwf_om *
+            sum(p.s.storage.attr[b].om_cost_fraction_of_installed_cost * m[Symbol("ElectricStorageCapCost"*_n)] for b in p.s.storage.types.elec)
+        )		
+
 		ex_name = "TotalPerUnitSizeOMCosts"*_n
 		m[Symbol(ex_name)] = @expression(m, p.third_party_factor * p.pwf_om * 
 			sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.all ) 
@@ -86,6 +125,12 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		m[Symbol(ex_name)] = 0
 	
 		add_elec_utility_expressions(m, p; _n=_n)
+
+		# Existing HVAC Cost NOT hooked up for multi-node; this is a patch to avoid errors
+		ex_name = "ExistingBoilerCost"*_n
+		m[Symbol(ex_name)] = 0
+		ex_name = "ExistingChillerCost"*_n
+		m[Symbol(ex_name)] = 0
 	
 		#################################  Objective Function   ########################################
 		m[Symbol("Costs"*_n)] = @expression(m,
@@ -120,21 +165,33 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
                             m[Symbol("dvProductionToStorage"*_n)][b, t, ts] == 0)
                 @constraint(m, [ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][b, ts] == 0)
                 @constraint(m, [ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][b, ts] == 0)
+				if b in p.s.storage.types.elec
+					if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+						@constraint(m, m[Symbol("binIncludeStorageCostConstant"*_n)][b] == 0)
+					end
+				end
             else
                 add_storage_size_constraints(m, p, b; _n=_n)
                 add_general_storage_dispatch_constraints(m, p, b; _n=_n)
 				if b in p.s.storage.types.elec
 					add_elec_storage_dispatch_constraints(m, p, b; _n=_n)
+    				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+						add_elec_storage_cost_constant_constraints(m, p, b; _n=_n)
+					end
 				elseif b in p.s.storage.types.hot
 					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				elseif b in p.s.storage.types.cold
 					add_cold_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
+				elseif b in p.s.storage.types.hot
+					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
+				else
+					throw(@error("Invalid storage does not fall in a thermal or electrical set"))
 				end
             end
         end
 
         if any(max_kw->max_kw > 0, (p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec))
-            add_storage_sum_constraints(m, p; _n=_n)
+            add_storage_sum_grid_constraints(m, p; _n=_n)
         end
     
         add_production_constraints(m, p; _n=_n)

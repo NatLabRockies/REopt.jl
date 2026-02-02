@@ -1,0 +1,41 @@
+{   
+    "SpaceHeating":
+    {   
+        "max_ton": 99999999,
+        "installed_cost_per_ton": 2250,
+        "om_cost_per_ton": 40,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "can_supply_steam_turbine": false,
+        "can_serve_process_heat": false,
+        "can_serve_dhw": false, 
+        "can_serve_space_heating": true,
+        "can_serve_cooling": true,
+        "back_up_temp_threshold_degF": 10.0,
+        "sizing_factor": 1.0,
+        "heating_cop_reference": [1.5,2.3,3.3,4.5],
+        "heating_cf_reference": [0.38,0.64,1.0,1.4],
+        "heating_reference_temps_degF": [-5,17,47,80],
+        "cooling_cop_reference": [4.0, 3.5, 2.9, 2.2],
+        "cooling_cf_reference": [1.03, 0.98, 0.93, 0.87],
+        "cooling_reference_temps_degF": [70, 82, 95, 110]
+    },
+    "DomesticHotWater":
+    {   
+        "max_ton": 99999999,
+        "installed_cost_per_ton": 2250,
+        "om_cost_per_ton": 40,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "can_supply_steam_turbine": false,
+        "can_serve_process_heat": false,
+        "can_serve_dhw": true, 
+        "can_serve_space_heating": false,
+        "can_serve_cooling": false,
+        "back_up_temp_threshold_degF": 10.0,
+        "sizing_factor": 1.0,
+        "heating_cop_reference": [1.5,2.3,3.3,4.5],
+        "heating_cf_reference": [0.38,0.64,1.0,1.4],
+        "heating_reference_temps_degF": [-5,17,47,80]
+    }
+}

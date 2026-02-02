@@ -23,6 +23,9 @@
     "SpaceHeatingLoad": {
         "doe_reference_name": "LargeOffice"
     },
+    "ProcessHeatLoad": {
+        "industrial_reference_name": "FlatLoad"
+    },
     "DomesticHotWaterLoad": {
         "doe_reference_name": "LargeOffice"
     },

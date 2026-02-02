@@ -1,6 +1,6 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 using CPLEX
-
+# using GAMS
 
 #=
 add a time-of-export rate that is greater than retail rate for the month of January,

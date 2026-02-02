@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `AbsorptionChiller` is an optional REopt input with the following keys and default values:
@@ -12,7 +12,7 @@
     min_ton::Float64 = 0.0, # Minimum thermal power size constraint for optimization
     max_ton::Float64 = BIG_NUMBER, # Maximum thermal power size constraint for optimization
     cop_thermal::Union{Float64, Nothing} = nothing, # Absorption chiller system coefficient of performance - conversion of hot thermal power input to usable cooling thermal energy output
-    cop_electric::Float64 = 14.1, # Absorption chiller electric consumption CoP from cooling tower heat rejection - conversion of electric power input to usable cooling thermal energy outpu
+    cop_electric::Float64 = 14.1, # Absorption chiller electric consumption CoP from cooling tower heat rejection - conversion of electric power input to usable cooling thermal energy output
     macrs_option_years::Float64 = 0, # MACRS schedule for financial analysis. Set to zero to disable
     macrs_bonus_fraction::Float64 = 0 # Percent of upfront project costs to depreciate under MACRS
     heating_load_input::Union{String, Nothing} = nothing # heating load that serves as input to absorption chiller

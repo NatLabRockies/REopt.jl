@@ -1,0 +1,32 @@
+{
+    "ElectricLoad": {
+        "doe_reference_name": "LargeHotel"
+    },
+    "Site": {
+        "latitude": 33.068653, 
+        "longitude": -116.546593,
+        "land_acres": 1000000,
+        "min_resil_time_steps": 0
+    },
+    "ElectricTariff": {
+        "blended_annual_demand_rate": 10.0,
+        "blended_annual_energy_rate": 0.2
+    },
+    "PV": {
+        "min_kw": 2000,
+        "max_kw": 2000
+    },
+    "ElectricStorage": {
+        "min_kw": 300,
+        "min_kwh": 600,
+        "max_kw": 300,
+        "max_kwh": 600
+    },
+    "ElectricUtility": {
+        "outage_start_time_steps": [12, 3612],
+        "outage_durations": [24]
+    },
+    "Financial": {
+        "value_of_lost_load_per_kwh": 10000
+    }
+}

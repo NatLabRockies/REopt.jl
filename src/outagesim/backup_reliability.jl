@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 transition_prob(start_gen::Vector{Int}, end_gen::Vector{Int}, fail_prob_vec::Vector{<:Real})::Vector{Float64}
@@ -1349,7 +1349,7 @@ end
 Return dictionary of backup reliability results.
 
 # Arguments
-- `d::Dict`: REopt results dictionary. 
+- `d::Dict`: REopt results dictionary. Subhourly time steps are not yet supported.
 - `p::REoptInputs`: REopt Inputs Struct.
 - `r::Dict`: Dictionary of inputs for reliability calculations. If r not included then uses all defaults. 
 Possible keys in r:
@@ -1381,17 +1381,17 @@ Return dictionary of backup reliability results.
 # Arguments
 - `r::Dict`: Dictionary of inputs for reliability calculations. If r not included then uses all defaults. 
 Possible keys in r:
--critical_loads_kw::Array                               Critical loads per time step. (Required input)
+-critical_loads_kw::Array                               Critical loads per time step. Must be hourly and have length of 8760. (Required input)
 -microgrid_only::Bool                                   Boolean to check if only microgrid runs during grid outage (defaults to false)
 -chp_size_kw::Real                                      CHP capacity. 
 -pv_size_kw::Real                                       Size of PV System
--pv_production_factor_series::Array                     PV production factor per time step (required if pv_size_kw in dictionary)
+-pv_production_factor_series::Array                     PV production factor per time step. Must be hourly and have length of 8760. (Required if pv_size_kw in dictionary)
 -pv_migrogrid_upgraded::Bool                            If true then PV runs during outage if microgrid_only = TRUE (defaults to false)
 -battery_size_kw::Real                                  Battery capacity. If no battery installed then PV disconnects from system during outage
 -battery_size_kwh::Real                                 Battery energy storage capacity
 -battery_charge_efficiency::Real                        Battery charge efficiency
 -battery_discharge_efficiency::Real                     Battery discharge efficiency
--battery_starting_soc_series_fraction::Array            Battery percent state of charge time series during normal grid-connected usage
+-battery_starting_soc_series_fraction::Array            Battery percent state of charge time series during normal grid-connected usage. Must be hourly and have length of 8760.
 -generator_failure_to_start::Real = 0.0094              Chance of generator starting given outage
 -generator_mean_time_to_failure::Real = 1100            Average number of time steps between a generator's failures. 1/(failure to run probability). 
 -num_generators::Int = 1                                Number of generators. 

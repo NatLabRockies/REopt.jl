@@ -11,10 +11,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: ['1.8']
+        julia-version: ['1.10']
         julia-arch: [x64]
-        # os: [ubuntu-latest, windows-latest, macOS-11]
-        os: [windows-latest, macOS-11]
+        os: [windows-latest, ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v2
@@ -23,5 +22,5 @@ jobs:
           version: ${{ matrix.julia-version }}
       - uses: julia-actions/julia-buildpkg@latest
       # - uses: mxschmitt/action-tmate@v3  # for interactive debugging
-      - run: julia --project=. -e 'using Pkg; Pkg.activate("test"); Pkg.rm("Xpress"); Pkg.activate("."); using TestEnv; TestEnv.activate(); cd("test"); include("runtests.jl")'
+      - run: julia --project=. -e 'using Pkg; Pkg.activate("test"); Pkg.rm("Xpress"); Pkg.activate("."); using TestEnv; TestEnv.activate(); Pkg.add(PackageSpec(name="GhpGhx", url="https://github.com/NatLabRockies/GhpGhx.jl.git")); using GhpGhx; cd("test"); include("runtests.jl")'
         shell: bash

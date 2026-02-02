@@ -1,0 +1,45 @@
+{
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "ExistingBoiler": {
+        "production_type": "steam",
+        "efficiency": 0.8,
+        "fuel_type": "natural_gas",
+        "fuel_cost_per_mmbtu": 5
+    },
+    "ASHPSpaceHeater": {
+        "min_ton": 0.0,
+        "max_ton": 100000,
+        "installed_cost_per_ton": 4050,
+        "om_cost_per_ton": 0.0,
+		"macrs_option_years": 0,
+		"macrs_bonus_fraction": 0.0,
+        "can_serve_cooling": false,
+        "force_dispatch": false,
+        "back_up_temp_threshold_degF": 10.0
+    },
+    "Financial": {
+        "om_cost_escalation_rate_fraction": 0.025,
+        "elec_cost_escalation_rate_fraction": 0.023,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.034,
+        "boiler_fuel_cost_escalation_rate_fraction": 0.034,
+        "offtaker_tax_rate_fraction": 0.26,
+        "offtaker_discount_rate_fraction": 0.083,
+        "third_party_ownership": false,
+        "owner_tax_rate_fraction": 0.26,
+        "owner_discount_rate_fraction": 0.083,
+        "analysis_years": 25
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_kwh": 87600.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "FlatLoad"
+    }, 
+    "ElectricTariff": {
+        "monthly_energy_rates": [0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1]
+    }
+  }

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 function add_elec_load_balance_constraints(m, p; _n="") 
 
@@ -12,10 +12,10 @@ function add_elec_load_balance_constraints(m, p; _n="")
             sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) 
                 + m[Symbol("dvCurtail"*_n)][t, ts] for t in p.techs.elec)
             + sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec)
-            + sum(m[Symbol("dvCoolingProduction"*_n)][t, ts] / p.cop[t] for t in setdiff(p.techs.cooling,p.techs.ghp))
-            + sum(m[Symbol("dvHeatingProduction"*_n)][t, q, ts] / p.heating_cop[t] for q in p.heating_loads, t in p.techs.electric_heater)
+            + sum(m[Symbol("dvCoolingProduction"*_n)][t, ts] / p.cooling_cop[t][ts] for t in setdiff(p.techs.cooling,p.techs.ghp))
+            + sum(m[Symbol("dvHeatingProduction"*_n)][t, q, ts] / p.heating_cop[t][ts] for q in p.heating_loads, t in p.techs.electric_heater)
             + p.s.electric_load.loads_kw[ts]
-            - p.s.cooling_load.loads_kw_thermal[ts] / p.cop["ExistingChiller"]
+            - p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts]
             + sum(p.ghp_electric_consumption_kw[g,ts] * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options)
             + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.existing_hydropower)
         )
@@ -30,10 +30,10 @@ function add_elec_load_balance_constraints(m, p; _n="")
                 + sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t]) 
                 + m[Symbol("dvCurtail"*_n)][t, ts] for t in p.techs.elec)
             + sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec)
-            + sum(m[Symbol("dvCoolingProduction"*_n)][t, ts] / p.cop[t] for t in setdiff(p.techs.cooling,p.techs.ghp))
-            + sum(m[Symbol("dvHeatingProduction"*_n)][t, q, ts] / p.heating_cop[t] for q in p.heating_loads, t in p.techs.electric_heater)
+            + sum(m[Symbol("dvCoolingProduction"*_n)][t, ts] / p.cooling_cop[t][ts] for t in setdiff(p.techs.cooling,p.techs.ghp))
+            + sum(m[Symbol("dvHeatingProduction"*_n)][t, q, ts] / p.heating_cop[t][ts] for q in p.heating_loads, t in p.techs.electric_heater)
             + p.s.electric_load.loads_kw[ts]
-            - p.s.cooling_load.loads_kw_thermal[ts] / p.cop["ExistingChiller"]
+            - p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts]
             + sum(p.ghp_electric_consumption_kw[g,ts] * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options)
             + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.existing_hydropower)
         )
@@ -136,6 +136,7 @@ function add_thermal_load_constraints(m, p; _n="")
                     + sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot, t in union(p.techs.heating, p.techs.chp))
                     + sum(m[Symbol("dvCoolingProduction"*_n)][t,ts] / p.thermal_cop[t] for t in p.absorption_chillers_using_heating_load[q])
                     + sum(m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] for t in p.techs.can_supply_steam_turbine)
+                    + sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot)
                 )
             else
                 @constraint(m, HeatLoadBalanceCon[q in p.heating_loads, ts in p.time_steps_with_grid],

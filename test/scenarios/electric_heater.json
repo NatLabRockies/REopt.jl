@@ -1,7 +1,7 @@
 {
     "Site": {
-        "latitude": 37.78,
-        "longitude": -122.45
+    "latitude": 37.78,
+    "longitude": -122.45
     },
     "ExistingBoiler": {
         "production_type": "steam",
@@ -18,8 +18,8 @@
         "cop": 1.0,
         "installed_cost_per_mmbtu_per_hour": 115686,
         "om_cost_per_mmbtu_per_hour": 0.0,
-		"macrs_option_years": 0,
-		"macrs_bonus_fraction": 0.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
         "can_supply_steam_turbine": false,
         "can_serve_dhw": true,
         "can_serve_space_heating": true,
@@ -41,6 +41,9 @@
         "doe_reference_name": "FlatLoad",
         "annual_kwh": 87600.0
     },
+    "ProcessHeatLoad": {
+        "industrial_reference_name": "FlatLoad"
+    },
     "SpaceHeatingLoad": {
         "doe_reference_name": "FlatLoad"
     },
@@ -50,7 +53,12 @@
     "ElectricTariff": {
         "monthly_energy_rates": [0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1]
     },
-	"HotThermalStorage":{
-        "max_gal":2500
+    "HotThermalStorage":{
+        "min_gal":2500,
+        "max_gal":2500,
+        "can_serve_dhw":true,
+        "can_serve_space_heating":true,
+        "can_serve_process_heat":false,
+        "thermal_decay_rate_fraction": 0.0
     }
-  }
+}

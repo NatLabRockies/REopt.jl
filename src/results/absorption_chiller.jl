@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `AbsorptionChiller` results keys:
 - `size_kw` # Optimal power capacity size of the absorption chiller system [kW]
@@ -44,10 +44,10 @@ function add_absorption_chiller_results(m::JuMP.AbstractModel, p::REoptInputs, d
 			for t in p.techs.absorption_chiller, ts in p.time_steps))
 	r["annual_thermal_production_tonhour"] = round(value(Year1ABSORPCHLThermalProdKWH) / KWH_THERMAL_PER_TONHOUR, digits=5)
     @expression(m, ABSORPCHLElectricConsumptionSeries[ts in p.time_steps],
-        sum(m[:dvCoolingProduction][t,ts] / p.cop[t] for t in p.techs.absorption_chiller) )
+        sum(m[:dvCoolingProduction][t,ts] / p.cooling_cop[t][ts] for t in p.techs.absorption_chiller) )
     r["electric_consumption_series_kw"] = round.(value.(ABSORPCHLElectricConsumptionSeries), digits=3)
     @expression(m, Year1ABSORPCHLElectricConsumption,
-        p.hours_per_time_step * sum(m[:dvCoolingProduction][t,ts] / p.cop[t] 
+        p.hours_per_time_step * sum(m[:dvCoolingProduction][t,ts] / p.cooling_cop[t][ts] 
             for t in p.techs.absorption_chiller, ts in p.time_steps))
     r["annual_electric_consumption_kwh"] = round(value(Year1ABSORPCHLElectricConsumption), digits=3)
     

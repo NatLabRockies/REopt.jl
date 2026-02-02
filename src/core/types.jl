@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 abstract type AbstractTech end
 abstract type AbstractStorage end
 abstract type AbstractFuelBurningTech <: AbstractTech end
@@ -41,12 +41,14 @@ mutable struct Techs
     absorption_chiller::Vector{String}
     steam_turbine::Vector{String}
     can_supply_steam_turbine::Vector{String}
-    electric_heater::Vector{String}
-    existing_hydropower::Vector{String}    
-    can_serve_dhw::Vector{String}
+    electric_heater::Vector{String}    
     can_serve_space_heating::Vector{String}
+    can_serve_dhw::Vector{String}
     can_serve_process_heat::Vector{String}
-    ghp_techs::Vector{String}
+    ghp::Vector{String}
+    ashp::Vector{String}
+    ashp_wh::Vector{String}
+    existing_hydropower::Vector{String} 
 end
 ```
 """
@@ -72,9 +74,11 @@ mutable struct Techs
     steam_turbine::Vector{String}
     can_supply_steam_turbine::Vector{String}
     electric_heater::Vector{String}
-    can_serve_dhw::Vector{String}
     can_serve_space_heating::Vector{String}
+    can_serve_dhw::Vector{String}
     can_serve_process_heat::Vector{String}
     ghp::Vector{String}
     existing_hydropower::Vector{String}
+    ashp::Vector{String}
+    ashp_wh::Vector{String}
 end

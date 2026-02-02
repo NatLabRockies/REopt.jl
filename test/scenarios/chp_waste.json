@@ -1,0 +1,184 @@
+{
+    "user_uuid": "1d2ef71e-fd93-4c4a-b5c3-1485a87f772e",
+    "webtool_uuid": "73518b4b-2836-4a44-9852-a4889c33b76a",
+    "Settings": {
+        "solver_name": "HiGHS",
+        "off_grid_flag": false,
+        "include_climate_in_objective": false,
+        "include_health_in_objective": false
+    },
+    "Meta": {
+        "address": "800 Hoffman Rd Watertown WI 53094 USA"
+    },
+    "Site": {
+        "latitude": 43.1752702,
+        "longitude": -88.7344012,
+        "include_exported_renewable_electricity_in_total": true,
+        "include_exported_elec_emissions_in_total": true,
+        "land_acres": 16.33,
+        "roof_squarefeet": 0
+    },
+    "ElectricLoad": {
+        "monthly_totals_kwh": [
+            217080.0,
+            209585.0,
+            225612.0,
+            225612.0,
+            248200.0,
+            242739.0,
+            240361.0,
+            279924.0,
+            254856.0,
+            217403.0,
+            177556.0,
+            222634.0
+        ],
+        "doe_reference_name": "FlatLoad"
+    },
+    "ElectricTariff": {
+        "monthly_energy_rates": [
+            0.098,
+            0.11,
+            0.119,
+            0.107,
+            0.112,
+            0.116,
+            0.124,
+            0.116,
+            0.118,
+            0.116,
+            0.107,
+            0.101
+        ],
+        "monthly_demand_rates": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    "Generator": {
+        "max_kw": 0,
+        "existing_kw": 0
+    },
+    "CHP": {
+        "can_net_meter": true,
+        "prime_mover": "recip_engine",
+        "size_class": 2,
+        "fuel_type": "natural_gas",
+        "electric_efficiency_full_load": 0.34,
+        "electric_efficiency_half_load": 0.34,
+        "macrs_option_years": 5,
+        "macrs_bonus_fraction": 0.6,
+        "can_wholesale": false,
+        "fuel_cost_per_mmbtu": [
+            6.26,
+            8.36,
+            8.35,
+            4.61,
+            4.66,
+            5.22,
+            5.83,
+            5.37,
+            4.69,
+            4.65,
+            5.07,
+            6.04
+        ],
+        "federal_itc_fraction": 0.3
+    },
+    "DomesticHotWaterLoad": {
+        "monthly_mmbtu": [
+            135.097,
+            117.915,
+            96.579,
+            57.283,
+            15.684,
+            14.794,
+            19.994,
+            28.147,
+            37.784,
+            46.926,
+            147.828,
+            162.636
+        ],
+        "addressable_load_fraction": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "doe_reference_name": "FlatLoad"
+    },
+    "SpaceHeatingLoad": {
+        "monthly_mmbtu": [
+            821.003,
+            716.585,
+            586.921,
+            348.117,
+            95.316,
+            89.906,
+            121.506,
+            171.053,
+            229.616,
+            285.174,
+            898.372,
+            988.364
+        ],
+        "addressable_load_fraction": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "doe_reference_name": "FlatLoad"
+    },
+    "ExistingBoiler": {
+        "fuel_type": "natural_gas",
+        "fuel_cost_per_mmbtu": [
+            6.26,
+            8.36,
+            8.35,
+            4.61,
+            4.66,
+            5.22,
+            5.83,
+            5.37,
+            4.69,
+            4.65,
+            5.07,
+            6.04
+        ]
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.017,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "chp_fuel_cost_escalation_rate_fraction": 0.015,
+        "offtaker_discount_rate_fraction": 0.0624
+    }
+}
