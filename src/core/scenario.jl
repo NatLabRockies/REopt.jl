@@ -83,7 +83,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
 
     # Check that only PV, electric storage, and generator are modeled for off-grid
     if settings.off_grid_flag
-        offgrid_allowed_keys = ["PV", "Wind", "ElectricStorage", "Generator", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
+        offgrid_allowed_keys = ["PV", "Wind", "ElectricStorage", "Generator", "CHP", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
         unallowed_keys = setdiff(keys(d), offgrid_allowed_keys) 
         if !isempty(unallowed_keys)
             throw(@error("The following key(s) are not permitted when `off_grid_flag` is true: $unallowed_keys."))
@@ -420,13 +420,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         electric_load_series_kw = electric_load.loads_kw,
                         year = electric_load.year,
                         sector = site.sector,
-                        federal_procurement_type = site.federal_procurement_type)
+                        federal_procurement_type = site.federal_procurement_type,
+                        off_grid_flag = settings.off_grid_flag)
             else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
-                chp = CHP(chp_dict,
+                chp = CHP(chp_dict;
                         electric_load_series_kw = electric_load.loads_kw,
                         year = electric_load.year,
                         sector = site.sector,
-                        federal_procurement_type = site.federal_procurement_type)
+                        federal_procurement_type = site.federal_procurement_type,
+                        off_grid_flag = settings.off_grid_flag)
             end
             push!(chps, chp)
         end
