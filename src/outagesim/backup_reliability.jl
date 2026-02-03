@@ -30,7 +30,7 @@ function transition_prob(start_gen::Vector, end_gen::Vector, fail_prob_vec::Vect
     start_gen_matrix = hcat(collect.(start_gen)...)
     end_gen_matrix = hcat(collect.(end_gen)...)
 
-    transitions =  [binomial.(start_gen_matrix[i, :], end_gen_matrix[i, :]).*(1-fail_prob_vec[i]).^(end_gen_matrix[i, :]).*(fail_prob_vec[i]).^(start_gen_matrix[i, :].-end_gen_matrix[i, :]) for i in eachindex(fail_prob_vec)]
+    transitions =  [binomial.(big.(start_gen_matrix[i, :]), end_gen_matrix[i, :]).*(1-fail_prob_vec[i]).^(end_gen_matrix[i, :]).*(fail_prob_vec[i]).^(start_gen_matrix[i, :].-end_gen_matrix[i, :]) for i in eachindex(fail_prob_vec)]
     return .*(transitions...)
 end
 
