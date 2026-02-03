@@ -1338,7 +1338,9 @@ function process_reliability_results(cumulative_results::Matrix, fuel_survival::
         "monthly_lower_quartile_cumulative_survival_final_time_step" => calc_monthly_quartiles ? total_cumulative_final_resilience_monthly[:,2] : [],
         "monthly_median_cumulative_survival_final_time_step" => calc_monthly_quartiles ? total_cumulative_final_resilience_monthly[:,3] : [],
         "monthly_upper_quartile_cumulative_survival_final_time_step" => calc_monthly_quartiles ? total_cumulative_final_resilience_monthly[:,4] : [],
-        "monthly_max_cumulative_survival_final_time_step" => calc_monthly_quartiles ? total_cumulative_final_resilience_monthly[:,5] : []
+        "monthly_max_cumulative_survival_final_time_step" => calc_monthly_quartiles ? total_cumulative_final_resilience_monthly[:,5] : [],
+    
+        "fuel_usage_for_max_duration_outage_at_each_start_time_step" => fuel_used
     )
 end
 
@@ -1403,6 +1405,7 @@ Possible keys in r:
 function backup_reliability(r::Dict)
     reliability_inputs = backup_reliability_inputs(r=r)
 	cumulative_results, fuel_survival, fuel_used = return_backup_reliability(; reliability_inputs... )
+    print("fuel used is: $(fuel_used)")
 	process_reliability_results(cumulative_results, fuel_survival, fuel_used)
 end
 
