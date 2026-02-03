@@ -6,4 +6,4 @@ using REopt, JuMP, Cbc
 model = Model(Cbc.Optimizer)
 results = run_mpc(model, "./test/scenarios/mpc.json")
 ```
-See [mpc.json](https://github.com/NREL/REopt/blob/master/test/scenarios/mpc.json) for details on the Scenario.
+See [mpc.json](https://github.com/NatLabRockies/REopt/blob/master/test/scenarios/mpc.json) for details on the Scenario.

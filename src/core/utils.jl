@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function time_step_wrap_around(time_step::Int; time_steps_per_hour::Int=1)::Int
     time_steps_per_year = 8760 * time_steps_per_hour
     ((time_step - 1) % time_steps_per_year) + 1
@@ -656,17 +656,17 @@ end
 
 function check_api_key()
     if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
-        throw(@error("No NREL Developer API Key provided when trying to call PVWatts or Wind Toolkit.
+        throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
                     Within your Julia environment, specify ENV['NREL_DEVELOPER_API_KEY']='your API key'
-                    See https://nrel.github.io/REopt.jl/dev/ for more information."))
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
     end
 end
 
 function check_api_email()
     if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
-        throw(@error("No NREL Developer API Email provided when trying to call PVWatts or Wind Toolkit.
+        throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
                     Within your Julia environment, specify ENV['NREL_DEVELOPER_EMAIL']='your contact email'
-                    See https://nrel.github.io/REopt.jl/dev/ for more information."))
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
     end
 end
 
@@ -747,60 +747,65 @@ end
 function get_NIST_EERC_rate_region(state::String)
     state_abbr = state_name_to_abbr(state)
     abbr_to_region = Dict{String,String}(
-        "WA" => "West",
-        "OR" => "West",
-        "CA" => "West",
-        "AK" => "West",
-        "HI" => "West",
-        "NV" => "West",
-        "ID" => "West",
-        "UT" => "West",
-        "AZ" => "West",
-        "MT" => "West",
-        "WY" => "West",
-        "CO" => "West",
-        "NM" => "West",
+        "WA" => "Pacific",
+        "OR" => "Pacific",
+        "CA" => "Pacific",
+        "AK" => "Pacific",
+        "HI" => "Pacific",
 
-        "ND" => "Midwest",
-        "SD" => "Midwest",
-        "NE" => "Midwest",
-        "KS" => "Midwest",
-        "MN" => "Midwest",
-        "IA" => "Midwest",
-        "MO" => "Midwest",
-        "WI" => "Midwest",
-        "IL" => "Midwest",
-        "IN" => "Midwest",
-        "OH" => "Midwest",
-        "MI" => "Midwest",
+        "NV" => "Mountain",
+        "ID" => "Mountain",
+        "UT" => "Mountain",
+        "AZ" => "Mountain",
+        "MT" => "Mountain",
+        "WY" => "Mountain",
+        "CO" => "Mountain",
+        "NM" => "Mountain",
 
-        "LA" => "South",
-        "TX" => "South",
-        "OK" => "South",
-        "AR" => "South",
-        "KY" => "South",
-        "TN" => "South",
-        "AL" => "South",
-        "MS" => "South",
-        "NC" => "South",
-        "SC" => "South",
-        "GA" => "South",
-        "FL" => "South",
-        "WV" => "South",
-        "VA" => "South",
-        "MD" => "South",
-        "DE" => "South",
-        "DC" => "South",
+        "ND" => "West North Central",
+        "SD" => "West North Central",
+        "NE" => "West North Central",
+        "KS" => "West North Central",
+        "MN" => "West North Central",
+        "IA" => "West North Central",
+        "MO" => "West North Central",
 
-        "NJ" => "Northeast",
-        "NY" => "Northeast",
-        "PA" => "Northeast",
-        "CT" => "Northeast",
-        "RI" => "Northeast",
-        "MA" => "Northeast",
-        "NH" => "Northeast",
-        "ME" => "Northeast",
-        "VT" => "Northeast"
+        "WI" => "East North Central",
+        "IL" => "East North Central",
+        "IN" => "East North Central",
+        "OH" => "East North Central",
+        "MI" => "East North Central",
+
+        "LA" => "West South Central",
+        "TX" => "West South Central",
+        "OK" => "West South Central",
+        "AR" => "West South Central",
+
+        "KY" => "East South Central",
+        "TN" => "East South Central",
+        "AL" => "East South Central",
+        "MS" => "East South Central",
+
+        "NC" => "South Atlantic",
+        "SC" => "South Atlantic",
+        "GA" => "South Atlantic",
+        "FL" => "South Atlantic",
+        "WV" => "South Atlantic",
+        "VA" => "South Atlantic",
+        "MD" => "South Atlantic",
+        "DE" => "South Atlantic",
+        "DC" => "South Atlantic",
+
+        "NJ" => "Middle Atlantic",
+        "NY" => "Middle Atlantic",
+        "PA" => "Middle Atlantic",
+
+        "CT" => "New England",
+        "RI" => "New England",
+        "MA" => "New England",
+        "NH" => "New England",
+        "ME" => "New England",
+        "VT" => "New England"
     )
     return get(abbr_to_region, state_abbr, "")
 end

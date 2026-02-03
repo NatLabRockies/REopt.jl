@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricUtility` is an optional REopt input with the following keys and default values:
 ```julia
@@ -25,7 +25,7 @@
     cambium_grid_level::String = "enduse", # Options: ["enduse", "busbar"]. Busbar refers to point where bulk generating stations connect to grid; enduse refers to point of consumption (includes distribution loss rate). 
 
     ### Grid Climate Emissions Inputs ### 
-    # Climate Option 1 (Default): Use levelized emissions data from NREL's Cambium database by specifying the following fields:
+    # Climate Option 1 (Default): Use levelized emissions data from NLR's Cambium database by specifying the following fields:
     cambium_co2_metric::String = "lrmer_co2e", # Emissions metric used. Default: "lrmer_co2e" - Long-run marginal emissions rate for CO2-equivalant, combined combustion and pre-combustion emissions rates. Options: See metric definitions and names in the Cambium documentation
 
     # Climate Option 2: Use CO2 emissions data from the EPA's AVERT based on the AVERT emissions region and specify annual percent decrease
@@ -90,7 +90,7 @@
 
     **Climate Emissions**
     - For sites in the contiguous United States (CONUS): 
-        - Default climate-related emissions factors come from NREL's Cambium database (Current version: 2022)
+        - Default climate-related emissions factors come from NLR's Cambium database (Current version: 2022)
             - By default, REopt uses *levelized long-run marginal emission rates for CO2-equivalent (CO2e) emissions* for the region in which the site is located. 
                 By default, the emissions rates are levelized over the analysis period (e.g., from 2025 through 2049 for a 25-year analysis)
             - The inputs to the Cambium API request can be modified by the user based on emissions accounting needs (e.g., can change "lifetime" to 1 to analyze a single year's emissions)
@@ -109,7 +109,7 @@
 
     **Grid Clean Energy Fraction**
     - For sites in CONUS: 
-        - Default clean energy fraction data comes from NREL's Cambium database (Current version: 2022)
+        - Default clean energy fraction data comes from NLR's Cambium database (Current version: 2022)
             - By default, REopt uses *clean energy fraction* for the region in which the site is located.
     - For sites outside of CONUS: REopt does not have default grid clean energy fraction data. Users must supply a custom `renewable_energy_fraction_series`
 
