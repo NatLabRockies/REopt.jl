@@ -50,6 +50,14 @@ function add_elec_load_balance_constraints(m, p; _n="")
                 + m[Symbol("dvCurtail"*_n)][t, ts] for t in p.techs.elec)
             + p.s.electric_load.critical_loads_kw[ts]
         )
+            """
+            TODO: Do the following, unless a custom critical load series is uploaded?: 
+            + sum(m[Symbol("dvCoolingProduction"*_n)][t, ts] / p.cooling_cop[t][ts] for t in setdiff(p.techs.cooling,p.techs.ghp)) * critical_load_fraction
+            + sum(m[Symbol("dvHeatingProduction"*_n)][t, q, ts] / p.heating_cop[t][ts] for q in p.heating_loads, t in p.techs.electric_heater) * critical_load_fraction
+            + p.s.electric_load.loads_kw[ts] * critical_load_fraction
+            - p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts] * critical_load_fraction
+            + sum(p.ghp_electric_consumption_kw[g,ts] * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options) * critical_load_fraction
+            """
     else # load balancing constraint for off-grid runs 
         @constraint(m, [ts in p.time_steps_without_grid],
             sum(p.production_factor[t,ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t,ts] for t in p.techs.elec)
