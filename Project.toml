@@ -1,7 +1,7 @@
 name = "REopt"
 uuid = "d36ad4e8-d74a-4f7a-ace1-eaea049febf6"
 authors = ["Nick Laws", "Hallie Dunham <hallie.dunham@nrel.gov>", "Bill Becker <william.becker@nrel.gov>", "Bhavesh Rathod <bhavesh.rathod@nrel.gov>", "Alex Zolan <alexander.zolan@nrel.gov>", "Amanda Farthing <amanda.farthing@nrel.gov>", "Xiangkun Li <xiangkun.li@nrel.gov>", "An Pham <an.pham@nrel.gov>", "Byron Pullutasig <byron.pullatasig@nrel.gov>"]
-version = "0.56.3"
+version = "0.56.4"
 
 [deps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"

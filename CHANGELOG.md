@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
-- Use `code` markup for  REopt-specific file names, classes and endpoints (e.g. `src/REopt.jl`)
+- Use `code` markup for  REopt-specific file names, functions, and endpoints (e.g. `src/REopt.jl`)
 - Use _italic_ for code terms (i.e. _list_)
 - Prepend change with tag(s) directing where it is in the repository:  
 `src`,`constraints`,`*.jl`
@@ -24,6 +24,20 @@ Classify the change according to the following categories:
     ### Fixed
     ### Deprecated
     ### Removed
+
+## Develop 
+### Fixed
+- Include boiler emissions in emissions calculations
+- Update links that broke with NLR domain change and update other references to NREL
+### Changed
+- Updated defaults for **Financial** inputs **elec_cost_escalation_rate_fraction**, **boiler_fuel_cost_escalation_rate_fraction**, **existing_boiler_fuel_cost_escalation_rate_fraction**, **chp_fuel_cost_escalation_rate_fraction**, **generator_fuel_cost_escalation_rate_fraction**, **om_cost_escalation_rate_fraction**, and **offtaker_discount_rate_fraction** when **sector** is "federal" (based on the 2025 NIST Handbook and Annual Supplement)
+
+## v0.56.4
+### Fixed
+- Bug where storage input with only _Int_ values restricted _Dict_ subtype passed into `set_sector_defaults!` and caused _InexactError_
+- Bug where **ElectricStorage** input with only _Real_ values restricted _Dict_ subtype, causing **off_grid_flag** to be added as an _Int_ instead of _Bool_, leading to a conversion error in **ElectricStorageDefaults**
+- Fixed a bug in the type handling of **emissions_factor_series_lb_XXX_per_kwh** in which `xxx` is in the group **[CO2, SO2, NOx, PM25]**.
+- Handle "HIMS" region incorrectly named "HI" in avert_102008.shp
 
 ## v0.56.3
 ### Fixed

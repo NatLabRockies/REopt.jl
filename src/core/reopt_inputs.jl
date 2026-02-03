@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     REoptInputs
 
@@ -421,7 +421,8 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
 
     if "Boiler" in techs.all
         setup_boiler_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-            tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+            tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+            om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     end
 
     if !isempty(techs.chp)
@@ -750,18 +751,24 @@ end
 
 """
     function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, 
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for (new) boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
 function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     max_sizes["Boiler"] = s.boiler.max_kw
     min_sizes["Boiler"] = s.boiler.min_kw
     existing_sizes["Boiler"] = 0.0
     boiler_efficiency["Boiler"] = s.boiler.efficiency
     tech_renewable_energy_fraction["Boiler"] = s.boiler.fuel_renewable_energy_fraction
+    tech_emissions_factors_CO2["Boiler"] = s.boiler.emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU  # lb/mmtbu * mmtbu/kWh
+    tech_emissions_factors_NOx["Boiler"] = s.boiler.emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_SO2["Boiler"] = s.boiler.emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_PM25["Boiler"] = s.boiler.emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU 
     
     # The Boiler only has a MACRS benefit, no ITC etc.
     if s.boiler.macrs_option_years in [5, 7]
