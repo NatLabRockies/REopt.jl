@@ -404,7 +404,7 @@ else  # run HiGHS tests
             @warn "Could not delete test/Highs.log"
         end
 
-        @testset "AVERT region abberviations" begin
+        @testset "AVERT region abbreviations" begin
             """
             This test checks 5 scenarios (in order)
             1. Coordinate pair inside an AVERT polygon
@@ -3828,6 +3828,283 @@ else  # run HiGHS tests
             finalize(backend(m1))
             empty!(m1)
             GC.gc()
+        end
+
+        @testset verbose=true "Hydrogen Technologies" begin
+
+            @testset "Component Sizing" begin
+
+                # Sizing electrolyzer, compressor, and hydrogen storage for a hydrogen load
+                d = JSON.parsefile("./scenarios/hydrogen_techs.json")
+                flat_h2_load_kg = 100.0
+                flat_elec_load_kw = 500.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+                
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                @test results["Electrolyzer"]["size_kw"] ≈ flat_h2_load_kg * d["Electrolyzer"]["efficiency_kwh_per_kg"] atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ flat_h2_load_kg * d["Compressor"]["efficiency_kwh_per_kg"] atol=1e-3
+                # TO-DO: This is currently 2x the load - what should it be?
+                @test results["HydrogenStorage"]["size_kg"] ≈ 2 * flat_h2_load_kg atol=1e-3
+
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"]) atol=1e-3
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["Electrolyzer"]["electricity_consumed_series_kw"]) atol=1e-3
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["Electrolyzer"]["electricity_from_grid_series_kw"]) atol=1e-3
+
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_compressor_series_kw"]) atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["Compressor"]["electricity_consumed_series_kw"]) atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["Compressor"]["electricity_from_grid_series_kw"]) atol=1e-3
+
+                # TO-DO: This might depend on the TO-DO above??
+                @test results["HydrogenStorage"]["size_kg"] >= maximum(results["HydrogenStorage"]["storage_to_hydrogen_load_series_kg"])
+
+                # Add PV to hydrogen load only scenario
+                d["PV"] = Dict{String, Any}()
+
+                # TO-DO: Are the million warnings an issue? How to suppress or fix?
+                with_logger(NullLogger()) do
+                    s = Scenario(d)
+                    inputs = REoptInputs(s)
+                    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                    results = run_reopt(m, inputs)
+                end
+
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"] +
+                                                                   results["PV"]["electric_to_electrolyzer_series_kw"])  atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_compressor_series_kw"] +
+                                                                 results["PV"]["electric_to_compressor_series_kw"])  atol=1e-3
+
+                # Sizing electrolyzer, compressor, hydrogen storage, and fuel cell for the electric load during a grid outage (no h2 load)
+                d = JSON.parsefile("./scenarios/fuel_cell_with_outage.json")
+                flat_elec_load_kw = 500.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                @test results["FuelCell"]["size_kw"] ≈ flat_elec_load_kw atol=1e-3
+
+                total_h2_required_kg = (flat_elec_load_kw * 5) / d["FuelCell"]["efficiency_kwh_per_kg"]
+                @test results["HydrogenStorage"]["size_kg"] ≈ total_h2_required_kg atol=1e-3
+                @test results["Electrolyzer"]["size_kw"] ≈ total_h2_required_kg * d["Electrolyzer"]["efficiency_kwh_per_kg"] atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ total_h2_required_kg * d["Compressor"]["efficiency_kwh_per_kg"] atol=1e-3
+
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"]) atol=1e-3
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["Electrolyzer"]["electricity_consumed_series_kw"]) atol=1e-3
+                @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["Electrolyzer"]["electricity_from_grid_series_kw"]) atol=1e-3
+
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_compressor_series_kw"]) atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["Compressor"]["electricity_consumed_series_kw"]) atol=1e-3
+                @test results["Compressor"]["size_kw"] ≈ maximum(results["Compressor"]["electricity_from_grid_series_kw"]) atol=1e-3
+
+                @test results["FuelCell"]["size_kw"] ≈ maximum(results["FuelCell"]["electric_to_load_series_kw"]) atol=1e-3
+                @test sum(results["FuelCell"]["electric_to_storage_series_kw"]) + sum(results["FuelCell"]["electric_to_grid_series_kw"]) + 
+                      sum(results["FuelCell"]["electric_curtailed_series_kw"]) ≈ 0 atol=1e-3
+            end
+
+            @testset "Capital Costs and O&M" begin
+                d = JSON.parsefile("./scenarios/hydrogen_techs_fixed_sizes.json")
+                
+                flat_h2_load_kg = 100.0
+                flat_elec_load_kw = 500.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+                
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                calculated_capital_costs = results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["installed_cost_per_kw"] + 
+                                           results["Compressor"]["size_kw"] * d["Compressor"]["installed_cost_per_kw"] + 
+                                           results["HydrogenStorage"]["size_kg"] * d["HydrogenStorage"]["installed_cost_per_kg"] + 
+                                           results["FuelCell"]["size_kw"] * d["FuelCell"]["installed_cost_per_kw"]
+
+                generation_tech_capital_costs = results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["installed_cost_per_kw"] + 
+                                                results["Compressor"]["size_kw"] * d["Compressor"]["installed_cost_per_kw"] + 
+                                                results["FuelCell"]["size_kw"] * d["FuelCell"]["installed_cost_per_kw"]
+
+                electrolyzer_capital_costs = results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["installed_cost_per_kw"] 
+                compressor_capital_costs = results["Compressor"]["size_kw"] * d["Compressor"]["installed_cost_per_kw"]
+                storage_capital_costs = results["HydrogenStorage"]["size_kg"] * d["HydrogenStorage"]["installed_cost_per_kg"]
+                fuel_cell_capital_costs = results["FuelCell"]["size_kw"] * d["FuelCell"]["installed_cost_per_kw"]
+
+                y1_om_cost_per_kw = results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["om_cost_per_kw"] + 
+                                    results["Compressor"]["size_kw"] * d["Compressor"]["om_cost_per_kw"] + 
+                                    results["FuelCell"]["size_kw"] * d["FuelCell"]["om_cost_per_kw"]
+                    
+                y1_om_cost_per_kwh = sum(results["Electrolyzer"]["electricity_consumed_series_kw"]) * d["Electrolyzer"]["om_cost_per_kwh"] + 
+                                     sum(results["Compressor"]["electricity_consumed_series_kw"]) * d["Compressor"]["om_cost_per_kwh"] + 
+                                     sum(results["FuelCell"]["hydrogen_consumed_series_kg"]) * d["FuelCell"]["efficiency_kwh_per_kg"] * d["FuelCell"]["om_cost_per_kwh"]
+
+                total_y1_om_costs = y1_om_cost_per_kw + y1_om_cost_per_kwh
+                lcc_om_costs = total_y1_om_costs * 25
+
+                y1_total_operating_costs = total_y1_om_costs + (results["Financial"]["lifecycle_elecbill_after_tax"] / 25)
+
+                # TO-DO: intial_capital_costs is currently outputting zero
+                @test calculated_capital_costs ≈ results["Financial"]["initial_capital_costs"] atol=1e-3
+                @test calculated_capital_costs ≈ results["Financial"]["initial_capital_costs_after_incentives"] atol=1e-3
+                @test calculated_capital_costs ≈ results["Financial"]["lifecycle_capital_costs"]
+                @test generation_tech_capital_costs ≈ results["Financial"]["lifecycle_generation_tech_capital_costs"] atol=1e-3
+                @test storage_capital_costs ≈ results["Financial"]["lifecycle_storage_capital_costs"] atol=1e-3
+
+                @test total_y1_om_costs ≈ results["Financial"]["year_one_om_costs_before_tax"] atol=0.1
+                @test total_y1_om_costs ≈ results["Financial"]["year_one_om_costs_after_tax"] atol=0.1
+                @test y1_total_operating_costs ≈ results["Financial"]["year_one_total_operating_cost_before_tax"] atol=0.1
+                @test y1_total_operating_costs ≈ results["Financial"]["year_one_total_operating_cost_after_tax"] atol=0.1
+                
+                @test lcc_om_costs ≈ results["Financial"]["lifecycle_om_costs_before_tax"] atol=0.5
+                @test lcc_om_costs ≈ results["Financial"]["lifecycle_om_costs_after_tax"] atol=0.5
+                @test lcc_om_costs ≈ results["Financial"]["om_and_replacement_present_cost_after_tax"] atol=0.5
+
+                @test calculated_capital_costs + lcc_om_costs ≈ results["Financial"]["lifecycle_capital_costs_plus_om_after_tax"] atol=0.5
+                @test calculated_capital_costs + lcc_om_costs + results["Financial"]["lifecycle_elecbill_after_tax"] ≈ results["Financial"]["lcc"] atol=0.5
+                
+                # TO-DO: Only FuelCell has cost outputs and only for fixed O&M - should we standardize?
+                @test results["FuelCell"]["size_kw"] * d["FuelCell"]["om_cost_per_kw"] ≈ results["FuelCell"]["year_one_fixed_om_cost_before_tax"] atol=1e-3
+                @test results["FuelCell"]["size_kw"] * d["FuelCell"]["om_cost_per_kw"] * 25 ≈ results["FuelCell"]["lifecycle_fixed_om_cost_after_tax"] atol=1e-3
+            end
+
+            @testset "Technology Production" begin
+                d = JSON.parsefile("./scenarios/hydrogen_techs_fixed_sizes.json")
+                
+                flat_h2_load_kg = 100.0
+                flat_elec_load_kw = 500.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+                d["PV"] = Dict{String, Any}()
+
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                @test sum(results["PV"]["electric_to_electrolyzer_series_kw"]) + 
+                      sum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"]) ≈ sum(results["Electrolyzer"]["electricity_consumed_series_kw"]) atol=10
+                @test sum(results["Electrolyzer"]["electricity_consumed_series_kw"]) ≈ sum(results["Electrolyzer"]["hydrogen_produced_series_kg"]) * 
+                                                                                       d["Electrolyzer"]["efficiency_kwh_per_kg"] atol=10
+                @test sum(results["PV"]["electric_to_compressor_series_kw"]) + 
+                      sum(results["ElectricUtility"]["electric_to_compressor_series_kw"]) ≈ sum(results["Compressor"]["electricity_consumed_series_kw"]) atol=10
+                @test sum(results["Compressor"]["electricity_consumed_series_kw"]) ≈ sum(results["Compressor"]["hydrogen_compressed_series_kg"]) * 
+                                                                                     d["Compressor"]["efficiency_kwh_per_kg"] atol=10
+                @test sum(results["Electrolyzer"]["hydrogen_produced_series_kg"]) ≈ sum(results["HydrogenStorage"]["storage_to_hydrogen_load_series_kg"]) atol=1
+                @test sum(results["Compressor"]["hydrogen_compressed_series_kg"]) ≈ sum(results["HydrogenStorage"]["storage_to_hydrogen_load_series_kg"]) atol=1
+                @test sum(results["FuelCell"]["electric_to_load_series_kw"]) ≈ sum(results["FuelCell"]["hydrogen_consumed_series_kg"]) * d["FuelCell"]["efficiency_kwh_per_kg"] atol=1
+
+                d = JSON.parsefile("./scenarios/fuel_cell_with_outage.json")
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["PV"] = Dict{String, Any}()
+
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                @test sum(results["FuelCell"]["electric_to_load_series_kw"]) ≈ sum(results["FuelCell"]["hydrogen_consumed_series_kg"]) * d["FuelCell"]["efficiency_kwh_per_kg"] atol=10
+                @test (sum(results["PV"]["electric_to_electrolyzer_series_kw"]) + sum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"])) / 
+                      d["Electrolyzer"]["efficiency_kwh_per_kg"] ≈ sum(results["FuelCell"]["hydrogen_consumed_series_kg"]) atol=1
+            end
+
+            @testset "Optional Compressor" begin
+                d = JSON.parsefile("./scenarios/hydrogen_techs.json")
+                d["ElectricLoad"]["loads_kw"] = repeat([500.0], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([100.0], 8760)
+                d["Electrolyzer"]["require_compression"] = true
+                
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+                @test results["Compressor"]["size_kw"] ≈ 100.0 * d["Compressor"]["efficiency_kwh_per_kg"] atol=1e-3
+
+                d["Electrolyzer"]["require_compression"] = false
+
+                # TO-DO? Compressor is still built, but constraints fix production to zero
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+                @test haskey(results, "Compressor") == false
+            end
+
+            @testset "Minimum Turndown" begin
+                d = JSON.parsefile("./scenarios/hydrogen_techs_fixed_sizes.json")
+                
+                flat_h2_load_kg = 100.0
+                flat_elec_load_kw = 100.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+                d["Electrolyzer"]["min_turn_down_fraction"] = 0.5
+                d["Compressor"]["min_turn_down_fraction"] = 0.4
+                d["FuelCell"]["min_turn_down_fraction"] = 0.2
+                d["PV"] = Dict{String, Any}()
+                d["PV"]["min_kw"] = 500000
+                d["PV"]["max_kw"] = 500000
+                d["HydrogenStorage"]["min_kg"] = 5000
+                d["HydrogenStorage"]["max_kg"] = 5000
+
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.1, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+
+                electrolyzer_greater_than_zero_min = minimum(i for i in results["Electrolyzer"]["electricity_consumed_series_kw"] if i > 0)
+                compressor_greater_than_zero_min = minimum(i for i in results["Compressor"]["electricity_consumed_series_kw"] if i > 0)
+                fuel_cell_greater_than_zero_min = minimum(i for i in results["FuelCell"]["electric_to_load_series_kw"] if i > 0)
+
+                # print("\n\n\n")
+                # println("PV size_kw: ", results["PV"]["size_kw"])
+                # println("Electrolyzer size_kw: ", results["Electrolyzer"]["size_kw"])
+                # println("Compressor size_kw: ", results["Compressor"]["size_kw"])
+                # println("HydrogenStorage size_kg: ", results["HydrogenStorage"]["size_kg"])   
+                # println("FuelCell size_kw: ", results["FuelCell"]["size_kw"]) 
+                # println("FuelCell max output: ", maximum(results["FuelCell"]["electric_to_load_series_kw"]))
+                # println("electrolyzer_greater_than_zero_min: ", electrolyzer_greater_than_zero_min) 
+                # println("compressor_greater_than_zero_min: ", compressor_greater_than_zero_min) 
+                # println("fuel_cell_greater_than_zero_min: ", fuel_cell_greater_than_zero_min) 
+                # println("Electrolyzer min kW output: ", results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["min_turn_down_fraction"]) 
+                # println("Compressor min kW output: ", results["Compressor"]["size_kw"] * d["Compressor"]["min_turn_down_fraction"]) 
+                # println("Fuel cell min kW output: ", results["FuelCell"]["size_kw"] * d["FuelCell"]["min_turn_down_fraction"])
+                # print("\n\n\n")
+
+                # TO-DO: min turn down does not seem to be implemented for any of the techs below
+                @test electrolyzer_greater_than_zero_min >= results["Electrolyzer"]["size_kw"] * d["Electrolyzer"]["min_turn_down_fraction"]
+                @test compressor_greater_than_zero_min >= results["Compressor"]["size_kw"] * d["Compressor"]["min_turn_down_fraction"]
+                @test fuel_cell_greater_than_zero_min >= results["FuelCell"]["size_kw"] * d["FuelCell"]["min_turn_down_fraction"]
+            end
+
+            @testset "Cost-Informed Dispatch" begin
+                d = JSON.parsefile("./scenarios/hydrogen_techs.json")
+                
+                flat_h2_load_kg = 100.0
+                flat_elec_load_kw = 500.0
+                d["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+                d["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+                d["FuelCell"] = Dict{String, Any}()
+                d["ElectricTariff"] = Dict{String, Any}()
+                d["ElectricTariff"]["tou_energy_rates_per_kwh"] = [isodd(i) ? 0.01 : 0.99 for i in 1:8760]
+                d["ElectricTariff"]["blended_annual_demand_rate"] = 0.0
+
+                s = Scenario(d)
+                inputs = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, inputs)
+                
+                @test sum(results["Electrolyzer"]["electricity_consumed_series_kw"][2:2:end]) ≈ 0 atol=1
+                @test sum(results["Compressor"]["electricity_consumed_series_kw"][2:2:end]) ≈  0 atol=1
+                @test sum(results["FuelCell"]["electric_to_load_series_kw"][1:2:end]) ≈ 0 atol=1
+
+                @test sum(results["Electrolyzer"]["electricity_consumed_series_kw"][1:2:end]) ≈ round(results["Electrolyzer"]["size_kw"], digits=3) * (8760/2) atol=1
+                @test sum(results["Compressor"]["electricity_consumed_series_kw"][1:2:end]) ≈ round(results["Compressor"]["size_kw"], digits=3) * (8760/2) atol=1
+                @test sum(results["FuelCell"]["electric_to_load_series_kw"][2:2:end]) ≈ flat_elec_load_kw * (8760/2) atol=1
+            end
         end
 
         @testset "Custom REopt logger" begin
