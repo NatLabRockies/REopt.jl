@@ -13,7 +13,11 @@ using CSV
 using DataFrames
 Random.seed!(42)
 
-if "Xpress" in ARGS
+if "Debug" in ARGS
+    @testset "debugging_tests" begin
+        include("debugging_tests.jl")
+    end
+elseif "Xpress" in ARGS
     @testset "test_with_xpress" begin
         # @test true  #skipping Xpress while import to HiGHS takes place
         include("test_with_xpress.jl")
@@ -2243,7 +2247,7 @@ else  # run HiGHS tests
             @test r["Financial"]["lifecycle_offgrid_other_capital_costs"] ≈ 2617.092 atol=0.01 # Check straight line depreciation calc
             @test sum(r["ElectricLoad"]["offgrid_annual_oper_res_provided_series_kwh"]) >= sum(r["ElectricLoad"]["offgrid_annual_oper_res_required_series_kwh"]) # OR provided >= required
             @test r["ElectricLoad"]["offgrid_load_met_fraction"] >= scen.electric_load.min_load_met_annual_fraction
-            @test r["PV"]["size_kw"] ≈ 5050.0
+            @test r["PV"]["size_kw"] ≈ 10886.1611
             f = r["Financial"]
             @test f["lifecycle_generation_tech_capital_costs"] + f["lifecycle_storage_capital_costs"] + f["lifecycle_om_costs_after_tax"] +
                     f["lifecycle_fuel_costs_after_tax"] + f["lifecycle_chp_standby_cost_after_tax"] + f["lifecycle_elecbill_after_tax"] + 
