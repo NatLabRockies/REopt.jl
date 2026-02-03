@@ -92,7 +92,8 @@
             4.65,
             5.07,
             6.04
-        ]
+        ],
+        "federal_itc_fraction": 0.3
     },
     "DomesticHotWaterLoad": {
         "monthly_mmbtu": [
@@ -172,5 +173,12 @@
             5.07,
             6.04
         ]
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.017,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "chp_fuel_cost_escalation_rate_fraction": 0.015,
+        "offtaker_discount_rate_fraction": 0.0624
     }
 }

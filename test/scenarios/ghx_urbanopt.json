@@ -26305,6 +26305,8 @@
         "om_cost_per_sqft_year": 0,
         "heatpump_capacity_sizing_factor_on_peak_load": 1.0,
         "ghx_useful_life_years": 25,
+        "macrs_bonus_fraction": 0.4,
+        "macrs_option_years": 5,
         "ghpghx_responses": [
             {
                 "outputs": {

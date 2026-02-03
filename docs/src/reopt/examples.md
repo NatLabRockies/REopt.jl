@@ -12,7 +12,7 @@ m = Model(HiGHS.Optimizer)
 results = run_reopt(m, "pv_storage.json")
 ```
 
-The input file, in this case `pv_storage.json`, contains the set of user-defined inputs. For more on the inputs .json file, see the [REopt Inputs](@ref) section and find examples at [test/scenarios](https://github.com/NREL/REopt/blob/master/test/scenarios). For more examples of how to run REopt, see [`runtests.jl`](https://github.com/NREL/REopt.jl/blob/master/test/runtests.jl). To adjust settings such as optimality tolerance and logging, see more about relevant `Model()` arguments here: [open source solver setups](https://github.com/NREL/REopt_API/blob/master/julia_src/os_solvers.jl).
+The input file, in this case `pv_storage.json`, contains the set of user-defined inputs. For more on the inputs .json file, see the [REopt Inputs](@ref) section and find examples at [test/scenarios](https://github.com/NatLabRockies/REopt/blob/master/test/scenarios). For more examples of how to run REopt, see [`runtests.jl`](https://github.com/NatLabRockies/REopt.jl/blob/master/test/runtests.jl). To adjust settings such as optimality tolerance and logging, see more about relevant `Model()` arguments here: [open source solver setups](https://github.com/NatLabRockies/REopt_API/blob/master/julia_src/os_solvers.jl).
 
 To compare the optimized case to a "Business-as-usual" case (with existing techs or no techs), you can run the [BAUScenario](@ref) scenario in parallel by providing two `JuMP.Model`s like so:
 ```julia

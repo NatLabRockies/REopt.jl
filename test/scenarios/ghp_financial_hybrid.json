@@ -114041,7 +114041,8 @@
         "om_cost_escalation_rate_fraction": 0.0,
         "offtaker_discount_rate_fraction": 0.0,
         "elec_cost_escalation_rate_fraction": 0.0,
-        "offtaker_tax_rate_fraction": 0.0
+        "offtaker_tax_rate_fraction": 0.0,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.015
     },
     "SpaceHeatingLoad": {
         "annual_mmbtu": 500,

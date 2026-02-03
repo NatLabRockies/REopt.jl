@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 struct Scenario <: AbstractScenario
     settings::Settings
     site::Site
@@ -29,6 +29,7 @@ struct Scenario <: AbstractScenario
     electrolyzer::Union{Electrolyzer, Nothing}
     compressor::Union{Compressor, Nothing}
     fuel_cell::Union{FuelCell, Nothing}
+    cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
 end
@@ -45,6 +46,7 @@ A Scenario struct can contain the following keys:
 - [Wind](@ref) (optional)
 - [ElectricStorage](@ref) (optional)
 - [HotThermalStorage](@ref) (optional)
+- [HighTempThermalStorage](@ref) (optional)
 - [ColdThermalStorage](@ref) (optional)
 - [ElectricStorage](@ref) (optional)
 - [ElectricUtility](@ref) (optional)
@@ -66,6 +68,9 @@ A Scenario struct can contain the following keys:
 - [FuelCell](@ref) (optional)
 - [HydrogenStorage](@ref) (optional)
 - [ASHP](@ref) (optional)
+- [CST](@ref) (optional)
+- [ASHPSpaceHeater](@ref) (optional)
+- [ASHPWaterHeater](@ref) (optional)
 
 All values of `d` are expected to be `Dicts` except for `PV` and `GHP`, which can be either a `Dict` or `Dict[]` (for multiple PV arrays or GHP options).
 
@@ -94,20 +99,51 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             throw(@error("The following key(s) are not permitted when `off_grid_flag` is true: $unallowed_keys."))
         end
     end
+
+    # json parsing may make monthly_peaks_kw and monthly_totals_kwh type Vector{Any} instead of Vector{<:Real}
+    if haskey(d["ElectricLoad"], "monthly_peaks_kw")
+        d["ElectricLoad"]["monthly_peaks_kw"] = convert(Vector{Float64}, d["ElectricLoad"]["monthly_peaks_kw"])
+    end
+    if haskey(d["ElectricLoad"], "monthly_totals_kwh")
+        d["ElectricLoad"]["monthly_totals_kwh"] = convert(Vector{Float64}, d["ElectricLoad"]["monthly_totals_kwh"])
+    end
+
+    electric_load = ElectricLoad(; dictkeys_tosymbols(d["ElectricLoad"])...,
+    latitude=site.latitude, longitude=site.longitude, 
+    time_steps_per_hour=settings.time_steps_per_hour,
+    off_grid_flag = settings.off_grid_flag
+    )
     
     pvs = PV[]
+    electric_load_annual_kwh = sum(electric_load.loads_kw) / settings.time_steps_per_hour
     if haskey(d, "PV")
         if typeof(d["PV"]) <: AbstractArray
             for (i, pv) in enumerate(d["PV"])
                 if !(haskey(pv, "name"))
                     pv["name"] = string("PV", i)
                 end
-                push!(pvs, PV(;dictkeys_tosymbols(pv)..., off_grid_flag = settings.off_grid_flag, 
-                            latitude=site.latitude))
+                push!(pvs, PV(
+                    ; dictkeys_tosymbols(pv)...,
+                    off_grid_flag = settings.off_grid_flag, 
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type,
+                    latitude = site.latitude,
+                    electric_load_annual_kwh = electric_load_annual_kwh,
+                    site_land_acres = site.land_acres,
+                    site_roof_squarefeet = site.roof_squarefeet
+                ))
             end
         elseif typeof(d["PV"]) <: AbstractDict
-            push!(pvs, PV(;dictkeys_tosymbols(d["PV"])..., off_grid_flag = settings.off_grid_flag, 
-                        latitude=site.latitude))
+            push!(pvs, PV(
+                ; dictkeys_tosymbols(d["PV"])..., 
+                off_grid_flag = settings.off_grid_flag, 
+                sector = site.sector,
+                federal_procurement_type = site.federal_procurement_type,
+                latitude = site.latitude,
+                electric_load_annual_kwh = electric_load_annual_kwh,
+                site_land_acres = site.land_acres,
+                site_roof_squarefeet = site.roof_squarefeet
+            ))
         else
             throw(@error("PV input must be Dict or Dict[]."))
         end
@@ -117,20 +153,22 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         financial = Financial(; dictkeys_tosymbols(d["Financial"])...,
                                 latitude=site.latitude, longitude=site.longitude, 
                                 off_grid_flag = settings.off_grid_flag,
-                                include_health_in_objective = settings.include_health_in_objective
+                                include_health_in_objective = settings.include_health_in_objective,
+                                sector = site.sector,
+                                federal_procurement_type = site.federal_procurement_type,
+                                federal_sector_state = site.federal_sector_state
                             )
     else
         financial = Financial(; latitude=site.latitude, longitude=site.longitude,
                                 off_grid_flag = settings.off_grid_flag,
-                                include_health_in_objective = settings.include_health_in_objective
+                                include_health_in_objective = settings.include_health_in_objective,
+                                sector = site.sector,
+                                federal_procurement_type = site.federal_procurement_type,
+                                federal_sector_state = site.federal_sector_state
                             )
     end
 
-    electric_load = ElectricLoad(; dictkeys_tosymbols(d["ElectricLoad"])...,
-                                    latitude=site.latitude, longitude=site.longitude, 
-                                    time_steps_per_hour=settings.time_steps_per_hour,
-                                    off_grid_flag = settings.off_grid_flag
-                                )
+
 
     if settings.off_grid_flag
         if haskey(d, "ElectricUtility")
@@ -180,48 +218,38 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
         storage_dict[:off_grid_flag] = settings.off_grid_flag
     else
-        storage_dict = Dict(:max_kw => 0.0) 
+        storage_dict = Dict(:max_kw => 0.0)
     end
-    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial)
+    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")
-        params = HotThermalStorageDefaults(; dictkeys_tosymbols(d["HotThermalStorage"])...)
-        storage_structs["HotThermalStorage"] = HotThermalStorage(params, financial, settings.time_steps_per_hour)
+        storage_structs["HotThermalStorage"] = HotThermalStorage(
+                                                    dictkeys_tosymbols(d["HotThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
+    end
+    if haskey(d, "HighTempThermalStorage")
+        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(
+                                                        dictkeys_tosymbols(d["HighTempThermalStorage"]), 
+                                                        financial, site, settings.time_steps_per_hour
+                                                    )
     end
     if haskey(d, "ColdThermalStorage")
-        params = ColdThermalStorageDefaults(; dictkeys_tosymbols(d["ColdThermalStorage"])...)
-        storage_structs["ColdThermalStorage"] = ColdThermalStorage(params, financial, settings.time_steps_per_hour)
+        storage_structs["ColdThermalStorage"] = ColdThermalStorage(
+                                                    dictkeys_tosymbols(d["ColdThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
     end
     if haskey(d, "HydrogenStorage")
         params = dictkeys_tosymbols(d["HydrogenStorage"])
         storage_structs["HydrogenStorage"] = HydrogenStorage(params, financial)
     end
-    if haskey(d, "HighTempThermalStorage")
-        params = HighTempThermalStorageDefaults(; dictkeys_tosymbols(d["HighTempThermalStorage"])...)
-        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(params, financial, settings.time_steps_per_hour)
-    end 
     storage = Storage(storage_structs)
-
-    if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            
-        electric_tariff = ElectricTariff(; dictkeys_tosymbols(d["ElectricTariff"])..., 
-                                        year=electric_load.year,
-                                        NEM=electric_utility.net_metering_limit_kw > 0, 
-                                        time_steps_per_hour=settings.time_steps_per_hour
-                                        )
-    else # if ElectricTariff inputs supplied for off-grid, will not be applied. 
-        if haskey(d, "ElectricTariff")
-            @warn "ElectricTariff inputs are not applicable when `off_grid_flag` is true, and will be ignored."
-        end
-        electric_tariff = ElectricTariff(;  blended_annual_energy_rate = 0.0, 
-                                            blended_annual_demand_rate = 0.0,
-                                            year=electric_load.year,
-                                            time_steps_per_hour=settings.time_steps_per_hour
-        )
-    end
 
     if haskey(d, "Wind")
         wind = Wind(; dictkeys_tosymbols(d["Wind"])..., off_grid_flag=settings.off_grid_flag,
+                    sector = site.sector, federal_procurement_type = site.federal_procurement_type,
                     average_elec_load=sum(electric_load.loads_kw) / length(electric_load.loads_kw))
     else
         wind = Wind(; max_kw=0)
@@ -288,6 +316,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
     max_heat_demand_kw = 0.0
+    total_heating_load_series_kw = zeros(8760 * settings.time_steps_per_hour)
 
     if haskey(d, "DomesticHotWaterLoad") && !haskey(d, "FlexibleHVAC")
         add_doe_reference_names_from_elec_to_thermal_loads(d["ElectricLoad"], d["DomesticHotWaterLoad"])
@@ -300,7 +329,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                         time_steps_per_hour=settings.time_steps_per_hour,
                                         existing_boiler_efficiency = existing_boiler_efficiency
                                         )
-        max_heat_demand_kw = maximum(dhw_load.loads_kw)
+        total_heating_load_series_kw .+= dhw_load.loads_kw
     else
         dhw_load = HeatingLoad(;
             load_type = "domestic_hot_water", 
@@ -322,7 +351,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                             time_steps_per_hour=settings.time_steps_per_hour,
                                             existing_boiler_efficiency = existing_boiler_efficiency
                                             )
-        max_heat_demand_kw = maximum(space_heating_load.loads_kw .+ max_heat_demand_kw)
+        total_heating_load_series_kw .+= space_heating_load.loads_kw
     else
         space_heating_load = HeatingLoad(; 
             load_type = "space_heating",        
@@ -345,6 +374,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                             )
 
         max_heat_demand_kw = maximum(process_heat_load.loads_kw .+ max_heat_demand_kw)
+                                    
+        total_heating_load_series_kw .+= process_heat_load.loads_kw
     else
         process_heat_load = HeatingLoad(;
                 load_type = "process_heat",                
@@ -427,6 +458,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         end
     end
 
+    max_heat_demand_kw = maximum(total_heating_load_series_kw)
     if max_heat_demand_kw > 0 && !haskey(d, "FlexibleHVAC")  # create ExistingBoiler
         boiler_inputs = Dict{Symbol, Any}()
         boiler_inputs[:max_heat_demand_kw] = max_heat_demand_kw
@@ -460,11 +492,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
                     existing_boiler = existing_boiler,
                     electric_load_series_kw = electric_load.loads_kw,
-                    year = electric_load.year)
+                    year = electric_load.year,
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type)
         else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
             chp = CHP(d["CHP"],
                     electric_load_series_kw = electric_load.loads_kw,
-                    year = electric_load.year)
+                    year = electric_load.year,
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type)
         end
         chp_prime_mover = chp.prime_mover
     end
@@ -625,6 +661,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
 
             aux_heater_type = get(d["GHP"], "aux_heater_type", nothing)
             
+            start_time = now()
+
             ## Deal with hybrid
             hybrid_ghx_sizing_method = get(ghpghx_inputs, "hybrid_ghx_sizing_method", nothing)
 
@@ -634,33 +672,39 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
 
             if hybrid_ghx_sizing_method == "Automatic"
 
-                # Call GhpGhx.jl to size GHP and GHX
-                determine_heat_cool_results_resp_dict = Dict()
+                # Call GhpGhx.jl to size GHP and GHX in non-hybrid mode
+                nonhybrid_results_resp_dict = Dict()
                 try
-                    ghpghx_inputs["hybrid_auto_ghx_sizing_flag"] = true
-
+                    ghpghx_inputs["hybrid_auto_ghx_sizing_flag"] = false
+                    ghpghx_inputs["hybrid_sizing_flag"] = 1.0
                     # Call GhpGhx.jl to size GHP and GHX
-                    @info "Starting GhpGhx.jl for automatic hybrid GHX sizing"
+                    @info "Starting GhpGhx.jl for non-hybrid GHX sizing"
                     # Call GhpGhx.jl to size GHP and GHX
-                    results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
+                    results_nonhybrid, inputs_params_nonhybrid = GhpGhx.ghp_model(ghpghx_inputs)
                     # Create a dictionary of the results data needed for REopt
-                    determine_heat_cool_results_resp_dict = GhpGhx.get_results_for_reopt(results, inputs_params)
-                    @info "Automatic hybrid GHX sizing complete using GhpGhx.jl"
+                    nonhybrid_results_resp_dict = GhpGhx.get_results_for_reopt(results_nonhybrid, inputs_params_nonhybrid)
+                    @info "Non-hybrid GHX sizing complete using GhpGhx.jl"
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment"))
                 end
+                d["GHP"]["number_of_boreholes_nonhybrid"] = nonhybrid_results_resp_dict["number_of_boreholes"]
+                d["GHP"]["iterations_nonhybrid"] = nonhybrid_results_resp_dict["ghx_soln_number_of_iterations"]
 
-                temp_diff = determine_heat_cool_results_resp_dict["end_of_year_ghx_lft_f"][2] \
-                - determine_heat_cool_results_resp_dict["end_of_year_ghx_lft_f"][1]
+                # ORIGINAL GUESS
+                temp_diff = nonhybrid_results_resp_dict["end_of_year_ghx_lft_f"][length(nonhybrid_results_resp_dict["end_of_year_ghx_lft_f"])] - 
+                            nonhybrid_results_resp_dict["end_of_year_ghx_lft_f"][1]
 
                 hybrid_sizing_flag = 1.0 # non hybrid
+                hybrid_sizing_flag_opposite_guess = 1.0 # non hybrid
                 if temp_diff > 0
                     hybrid_sizing_flag = -2.0 #heating
+                    hybrid_sizing_flag_opposite_guess = -1.0 #cooling
                     is_ghx_hybrid = true
                 elseif temp_diff < 0
                     hybrid_sizing_flag = -1.0 #cooling
+                    hybrid_sizing_flag_opposite_guess = -2.0 #heating
                     is_ghx_hybrid = true
                 else
                     # non hybrid if exactly 0.
@@ -671,7 +715,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             elseif hybrid_ghx_sizing_method == "Fractional"
                 is_ghx_hybrid = true
                 hybrid_sizing_flag = get(ghpghx_inputs, "hybrid_ghx_sizing_fraction", 0.6)
-            else
+            elseif hybrid_ghx_sizing_method !== nothing
                 @warn "Unknown hybrid GHX sizing model provided"
             end
 
@@ -693,108 +737,177 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             end
 
             ghpghx_results = Dict()
+            max_ghx_sizing_interations = 0
 
-            try
-                # Call GhpGhx.jl to size GHP and GHX
-                @info "Starting GhpGhx.jl"
-                # Call GhpGhx.jl to size GHP and GHX
-                # If user provides undersized GHP, calculate load to send to GhpGhx.jl, and load to send to REopt for backup
-                thermal_load_ton = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] .* 1/TONNE_PER_MMBTU_HOUR
-                if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
-                    cooling_load_ton = ghpghx_inputs["cooling_thermal_load_ton"]
-                    thermal_load_ton .+= cooling_load_ton
+            # Hybrid GHP results 
+            if is_ghx_hybrid
+
+                # Run hybrid results using the initial guess of whether an auxiliary heater or cooler is required
+                try
+                    # Call GhpGhx.jl to size GHP and GHX
+                    @info "Starting GhpGhx.jl for initial hybrid GHX sizing"
+                    results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
+                    max_ghx_sizing_interations = inputs_params.max_sizing_iterations
+    
+                    # Create a dictionary of the results data needed for REopt
+                    ghpghx_results = GhpGhx.get_results_for_reopt(results, inputs_params)
+                    @info "GhpGhx.jl model solved" #with status $(results["status"])."
+                catch e
+                    @info e
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
+                        loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
+                        to the GhpGhx.jl package."))
                 end
-                peak_thermal_load_ton = maximum(thermal_load_ton)
-                if haskey(d["GHP"],"max_ton") && peak_thermal_load_ton > d["GHP"]["max_ton"]
-                    @info "User entered undersized GHP. Calculating load that can be served by user specified undersized GHP"
-                    # When user specifies undersized GHP, calculate the load to be served by GHP and send the rest to REopt
-                    if !haskey(d["GHP"], "load_served_by_ghp")
-                        d["GHP"]["load_served_by_ghp"] = "nonpeak"
+
+                d["GHP"]["number_of_boreholes_auto_guess"] = ghpghx_results["number_of_boreholes"]
+                d["GHP"]["iterations_auto_guess"] = ghpghx_results["ghx_soln_number_of_iterations"]
+                
+                # Invalid hybrid results
+                if (ghpghx_results["number_of_boreholes"] >= nonhybrid_results_resp_dict["number_of_boreholes"]) || (ghpghx_results["ghx_soln_number_of_iterations"] == max_ghx_sizing_interations)
+                    new_hybrid_ghpghx_results = Dict()
+                    max_ghx_sizing_interations = 0
+                    try
+                        ghpghx_inputs["hybrid_sizing_flag"] = hybrid_sizing_flag_opposite_guess
+
+                        # Call GhpGhx.jl to size GHP and GHX
+                        @info "Initial guess for the hybrid GHP auxiliary unit was incorrect. Starting GhpGhx.jl for new hybrid GHX sizing"
+                        # Call GhpGhx.jl to size GHP and GHX
+                        results_new_hybrid, inputs_params_new_hybrid = GhpGhx.ghp_model(ghpghx_inputs)
+                        max_ghx_sizing_interations = inputs_params_new_hybrid.max_sizing_iterations
+                        # Create a dictionary of the results data needed for REopt
+                        new_hybrid_ghpghx_results = GhpGhx.get_results_for_reopt(results_new_hybrid, inputs_params_new_hybrid)
+                        @info "New hybrid GHX sizing complete using GhpGhx.jl"
+                    catch e
+                        @info e
+                        throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
+                            loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
+                            to the GhpGhx.jl package."))
                     end
-                    # If user choose to scale down total load (load_served_by_ghp="scaled"), calculate the ratio of the udersized GHP size and peak load
-                    if d["GHP"]["load_served_by_ghp"] == "scaled"
-                        @info "GHP served scaled down of total thermal load"
-                        peak_ratio = d["GHP"]["max_ton"] / peak_thermal_load_ton
-                        # Scale the total load profile down by the peak_ratio and use this scaled down load to rerun GhpGhx.jl
-                        heating_load_mmbtu = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"]
-                        heating_load_mmbtu = heating_load_mmbtu .* peak_ratio
-                        ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu
-                        if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
-                            ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton .* peak_ratio
+                    d["GHP"]["number_of_boreholes_flipped_guess"] = new_hybrid_ghpghx_results["number_of_boreholes"]
+                    d["GHP"]["iterations_flipped_guess"] = new_hybrid_ghpghx_results["ghx_soln_number_of_iterations"]
+
+                    if (new_hybrid_ghpghx_results["number_of_boreholes"] >= nonhybrid_results_resp_dict["number_of_boreholes"]) || (new_hybrid_ghpghx_results["ghx_soln_number_of_iterations"] == max_ghx_sizing_interations)
+                        @info "Hybrid GHX results are unavailable for this scenario. Returning non-hybrid results"
+                        is_ghx_hybrid = false
+                        ghpghx_results = nonhybrid_results_resp_dict
+                        d["GHP"]["hybrid_solution_type"] = "nonhybrid_solution"
+                    else
+                        ghpghx_results = new_hybrid_ghpghx_results
+                        d["GHP"]["hybrid_solution_type"] = "flipped_guess"
+                    end
+                else
+                    d["GHP"]["hybrid_solution_type"] = "automatic_guess_correct"
+                end
+
+                if haskey(d["GHP"],"max_ton") || haskey(d["GHP"],"max_number_of_boreholes")
+                    @warn "User specified GHP/GHX size limits are not considered when hybrid sizing is selected. Inputs such as max_ton and max_number_of_boreholes will be ignored."
+                end
+            else
+                try
+                    # If user provides undersized GHP, calculate load to send to GhpGhx.jl, and load to send to REopt for backup
+                    thermal_load_ton = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] .* 1/TONNE_PER_MMBTU_HOUR
+                    if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
+                        cooling_load_ton = ghpghx_inputs["cooling_thermal_load_ton"]
+                        thermal_load_ton .+= cooling_load_ton
+                    end
+                    peak_thermal_load_ton = maximum(thermal_load_ton)
+                    if haskey(d["GHP"],"max_ton") && peak_thermal_load_ton > d["GHP"]["max_ton"]
+                        @info "User entered undersized GHP. Calculating load that can be served by user specified undersized GHP"
+                        # When user specifies undersized GHP, calculate the load to be served by GHP and send the rest to REopt
+                        if !haskey(d["GHP"], "load_served_by_ghp")
+                            d["GHP"]["load_served_by_ghp"] = "nonpeak"
                         end
-                    elseif d["GHP"]["load_served_by_ghp"] == "nonpeak"
-                        @info "GHP serves all thermal load below peak"
-                        heating_load_mmbtu = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"]
-                        # if cooling load is included, cut down total thermal load and send as much heating load to GhpGhx.jl as possible
-                        if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
-                            # If total thermal load (heating + cooling) is more than user-defined GHP size, 
-                            # first reduce heating load as much as possible while keeping cooling load the same
-                            if peak_thermal_load_ton > d["GHP"]["max_ton"]
-                                thermal_load_ton[thermal_load_ton .>= d["GHP"]["max_ton"]] .= d["GHP"]["max_ton"]
-                                heating_load_ton = thermal_load_ton .- cooling_load_ton
-                                # Make sure that the reduced heating load is not negative
-                                heating_load_ton[heating_load_ton .< 0] .= 0
-                                # If the updated peak thermal load is still more than user-defined GHP size, 
-                                # reduce cooling load as well
-                                updated_thermal_load_ton = heating_load_ton .+ cooling_load_ton
-                                updated_peak_thermal_load_ton = maximum(updated_thermal_load_ton)
-                                if updated_peak_thermal_load_ton > d["GHP"]["max_ton"]
-                                    updated_thermal_load_ton[updated_thermal_load_ton .>= d["GHP"]["max_ton"]] .= d["GHP"]["max_ton"]
-                                    cooling_load_ton = updated_thermal_load_ton .- heating_load_ton
-                                    ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton
-                                end
-                                heating_load_mmbtu = heating_load_ton .* TONNE_PER_MMBTU_HOUR
-                                ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu
-                            end
-                        # if cooling load is not included, cut down heating load only and send to GhpGhx.jl
-                        else
-                            heating_load_mmbtu[heating_load_mmbtu .>= d["GHP"]["max_ton"] * TONNE_PER_MMBTU_HOUR] .= d["GHP"]["max_ton"] * TONNE_PER_MMBTU_HOUR
+                        # If user choose to scale down total load (load_served_by_ghp="scaled"), calculate the ratio of the udersized GHP size and peak load
+                        if d["GHP"]["load_served_by_ghp"] == "scaled"
+                            @info "GHP served scaled down of total thermal load"
+                            peak_ratio = d["GHP"]["max_ton"] / peak_thermal_load_ton
+                            # Scale the total load profile down by the peak_ratio and use this scaled down load to rerun GhpGhx.jl
+                            heating_load_mmbtu = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"]
+                            heating_load_mmbtu = heating_load_mmbtu .* peak_ratio
                             ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu
-                        end                         
-                    end
-                end
-                results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
-                # If max_number_of_boreholes is specified, check if number of boreholes sized by GhpGhx.jl greater than user-specified max_number_of_boreholes,
-                # and if max_number_of_boreholes is less, reduce thermal load served by GHP until max_number_of_boreholes = number of boreholses sized by GhpGhx.jl                
-                if haskey(d["GHP"],"max_number_of_boreholes")
-                    optimal_number_of_boreholes = GhpGhx.get_results_for_reopt(results, inputs_params)["number_of_boreholes"]
-                    if optimal_number_of_boreholes > d["GHP"]["max_number_of_boreholes"]
-                        @info "Max number of boreholes specified is less than number of boreholes sized in GhpGhx.jl, reducing thermal load served by GHP further"
-                        max_iter = 10
-                        for iter = 1:max_iter
-                            borehole_ratio = d["GHP"]["max_number_of_boreholes"] / optimal_number_of_boreholes
-                            heating_load_mmbtu .*= borehole_ratio
                             if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
-                                cooling_load_ton .*= borehole_ratio
-                            # if cooling load is not included, cut down heating load only and send to GhpGhx.jl
+                                ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton .* peak_ratio
                             end
-                            ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu                              
-                            ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton   
-                            
-                            # Rerun GhpGhx.jl
-                            results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
-                            optimal_number_of_boreholes = GhpGhx.get_results_for_reopt(results, inputs_params)["number_of_boreholes"]
-                            # Solution is found if the new optimal number of boreholes sized by GhpGhx.jl = user-specified max number of boreholes,
-                            # Otherwise, continue solving until reaching max iteration
-                            if -0.5 < optimal_number_of_boreholes - d["GHP"]["max_number_of_boreholes"] < 0.5
-                                break
+                        elseif d["GHP"]["load_served_by_ghp"] == "nonpeak"
+                            @info "GHP serves all thermal load below peak"
+                            heating_load_mmbtu = ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"]
+                            # if cooling load is included, cut down total thermal load and send as much heating load to GhpGhx.jl as possible
+                            if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
+                                # If total thermal load (heating + cooling) is more than user-defined GHP size, 
+                                # first reduce heating load as much as possible while keeping cooling load the same
+                                if peak_thermal_load_ton > d["GHP"]["max_ton"]
+                                    thermal_load_ton[thermal_load_ton .>= d["GHP"]["max_ton"]] .= d["GHP"]["max_ton"]
+                                    heating_load_ton = thermal_load_ton .- cooling_load_ton
+                                    # Make sure that the reduced heating load is not negative
+                                    heating_load_ton[heating_load_ton .< 0] .= 0
+                                    # If the updated peak thermal load is still more than user-defined GHP size, 
+                                    # reduce cooling load as well
+                                    updated_thermal_load_ton = heating_load_ton .+ cooling_load_ton
+                                    updated_peak_thermal_load_ton = maximum(updated_thermal_load_ton)
+                                    if updated_peak_thermal_load_ton > d["GHP"]["max_ton"]
+                                        updated_thermal_load_ton[updated_thermal_load_ton .>= d["GHP"]["max_ton"]] .= d["GHP"]["max_ton"]
+                                        cooling_load_ton = updated_thermal_load_ton .- heating_load_ton
+                                        ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton
+                                    end
+                                    heating_load_mmbtu = heating_load_ton .* TONNE_PER_MMBTU_HOUR
+                                    ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu
+                                end
+                            # if cooling load is not included, cut down heating load only and send to GhpGhx.jl
                             else
-                                iter += 1
+                                heating_load_mmbtu[heating_load_mmbtu .>= d["GHP"]["max_ton"] * TONNE_PER_MMBTU_HOUR] .= d["GHP"]["max_ton"] * TONNE_PER_MMBTU_HOUR
+                                ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu
+                            end                         
+                        end
+                    end
+                    # Call GhpGhx.jl to size GHP and GHX
+                    @info "Starting GhpGhx.jl"
+                    results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
+
+                    # If max_number_of_boreholes is specified, check if number of boreholes sized by GhpGhx.jl greater than user-specified max_number_of_boreholes,
+                    # and if max_number_of_boreholes is less, reduce thermal load served by GHP until max_number_of_boreholes = number of boreholses sized by GhpGhx.jl                
+                    if haskey(d["GHP"],"max_number_of_boreholes")
+                        optimal_number_of_boreholes = GhpGhx.get_results_for_reopt(results, inputs_params)["number_of_boreholes"]
+                        if optimal_number_of_boreholes > d["GHP"]["max_number_of_boreholes"]
+                            @info "Max number of boreholes specified is less than number of boreholes sized in GhpGhx.jl, reducing thermal load served by GHP further"
+                            max_iter = 10
+                            for iter = 1:max_iter
+                                borehole_ratio = d["GHP"]["max_number_of_boreholes"] / optimal_number_of_boreholes
+                                heating_load_mmbtu .*= borehole_ratio
+                                if haskey(ghpghx_inputs,"cooling_thermal_load_ton")
+                                    cooling_load_ton .*= borehole_ratio
+                                # if cooling load is not included, cut down heating load only and send to GhpGhx.jl
+                                end
+                                ghpghx_inputs["heating_thermal_load_mmbtu_per_hr"] = heating_load_mmbtu                              
+                                ghpghx_inputs["cooling_thermal_load_ton"] = cooling_load_ton   
+                                
+                                # Rerun GhpGhx.jl
+                                results, inputs_params = GhpGhx.ghp_model(ghpghx_inputs)
+                                optimal_number_of_boreholes = GhpGhx.get_results_for_reopt(results, inputs_params)["number_of_boreholes"]
+                                # Solution is found if the new optimal number of boreholes sized by GhpGhx.jl = user-specified max number of boreholes,
+                                # Otherwise, continue solving until reaching max iteration
+                                if -0.5 < optimal_number_of_boreholes - d["GHP"]["max_number_of_boreholes"] < 0.5
+                                    break
+                                else
+                                    iter += 1
+                                end
                             end
                         end
                     end
-                end
 
-                # Create a dictionary of the results data needed for REopt
-                ghpghx_results = GhpGhx.get_results_for_reopt(results, inputs_params)
-                # Return results from GhpGhx.jl without load scaling if user does not provide GHP size or if user entered GHP size is greater than GHP size output
-                @info "GhpGhx.jl model solved" #with status $(results["status"])."
-            catch e
-                @info e
-                throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
-                    loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
-                    to the GhpGhx.jl package."))
+                    # Create a dictionary of the results data needed for REopt
+                    ghpghx_results = GhpGhx.get_results_for_reopt(results, inputs_params)
+                    # Return results from GhpGhx.jl without load scaling if user does not provide GHP size or if user entered GHP size is greater than GHP size output
+                    @info "GhpGhx.jl model solved" #with status $(results["status"])."
+                catch e
+                    @info e
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
+                        loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
+                        to the GhpGhx.jl package."))
+                end
             end
+
+            end_time = now()
+            d["GHP"]["solve_time_min"] = (end_time - start_time).value/1000/60
 
             ghpghx_response = Dict([("inputs", ghpghx_inputs), ("outputs", ghpghx_results)])
             ghp_inputs_removed_ghpghx_params = deepcopy(d["GHP"])
@@ -803,7 +916,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     pop!(ghp_inputs_removed_ghpghx_params, param)
                 end
             end                    
-            append!(ghp_option_list, [GHP(ghpghx_response, ghp_inputs_removed_ghpghx_params)])
+            append!(
+                ghp_option_list, 
+                [GHP(
+                    ghpghx_response, 
+                    ghp_inputs_removed_ghpghx_params;
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type
+                )]
+            )
             # Print out ghpghx_response for loading into a future run without running GhpGhx.jl again
             # open("scenarios/ghpghx_response.json","w") do f             
         end
@@ -820,7 +941,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     ghp_inputs_removed_ghpghx_responses["is_ghx_hybrid"] = true
                 end
             end
-            append!(ghp_option_list, [GHP(ghpghx_response, ghp_inputs_removed_ghpghx_responses)])
+            append!(
+                ghp_option_list, 
+                [GHP(
+                    ghpghx_response, 
+                    ghp_inputs_removed_ghpghx_responses;
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type
+                )]
+            )
         end
     end
 
@@ -830,16 +959,52 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
             avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
             steam_turbine = SteamTurbine(d["SteamTurbine"];  
-                                        avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour)
+                                        avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
+                                        sector = site.sector, 
+                                        federal_procurement_type = site.federal_procurement_type)
         else
-            steam_turbine = SteamTurbine(d["SteamTurbine"])
+            steam_turbine = SteamTurbine(d["SteamTurbine"]; 
+                                        sector = site.sector, 
+                                        federal_procurement_type = site.federal_procurement_type)
         end
     end
 
     # Electric Heater
     electric_heater = nothing
-    if haskey(d, "ElectricHeater") && d["ElectricHeater"]["max_mmbtu_per_hour"] > 0.0
+    if haskey(d, "ElectricHeater") && (!haskey(d["ElectricHeater"], "max_mmbtu_per_hour") || d["ElectricHeater"]["max_mmbtu_per_hour"] > 0.0)
         electric_heater = ElectricHeater(;dictkeys_tosymbols(d["ElectricHeater"])...)
+    end
+    
+    if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            
+        electric_tariff = ElectricTariff(; dictkeys_tosymbols(d["ElectricTariff"])..., 
+                                        year=electric_load.year,
+                                        NEM=electric_utility.net_metering_limit_kw > 0, 
+                                        time_steps_per_hour=settings.time_steps_per_hour
+                                        )
+    else # if ElectricTariff inputs supplied for off-grid, will not be applied. 
+        if haskey(d, "ElectricTariff")
+            @warn "ElectricTariff inputs are not applicable when `off_grid_flag` is true, and will be ignored."
+        end
+        electric_tariff = ElectricTariff(;  blended_annual_energy_rate = 0.0, 
+                                            blended_annual_demand_rate = 0.0,
+                                            year=electric_load.year,
+                                            time_steps_per_hour=settings.time_steps_per_hour
+                                        )
+    end
+
+    # CST                                    
+    cst = nothing
+    if haskey(d, "CST") && (!haskey(d["CST"], "max_kw") || d["CST"]["max_kw"] > 0.0)
+        if !haskey(d,"Site") || !haskey(d["Site"], "land_acres")
+            throw(@error("Site.land_acres not provided as an input, which is required when CST is included as a technology."))
+        end
+        cst_ssc_response = run_ssc(d)
+        d["CST"]["production_factor"] = cst_ssc_response["thermal_production_series"]
+        d["CST"]["elec_consumption_factor_series"] = cst_ssc_response["electric_consumption_series"]
+        if haskey(d["CST"], "SSC_Inputs")
+            pop!(d["CST"],"SSC_Inputs")
+        end
+        cst = CST(;dictkeys_tosymbols(d["CST"])...)
     end
 
     # ASHP
@@ -929,7 +1094,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         wind,
         storage,
         electric_tariff, 
-        electric_load, 
+        electric_load,
         electric_utility, 
         financial,
         generator,
@@ -952,6 +1117,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         electrolyzer,
         compressor,
         fuel_cell,
+        cst,
         ashp,
         ashp_wh
     )

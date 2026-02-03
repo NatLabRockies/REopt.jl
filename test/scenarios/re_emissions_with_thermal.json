@@ -69,8 +69,11 @@
     "max_kwh": 0.0,
     "installed_cost_per_kw": 840.0,
     "installed_cost_per_kwh": 420.0,
+    "installed_cost_constant": 0.0,
     "replace_cost_per_kw": 410.0,
-    "replace_cost_per_kwh": 200.0
+    "replace_cost_per_kwh": 200.0,
+    "replace_cost_constant": 0.0,
+    "om_cost_fraction_of_installed_cost": 0.0
   },
   "ColdThermalStorage": {
     "min_gal": 30000.0 ,
@@ -79,7 +82,7 @@
     "soc_min_fraction": 0.1 ,
     "soc_init_fraction": 0.5 ,
     "installed_cost_per_gal": 3.0 ,
-    "capacity_based_per_ts_thermal_decay_fraction": 0.004 ,
+    "thermal_decay_rate_fraction": 0.004 ,
     "om_cost_per_gal": 0.0 ,
     "macrs_option_years": 0 ,
     "macrs_bonus_fraction": 0.0

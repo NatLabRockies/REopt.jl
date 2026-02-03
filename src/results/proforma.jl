@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     Metrics
 
@@ -78,11 +78,15 @@ function proforma_results(p::REoptInputs, d::Dict)
         storage = p.s.storage.attr["ElectricStorage"]
         total_kw = d["ElectricStorage"]["size_kw"]
         total_kwh = d["ElectricStorage"]["size_kwh"]
-        capital_cost = total_kw * storage.installed_cost_per_kw + total_kwh * storage.installed_cost_per_kwh
+        capital_cost = total_kw * storage.installed_cost_per_kw + total_kwh * storage.installed_cost_per_kwh + storage.installed_cost_constant
         battery_replacement_year = storage.battery_replacement_year
-        battery_replacement_cost = -1 * ((total_kw * storage.replace_cost_per_kw) + (
-                    total_kwh * storage.replace_cost_per_kwh))
+        battery_replacement_cost = -1 * ((total_kw * storage.replace_cost_per_kw) + 
+                    (total_kwh * storage.replace_cost_per_kwh) + 
+                    storage.replace_cost_constant)
         m.om_series += [yr != battery_replacement_year ? 0 : battery_replacement_cost for yr in 1:years]
+
+        battery_om_cost = capital_cost * storage.om_cost_fraction_of_installed_cost
+        m.om_series += escalate_om(-1 * battery_om_cost)
 
         # storage only has cbi in the API
         cbi = total_kw * storage.total_rebate_per_kw + total_kwh * storage.total_rebate_per_kwh
@@ -135,7 +139,7 @@ function proforma_results(p::REoptInputs, d::Dict)
 
     # calculate ExistingBoiler o+m costs (just fuel, no non-fuel operating costs currently)
     # the optional installed_cost inputs assume net present cost so no option for MACRS or incentives
-    if "ExistingBoiler" in keys(d) && d["ExistingBoiler"]["size_mmbtu_per_hour"] > 0
+    if "ExistingBoiler" in keys(d)
         fuel_cost = d["ExistingBoiler"]["year_one_fuel_cost_before_tax"]
         m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, p.s.financial.existing_boiler_fuel_cost_escalation_rate_fraction)
         var_om = 0.0
@@ -260,6 +264,7 @@ function proforma_results(p::REoptInputs, d::Dict)
     battery_replacement_net_present_cost = -1*battery_replacement_cost * (1 - tax_rate_fraction) / (1 + discount_rate_for_battery_replacement_pv) ^ battery_replacement_year  # battery_replacement_cost is negative, from above
     r["capital_costs_after_non_discounted_incentives_without_macrs"] = d["Financial"]["initial_capital_costs"] - m.total_ibi_and_cbi - m.federal_itc + battery_replacement_net_present_cost
     r["capital_costs_after_non_discounted_incentives"] = r["capital_costs_after_non_discounted_incentives_without_macrs"] - sum(m.total_depreciation * tax_rate_fraction)
+    # Note, free_cashflow_bau[1] (below) now has possible non-zero costs from ExistingBoiler/Chiller
     free_cashflow = append!([(-1 * d["Financial"]["initial_capital_costs"]) + m.total_ibi_and_cbi], free_cashflow_without_year_zero)
 
     # At this point the logic branches based on third-party ownership or not - see comments    
@@ -314,7 +319,8 @@ function proforma_results(p::REoptInputs, d::Dict)
         operating_expenses_after_tax_bau = total_operating_expenses_bau - deductable_operating_expenses_series_bau + 
                     deductable_operating_expenses_series_bau * (1 - p.s.financial.offtaker_tax_rate_fraction)
         free_cashflow_bau = operating_expenses_after_tax_bau + total_cash_incentives_bau
-        free_cashflow_bau = append!([0.0], free_cashflow_bau)
+        lifecycle_capital_costs_bau = get(d["Financial"], "lifecycle_capital_costs_bau", 0.0)
+        free_cashflow_bau = append!([-1 * lifecycle_capital_costs_bau], free_cashflow_bau)
         r["offtaker_annual_free_cashflows"] = round.(free_cashflow, digits=2)
         r["offtaker_discounted_annual_free_cashflows"] = [round(
             v / ((1 + p.s.financial.offtaker_discount_rate_fraction)^(yr-1)), 
@@ -362,6 +368,8 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     new_kw = total_kw - existing_kw
     if tech_name == "CHP"
         capital_cost = results["CHP"]["initial_capital_costs"]
+    elseif tech_name in [pv.name for pv in p.s.pvs]  # Check if it's a PV technology
+        capital_cost = get_pv_initial_capex(p, tech, new_kw)
     else
         capital_cost = new_kw * tech.installed_cost_per_kw
     end

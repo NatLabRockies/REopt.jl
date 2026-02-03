@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function add_dv_UnservedLoad_constraints(m,p)
     # Effective load balance
     @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
@@ -87,7 +87,8 @@ function add_outage_cost_constraints(m,p)
                 p.s.financial.microgrid_upgrade_cost_fraction * p.third_party_factor * (
                     sum( p.s.storage.attr[b].net_present_cost_per_kw * p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec) + 
                     sum( p.s.storage.attr[b].net_present_cost_per_kwh * p.s.storage.attr[b].max_kwh for b in p.s.storage.types.nonhydrogen) + 
-                    sum( p.s.storage.attr[b].net_present_cost_per_kg * p.s.storage.attr[b].max_kg for b in p.s.storage.types.hydrogen)
+                    sum( p.s.storage.attr[b].net_present_cost_per_kg * p.s.storage.attr[b].max_kg for b in p.s.storage.types.hydrogen) +
+                    sum( p.s.storage.attr[b].net_present_cost_cost_constant for b in p.s.storage.types.elec)
                 ) * (1-m[:binMGStorageUsed])  # Big-M is capital cost of battery with max size kw and kwh
             )
         )
@@ -299,8 +300,8 @@ function add_MG_elec_storage_dispatch_constraints(m,p)
             p.s.storage.attr["ElectricStorage"].charge_efficiency * sum(m[:dvMGProductionToStorage]["ElectricStorage", t, s, tz, ts] for t in p.techs.elec)
             - m[:dvMGDischargeFromStorage]["ElectricStorage", s, tz, ts] / p.s.storage.attr["ElectricStorage"].discharge_efficiency
         )
-        - (p.s.storage.attr["ElectricStorage"].soc_based_per_ts_self_discharge_fraction * m[:dvMGStoredEnergy]["ElectricStorage", s, tz, ts-1])
-        - (p.s.storage.attr["ElectricStorage"].capacity_based_per_ts_self_discharge_fraction * m[:dvStorageEnergy]["ElectricStorage"])
+        - (p.s.storage.attr["ElectricStorage"].soc_self_discharge_rate_fraction * m[:dvMGStoredEnergy]["ElectricStorage", s, tz, ts-1])
+        - (p.s.storage.attr["ElectricStorage"].capacity_self_discharge_rate_fraction * m[:dvStorageEnergy]["ElectricStorage"])
     )
 
 	# Prevent simultaneous charge and discharge by limitting charging alone to not make the SOC exceed 100%
@@ -537,8 +538,8 @@ function add_MG_hydrogen_constraints(m, p; _n="")
                 sum(m[:dvMGProductionToStorage][b, t, s, tz, ts] for t in p.techs.compressor) 
                 - m[:dvMGDischargeFromStorage][b, s, tz, ts]
             )
-            - (p.s.storage.attr["HydrogenStorage"].soc_based_per_ts_self_discharge_fraction * m[:dvMGStoredEnergy]["HydrogenStorage", s, tz, ts-1])
-            - (p.s.storage.attr["HydrogenStorage"].capacity_based_per_ts_self_discharge_fraction * m[:dvStorageEnergy]["HydrogenStorage"])
+            - (p.s.storage.attr["HydrogenStorage"].soc_self_discharge_rate_fraction * m[:dvMGStoredEnergy]["HydrogenStorage", s, tz, ts-1])
+            - (p.s.storage.attr["HydrogenStorage"].capacity_self_discharge_rate_fraction * m[:dvStorageEnergy]["HydrogenStorage"])
         )
     else
         # Constraint: state-of-charge for hydrogen storage
@@ -547,8 +548,8 @@ function add_MG_hydrogen_constraints(m, p; _n="")
                 sum(m[:dvMGProductionToStorage][b, t, s, tz, ts] for t in p.techs.electrolyzer) 
                 - m[:dvMGDischargeFromStorage][b, s, tz, ts]
             )
-            - (p.s.storage.attr["HydrogenStorage"].soc_based_per_ts_self_discharge_fraction * m[:dvMGStoredEnergy]["HydrogenStorage", s, tz, ts-1])
-            - (p.s.storage.attr["HydrogenStorage"].capacity_based_per_ts_self_discharge_fraction * m[:dvStorageEnergy]["HydrogenStorage"])
+            - (p.s.storage.attr["HydrogenStorage"].soc_self_discharge_rate_fraction * m[:dvMGStoredEnergy]["HydrogenStorage", s, tz, ts-1])
+            - (p.s.storage.attr["HydrogenStorage"].capacity_self_discharge_rate_fraction * m[:dvStorageEnergy]["HydrogenStorage"])
         )
     end
     # Storage discharges through fuel cell 

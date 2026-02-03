@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 function add_boiler_tech_constraints(m, p; _n="")
     
@@ -64,7 +64,7 @@ function add_heating_tech_constraints(m, p; _n="")
     # Constraint (7_heating_prod_size): Production limit based on size for non-electricity-producing heating techs
     if !isempty(setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp)))
         @constraint(m, [t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp)), ts in p.time_steps],
-            sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads)  <= m[Symbol("dvSize"*_n)][t] * p.heating_cf[t][ts]
+            sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads)  <= p.heating_cf[t][ts] * m[Symbol("dvSize"*_n)][t]
         )
     end
     # Constraint (7_heating_load_compatability): Set production variables for incompatible heat loads to zero
@@ -88,9 +88,55 @@ function add_heating_tech_constraints(m, p; _n="")
             end
         end
     end
+
+    # If the electric heater can only provide heat to the storage system (as in PTES), then production to storage must equal total production
+    if "ElectricHeater" in p.techs.electric_heater
+        if p.s.electric_heater.charge_storage_only
+            #assume sensible TES first, and hot water otherwise.
+            if "HighTempThermalStorage" in p.s.storage.types.hot
+                @constraint(m, ElectricHeaterToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["ElectricHeater",q,ts] == m[Symbol("dvHeatToStorage"*_n)]["HighTempThermalStorage","ElectricHeater",q,ts]
+                )
+            elseif "HotThermalStorage" in p.s.storage.types.hot
+                @constraint(m, ElectricHeaterToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["ElectricHeater",q,ts] == m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage","ElectricHeater",q,ts]
+                )
+            else
+                @warn "ElectricHeater.charge_storage_only is set to True, but no hot storage technologies exist."
+            end
+        end
+    end
+
+    if "CST" in p.techs.electric_heater
+        @constraint(m, CSTHeatProduction[ts in p.time_steps],
+            sum(m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] for q in p.heating_loads) == p.heating_cf["CST"][ts] * m[Symbol("dvSize"*_n)]["CST"]
+        )
+        if p.s.cst.charge_storage_only
+            #assume sensible TES first, and hot water otherwise.
+            if "HighTempThermalStorage" in p.s.storage.types.hot
+                @constraint(m, CSTToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] == m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts] + m[Symbol("dvHeatToStorage"*_n)]["HighTempThermalStorage","CST",q,ts]
+                )
+            elseif "HotThermalStorage" in p.s.storage.types.hot
+                @constraint(m, CSTToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] == m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts] + m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage","CST",q,ts]
+                )
+            else
+                @warn "CST.charge_storage_only is set to True, but no hot storage technologies exist."
+            end
+        end
+        if !p.s.cst.can_waste_heat
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts], 0.0, force=true)
+                end
+            end
+        end
+    end
+
     
     # Enforce no waste heat for any technology that isn't both electricity- and heat-producing
-    for t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp))
+    for t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp, ["CST"]))
         for q in p.heating_loads
             for ts in p.time_steps
                 fix(m[Symbol("dvProductionToWaste"*_n)][t,q,ts], 0.0, force=true)
@@ -262,4 +308,36 @@ function no_existing_chiller_production(m, p; _n="")
         fix(m[Symbol("dvCoolingProduction"*_n)]["ExistingChiller",ts], 0.0, force=true)
     end
     fix(m[Symbol("dvSize"*_n)]["ExistingChiller"], 0.0, force=true)
+end
+
+function add_existing_boiler_capex_constraints(m, p; _n="")
+    # @variable(m, binExistingBoiler, Int, lower_bound = 0, upper_bound = 1)  # This is same as below with Bin
+    @variable(m, binExistingBoiler, Bin)
+    # If still using ExistingBoiler in optimal case at all, incur costs (not scaled by size)
+    # Force dvSize["ExistingBoiler] to zero if binExistingBoiler is zero:
+    @constraint(m, ExistingBoilerCostCon, m[Symbol("dvSize"*_n)]["ExistingBoiler"] <= m[Symbol("binExistingBoiler"*_n)] * BIG_NUMBER)
+
+    if p.s.existing_boiler.retire_in_optimal
+        @constraint(m, ExistingBoilerSelect, m[Symbol("binExistingBoiler"*_n)] == 0)
+    else
+        @constraint(m, ExistingBoilerSelect, m[Symbol("binExistingBoiler"*_n)] <= 1)
+    end
+
+    m[:ExistingBoilerCost] = @expression(m, p.third_party_factor *
+        sum(p.s.existing_boiler.installed_cost_dollars * m[Symbol("binExistingBoiler"*_n)])
+    )
+end
+
+function add_existing_chiller_capex_constraints(m, p; _n="")
+    # @variable(m, binExistingChiller, Int, lower_bound = 0, upper_bound = 1)  # This is same as below with Bin
+    @variable(m, binExistingChiller, Bin)
+    # If still using ExistingChiller in optimal case, incur costs (not scaled by size)
+    # Force dvSize["ExistingChiller] to zero if binExistingChiller is zero:
+    @constraint(m, ExistingChillerCostCon, m[Symbol("dvSize"*_n)]["ExistingChiller"] <= m[Symbol("binExistingChiller"*_n)] * BIG_NUMBER)
+
+    @constraint(m, ExistingChillerSelect, m[Symbol("binExistingChiller"*_n)] <= 1)
+
+    m[:ExistingChillerCost] = @expression(m, p.third_party_factor *
+        sum(p.s.existing_chiller.installed_cost_dollars * m[Symbol("binExistingChiller"*_n)])
+    )
 end

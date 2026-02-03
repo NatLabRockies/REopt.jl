@@ -107,7 +107,10 @@
     "internal_efficiency_fraction": 0.975,
     "soc_min_fraction": 0.2,
     "soc_init_fraction": 0.5,
-    "inverter_replacement_year": 10
+    "inverter_replacement_year": 10,
+    "installed_cost_constant": 0.0,
+    "replace_cost_constant": 0.0,
+    "om_cost_fraction_of_installed_cost": 0.0
   },
   "ElectricUtility": {
     "net_metering_limit_kw": 1000.0,

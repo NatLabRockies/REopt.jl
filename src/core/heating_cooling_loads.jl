@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 # `HeatingLoad` is a base function for the types of heating load inputs with the following keys and default values:
 ```julia
@@ -83,45 +83,60 @@ function HeatingLoad(;
 
     if isnothing(year)
         throw(@error("Must provide the year when using fuel_loads_mmbtu_per_hour input."))
-    end     
+    end
+    if !isnothing(annual_mmbtu) && !isempty(monthly_mmbtu)
+        throw(@error("Cannot provide both annual_mmbtu and monthly_mmbtu to scale the $load profile."))
+    elseif length(monthly_mmbtu) > 0 && length(monthly_mmbtu) != 12
+        throw(@error("monthly_mmbtu must be length 12 if provided."))
+    end
+
+    fuel_loads_mmbtu_per_hour = check_and_adjust_load_length(fuel_loads_mmbtu_per_hour, time_steps_per_hour, "$load")
 
     if length(addressable_load_fraction) > 1
-        if !isempty(fuel_loads_mmbtu_per_hour) && length(addressable_load_fraction) != length(fuel_loads_mmbtu_per_hour)
-            throw(@error("`addressable_load_fraction` must be a scalar or an array of length `fuel_loads_mmbtu_per_hour`"))
+        if normalize_and_scale_load_profile_input && length(addressable_load_fraction) == length(fuel_loads_mmbtu_per_hour)
+            throw(@error("Cannot use timeseries `addressable_load_fraction` with `fuel_loads_mmbtu_per_hour` when scaling fuel loads."))
         end
-        if !isempty(monthly_mmbtu) && length(addressable_load_fraction) != 12
-            throw(@error("`addressable_load_fraction` must be a scalar or an array of length 12 if `monthly_mmbtu` is input"))
+        if !isempty(fuel_loads_mmbtu_per_hour) && !normalize_and_scale_load_profile_input
+            n_fuel = length(fuel_loads_mmbtu_per_hour)
+            n_addr = length(addressable_load_fraction)
+            
+            if n_addr != n_fuel && n_addr != 12
+                if n_fuel % n_addr == 0
+                    addressable_load_fraction = repeat(addressable_load_fraction, inner=Int(n_fuel / n_addr))
+                else
+                    throw(@error("`addressable_load_fraction` must be a scalar or an array of length 12 if `monthly_mmbtu` is input or of length `fuel_loads_mmbtu_per_hour`"))
+                end
+            end
+        elseif !isempty(monthly_mmbtu) && length(addressable_load_fraction) != 12
+            throw(@error("`addressable_load_fraction` must be a scalar or an array of length 12 if `monthly_mmbtu` is input or of length `fuel_loads_mmbtu_per_hour`"))
         end
-        addressable_load_fraction = convert(Vector{Real}, addressable_load_fraction)
+        addressable_load_fraction = convert(Vector{Real}, addressable_load_fraction) # Can be monthly or per timestep
     elseif typeof(addressable_load_fraction) <: Vector{}
         addressable_load_fraction = convert(Real, addressable_load_fraction[1])  
     else
         addressable_load_fraction = convert(Real, addressable_load_fraction)            
     end
 
-    if length(fuel_loads_mmbtu_per_hour) > 0 && !normalize_and_scale_load_profile_input
+    if length(fuel_loads_mmbtu_per_hour) > 0 && ( !isempty(doe_reference_name) || length(blended_doe_reference_names) > 0 )
+        @warn "$load fuel_loads_mmbtu_per_hour was provided, so doe_reference_name and/or blended_doe_reference_names will be ignored."
+    end
 
-        if !(length(fuel_loads_mmbtu_per_hour) / time_steps_per_hour ≈ 8760)
-            throw(@error("Provided $load load does not match the time_steps_per_hour."))
-        end
+    if length(fuel_loads_mmbtu_per_hour) > 0 && !normalize_and_scale_load_profile_input
 
         loads_kw = fuel_loads_mmbtu_per_hour .* (KWH_PER_MMBTU * existing_boiler_efficiency) .* addressable_load_fraction
         unaddressable_annual_fuel_mmbtu = sum(fuel_loads_mmbtu_per_hour .* (1 .- addressable_load_fraction))  / time_steps_per_hour
 
-        if !isempty(doe_reference_name) || length(blended_doe_reference_names) > 0
-            @warn "$load fuel_loads_mmbtu_per_hour was provided, so doe_reference_name and/or blended_doe_reference_names will be ignored."
+    elseif length(fuel_loads_mmbtu_per_hour) > 0 && ( !isnothing(annual_mmbtu) || !isempty(monthly_mmbtu) ) && !normalize_and_scale_load_profile_input
+            throw(@error("If providing $load fuel_loads_mmbtu_per_hour and annual_mmbtu or monthly_mmbtu, must set normalize_and_scale_load_profile_input=true."))
+    elseif length(fuel_loads_mmbtu_per_hour) > 0 && normalize_and_scale_load_profile_input
+
+        if isnothing(annual_mmbtu) && isempty(monthly_mmbtu)
+            throw(@error("Provided $load fuel_loads_mmbtu_per_hour with normalize_and_scale_load_profile_input=true, but no annual_mmbtu or monthly_mmbtu was provided"))
         end
 
-    elseif length(fuel_loads_mmbtu_per_hour) > 0 && normalize_and_scale_load_profile_input
-        if !isempty(doe_reference_name)
-            @warn "fuel_loads_mmbtu_per_hour provided with normalize_and_scale_load_profile_input = true, so ignoring location and building type inputs, and only using the year and annual or monthly energy inputs with the load profile"
-        end
-        if isnothing(annual_mmbtu) && isempty(monthly_mmbtu)
-            throw(@error("Provided fuel_loads_mmbtu_per_hour with normalize_and_scale_load_profile_input=true, but no annual_mmbtu or monthly_mmbtu was provided"))
-        end
         # Using dummy values for all unneeded location and building type arguments for normalizing and scaling load profile input
         normalized_profile = fuel_loads_mmbtu_per_hour ./ sum(fuel_loads_mmbtu_per_hour)
-        loads_kw = BuiltInHeatingLoad(load_type, "Chicago", "FlatLoad", 41.8333, -88.0616, year, addressable_load_fraction, annual_mmbtu, monthly_mmbtu, existing_boiler_efficiency, normalized_profile)               
+        loads_kw = BuiltInHeatingLoad(load_type, "Chicago", "FlatLoad", 41.8333, -88.0616, year, addressable_load_fraction, annual_mmbtu, monthly_mmbtu, existing_boiler_efficiency, normalized_profile; time_steps_per_hour = time_steps_per_hour)               
         unaddressable_annual_fuel_mmbtu = get_unaddressable_fuel(addressable_load_fraction, annual_mmbtu, monthly_mmbtu, loads_kw, existing_boiler_efficiency)
     elseif !isempty(doe_reference_name)
         loads_kw = BuiltInHeatingLoad(load_type, city, doe_reference_name, latitude, longitude, year, addressable_load_fraction, annual_mmbtu, monthly_mmbtu, existing_boiler_efficiency)
@@ -141,6 +156,7 @@ function HeatingLoad(;
             [doe_reference_name, latitude, longitude], or [blended_doe_reference_names, blended_doe_reference_percents, latitude, longitude]."))
     end
 
+    # Adjust load length for CRBs, which are always 8760, if needed (after energy scaling and blending)
     if length(loads_kw) < 8760*time_steps_per_hour
         loads_kw = repeat(loads_kw, inner=Int(time_steps_per_hour / (length(loads_kw)/8760)))
         @warn "Repeating $load in each hour to match the time_steps_per_hour."
@@ -182,7 +198,8 @@ function BuiltInHeatingLoad(
     annual_mmbtu::Union{Real, Nothing}=nothing,
     monthly_mmbtu::Vector{<:Real}=Real[],
     existing_boiler_efficiency::Union{Real, Nothing}=nothing,
-    normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[]
+    normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[]; # for user-provided load profile
+    time_steps_per_hour::Int = 1 # only used with normalized_profile
     )
 
     # Load the appropriate default annual energy data based on load_type
@@ -220,21 +237,24 @@ function BuiltInHeatingLoad(
         else
             annual_mmbtu = default_annual_mmbtu[city][buildingtype]
         end
-    else
-        annual_mmbtu *= addressable_load_fraction
+    else # cannot use addressable_load_fraction with default CRB loads
+        # if user provides normalized_profile and monthly values, monthly will be used instead of this annual value
+        annual_mmbtu *= addressable_load_fraction 
     end
+
     if length(monthly_mmbtu) == 12
         monthly_mmbtu = monthly_mmbtu .* addressable_load_fraction
     end
+
     built_in_load(load_type, city, buildingtype, year, annual_mmbtu, monthly_mmbtu, 
-                    existing_boiler_efficiency, normalized_profile)
+                    existing_boiler_efficiency, normalized_profile; time_steps_per_hour=time_steps_per_hour)
 end
 
 """
     get_unaddressable_fuel(addressable_load_fraction, annual_mmbtu, monthly_mmbtu, loads_kw, existing_boiler_efficiency)
     
 Get unaddressable fuel load, for reporting
-    :addressable_load_fraction is the fraction of the input fuel load that is addressable to supply by energy technologies, like CHP
+    :addressable_load_fraction is the fraction of the input fuel load that is addressable to supply by energy technologies, like CHP. Can be array of 12 or scalar.
     :annual_mmbtu and :monthly_mmbtu is assumed to be fuel, not thermal, in this function
     :loads_kw is assumed to be thermal in this function, with units of kw_thermal, so needs to be converted to fuel mmbtu
 """
@@ -356,7 +376,7 @@ struct CoolingLoad
         elseif length(blended_doe_reference_names) > 1 && 
             length(blended_doe_reference_names) == length(blended_doe_reference_percents)
             if isnothing(annual_tonhour) && isempty(monthly_tonhour)
-                loads_kw = zeros(Int(8760/time_steps_per_hour))
+                loads_kw = zeros(Int(8760*time_steps_per_hour))
                 for (i, building) in enumerate(blended_doe_reference_names)
                     default_fraction = get_default_fraction_of_total_electric(city, building, latitude, longitude, year)
                     modified_fraction = default_fraction * blended_doe_reference_percents[i]
@@ -400,7 +420,7 @@ struct CoolingLoad
                                         max_load_kw_thermal=maximum(loads_kw_thermal))
         end
 
-        if length(loads_kw_thermal) < 8760*time_steps_per_hour
+        if length(loads_kw_thermal) < 8760*time_steps_per_hour && length(loads_kw_thermal) % 8760 == 0
             loads_kw_thermal = repeat(loads_kw_thermal, inner=Int(time_steps_per_hour / 
                                (length(loads_kw_thermal)/8760)))
             @warn "Repeating cooling loads in each hour to match the time_steps_per_hour."

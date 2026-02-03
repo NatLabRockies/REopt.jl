@@ -45,7 +45,14 @@
         "min_kwh": 200.0,
         "max_kwh": 200.0,
         "battery_replacement_year": 4,
-        "inverter_replacement_year": 4
+        "inverter_replacement_year": 4,
+        "installed_cost_per_kw": 910.0,
+        "installed_cost_per_kwh": 455.0,
+        "installed_cost_constant": 0.0,        
+        "replace_cost_per_kw": 715.0,
+        "replace_cost_per_kwh": 318.0,
+        "replace_cost_constant": 0.0,
+        "om_cost_fraction_of_installed_cost": 0.0
     },
     "CHP": {
         "prime_mover": "recip_engine",

@@ -1,0 +1,17 @@
+{
+    "user_uuid": "1d2ef71e-fd93-4c4a-b5c3-1485a87f772e",
+    "Meta": {
+        "description": "Site 1",
+        "address": "San Francisco, CA"
+    },
+    "Site": {
+        "latitude": 37.7749295,
+        "longitude": -122.4194155
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "ElectricTariff": {
+        "urdb_label": "6758702ed171911a480dc81c"
+    }
+}

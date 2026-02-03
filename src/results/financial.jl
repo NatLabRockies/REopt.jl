@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Financial` results keys:
 - `lcc` Optimal lifecycle cost
@@ -7,7 +7,7 @@
 - `lifecycle_om_costs_after_tax` LCC component. Present value of all O&M costs, after tax. (does not include fuel costs)
 - `lifecycle_fuel_costs_after_tax` LCC component. Present value of all fuel costs over the analysis period, after tax.
 - `lifecycle_chp_standby_cost_after_tax` LCC component. Present value of all CHP standby charges, after tax.
-- `lifecycle_elecbill_after_tax` LCC component. Present value of all electric utility charges, after tax. 
+- `lifecycle_elecbill_after_tax` LCC component. Present value of all electric utility charges, including compensation for exports, after tax. 
 - `lifecycle_production_incentive_after_tax` LCC component. Present value of all production-based incentives, after tax.
 - `lifecycle_offgrid_other_annual_costs_after_tax` LCC component. Present value of offgrid_other_annual_costs over the analysis period, after tax. 
 - `lifecycle_offgrid_other_capital_costs` LCC component. Equal to offgrid_other_capital_costs with straight line depreciation applied over analysis period. The depreciation expense is assumed to reduce the owner's taxable income.
@@ -80,10 +80,13 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
     r["lcc"] = value(m[Symbol("Costs"*_n)]) + 0.0001 * value(m[Symbol("MinChargeAdder"*_n)])
 
     r["lifecycle_om_costs_before_tax"] = value(m[Symbol("TotalPerUnitSizeOMCosts"*_n)] + 
-                                           m[Symbol("TotalPerUnitProdOMCosts"*_n)] + m[Symbol("TotalPerUnitHourOMCosts"*_n)] + m[Symbol("GHPOMCosts"*_n)])
+                                           m[Symbol("TotalPerUnitProdOMCosts"*_n)] + 
+                                           m[Symbol("TotalPerUnitHourOMCosts"*_n)] + 
+                                           m[Symbol("GHPOMCosts"*_n)] +
+                                           m[Symbol("ElectricStorageOMCost"*_n)])
     
     ## Start LCC breakdown: ##
-    r["lifecycle_generation_tech_capital_costs"] = value(m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("GHPCapCosts"*_n)]) # Tech capital costs (including replacements)
+    r["lifecycle_generation_tech_capital_costs"] = value(m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("GHPCapCosts"*_n)] + m[Symbol("ExistingBoilerCost"*_n)] + m[Symbol("ExistingChillerCost"*_n)]) # Tech capital costs (including replacements)
     r["lifecycle_storage_capital_costs"] = value(m[Symbol("TotalStorageCapCosts"*_n)]) # Storage capital costs (including replacements)
     r["lifecycle_om_costs_after_tax"] = r["lifecycle_om_costs_before_tax"] * (1 - p.s.financial.owner_tax_rate_fraction)  # Fixed & Variable O&M 
     if !isempty(p.techs.fuel_burning)
@@ -119,7 +122,7 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
     r["year_one_om_costs_before_tax"] = r["lifecycle_om_costs_before_tax"] / (p.pwf_om * p.third_party_factor)
     r["year_one_om_costs_after_tax"] = r["lifecycle_om_costs_after_tax"] / (p.pwf_om * p.third_party_factor)
     
-    r["lifecycle_capital_costs"] = value(m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] + m[Symbol("GHPCapCosts"*_n)] +
+    r["lifecycle_capital_costs"] = value(m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] + m[Symbol("GHPCapCosts"*_n)] + m[Symbol("ExistingBoilerCost"*_n)] + m[Symbol("ExistingChillerCost"*_n)] +
         m[Symbol("OffgridOtherCapexAfterDepr"*_n)] - m[Symbol("AvoidedCapexByGHP"*_n)] - m[Symbol("ResidualGHXCapCost"*_n)] - m[Symbol("AvoidedCapexByASHP"*_n)]
     )
     if !isempty(p.s.electric_utility.outage_durations)
@@ -289,12 +292,29 @@ function replacement_costs_future_and_present(m::JuMP.AbstractModel, p::REoptInp
         else
             future_cost_storage = p.s.storage.attr[b].replace_cost_per_kwh * value.(m[Symbol("dvStorageEnergy"*_n)])[b]
         end
-        future_cost += future_cost_inverter + future_cost_storage
+
+        if b in p.s.storage.types.elec
+            if p.s.storage.attr[b].cost_constant_replacement_year >= p.s.financial.analysis_years
+                future_cost_cost_constant = 0
+            else
+                if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+                    future_cost_cost_constant = p.s.storage.attr[b].replace_cost_constant * value.(m[Symbol("binIncludeStorageCostConstant"*_n)])[b]
+                else
+                    future_cost_cost_constant = 0
+                end
+            end
+        else
+            future_cost_cost_constant = 0
+        end
+
+        future_cost += future_cost_inverter + future_cost_storage + future_cost_cost_constant
 
         present_cost += future_cost_inverter * (1 - p.s.financial.owner_tax_rate_fraction) / 
             ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.storage.attr[b].inverter_replacement_year)
         present_cost += future_cost_storage * (1 - p.s.financial.owner_tax_rate_fraction) / 
             ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.storage.attr[b].battery_replacement_year)
+        present_cost += future_cost_cost_constant * (1 - p.s.financial.owner_tax_rate_fraction) / 
+            ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.storage.attr[b].cost_constant_replacement_year)  
     end
 
     if !isempty(p.techs.gen) # Generator replacement 
@@ -334,8 +354,17 @@ function calculate_lcoe(p::REoptInputs, tech_results::Dict, tech::AbstractTech)
         discount_rate_fraction = p.s.financial.offtaker_discount_rate_fraction
         federal_tax_rate_fraction = p.s.financial.offtaker_tax_rate_fraction
     end
+    capital_costs = if typeof(tech) == PV && :tech_sizes_for_cost_curve in fieldnames(typeof(tech))
+        # Use PV-specific cost curve calculation for PV tech
+        get_pv_initial_capex(p, tech, new_kw)
+    else
+        # Use simple calculation for other techs like Wind
+        new_kw * tech.installed_cost_per_kw
+    end
 
-    capital_costs = new_kw * tech.installed_cost_per_kw # pre-incentive capital costs
+    # @info "Using initial cap cost: $(capital_costs) for lcoe calculation"
+
+    # capital_costs = new_kw * tech.installed_cost_per_kw # pre-incentive capital costs
 
     annual_om = new_kw * tech.om_cost_per_kw 
 
@@ -412,7 +441,6 @@ function get_depreciation_schedule(p::REoptInputs, tech::Union{AbstractTech,Abst
 
     federal_itc_fraction = 0.0
     try 
-        # TODO add Hot/ColdThermalStorage.total_itc_fraction to struct; currently only in ElectricStorage
         if typeof(tech) <: AbstractStorage
             federal_itc_fraction = tech.total_itc_fraction
         else
@@ -421,8 +449,8 @@ function get_depreciation_schedule(p::REoptInputs, tech::Union{AbstractTech,Abst
     catch
         @warn "Did not find $(tech).federal_itc_fraction so using 0.0 in calculation of depreciation_schedule."
     end
-    
-    macrs_bonus_basis = federal_itc_basis - federal_itc_basis * federal_itc_fraction * tech.macrs_itc_reduction
+    macrs_itc_reduction = federal_itc_fraction == 0.0 ? 0 : tech.macrs_itc_reduction # Catch for techs that don't have ITC nor a macrs_itc_reduction input 
+    macrs_bonus_basis = federal_itc_basis - federal_itc_basis * federal_itc_fraction * macrs_itc_reduction
     macrs_basis = macrs_bonus_basis * (1 - tech.macrs_bonus_fraction)
 
     depreciation_schedule = zeros(p.s.financial.analysis_years)
@@ -434,4 +462,31 @@ function get_depreciation_schedule(p::REoptInputs, tech::Union{AbstractTech,Abst
     depreciation_schedule[1] += (tech.macrs_bonus_fraction * macrs_bonus_basis)
 
     return depreciation_schedule
+end
+
+function get_pv_initial_capex(p::REoptInputs, pv::AbstractTech, size_kw::Float64)
+    cost_list = pv.installed_cost_per_kw
+    size_list = pv.tech_sizes_for_cost_curve
+    pv_size = size_kw
+    initial_capex = 0.0
+    
+    if typeof(cost_list) == Vector{Float64}
+        if pv_size <= size_list[1]
+            initial_capex = pv_size * cost_list[1]
+        elseif pv_size > size_list[end]
+            initial_capex = pv_size * cost_list[end]
+        else
+            for s in 2:length(size_list)
+                if (pv_size > size_list[s-1]) && (pv_size <= size_list[s])
+                    slope = (cost_list[s] * size_list[s] - cost_list[s-1] * size_list[s-1]) /
+                            (size_list[s] - size_list[s-1])
+                    initial_capex = cost_list[s-1] * size_list[s-1] + (pv_size - size_list[s-1]) * slope
+                end
+            end
+        end
+    else
+        initial_capex = cost_list * pv_size
+    end
+
+    return initial_capex
 end

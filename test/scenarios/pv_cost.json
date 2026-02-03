@@ -1,0 +1,29 @@
+{
+    "Financial": {
+        "analysis_years": 20,
+        "offtaker_discount_rate_fraction": 0.06,
+        "offtaker_tax_rate_fraction": 0.26,
+        "elec_cost_escalation_rate_fraction": 0.03,
+        "om_cost_escalation_rate_fraction": 0.02
+    },
+    "PV": {
+        "federal_itc_fraction": 0.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "can_net_meter": true
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "Hospital",
+        "annual_kwh": 5000000.0
+    },
+    "Site": {
+        "longitude": -118.1164613,
+        "latitude": 34.5794343
+    },
+    "ElectricUtility" : {
+        "net_metering_limit_kw": 0.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12
+    }
+}
