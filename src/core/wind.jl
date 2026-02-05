@@ -34,6 +34,7 @@
     can_wholesale = true,
     can_export_beyond_nem_limit = true
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+    production_uncertainty::Union{Dict, Nothing} = nothing  # OUU parameter - handled at Scenario level, not stored in Wind
 ```
 !!! note "Default assumptions" 
     `size_class` must be one of ["residential", "commercial", "medium", "large"]. If `size_class` is not provided then it is determined based on the average electric load.
@@ -135,6 +136,7 @@ struct Wind <: AbstractTech
         can_curtail= true,
         average_elec_load = 0.0,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+        production_uncertainty::Union{Dict, Nothing} = nothing  # OUU parameter - handled at Scenario level, not stored in Wind
         )
         size_class_to_hub_height = Dict(
             "residential"=> 20,

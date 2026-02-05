@@ -23,18 +23,18 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     r = Dict{String, Any}()
     r["size_mmbtu_per_hour"] = round(value(m[Symbol("dvSize"*_n)]["Boiler"]) / KWH_PER_MMBTU, digits=3)
 	r["fuel_consumption_series_mmbtu_per_hour"] = 
-        round.(value.(m[:dvFuelUsage]["Boiler", ts] for ts in p.time_steps) / KWH_PER_MMBTU, digits=3)
+        round.(sum(p.scenario_probabilities[s] * value(m[:dvFuelUsage][s, "Boiler", ts]) for s in 1:p.n_scenarios) / KWH_PER_MMBTU for ts in p.time_steps, digits=3)
     r["annual_fuel_consumption_mmbtu"] = round(sum(r["fuel_consumption_series_mmbtu_per_hour"]), digits=3)
 
 	r["thermal_production_series_mmbtu_per_hour"] = 
-        round.(sum(value.(m[:dvHeatingProduction]["Boiler", q, ts] for ts in p.time_steps) for q in p.heating_loads) ./ KWH_PER_MMBTU, digits=5)
+        round.([sum(p.scenario_probabilities[s] * value(sum(m[:dvHeatingProduction][s, "Boiler", q, ts] for q in p.heating_loads)) for s in 1:p.n_scenarios) / KWH_PER_MMBTU for ts in p.time_steps], digits=5)
     r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, NewBoilerToHotTESKW[ts in p.time_steps],
-		    sum(m[:dvHeatToStorage][b,"Boiler",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
+		    sum(p.scenario_probabilities[s] * m[:dvHeatToStorage][s, b,"Boiler",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot, q in p.heating_loads)
             )
-            @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], sum(m[Symbol("dvHeatToStorage"*_n)][b,"Boiler",q,ts] for b in p.s.storage.types.hot))
+            @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], sum(p.scenario_probabilities[s] * m[Symbol("dvHeatToStorage"*_n)][s, b,"Boiler",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot))
     else
         NewBoilerToHotTESKW = zeros(length(p.time_steps))
         @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], 0.0)
@@ -42,8 +42,8 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
 	r["thermal_to_storage_series_mmbtu_per_hour"] = round.(value.(NewBoilerToHotTESKW / KWH_PER_MMBTU), digits=3)
 
     if !isempty(p.techs.steam_turbine) && p.s.boiler.can_supply_steam_turbine
-        @expression(m, NewBoilerToSteamTurbine[ts in p.time_steps], sum(m[:dvThermalToSteamTurbine]["Boiler",q,ts] for q in p.heating_loads))
-        @expression(m, NewBoilerToSteamTurbineByQuality[q in p.heating_loads, ts in p.time_steps], m[Symbol("dvThermalToSteamTurbine"*_n)]["Boiler",q,ts])
+        @expression(m, NewBoilerToSteamTurbine[ts in p.time_steps], sum(p.scenario_probabilities[s] * m[:dvThermalToSteamTurbine][s, "Boiler",q,ts] for s in 1:p.n_scenarios, q in p.heating_loads))
+        @expression(m, NewBoilerToSteamTurbineByQuality[q in p.heating_loads, ts in p.time_steps], sum(p.scenario_probabilities[s] * m[Symbol("dvThermalToSteamTurbine"*_n)][s, "Boiler",q,ts] for s in 1:p.n_scenarios))
     else
         NewBoilerToSteamTurbine = zeros(length(p.time_steps))
         @expression(m, NewBoilerToSteamTurbineByQuality[q in p.heating_loads, ts in p.time_steps], 0.0)
@@ -51,13 +51,13 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(NewBoilerToSteamTurbine), digits=3)
 
 	BoilerToLoad = @expression(m, [ts in p.time_steps],
-		sum(value.(m[:dvHeatingProduction]["Boiler", q, ts]) for q in p.heating_loads) - NewBoilerToHotTESKW[ts] - NewBoilerToSteamTurbine[ts] 
+		sum(p.scenario_probabilities[s] * value(m[:dvHeatingProduction][s, "Boiler", q, ts]) for s in 1:p.n_scenarios, q in p.heating_loads) - NewBoilerToHotTESKW[ts] - NewBoilerToSteamTurbine[ts] 
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(BoilerToLoad / KWH_PER_MMBTU), digits=3)
 
     if "DomesticHotWater" in p.heating_loads && p.s.boiler.can_serve_dhw
         @expression(m, NewBoilerToDHWKW[ts in p.time_steps], 
-            m[:dvHeatingProduction]["Boiler","DomesticHotWater",ts] - NewBoilerToHotTESByQuality["DomesticHotWater",ts] - NewBoilerToSteamTurbineByQuality["DomesticHotWater",ts]
+            sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "Boiler","DomesticHotWater",ts] for s in 1:p.n_scenarios) - NewBoilerToHotTESByQuality["DomesticHotWater",ts] - NewBoilerToSteamTurbineByQuality["DomesticHotWater",ts]
         )
     else
         @expression(m, NewBoilerToDHWKW[ts in p.time_steps], 0.0)
@@ -66,7 +66,7 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     
     if "SpaceHeating" in p.heating_loads && p.s.boiler.can_serve_space_heating
         @expression(m, NewBoilerToSpaceHeatingKW[ts in p.time_steps], 
-            m[:dvHeatingProduction]["Boiler","SpaceHeating",ts] - NewBoilerToHotTESByQuality["SpaceHeating",ts] - NewBoilerToSteamTurbineByQuality["SpaceHeating",ts]
+            sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "Boiler","SpaceHeating",ts] for s in 1:p.n_scenarios) - NewBoilerToHotTESByQuality["SpaceHeating",ts] - NewBoilerToSteamTurbineByQuality["SpaceHeating",ts]
         )
     else
         @expression(m, NewBoilerToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -75,7 +75,7 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     
     if "ProcessHeat" in p.heating_loads && p.s.boiler.can_serve_process_heat
         @expression(m, NewBoilerToProcessHeatKW[ts in p.time_steps], 
-            m[:dvHeatingProduction]["Boiler","ProcessHeat",ts] - NewBoilerToHotTESByQuality["ProcessHeat",ts] - NewBoilerToSteamTurbineByQuality["ProcessHeat",ts]
+            sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "Boiler","ProcessHeat",ts] for s in 1:p.n_scenarios) - NewBoilerToHotTESByQuality["ProcessHeat",ts] - NewBoilerToSteamTurbineByQuality["ProcessHeat",ts]
         )
     else
         @expression(m, NewBoilerToProcessHeatKW[ts in p.time_steps], 0.0)
@@ -83,7 +83,7 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(value.(NewBoilerToProcessHeatKW ./ KWH_PER_MMBTU), digits=5)
 
     lifecycle_fuel_cost = p.pwf_fuel["Boiler"] * value(
-        sum(m[:dvFuelUsage]["Boiler", ts] * p.fuel_cost_per_kwh["Boiler"][ts] for ts in p.time_steps)
+        sum(p.scenario_probabilities[s] * m[:dvFuelUsage][s, "Boiler", ts] * p.fuel_cost_per_kwh["Boiler"][ts] for s in 1:p.n_scenarios, ts in p.time_steps)
     )
 	r["lifecycle_fuel_cost_after_tax"] = round(lifecycle_fuel_cost * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=3)
 	r["year_one_fuel_cost_before_tax"] = round(lifecycle_fuel_cost / p.pwf_fuel["Boiler"], digits=3)

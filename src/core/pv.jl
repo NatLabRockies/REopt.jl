@@ -167,7 +167,8 @@ mutable struct PV <: AbstractTech
         use_detailed_cost_curve::Bool = false,
         electric_load_annual_kwh::Real = 0.0,
         site_land_acres::Union{Real, Nothing} = nothing,
-        site_roof_squarefeet::Union{Real, Nothing} = nothing
+        site_roof_squarefeet::Union{Real, Nothing} = nothing,
+        production_uncertainty::Union{Dict, Nothing} = nothing  # OUU parameter - handled at Scenario level, not stored in PV
         )
 
         # Adjust operating_reserve_required_fraction based on off_grid_flag

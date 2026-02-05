@@ -275,9 +275,9 @@ function add_binMGCHPIsOnInTS_constraints(m, p; _n="")
 end
 
 function add_MG_storage_dispatch_constraints(m,p)
-    # initial SOC at start of each outage equals the grid-optimal SOC
+    # initial SOC at start of each outage equals the grid-optimal SOC (probability-weighted average across OUU scenarios)
     @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGStoredEnergy][s, tz, 0] <= m[:dvStoredEnergy]["ElectricStorage", tz]
+        m[:dvMGStoredEnergy][s, tz, 0] <= sum(p.scenario_probabilities[scen] * m[:dvStoredEnergy][scen, "ElectricStorage", tz] for scen in 1:p.n_scenarios)
     )
     
     # state of charge

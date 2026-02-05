@@ -31,37 +31,37 @@ function add_wind_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r["year_one_om_cost_before_tax"] = round(value(per_unit_size_om) / (p.pwf_om * p.third_party_factor), digits=0)
 
 	if !isempty(p.s.storage.types.elec)
-		WindToStorage = (sum(m[:dvProductionToStorage][b, t, ts] for b in p.s.storage.types.elec) for ts in p.time_steps)
+		WindToStorage = [sum(p.scenario_probabilities[s] * sum(value(m[:dvProductionToStorage][s, b, t, ts]) for b in p.s.storage.types.elec) for s in 1:p.n_scenarios) for ts in p.time_steps]
 	else
 		WindToStorage = zeros(length(p.time_steps))
 	end
-	r["electric_to_storage_series_kw"] = round.(value.(WindToStorage), digits=3)
+	r["electric_to_storage_series_kw"] = round.(WindToStorage, digits=3)
 
     r["annual_energy_exported_kwh"] = 0.0
     if !isempty(p.s.electric_tariff.export_bins)
-        WindToGrid = (sum(m[:dvProductionToGrid][t, u, ts] for u in p.export_bins_by_tech[t]) for ts in p.time_steps)
-        r["electric_to_grid_series_kw"] = round.(value.(WindToGrid), digits=3)
+        WindToGrid = [sum(p.scenario_probabilities[s] * sum(value(m[:dvProductionToGrid][s, t, u, ts]) for u in p.export_bins_by_tech[t]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+        r["electric_to_grid_series_kw"] = round.(WindToGrid, digits=3)
         r["annual_energy_exported_kwh"] = round(
             sum(r["electric_to_grid_series_kw"]) * p.hours_per_time_step, digits=0)
 	else
 		WindToGrid = zeros(length(p.time_steps))
+		r["electric_to_grid_series_kw"] = WindToGrid
 	end
-	r["electric_to_grid_series_kw"] = round.(value.(WindToGrid), digits=3)
 	
-	WindToCUR = (m[Symbol("dvCurtail"*_n)][t, ts] for ts in p.time_steps)
-    r["electric_curtailed_series_kw"] = round.(value.(WindToCUR), digits=3)
+	WindToCUR = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvCurtail"*_n)][s, t, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+    r["electric_curtailed_series_kw"] = round.(WindToCUR, digits=3)
 	
-	TotalHourlyWindProd = value.(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for ts in p.time_steps)
+	TotalHourlyWindProd = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvRatedProduction"*_n)][s, t,ts]) for s in 1:p.n_scenarios) * p.production_factor[t, ts] for ts in p.time_steps]
 
 	WindToLoad =(TotalHourlyWindProd[ts] 
 			- r["electric_to_storage_series_kw"][ts] 
 			- r["electric_to_grid_series_kw"][ts] 
 			- r["electric_curtailed_series_kw"][ts] for ts in p.time_steps
 	)
-	r["electric_to_load_series_kw"] = round.(value.(WindToLoad), digits=3)
+	r["electric_to_load_series_kw"] = round.(collect(WindToLoad), digits=3)
 
 	AvgWindProd = (sum(TotalHourlyWindProd) * p.hours_per_time_step) * p.levelization_factor[t]
-	r["annual_energy_produced_kwh"] = round(value(AvgWindProd), digits=0)
+	r["annual_energy_produced_kwh"] = round(AvgWindProd, digits=0)
 
     r["lcoe_per_kwh"] = calculate_lcoe(p, r, p.s.wind)
 	d[t] = r

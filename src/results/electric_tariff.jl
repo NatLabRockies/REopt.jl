@@ -55,7 +55,7 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
 
     r = Dict{String, Any}()
     m[Symbol("Year1UtilityEnergy"*_n)] = p.hours_per_time_step * 
-        sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
+        sum(p.scenario_probabilities[s] * m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for s in 1:p.n_scenarios, ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
 
     r["lifecycle_energy_cost_after_tax"] = round(value(m[Symbol("TotalEnergyChargesUtil"*_n)]) * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=2)
     r["year_one_energy_cost_before_tax"] = round(value(m[Symbol("TotalEnergyChargesUtil"*_n)]) / p.pwf_e, digits=2)
@@ -139,10 +139,11 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
        r["tou_demand_rate_tier_limits"][string("Tier_", idx)] = col
     end
 
-    # Grid to load.
+    # Grid to load - compute expected value across scenarios
     r["energy_cost_series_before_tax"] = Dict()
     for (idx,col) in enumerate(eachcol(p.s.electric_tariff.energy_rates))
-       r["energy_cost_series_before_tax"][string("Tier_", idx)] = col.*collect(value.(m[Symbol("dvGridPurchase"*_n)][:,idx])).* p.hours_per_time_step
+       expected_grid_purchase = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvGridPurchase"*_n)][s, ts, idx]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+       r["energy_cost_series_before_tax"][string("Tier_", idx)] = col .* expected_grid_purchase .* p.hours_per_time_step
     end
     
     if Dates.isleapyear(p.s.electric_load.year) # end dr on Dec 30th 11:59 pm.
@@ -163,11 +164,12 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
         push!(r["monthly_energy_cost_series_before_tax"], monthly_sum)
     end
 
-    # monthly demand charges paid to utility.
+    # monthly demand charges paid to utility - compute expected value across scenarios
     r["monthly_facility_demand_cost_series_before_tax"] = zeros(12)
     if !isempty(p.s.electric_tariff.monthly_demand_rates)
         for (idx,col) in enumerate(eachcol(p.s.electric_tariff.monthly_demand_rates))
-            r["monthly_facility_demand_cost_series_before_tax"] .+= col.*collect(value.(m[Symbol("dvPeakDemandMonth"*_n)][:,idx]))
+            expected_peak_demand = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvPeakDemandMonth"*_n)][s, mth, idx]) for s in 1:p.n_scenarios) for mth in 1:12]
+            r["monthly_facility_demand_cost_series_before_tax"] .+= col .* expected_peak_demand
         end
     end
 
@@ -180,10 +182,12 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     r["tou_demand_metrics"]["demand_charge_before_tax"] = []
     tou_demand_charges = Dict()
     for tier in 1:p.s.electric_tariff.n_tou_demand_tiers
+        # Compute expected peak demand across scenarios for this tier
+        expected_tou_peaks = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvPeakDemandTOU"*_n)][s, r, tier]) for s in 1:p.n_scenarios) for r in 1:length(p.ratchets)]
         for (a,b,c) in zip(
                 p.s.electric_tariff.tou_demand_ratchet_time_steps,
                 p.s.electric_tariff.tou_demand_rates[:,tier],
-                value.(m[Symbol("dvPeakDemandTOU"*_n)][:,tier]))
+                expected_tou_peaks)
 
             idx = a[1] + ts_shift # DateTime element to inspect for month determination. Shift ts by a day in case of leap year to capture December TOU ratchets.
             
@@ -253,7 +257,7 @@ MPC `ElectricTariff` results keys:
 function add_electric_tariff_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     m[Symbol("energy_purchased"*_n)] = p.hours_per_time_step * 
-        sum(m[Symbol("dvGridPurchase"*_n)][ts] for ts in p.time_steps)
+        sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for s in 1:p.n_scenarios, ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
 
     r["energy_cost"] = round(value(m[Symbol("TotalEnergyChargesUtil"*_n)]), digits=2)
 

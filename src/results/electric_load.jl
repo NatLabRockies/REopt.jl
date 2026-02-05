@@ -51,8 +51,8 @@ function add_electric_load_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
                 sum(p.s.electric_load.critical_loads_kw))
         r["offgrid_load_met_fraction"] = round(value(LoadMetPct), digits=6)
         
-        r["offgrid_annual_oper_res_required_series_kwh"] = round.(value.(m[:OpResRequired][ts] for ts in p.time_steps_without_grid), digits=3)
-        r["offgrid_annual_oper_res_provided_series_kwh"] = round.(value.(m[:OpResProvided][ts] for ts in p.time_steps_without_grid), digits=3)
+        r["offgrid_annual_oper_res_required_series_kwh"] = round.([sum(p.scenario_probabilities[s] * value(m[:OpResRequired][s, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps_without_grid], digits=3)
+        r["offgrid_annual_oper_res_provided_series_kwh"] = round.([sum(p.scenario_probabilities[s] * value(m[:OpResProvided][s, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps_without_grid], digits=3)
     end
     
     d["ElectricLoad"] = r

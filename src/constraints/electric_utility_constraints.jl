@@ -2,17 +2,17 @@
 function add_export_constraints(m, p; _n="")
 
     ## Imports and Exports must be no greater than the transmission limit
-    m[Symbol("ImportExportLimitCon"*_n)] = @constraint(m, [ts in p.time_steps_with_grid],
-    sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
-        + sum(sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers))
+    m[Symbol("ImportExportLimitCon"*_n)] = @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps_with_grid],
+    sum(m[Symbol("dvProductionToGrid"*_n)][s, t, u, ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+        + sum(sum( m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers))
         <= p.s.electric_utility.transmission_limit_kw
     )
 
     ##Constraint (8e): Production export and curtailment no greater than production
-    @constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
-        p.production_factor[t,ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t,ts] 
-        >= sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t]) +
-           m[Symbol("dvCurtail"*_n)][t, ts]
+    @constraint(m, [s in 1:p.n_scenarios, t in p.techs.elec, ts in p.time_steps_with_grid],
+        p.production_factor_by_scenario[s][t][ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][s, t,ts] 
+        >= sum(m[Symbol("dvProductionToGrid"*_n)][s, t, u, ts] for u in p.export_bins_by_tech[t]) +
+           m[Symbol("dvCurtail"*_n)][s, t, ts]
     )
 
     binNEM = 0
@@ -26,10 +26,10 @@ function add_export_constraints(m, p; _n="")
     if !isempty(NEM_techs)
         # Constraint (9c): Net metering only -- can't sell more than you purchase
         # hours_per_time_step is cancelled on both sides, but used for unit consistency (convert power to energy)
-        @constraint(m,
-            p.hours_per_time_step * sum( m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] 
+        @constraint(m, [s in 1:p.n_scenarios],
+            p.hours_per_time_step * sum( m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] 
             for t in NEM_techs, ts in p.time_steps)
-            <= p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier]
+            <= p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][s, ts, tier]
                 for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
         )
 
@@ -40,13 +40,13 @@ function add_export_constraints(m, p; _n="")
                 sum(m[Symbol("dvSize"*_n)][t] for t in NEM_techs) <= p.s.electric_utility.interconnection_limit_kw
             )
             NEM_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
-                sum( sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] 
-                    for t in p.techs_by_exportbin[:NEM]) for ts in p.time_steps)
+                sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] 
+                    for t in p.techs_by_exportbin[:NEM]) for s in 1:p.n_scenarios, ts in p.time_steps)
             )
             if :EXC in p.s.electric_tariff.export_bins
                 EXC_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
-                    sum( sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :EXC, ts] 
-                        for t in p.techs_by_exportbin[:EXC]) for ts in p.time_steps)
+                    sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :EXC, ts] 
+                        for t in p.techs_by_exportbin[:EXC]) for s in 1:p.n_scenarios, ts in p.time_steps)
                 )
             end
         else
@@ -93,24 +93,24 @@ function add_export_constraints(m, p; _n="")
             if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
                 @constraint(m,
                     binNEM => {NEM_benefit >= p.pwf_e * p.hours_per_time_step *
-                        sum( sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] 
-                            for t in p.techs_by_exportbin[:NEM]) for ts in p.time_steps)
+                        sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] 
+                            for t in p.techs_by_exportbin[:NEM]) for s in 1:p.n_scenarios, ts in p.time_steps)
                     }
                 )
                 @constraint(m, !binNEM => {NEM_benefit >= 0})
-                @constraint(m,[ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:NEM]], 
-                    !binNEM => { m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] == 0
+                @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:NEM]], 
+                    !binNEM => { m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] == 0
                         }
                 )
             else
                 @constraint(m,
                     NEM_benefit >= p.pwf_e * p.hours_per_time_step *
-                        sum( sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] 
-                            for t in p.techs_by_exportbin[:NEM]) for ts in p.time_steps)
+                        sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:NEM][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] 
+                            for t in p.techs_by_exportbin[:NEM]) for s in 1:p.n_scenarios, ts in p.time_steps)
                 )
                 @constraint(m, NEM_benefit >= max_bene * binNEM)
-                @constraint(m,[ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:NEM]], 
-                    m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] <= binNEM * sum(p.s.electric_load.loads_kw)
+                @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:NEM]], 
+                    m[Symbol("dvProductionToGrid"*_n)][s, t, :NEM, ts] <= binNEM * sum(p.s.electric_load.loads_kw)
                 )
             end
 
@@ -120,16 +120,16 @@ function add_export_constraints(m, p; _n="")
                 if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
                     @constraint(m,
                         binNEM => {EXC_benefit >= p.pwf_e * p.hours_per_time_step *
-                            sum( sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :EXC, ts] 
-                                for t in p.techs_by_exportbin[:EXC]) for ts in p.time_steps)
+                            sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :EXC, ts] 
+                                for t in p.techs_by_exportbin[:EXC]) for s in 1:p.n_scenarios, ts in p.time_steps)
                         }
                     )
                     @constraint(m, !binNEM => {EXC_benefit >= 0})
                 else
                     @constraint(m,
                         EXC_benefit >= p.pwf_e * p.hours_per_time_step *
-                            sum( sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :EXC, ts] 
-                                for t in p.techs_by_exportbin[:EXC]) for ts in p.time_steps)
+                            sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:EXC][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :EXC, ts] 
+                                for t in p.techs_by_exportbin[:EXC]) for s in 1:p.n_scenarios, ts in p.time_steps)
                     )
                     @constraint(m, EXC_benefit >= max_bene * binNEM)
                 end
@@ -142,8 +142,8 @@ function add_export_constraints(m, p; _n="")
         if typeof(binNEM) <: Real  # no need for wholesale binary
             binWHL = 1
             WHL_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
-                sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
+                sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :WHL, ts] 
+                        for t in p.techs_by_exportbin[:WHL]) for s in 1:p.n_scenarios, ts in p.time_steps)
             )
         else
             binWHL = @variable(m, binary = true)
@@ -155,16 +155,16 @@ function add_export_constraints(m, p; _n="")
             if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
                 @constraint(m,
                     binWHL => {WHL_benefit >= p.pwf_e * p.hours_per_time_step *
-                        sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                                for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
+                        sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :WHL, ts] 
+                                for t in p.techs_by_exportbin[:WHL]) for s in 1:p.n_scenarios, ts in p.time_steps)
                     }
                 )
                 @constraint(m, !binWHL => {WHL_benefit >= 0})
             else
                 @constraint(m,
                     WHL_benefit >= p.pwf_e * p.hours_per_time_step *
-                        sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                                for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
+                        sum( p.scenario_probabilities[s] * sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][s, t, :WHL, ts] 
+                                for t in p.techs_by_exportbin[:WHL]) for s in 1:p.n_scenarios, ts in p.time_steps)
                 )
                 @constraint(m, WHL_benefit >= max_bene * binWHL)
             end
@@ -190,18 +190,18 @@ function add_monthly_peak_constraint(m, p; _n="")
 
 	## Constraint (11d): Monthly peak demand is >= demand at each hour in the month
     if (!isempty(p.techs.chp)) && !(p.s.chp.reduces_demand_charges)
-        @constraint(m, [mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
-            sum(m[Symbol("dvPeakDemandMonth"*_n)][mth, t] for t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
-            >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) + 
-            sum(p.production_factor[t, ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t, ts] for t in p.techs.chp) - 
-            sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) for t in p.techs.chp) -
-            sum(sum(m[Symbol("dvProductionToGrid")][t,u,ts] for u in p.export_bins_by_tech[t]) for t in p.techs.chp)
+        @constraint(m, [s in 1:p.n_scenarios, mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
+            sum(m[Symbol("dvPeakDemandMonth"*_n)][s, mth, t] for t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
+            >= sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) + 
+            sum(p.production_factor_by_scenario[s][t][ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][s, t, ts] for t in p.techs.chp) - 
+            sum(sum(m[Symbol("dvProductionToStorage"*_n)][s, b, t, ts] for b in p.s.storage.types.elec) for t in p.techs.chp) -
+            sum(sum(m[Symbol("dvProductionToGrid")][s, t,u,ts] for u in p.export_bins_by_tech[t]) for t in p.techs.chp)
                 
         )
     else
-        @constraint(m, [mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
-            sum(m[Symbol("dvPeakDemandMonth"*_n)][mth, t] for t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
-                >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers)
+        @constraint(m, [s in 1:p.n_scenarios, mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
+            sum(m[Symbol("dvPeakDemandMonth"*_n)][s, mth, t] for t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
+                >= sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers)
         )
     end
 
@@ -215,19 +215,21 @@ function add_monthly_peak_constraint(m, p; _n="")
         bigM_monthly_demand_tier_limits = get_electric_demand_tiers_bigM(p, false) 
         
         # Upper bound on peak electrical power demand by month, tier; if tier is selected (0 o.w.)
-        @constraint(m, [mth in p.months, tier in 1:ntiers],
-            m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier] * 
-                b[mth, tier]
-        )
+        for s in 1:p.n_scenarios
+            @constraint(m, [mth in p.months, tier in 1:ntiers],
+                m[Symbol("dvPeakDemandMonth"*_n)][s, mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier] * 
+                    b[mth, tier]
+            )
+
+            # One monthly peak electrical power demand tier must be full before next one is active
+            @constraint(m, [mth in p.months, tier in 2:ntiers],
+            b[mth, tier] * bigM_monthly_demand_tier_limits[mth, tier-1] <= 
+                m[Symbol("dvPeakDemandMonth"*_n)][s, mth, tier-1]
+            )
+        end
 
         # Monthly peak electrical power demand tier ordering
         @constraint(m, [mth in p.months, tier in 2:ntiers], b[mth, tier] <= b[mth, tier-1])
-
-        # One monthly peak electrical power demand tier must be full before next one is active
-        @constraint(m, [mth in p.months, tier in 2:ntiers],
-        b[mth, tier] * bigM_monthly_demand_tier_limits[mth, tier-1] <= 
-            m[Symbol("dvPeakDemandMonth"*_n)][mth, tier-1]
-        )
         # TODO implement NewMaxDemandMonthsInTier, which adds mth index to monthly_demand_tier_limits
     end
 end
@@ -235,10 +237,12 @@ end
 
 function add_tou_peak_constraint(m, p; _n="")
     ## Constraint (12d): Ratchet peak demand is >= demand at each hour in the ratchet` 
-    @constraint(m, [r in p.ratchets, ts in p.s.electric_tariff.tou_demand_ratchet_time_steps[r]],
-        sum(m[Symbol("dvPeakDemandTOU"*_n)][r, tier] for tier in 1:p.s.electric_tariff.n_tou_demand_tiers) >= 
-        sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers)
-    )
+    for s in 1:p.n_scenarios
+        @constraint(m, [r in p.ratchets, ts in p.s.electric_tariff.tou_demand_ratchet_time_steps[r]],
+            sum(m[Symbol("dvPeakDemandTOU"*_n)][s, r, tier] for tier in 1:p.s.electric_tariff.n_tou_demand_tiers) >= 
+            sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers)
+        )
+    end
 
     if p.s.electric_tariff.n_tou_demand_tiers > 1
         @warn "Adding binary variables to model TOU demand tiers."
@@ -250,19 +254,19 @@ function add_tou_peak_constraint(m, p; _n="")
         bigM_tou_demand_tier_limits = get_electric_demand_tiers_bigM(p, true) 
 
         # Upper bound on peak electrical power demand by tier, by ratchet, if tier is selected (0 o.w.)
-        @constraint(m, [r in p.ratchets, tier in 1:ntiers],
-            m[Symbol("dvPeakDemandTOU"*_n)][r, tier] <= bigM_tou_demand_tier_limits[r, tier] * b[r, tier]
+        @constraint(m, [s in 1:p.n_scenarios, r in p.ratchets, tier in 1:ntiers],
+            m[Symbol("dvPeakDemandTOU"*_n)][s, r, tier] <= bigM_tou_demand_tier_limits[r, tier] * b[r, tier]
+        )
+
+        # One ratchet peak electrical power demand tier must be full before next one is active
+        @constraint(m, [s in 1:p.n_scenarios, r in p.ratchets, tier in 2:ntiers],
+            b[r, tier] * bigM_tou_demand_tier_limits[r, tier-1] 
+            <= m[Symbol("dvPeakDemandTOU"*_n)][s, r, tier-1]
         )
 
         # Ratchet peak electrical power ratchet tier ordering
         @constraint(m, [r in p.ratchets, tier in 2:ntiers],
             b[r, tier] <= b[r, tier-1]
-        )
-
-        # One ratchet peak electrical power demand tier must be full before next one is active
-        @constraint(m, [r in p.ratchets, tier in 2:ntiers],
-            b[r, tier] * bigM_tou_demand_tier_limits[r, tier-1] 
-            <= m[Symbol("dvPeakDemandTOU"*_n)][r, tier-1]
         )
     end
     # TODO implement NewMaxDemandInTier
@@ -279,25 +283,25 @@ end
 
 function add_simultaneous_export_import_constraint(m, p; _n="")
     if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
-        @constraint(m, NoGridPurchasesBinary[ts in p.time_steps],
-            m[Symbol("binNoGridPurchases"*_n)][ts] => {
-                sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
-                sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= 0
+        @constraint(m, NoGridPurchasesBinary[s in 1:p.n_scenarios, ts in p.time_steps],
+            m[Symbol("binNoGridPurchases"*_n)][s, ts] => {
+                sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
+                sum(m[Symbol("dvGridToStorage"*_n)][s, b, ts] for b in p.s.storage.types.elec) <= 0
             }
         )
-        @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
-            !m[Symbol("binNoGridPurchases"*_n)][ts] => {
-                sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= 0
+        @constraint(m, ExportOnlyAfterSiteLoadMetCon[s in 1:p.n_scenarios, ts in p.time_steps],
+            !m[Symbol("binNoGridPurchases"*_n)][s, ts] => {
+                sum(m[Symbol("dvProductionToGrid"*_n)][s, t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= 0
             }
         )
     else
         bigM_hourly_load = maximum(p.s.electric_load.loads_kw)+maximum(p.s.space_heating_load.loads_kw)+maximum(p.s.process_heat_load.loads_kw)+maximum(p.s.dhw_load.loads_kw)+maximum(p.s.cooling_load.loads_kw_thermal)
-        @constraint(m, NoGridPurchasesBinary[ts in p.time_steps],
-            sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
-            sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
+        @constraint(m, NoGridPurchasesBinary[s in 1:p.n_scenarios, ts in p.time_steps],
+            sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
+            sum(m[Symbol("dvGridToStorage"*_n)][s, b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load*(1-m[Symbol("binNoGridPurchases"*_n)][s, ts])
         )
-        @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
-            sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= bigM_hourly_load * m[Symbol("binNoGridPurchases"*_n)][ts]
+        @constraint(m, ExportOnlyAfterSiteLoadMetCon[s in 1:p.n_scenarios, ts in p.time_steps],
+            sum(m[Symbol("dvProductionToGrid"*_n)][s, t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= bigM_hourly_load * m[Symbol("binNoGridPurchases"*_n)][s, ts]
         )
     end
 end
@@ -318,19 +322,21 @@ function add_energy_tier_constraints(m, p; _n="")
     bigM_energy_tier_limits = get_electric_energy_tiers_bigM(p)
     
     ##Constraint (10a): Usage limits by pricing tier, by month
-    @constraint(m, [mth in p.months, tier in 1:p.s.electric_tariff.n_energy_tiers],
-        p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] ) 
-        <= b[mth, tier] * bigM_energy_tier_limits[mth, tier]
-    )
+    for s in 1:p.n_scenarios
+        @constraint(m, [mth in p.months, tier in 1:p.s.electric_tariff.n_energy_tiers],
+            p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][s, ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] ) 
+            <= b[mth, tier] * bigM_energy_tier_limits[mth, tier]
+        )
+        ## Constraint (10c): One tier must be full before any usage in next tier
+        @constraint(m, [mth in p.months, tier in 2:p.s.electric_tariff.n_energy_tiers],
+            b[mth, tier] * bigM_energy_tier_limits[mth, tier-1] - 
+            sum( m[Symbol("dvGridPurchase"*_n)][s, ts, tier-1] for ts in p.s.electric_tariff.time_steps_monthly[mth]) 
+            <= 0
+        )
+    end
     ##Constraint (10b): Ordering of pricing tiers
     @constraint(m, [mth in p.months, tier in 2:p.s.electric_tariff.n_energy_tiers],
         b[mth, tier] - b[mth, tier-1] <= 0
-    )
-    ## Constraint (10c): One tier must be full before any usage in next tier
-    @constraint(m, [mth in p.months, tier in 2:p.s.electric_tariff.n_energy_tiers],
-        b[mth, tier] * bigM_energy_tier_limits[mth, tier-1] - 
-        sum( m[Symbol("dvGridPurchase"*_n)][ts, tier-1] for ts in p.s.electric_tariff.time_steps_monthly[mth]) 
-        <= 0
     )
     # TODO implement NewMaxUsageInTier
 end
@@ -348,29 +354,28 @@ function add_demand_lookback_constraints(m, p; _n="")
 	if p.s.electric_tariff.demand_lookback_range != 0  # then the dvPeakDemandLookback varies by month
 
 		##Constraint (12e): dvPeakDemandLookback is the highest peak demand in DemandLookbackMonths
-        @constraint(m, [mth in p.months, lm in 1:p.s.electric_tariff.demand_lookback_range, ts in p.s.electric_tariff.time_steps_monthly[mod(mth - lm - 1, 12) + 1]],
-            m[Symbol(dv)][mth] ≥ sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] 
+        @constraint(m, [s in 1:p.n_scenarios, mth in p.months, lm in 1:p.s.electric_tariff.demand_lookback_range, ts in p.s.electric_tariff.time_steps_monthly[mod(mth - lm - 1, 12) + 1]],
+            m[Symbol(dv)][mth] ≥ sum( m[Symbol("dvGridPurchase"*_n)][s, ts, tier] 
                                         for tier in 1:p.s.electric_tariff.n_energy_tiers )
         )
 
-		##Constraint (12f): Ratchet peak demand charge is bounded below by lookback
-		@constraint(m, [mth in p.months],
-			sum( m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers ) >=
-			p.s.electric_tariff.demand_lookback_percent * m[Symbol(dv)][mth]
-		)
-
+        ##Constraint (12f): Ratchet peak demand charge is bounded below by lookback
+        @constraint(m, [s in 1:p.n_scenarios, mth in p.months],
+            sum( m[Symbol("dvPeakDemandMonth"*_n)][s, mth, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers ) >=
+            p.s.electric_tariff.demand_lookback_percent * m[Symbol(dv)][mth]
+        )
 	else  # dvPeakDemandLookback does not vary by month
 
 		##Constraint (12e): dvPeakDemandLookback is the highest peak demand in demand_lookback_months
-		@constraint(m, [lm in p.s.electric_tariff.demand_lookback_months],
-			m[Symbol(dv)][1] >= sum(m[Symbol("dvPeakDemandMonth"*_n)][lm, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers)
-		)
+	    @constraint(m, [s in 1:p.n_scenarios, lm in p.s.electric_tariff.demand_lookback_months],
+		    m[Symbol(dv)][1] >= sum(m[Symbol("dvPeakDemandMonth"*_n)][s, lm, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers)
+	    )
 
-		##Constraint (12f): Ratchet peak demand charge is bounded below by lookback
-		@constraint(m, [mth in p.months],
-			sum( m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers ) >=
-			p.s.electric_tariff.demand_lookback_percent * m[Symbol(dv)][1]
-		)
+	    ##Constraint (12f): Ratchet peak demand charge is bounded below by lookback
+	    @constraint(m, [s in 1:p.n_scenarios, mth in p.months],
+		    sum( m[Symbol("dvPeakDemandMonth"*_n)][s, mth, tier] for tier in 1:p.s.electric_tariff.n_monthly_demand_tiers ) >=
+		    p.s.electric_tariff.demand_lookback_percent * m[Symbol(dv)][1]
+	    )
 	end
 end
 
@@ -378,13 +383,14 @@ end
 function add_coincident_peak_charge_constraints(m, p; _n="")
 	## Constraint (14a): in each coincident peak period, charged CP demand is the max of demand in all CP time_steps
     dv = "dvPeakDemandCP" * _n
-    m[Symbol(dv)] = @variable(m, [p.s.electric_tariff.coincpeak_periods], lower_bound = 0, base_name = dv)
-	@constraint(m, 
-        [prd in p.s.electric_tariff.coincpeak_periods, 
+    m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.electric_tariff.coincpeak_periods], lower_bound = 0, base_name = dv)
+    @constraint(m, 
+        [s in 1:p.n_scenarios,
+         prd in p.s.electric_tariff.coincpeak_periods, 
          ts in p.s.electric_tariff.coincident_peak_load_active_time_steps[prd]],
-		m[Symbol("dvPeakDemandCP"*_n)][prd] >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] 
+	    m[Symbol("dvPeakDemandCP"*_n)][s, prd] >= sum(m[Symbol("dvGridPurchase"*_n)][s, ts, tier] 
                                                                       for tier in 1:p.s.electric_tariff.n_energy_tiers)
-	)
+    )
 end
 
 
@@ -399,14 +405,14 @@ function add_elec_utility_expressions(m, p; _n="")
     end
 
     m[Symbol("TotalEnergyChargesUtil"*_n)] = @expression(m, p.pwf_e * p.hours_per_time_step * 
-        sum( p.s.electric_tariff.energy_rates[ts, tier] * m[Symbol("dvGridPurchase"*_n)][ts, tier] 
-            for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers) 
+        sum( p.scenario_probabilities[s] * p.s.electric_tariff.energy_rates[ts, tier] * m[Symbol("dvGridPurchase"*_n)][s, ts, tier] 
+            for s in 1:p.n_scenarios, ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers) 
     )
 
     if !isempty(p.s.electric_tariff.tou_demand_rates)
         m[Symbol("DemandTOUCharges"*_n)] = @expression(m, 
-            p.pwf_e * sum( p.s.electric_tariff.tou_demand_rates[r, tier] * m[Symbol("dvPeakDemandTOU"*_n)][r, tier] 
-            for r in p.ratchets, tier in 1:p.s.electric_tariff.n_tou_demand_tiers)
+            p.pwf_e * sum( p.scenario_probabilities[s] * p.s.electric_tariff.tou_demand_rates[r, tier] * m[Symbol("dvPeakDemandTOU"*_n)][s, r, tier] 
+            for s in 1:p.n_scenarios, r in p.ratchets, tier in 1:p.s.electric_tariff.n_tou_demand_tiers)
         )
     else
         m[Symbol("DemandTOUCharges"*_n)] = 0
@@ -414,8 +420,8 @@ function add_elec_utility_expressions(m, p; _n="")
     
     if !isempty(p.s.electric_tariff.monthly_demand_rates)
         m[Symbol("DemandFlatCharges"*_n)] = @expression(m, p.pwf_e * 
-            sum( p.s.electric_tariff.monthly_demand_rates[mth, t] * m[Symbol("dvPeakDemandMonth"*_n)][mth, t] 
-                for mth in p.months, t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
+            sum( p.scenario_probabilities[s] * p.s.electric_tariff.monthly_demand_rates[mth, t] * m[Symbol("dvPeakDemandMonth"*_n)][s, mth, t] 
+                for s in 1:p.n_scenarios, mth in p.months, t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
         )
     else
         m[Symbol("DemandFlatCharges"*_n)] = 0
@@ -432,15 +438,15 @@ function add_elec_utility_expressions(m, p; _n="")
     end
 
 	if m[Symbol("TotalMinCharge"*_n)] >= 1e-2
-		add_mincharge_constraint(m, p)
+		add_mincharge_constraint(m, p; _n=_n)
 	else
 		@constraint(m, m[Symbol("MinChargeAdder"*_n)] == 0)
 	end
 
     if !isempty(p.s.electric_tariff.coincpeak_periods)
         m[Symbol("TotalCPCharges"*_n)] = @expression(m, p.pwf_e * 
-            sum( p.s.electric_tariff.coincident_peak_load_charge_per_kw[prd] * m[Symbol("dvPeakDemandCP"*_n)][prd] 
-                for prd in p.s.electric_tariff.coincpeak_periods ) 
+            sum( p.scenario_probabilities[s] * p.s.electric_tariff.coincident_peak_load_charge_per_kw[prd] * m[Symbol("dvPeakDemandCP"*_n)][s, prd] 
+                for s in 1:p.n_scenarios, prd in p.s.electric_tariff.coincpeak_periods ) 
         )
     else
         m[Symbol("TotalCPCharges"*_n)] = 0

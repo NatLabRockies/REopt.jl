@@ -28,6 +28,8 @@ struct Scenario <: AbstractScenario
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
+    load_uncertainty::TimeSeriesUncertainty
+    production_uncertainty::TimeSeriesUncertainty
 end
 
 """
@@ -1014,6 +1016,49 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         end
     end
 
+    # Parse uncertainty specifications
+    if haskey(d, "ElectricLoad") && haskey(d["ElectricLoad"], "uncertainty")
+        unc_dict = dictkeys_tosymbols(d["ElectricLoad"]["uncertainty"])
+        # Convert Any[] arrays from JSON to properly typed arrays
+        if haskey(unc_dict, :deviation_fractions)
+            unc_dict[:deviation_fractions] = Float64.(unc_dict[:deviation_fractions])
+        end
+        if haskey(unc_dict, :deviation_probabilities)
+            unc_dict[:deviation_probabilities] = Float64.(unc_dict[:deviation_probabilities])
+        end
+        load_uncertainty = TimeSeriesUncertainty(; unc_dict...)
+    else
+        load_uncertainty = TimeSeriesUncertainty()  # Default: disabled
+    end
+    
+    # Check for production uncertainty in PV or Wind
+    production_uncertainty = TimeSeriesUncertainty()  # Default: disabled
+    if haskey(d, "PV")
+        pv_dict = typeof(d["PV"]) <: AbstractArray ? d["PV"][1] : d["PV"]
+        if haskey(pv_dict, "production_uncertainty")
+            unc_dict = dictkeys_tosymbols(pv_dict["production_uncertainty"])
+            # Convert Any[] arrays from JSON to properly typed arrays
+            if haskey(unc_dict, :deviation_fractions)
+                unc_dict[:deviation_fractions] = Float64.(unc_dict[:deviation_fractions])
+            end
+            if haskey(unc_dict, :deviation_probabilities)
+                unc_dict[:deviation_probabilities] = Float64.(unc_dict[:deviation_probabilities])
+            end
+            production_uncertainty = TimeSeriesUncertainty(; unc_dict...)
+        end
+    end
+    if haskey(d, "Wind") && haskey(d["Wind"], "production_uncertainty")
+        unc_dict = dictkeys_tosymbols(d["Wind"]["production_uncertainty"])
+        # Convert Any[] arrays from JSON to properly typed arrays
+        if haskey(unc_dict, :deviation_fractions)
+            unc_dict[:deviation_fractions] = Float64.(unc_dict[:deviation_fractions])
+        end
+        if haskey(unc_dict, :deviation_probabilities)
+            unc_dict[:deviation_probabilities] = Float64.(unc_dict[:deviation_probabilities])
+        end
+        production_uncertainty = TimeSeriesUncertainty(; unc_dict...)
+    end
+
     return Scenario(
         settings,
         site, 
@@ -1042,7 +1087,9 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         electric_heater,
         cst,
         ashp,
-        ashp_wh
+        ashp_wh,
+        load_uncertainty,
+        production_uncertainty
     )
 end
 

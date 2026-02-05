@@ -111,7 +111,8 @@ mutable struct ElectricLoad  # mutable to adjust (critical_)loads_kw based off o
         longitude::Real,
         time_steps_per_hour::Int = 1,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.1 : 0.0, # if off grid, 10%, else must be 0%
-        min_load_met_annual_fraction::Real = off_grid_flag ? 0.99999 : 1.0 # if off grid, 99.999%, else must be 100%. Applied to each time_step as a % of electric load.
+        min_load_met_annual_fraction::Real = off_grid_flag ? 0.99999 : 1.0, # if off grid, 99.999%, else must be 100%. Applied to each time_step as a % of electric load.
+        uncertainty::Union{Dict, Nothing} = nothing  # OUU parameter - handled at Scenario level, not stored in ElectricLoad
         )
         
         if off_grid_flag

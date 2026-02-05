@@ -26,52 +26,47 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 
 	r["size_kw"] = round(value(sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.steam_turbine)), digits=3)
     @expression(m, Year1SteamTurbineThermalConsumptionKWH,
-		p.hours_per_time_step * sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps))
+		p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[Symbol("dvThermalToSteamTurbine"*_n)][s,tst,q,ts] for s in 1:p.n_scenarios, tst in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps))
     r["annual_thermal_consumption_mmbtu"] = round(value(Year1SteamTurbineThermalConsumptionKWH) / KWH_PER_MMBTU, digits=5)
-    @expression(m, Year1SteamTurbineElecProd,
-		p.hours_per_time_step * sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts]
-			for t in p.techs.steam_turbine, ts in p.time_steps))
-	r["annual_electric_production_kwh"] = round(value(Year1SteamTurbineElecProd), digits=3)
+    Year1SteamTurbineElecProd = p.hours_per_time_step * sum(p.scenario_probabilities[s] * sum(value(m[Symbol("dvRatedProduction"*_n)][s, t,ts]) * p.production_factor[t, ts]
+			for t in p.techs.steam_turbine, ts in p.time_steps) for s in 1:p.n_scenarios)
+	r["annual_electric_production_kwh"] = round(Year1SteamTurbineElecProd, digits=3)
 	@expression(m, Year1SteamTurbineThermalProdKWH,
-		p.hours_per_time_step * sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads, t in p.techs.steam_turbine, ts in p.time_steps))
+		p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[Symbol("dvHeatingProduction"*_n)][s,t,q,ts] for s in 1:p.n_scenarios, q in p.heating_loads, t in p.techs.steam_turbine, ts in p.time_steps))
 	r["annual_thermal_production_mmbtu"] = round(value(Year1SteamTurbineThermalProdKWH) / KWH_PER_MMBTU, digits=5)
     @expression(m, SteamTurbineThermalConsumptionKW[ts in p.time_steps],
-		sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads))
+		sum(p.scenario_probabilities[s] * m[Symbol("dvThermalToSteamTurbine"*_n)][s,tst,q,ts] for s in 1:p.n_scenarios, tst in p.techs.can_supply_steam_turbine, q in p.heating_loads))
     r["thermal_consumption_series_mmbtu_per_hour"] = round.(value.(SteamTurbineThermalConsumptionKW) ./ KWH_PER_MMBTU, digits=5)
-	@expression(m, SteamTurbineElecProdTotal[ts in p.time_steps],
-		sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for t in p.techs.steam_turbine))
-	r["electric_production_series_kw"] = round.(value.(SteamTurbineElecProdTotal), digits=3)
+	SteamTurbineElecProdTotal = [sum(p.scenario_probabilities[s] * sum(value(m[Symbol("dvRatedProduction"*_n)][s, t,ts]) * p.production_factor[t, ts] for t in p.techs.steam_turbine) for s in 1:p.n_scenarios) for ts in p.time_steps]
+	r["electric_production_series_kw"] = round.(SteamTurbineElecProdTotal, digits=3)
     if !isempty(p.s.electric_tariff.export_bins)
-        @expression(m, SteamTurbinetoGrid[ts in p.time_steps],
-                sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for t in p.techs.steam_turbine, u in p.export_bins_by_tech[t]))	
+        SteamTurbinetoGrid = [sum(p.scenario_probabilities[s] * sum(value(m[Symbol("dvProductionToGrid"*_n)][s, t, u, ts]) for t in p.techs.steam_turbine, u in p.export_bins_by_tech[t]) for s in 1:p.n_scenarios) for ts in p.time_steps]	
     else
         SteamTurbinetoGrid = zeros(length(p.time_steps))
     end
-	r["electric_to_grid_series_kw"] = round.(value.(SteamTurbinetoGrid), digits=3)
+	r["electric_to_grid_series_kw"] = round.(SteamTurbinetoGrid, digits=3)
 	if !isempty(p.s.storage.types.elec)
-		@expression(m, SteamTurbinetoBatt[ts in p.time_steps],
-			sum(m[Symbol("dvProductionToStorage"*_n)]["ElectricStorage",t,ts] for t in p.techs.steam_turbine))
+		SteamTurbinetoBatt = [sum(p.scenario_probabilities[s] * sum(value(m[Symbol("dvProductionToStorage"*_n)][s, "ElectricStorage",t,ts]) for t in p.techs.steam_turbine) for s in 1:p.n_scenarios) for ts in p.time_steps]
 	else
 		SteamTurbinetoBatt = zeros(length(p.time_steps))
 	end
-	r["electric_to_storage_series_kw"] = round.(value.(SteamTurbinetoBatt), digits=3)
-	@expression(m, SteamTurbinetoLoad[ts in p.time_steps],
-		sum(m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts]
-			for t in p.techs.steam_turbine) - SteamTurbinetoBatt[ts] - SteamTurbinetoGrid[ts])
-	r["electric_to_load_series_kw"] = round.(value.(SteamTurbinetoLoad), digits=3)
+	r["electric_to_storage_series_kw"] = round.(SteamTurbinetoBatt, digits=3)
+	SteamTurbinetoLoad = [sum(p.scenario_probabilities[s] * sum(value(m[Symbol("dvRatedProduction"*_n)][s, t, ts]) * p.production_factor[t, ts]
+			for t in p.techs.steam_turbine) for s in 1:p.n_scenarios) - SteamTurbinetoBatt[ts] - SteamTurbinetoGrid[ts] for ts in p.time_steps]
+	r["electric_to_load_series_kw"] = round.(SteamTurbinetoLoad, digits=3)
     if !isempty(p.s.storage.types.hot)
 		if "HotThermalStorage" in p.s.storage.types.hot
 			@expression(m, SteamTurbinetoHotTESKW[ts in p.time_steps],
-				sum(m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage",t,q,ts] for q in p.heating_loads, t in p.techs.steam_turbine))
+				sum(p.scenario_probabilities[s] * m[Symbol("dvHeatToStorage"*_n)][s,"HotThermalStorage",t,q,ts] for s in 1:p.n_scenarios, q in p.heating_loads, t in p.techs.steam_turbine))
 			@expression(m, SteamTurbineToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps],
-				sum(m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage",t,q,ts] for t in p.techs.steam_turbine))
+				sum(p.scenario_probabilities[s] * m[Symbol("dvHeatToStorage"*_n)][s,"HotThermalStorage",t,q,ts] for s in 1:p.n_scenarios, t in p.techs.steam_turbine))
 		else
 			@expression(m, SteamTurbinetoHotTESKW[ts in p.time_steps], 0.0)
 			@expression(m, SteamTurbineToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
 		end
 		if "HighTempThermalStorage" in p.s.storage.types.hot
 			@expression(m, SteamTurbineToHotSensibleTESKW[ts in p.time_steps],
-				sum(m[Symbol("dvHeatToStorage"*_n)]["HighTempThermalStorage",t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads)
+				sum(p.scenario_probabilities[s] * m[Symbol("dvHeatToStorage"*_n)][s,"HighTempThermalStorage",t,q,ts] for s in 1:p.n_scenarios, t in p.techs.steam_turbine, q in p.heating_loads)
 				)
 		else
 			@expression(m, SteamTurbineToHotSensibleTESKW[ts in p.time_steps], 0.0)
@@ -85,12 +80,12 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 	r["thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour"] = round.(value.(m[:SteamTurbineToHotSensibleTESKW]) ./ KWH_PER_MMBTU, digits=5)
 	
 	@expression(m, SteamTurbineThermalToLoadKW[ts in p.time_steps],
-		sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads) - SteamTurbinetoHotTESKW[ts])
+		sum(p.scenario_probabilities[s] * m[Symbol("dvHeatingProduction"*_n)][s,t,q,ts] for s in 1:p.n_scenarios, t in p.techs.steam_turbine, q in p.heating_loads) - SteamTurbinetoHotTESKW[ts])
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(SteamTurbineThermalToLoadKW) ./ KWH_PER_MMBTU, digits=5)
 	
 	if "DomesticHotWater" in p.heating_loads && p.s.steam_turbine.can_serve_dhw
         @expression(m, SteamTurbineToDHWKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","DomesticHotWater",ts] - SteamTurbineToHotTESByQualityKW["DomesticHotWater",ts] 
+            sum(p.scenario_probabilities[s] * m[Symbol("dvHeatingProduction"*_n)][s,"SteamTurbine","DomesticHotWater",ts] for s in 1:p.n_scenarios) - SteamTurbineToHotTESByQualityKW["DomesticHotWater",ts] 
         )
     else
         @expression(m, SteamTurbineToDHWKW[ts in p.time_steps], 0.0)
@@ -99,7 +94,7 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
     
     if "SpaceHeating" in p.heating_loads && p.s.steam_turbine.can_serve_space_heating
         @expression(m, SteamTurbineToSpaceHeatingKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","SpaceHeating",ts] - SteamTurbineToHotTESByQualityKW["SpaceHeating",ts] 
+            sum(p.scenario_probabilities[s] * m[Symbol("dvHeatingProduction"*_n)][s,"SteamTurbine","SpaceHeating",ts] for s in 1:p.n_scenarios) - SteamTurbineToHotTESByQualityKW["SpaceHeating",ts] 
         )
     else
         @expression(m, SteamTurbineToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -108,7 +103,7 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
     
     if "ProcessHeat" in p.heating_loads && p.s.steam_turbine.can_serve_process_heat
         @expression(m, SteamTurbineToProcessHeatKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","ProcessHeat",ts] - SteamTurbineToHotTESByQualityKW["ProcessHeat",ts] 
+            sum(p.scenario_probabilities[s] * m[Symbol("dvHeatingProduction"*_n)][s,"SteamTurbine","ProcessHeat",ts] for s in 1:p.n_scenarios) - SteamTurbineToHotTESByQualityKW["ProcessHeat",ts] 
         )
     else
         @expression(m, SteamTurbineToProcessHeatKW[ts in p.time_steps], 0.0)

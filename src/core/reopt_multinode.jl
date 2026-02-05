@@ -28,7 +28,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
 		for dv in dvs_idx_on_techs_time_steps
 			x = dv*_n
-			m[Symbol(x)] = @variable(m, [p.techs.all, p.time_steps], base_name=x, lower_bound=0)
+			m[Symbol(x)] = @variable(m, [1:p.n_scenarios, p.techs.all, p.time_steps], base_name=x, lower_bound=0)
 		end
 
 		for dv in dvs_idx_on_storagetypes
@@ -38,33 +38,33 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
 		for dv in dvs_idx_on_storagetypes_time_steps
 			x = dv*_n
-			m[Symbol(x)] = @variable(m, [p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
+			m[Symbol(x)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
 		end
 
 		dv = "dvGridToStorage"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
 
 		dv = "dvGridPurchase"*_n
-		m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.time_steps, 1:p.s.electric_tariff.n_energy_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvPeakDemandTOU"*_n
-		m[Symbol(dv)] = @variable(m, [p.ratchets, 1], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.ratchets, 1:p.s.electric_tariff.n_tou_demand_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvPeakDemandMonth"*_n
-		m[Symbol(dv)] = @variable(m, [p.months, 1], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.months, 1:p.s.electric_tariff.n_monthly_demand_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvProductionToStorage"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.all, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
 
 		dv = "dvStoredEnergy"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.all, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
 
 		dv = "MinChargeAdder"*_n
 		m[Symbol(dv)] = @variable(m, base_name=dv, lower_bound=0)
 
         if !isempty(p.s.electric_tariff.export_bins)
             dv = "dvProductionToGrid"*_n
-            m[Symbol(dv)] = @variable(m, [p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
+            m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
         end
 
 		ex_name = "TotalTechCapCosts"*_n
@@ -158,13 +158,13 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
 
         for b in p.s.storage.types.all
             if p.s.storage.attr[b].max_kw == 0 || p.s.storage.attr[b].max_kwh == 0
-                @constraint(m, [ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][b, ts] == 0)
+                @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][s, b, ts] == 0)
                 @constraint(m, m[Symbol("dvStorageEnergy"*_n)][b] == 0)
                 @constraint(m, m[Symbol("dvStoragePower"*_n)][b] == 0)
-                @constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
-                            m[Symbol("dvProductionToStorage"*_n)][b, t, ts] == 0)
-                @constraint(m, [ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][b, ts] == 0)
-                @constraint(m, [ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][b, ts] == 0)
+                @constraint(m, [s in 1:p.n_scenarios, t in p.techs.elec, ts in p.time_steps_with_grid],
+                            m[Symbol("dvProductionToStorage"*_n)][s, b, t, ts] == 0)
+                @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][s, b, ts] == 0)
+                @constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][s, b, ts] == 0)
 				if b in p.s.storage.types.elec
 					if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
 						@constraint(m, m[Symbol("binIncludeStorageCostConstant"*_n)][b] == 0)
@@ -238,8 +238,8 @@ function add_objective!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		@objective(m, Min, sum(m[Symbol(string("Costs_", p.s.site.node))] for p in ps))
 	else # Keep SOC high
 		@objective(m, Min, sum(m[Symbol(string("Costs_", p.s.site.node))] for p in ps)
-        - sum(sum(sum(m[Symbol(string("dvStoredEnergy_", p.s.site.node))][b, ts] 
-            for ts in p.time_steps) for b in p.s.storage.types.elec) for p in ps) / (8760. / ps[1].hours_per_time_step))
+        - sum(sum(sum(sum(p.scenario_probabilities[s] * m[Symbol(string("dvStoredEnergy_", p.s.site.node))][s, b, ts] 
+            for s in 1:p.n_scenarios) for ts in p.time_steps) for b in p.s.storage.types.elec) for p in ps) / (8760. / ps[1].hours_per_time_step))
 	end  # TODO need to handle different hours_per_time_step?
 	nothing
 end

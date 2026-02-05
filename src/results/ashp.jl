@@ -25,22 +25,22 @@ function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_ton"] = round(p.s.ashp.sizing_factor * value(m[Symbol("dvSize"*_n)]["ASHPSpaceHeater"]) / KWH_THERMAL_PER_TONHOUR, digits=3)
     @expression(m, ASHPElectricConsumptionSeries[ts in p.time_steps],
-        p.hours_per_time_step * sum(m[:dvHeatingProduction]["ASHPSpaceHeater",q,ts] for q in p.heating_loads)
+        p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPSpaceHeater",q,ts] for s in 1:p.n_scenarios, q in p.heating_loads)
         / p.heating_cop["ASHPSpaceHeater"][ts]
     ) 
 
     @expression(m, ASHPThermalProductionSeries[ts in p.time_steps],
-        sum(m[:dvHeatingProduction]["ASHPSpaceHeater",q,ts] for q in p.heating_loads)) # TODO add cooling
+        sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPSpaceHeater",q,ts] for s in 1:p.n_scenarios, q in p.heating_loads)) # TODO add cooling
 	r["thermal_production_series_mmbtu_per_hour"] = 
         round.(value.(ASHPThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
 	r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, ASHPToHotTESKW[ts in p.time_steps],
-		    sum(m[:dvHeatToStorage][b,"ASHPSpaceHeater",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
+		    sum(p.scenario_probabilities[s] * m[:dvHeatToStorage][s, b,"ASHPSpaceHeater",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot, q in p.heating_loads)
         )
         @expression(m, ASHPToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 
-            sum(m[:dvHeatToStorage][b,"ASHPSpaceHeater",q,ts] for b in p.s.storage.types.hot)
+            sum(p.scenario_probabilities[s] * m[:dvHeatToStorage][s, b,"ASHPSpaceHeater",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot)
         )
     else
         @expression(m, ASHPToHotTESKW[ts in p.time_steps], 0.0)
@@ -48,19 +48,19 @@ function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     end
 	r["thermal_to_storage_series_mmbtu_per_hour"] = round.(value.(ASHPToHotTESKW) / KWH_PER_MMBTU, digits=3)
     @expression(m, ASHPToWaste[ts in p.time_steps],
-        sum(m[:dvProductionToWaste]["ASHPSpaceHeater", q, ts] for q in p.heating_loads) 
+        sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s, "ASHPSpaceHeater", q, ts] for s in 1:p.n_scenarios, q in p.heating_loads) 
     )
     @expression(m, ASHPToWasteByQualityKW[q in p.heating_loads, ts in p.time_steps], 
-        m[:dvProductionToWaste]["ASHPSpaceHeater",q,ts]
+        sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s, "ASHPSpaceHeater",q,ts] for s in 1:p.n_scenarios)
     )
 	@expression(m, ASHPToLoad[ts in p.time_steps],
-		sum(m[:dvHeatingProduction]["ASHPSpaceHeater", q, ts] for q in p.heating_loads) - ASHPToHotTESKW[ts] - ASHPToWaste[ts]
+		sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPSpaceHeater", q, ts] for s in 1:p.n_scenarios, q in p.heating_loads) - ASHPToHotTESKW[ts] - ASHPToWaste[ts]
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(ASHPToLoad) ./ KWH_PER_MMBTU, digits=3)
     
     if "SpaceHeating" in p.heating_loads && p.s.ashp.can_serve_space_heating
         @expression(m, ASHPToSpaceHeatingKW[ts in p.time_steps], 
-            m[:dvHeatingProduction]["ASHPSpaceHeater","SpaceHeating",ts] - ASHPToHotTESByQualityKW["SpaceHeating",ts] - ASHPToWasteByQualityKW["SpaceHeating",ts]
+            sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPSpaceHeater","SpaceHeating",ts] for s in 1:p.n_scenarios) - ASHPToHotTESByQualityKW["SpaceHeating",ts] - ASHPToWasteByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, ASHPToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -70,22 +70,22 @@ function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     if "ASHPSpaceHeater" in p.techs.cooling && sum(p.s.cooling_load.loads_kw_thermal) > 0.0
 
         @expression(m, ASHPtoColdTES[ts in p.time_steps],
-            sum(m[:dvProductionToStorage][b,"ASHPSpaceHeater",ts] for b in p.s.storage.types.cold)
+            sum(p.scenario_probabilities[s] * m[:dvProductionToStorage][s, b,"ASHPSpaceHeater",ts] for s in 1:p.n_scenarios, b in p.s.storage.types.cold)
         )
         r["thermal_to_storage_series_ton"] = round.(value.(ASHPtoColdTES ./ KWH_THERMAL_PER_TONHOUR), digits=3)   
 
         @expression(m, ASHPtoColdLoad[ts in p.time_steps],
-            sum(m[:dvCoolingProduction]["ASHPSpaceHeater", ts]) - ASHPtoColdTES[ts]
+            sum(p.scenario_probabilities[s] * m[:dvCoolingProduction][s, "ASHPSpaceHeater", ts] for s in 1:p.n_scenarios) - ASHPtoColdTES[ts]
         )
         r["thermal_to_load_series_ton"] = round.(value.(ASHPtoColdLoad ./ KWH_THERMAL_PER_TONHOUR), digits=3)
 
         @expression(m, Year1ASHPColdThermalProd,
-            p.hours_per_time_step * sum(m[:dvCoolingProduction]["ASHPSpaceHeater", ts] for ts in p.time_steps)
+            p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[:dvCoolingProduction][s, "ASHPSpaceHeater", ts] for s in 1:p.n_scenarios, ts in p.time_steps)
         )
         r["annual_thermal_production_tonhour"] = round(value(Year1ASHPColdThermalProd / KWH_THERMAL_PER_TONHOUR), digits=3)
         
         @expression(m, ASHPColdElectricConsumptionSeries[ts in p.time_steps], 
-            p.hours_per_time_step * m[:dvCoolingProduction]["ASHPSpaceHeater",ts] / p.cooling_cop["ASHPSpaceHeater"][ts] 
+            p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[:dvCoolingProduction][s, "ASHPSpaceHeater",ts] for s in 1:p.n_scenarios) / p.cooling_cop["ASHPSpaceHeater"][ts] 
         )
         r["cooling_cop"] = p.cooling_cop["ASHPSpaceHeater"]
         r["cooling_cf"] = p.cooling_cf["ASHPSpaceHeater"]
@@ -131,22 +131,22 @@ function add_ashp_wh_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n=
     r = Dict{String, Any}()
     r["size_ton"] = round(p.s.ashp_wh.sizing_factor * value(m[Symbol("dvSize"*_n)]["ASHPWaterHeater"]) / KWH_THERMAL_PER_TONHOUR, digits=3)
     @expression(m, ASHPWHElectricConsumptionSeries[ts in p.time_steps],
-        p.hours_per_time_step * sum(m[:dvHeatingProduction][t,q,ts] / p.heating_cop[t][ts]
-        for q in p.heating_loads, t in p.techs.ashp_wh) 
+        p.hours_per_time_step * sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, t,q,ts] / p.heating_cop[t][ts]
+        for s in 1:p.n_scenarios, q in p.heating_loads, t in p.techs.ashp_wh) 
     ) 
 
     @expression(m, ASHPWHThermalProductionSeries[ts in p.time_steps],
-        sum(m[:dvHeatingProduction][t,q,ts] for q in p.heating_loads, t in p.techs.ashp_wh))
+        sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, t,q,ts] for s in 1:p.n_scenarios, q in p.heating_loads, t in p.techs.ashp_wh))
 	r["thermal_production_series_mmbtu_per_hour"] = 
         round.(value.(ASHPWHThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
 	r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, ASHPWHToHotTESKW[ts in p.time_steps],
-		    sum(m[:dvHeatToStorage][b,"ASHPWaterHeater",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
+		    sum(p.scenario_probabilities[s] * m[:dvHeatToStorage][s, b,"ASHPWaterHeater",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot, q in p.heating_loads)
         )
         @expression(m, ASHPWHToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 
-            sum(m[:dvHeatToStorage][b,"ASHPWaterHeater",q,ts] for b in p.s.storage.types.hot)
+            sum(p.scenario_probabilities[s] * m[:dvHeatToStorage][s, b,"ASHPWaterHeater",q,ts] for s in 1:p.n_scenarios, b in p.s.storage.types.hot)
         )
     else
         @expression(m, ASHPWHToHotTESKW[ts in p.time_steps], 0.0)
@@ -154,19 +154,19 @@ function add_ashp_wh_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n=
     end
 	r["thermal_to_storage_series_mmbtu_per_hour"] = round.(value.(ASHPWHToHotTESKW) / KWH_PER_MMBTU, digits=3)
     @expression(m, ASHPWHToWaste[ts in p.time_steps],
-        sum(m[:dvProductionToWaste]["ASHPWaterHeater", q, ts] for q in p.heating_loads) 
+        sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s, "ASHPWaterHeater", q, ts] for s in 1:p.n_scenarios, q in p.heating_loads) 
     )
     @expression(m, ASHPWHToWasteByQualityKW[q in p.heating_loads, ts in p.time_steps], 
-        m[:dvProductionToWaste]["ASHPWaterHeater",q,ts]
+        sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s, "ASHPWaterHeater",q,ts] for s in 1:p.n_scenarios)
     )
     @expression(m, ASHPWHToLoad[ts in p.time_steps],
-        sum(m[:dvHeatingProduction]["ASHPWaterHeater", q, ts] for q in p.heating_loads) - ASHPWHToHotTESKW[ts] - ASHPWHToWaste[ts]
+        sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPWaterHeater", q, ts] for s in 1:p.n_scenarios, q in p.heating_loads) - ASHPWHToHotTESKW[ts] - ASHPWHToWaste[ts]
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(ASHPWHToLoad) ./ KWH_PER_MMBTU, digits=3)
 
     if "DomesticHotWater" in p.heating_loads && p.s.ashp_wh.can_serve_dhw
         @expression(m, ASHPWHToDHWKW[ts in p.time_steps], 
-            m[:dvHeatingProduction]["ASHPWaterHeater","DomesticHotWater",ts] - ASHPWHToHotTESByQualityKW["DomesticHotWater",ts] - ASHPWHToWasteByQualityKW["DomesticHotWater",ts]
+            sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s, "ASHPWaterHeater","DomesticHotWater",ts] for s in 1:p.n_scenarios) - ASHPWHToHotTESByQualityKW["DomesticHotWater",ts] - ASHPWHToWasteByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, ASHPWHToDHWKW[ts in p.time_steps], 0.0)

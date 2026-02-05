@@ -166,6 +166,21 @@ function BAUInputs(p::REoptInputs)
     heating_loads_served_by_tes = Dict{String,Array{String,1}}()
     unavailability = get_unavailability_by_tech(p.s, techs, p.time_steps)
 
+    # Production factors: use optimal scenarios for existing techs, deterministic for others
+    production_factor_by_scenario = Dict{Int, Dict{String, Vector{Float64}}}(
+        s => Dict{String, Vector{Float64}}(
+            t => if haskey(p.production_factor_by_scenario[s], t)
+                # Use optimal scenario production for existing PV/Generator
+                Float64.(copy(p.production_factor_by_scenario[s][t]))
+            else
+                # Deterministic for techs not in optimal (shouldn't happen in BAU)
+                Float64.([production_factor[t, ts] for ts in p.time_steps])
+            end
+            for t in techs.all
+        )
+        for s in 1:p.n_scenarios
+    )
+
     REoptInputs(
         bau_scenario,
         techs,
@@ -234,7 +249,11 @@ function BAUInputs(p::REoptInputs)
         heating_loads_served_by_tes,
         unavailability,
         absorption_chillers_using_heating_load,
-        avoided_capex_by_ashp_present_value
+        avoided_capex_by_ashp_present_value,
+        p.n_scenarios,
+        p.scenario_probabilities,
+        p.loads_kw_by_scenario,
+        production_factor_by_scenario
     )
 end
 

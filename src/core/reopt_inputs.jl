@@ -138,6 +138,11 @@ struct REoptInputs{ScenarioType <: AbstractScenario} <: AbstractInputs
     unavailability::Dict{String, Array{Float64,1}} # (techs.elec)
     absorption_chillers_using_heating_load::Dict{String,Array{String,1}} # ("AbsorptionChiller" or empty)
     avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
+    # Uncertainty fields
+    n_scenarios::Int  # Number of uncertainty scenarios
+    scenario_probabilities::Vector{Float64}  # Probability of each scenario
+    loads_kw_by_scenario::Dict{Int, Array{Float64,1}}  # scenario_id => loads
+    production_factor_by_scenario::Dict{Int, Dict{String, Array{Float64,1}}}  # scenario => tech => factors
 end
 
 
@@ -259,6 +264,61 @@ function REoptInputs(s::AbstractScenario)
     end
     unavailability = get_unavailability_by_tech(s, techs, time_steps)
 
+    # Generate uncertainty scenarios
+    load_scenarios, load_probs = generate_load_scenarios(
+        s.electric_load.loads_kw,
+        s.load_uncertainty
+    )
+    
+    # Extract production factors into Dict format for scenario generation
+    nominal_prod_factor = Dict{String, Vector{Float64}}()
+    for tech in techs.all
+        nominal_prod_factor[tech] = Float64.([production_factor[tech, ts] for ts in time_steps])
+    end
+    
+    # Identify renewable techs for production uncertainty
+    renewable_tech_names = String[]
+    for pv in s.pvs
+        push!(renewable_tech_names, pv.name)
+    end
+    if s.wind.max_kw > 0
+        push!(renewable_tech_names, "Wind")
+    end
+    
+    prod_scenarios, prod_probs = generate_production_scenarios(
+        nominal_prod_factor,
+        s.production_uncertainty,
+        renewable_tech_names
+    )
+    
+    # Combine scenarios if both are enabled, or use individual scenarios
+    if s.load_uncertainty.enabled && s.production_uncertainty.enabled
+        loads_kw_by_scenario, production_factor_by_scenario, scenario_probabilities = 
+            combine_load_production_scenarios(load_scenarios, load_probs, prod_scenarios, prod_probs)
+    elseif s.load_uncertainty.enabled
+        loads_kw_by_scenario = load_scenarios
+        scenario_probabilities = load_probs
+        production_factor_by_scenario = Dict{Int, Dict{String, Vector{Float64}}}(
+            s => Dict{String, Vector{Float64}}(k => Float64.(copy(v)) for (k, v) in nominal_prod_factor) 
+            for s in 1:length(load_scenarios)
+        )
+    elseif s.production_uncertainty.enabled
+        loads_kw_by_scenario = Dict{Int, Vector{Float64}}(
+            idx => Float64.(s.electric_load.loads_kw) for idx in 1:length(prod_scenarios)
+        )
+        scenario_probabilities = prod_probs
+        production_factor_by_scenario = prod_scenarios
+    else
+        # No uncertainty - single deterministic scenario
+        loads_kw_by_scenario = Dict{Int, Vector{Float64}}(1 => Float64.(s.electric_load.loads_kw))
+        production_factor_by_scenario = Dict{Int, Dict{String, Vector{Float64}}}(
+            1 => Dict{String, Vector{Float64}}(k => Float64.(copy(v)) for (k, v) in nominal_prod_factor)
+        )
+        scenario_probabilities = [1.0]
+    end
+    
+    n_scenarios = length(scenario_probabilities)
+
     REoptInputs(
         s,
         techs,
@@ -327,7 +387,11 @@ function REoptInputs(s::AbstractScenario)
         heating_loads_served_by_tes,
         unavailability,
         absorption_chillers_using_heating_load,
-        avoided_capex_by_ashp_present_value
+        avoided_capex_by_ashp_present_value,
+        n_scenarios,
+        scenario_probabilities,
+        loads_kw_by_scenario,
+        production_factor_by_scenario
     )
 end
 

@@ -48,23 +48,21 @@ function add_tech_size_constraints(m, p; _n="")
     )
 
     ## Constraint (7d): Non-turndown technologies are always at rated production
-    @constraint(m, [t in p.techs.no_turndown, ts in p.time_steps],
-        m[Symbol("dvRatedProduction"*_n)][t,ts] == m[Symbol("dvSize"*_n)][t]
+    @constraint(m, [s in 1:p.n_scenarios, t in p.techs.no_turndown, ts in p.time_steps],
+        m[Symbol("dvRatedProduction"*_n)][s, t,ts] == m[Symbol("dvSize"*_n)][t]
     )
 
 	##Constraint (7e): SteamTurbine is not in techs.no_turndown OR techs.segmented, so handle electric production to dvSize constraint
     if !isempty(p.techs.steam_turbine)
-        @constraint(m, [t in p.techs.steam_turbine, ts in p.time_steps],
-            m[Symbol("dvRatedProduction"*_n)][t,ts]  <= m[:dvSize][t]
+        @constraint(m, [s in 1:p.n_scenarios, t in p.techs.steam_turbine, ts in p.time_steps],
+            m[Symbol("dvRatedProduction"*_n)][s, t,ts]  <= m[:dvSize][t]
         )
     end  
 end
 
 
 function add_no_curtail_constraints(m, p; _n="")
-    for t in p.techs.no_curtail
-        for ts in p.time_steps
-            fix(m[Symbol("dvCurtail"*_n)][t, ts] , 0.0, force=true)
-        end
+    for s in 1:p.n_scenarios, t in p.techs.no_curtail, ts in p.time_steps
+        fix(m[Symbol("dvCurtail"*_n)][s, t, ts] , 0.0, force=true)
     end
 end

@@ -114,15 +114,15 @@ function add_re_tot_calcs(m::JuMP.AbstractModel, p::REoptInputs)
 		# end
 
 		#To account for hot storage losses and the RE contributions from fuel-fired sources when calculating end-use load, these expressions are used.
-		m[:AnnualHeatContributionToStorage] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts] for t in union(p.techs.heating, p.techs.chp), b in p.s.storage.types.hot, ts in p.time_steps))
-		m[:AnnualREFBToHotStoragekWh] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
-		m[:AnnualFBToHotStoragekWh] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualHeatContributionToStorage] = @expression(m, sum(p.scenario_probabilities[s] * m[:dvProductionToStorage][s,b,t,ts] for s in 1:p.n_scenarios, t in union(p.techs.heating, p.techs.chp), b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualREFBToHotStoragekWh] = @expression(m, sum(p.scenario_probabilities[s] * m[:dvProductionToStorage][s,b,t,ts]*p.tech_renewable_energy_fraction[t] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualFBToHotStoragekWh] = @expression(m, sum(p.scenario_probabilities[s] * m[:dvProductionToStorage][s,b,t,ts] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
 		if value(m[:AnnualFBToHotStoragekWh]) > 0.0
 			m[:FBStorageDeliveryREFraction] = @expression(m, m[:AnnualREFBToHotStoragekWh] / m[:AnnualFBToHotStoragekWh])
 		else
 			m[:FBStorageDeliveryREFraction] = @expression(m, 0.0)
 		end
-		m[:AnnualHotStorageLosses] = @expression(m, m[:AnnualFBToHotStoragekWh] - sum(m[:dvDischargeFromStorage][b, ts]  for b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualHotStorageLosses] = @expression(m, m[:AnnualFBToHotStoragekWh] - sum(p.scenario_probabilities[s] * m[:dvDischargeFromStorage][s, b, ts]  for s in 1:p.n_scenarios, b in p.s.storage.types.hot, ts in p.time_steps))
 		if value(m[:AnnualHeatContributionToStorage]) > 0.0
 			m[:FBToHotStorageFraction] = @expression(m, m[:AnnualFBToHotStoragekWh] / m[:AnnualHeatContributionToStorage])
 		else
@@ -130,8 +130,8 @@ function add_re_tot_calcs(m::JuMP.AbstractModel, p::REoptInputs)
 		end
 		# End-use consumed heating load from renewable, fuel-fired sources (electrified heat is addressed in the renewable electricity calculation)
 		m[:AnnualREHeatkWh] = @expression(m,p.hours_per_time_step*(
-				sum(m[:dvHeatingProduction][t,q,ts] * p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total RE end-use heat generation from fuel sources
-				- sum(m[:dvProductionToWaste][t,q,ts]* p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
+				sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s,t,q,ts] * p.tech_renewable_energy_fraction[t] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total RE end-use heat generation from fuel sources
+				- sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s,t,q,ts]* p.tech_renewable_energy_fraction[t] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
 				- m[:FBStorageDeliveryREFraction] * m[:FBToHotStorageFraction] * m[:AnnualHotStorageLosses] # RE weight times hot storage loss attributable to FB techs
 			)
 			# - AnnualRESteamToSteamTurbine # minus RE steam feeding steam turbine, adjusted by p.hours_per_time_step 
@@ -140,8 +140,8 @@ function add_re_tot_calcs(m::JuMP.AbstractModel, p::REoptInputs)
 
 		# End-use consumed heating load from fuel-fired sources (electrified heat is addressed in the renewable electricity calculation)
 		m[:AnnualHeatkWh] = @expression(m,p.hours_per_time_step*(
-				sum(m[:dvHeatingProduction][t,q,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total end-use heat generation from fuel sources
-				- sum(m[:dvProductionToWaste][t,q,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
+				sum(p.scenario_probabilities[s] * m[:dvHeatingProduction][s,t,q,ts] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total end-use heat generation from fuel sources
+				- sum(p.scenario_probabilities[s] * m[:dvProductionToWaste][s,t,q,ts] for s in 1:p.n_scenarios, t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
 				- m[:FBToHotStorageFraction] * m[:AnnualHotStorageLosses] # hot storage loss attributable to FB techs
 			)
 			# - AnnualSteamToSteamTurbine # minus steam going to SteamTurbine; already adjusted by p.hours_per_time_step

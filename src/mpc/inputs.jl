@@ -25,6 +25,11 @@ struct MPCInputs <: AbstractInputs
     ghp_options::UnitRange{Int64}  # Range of the number of GHP options
     fuel_cost_per_kwh::Dict{String, AbstractArray}  # Fuel cost array for all time_steps
     heating_loads::Vector{String} # list of heating loads
+    # Uncertainty fields (MPC is deterministic, but fields needed for compatibility)
+    n_scenarios::Int
+    scenario_probabilities::Vector{Float64}
+    loads_kw_by_scenario::Dict{Int, Vector{Float64}}
+    production_factor_by_scenario::Dict{Int, Dict{String, Vector{Float64}}}
 end
 
 
@@ -71,6 +76,17 @@ function MPCInputs(s::MPCScenario)
     ghp_options = 1:0
     heating_loads = Vector{String}()
 
+    # MPC is deterministic - single scenario with probability 1.0
+    # TODO could consider OUU for dispatch decisions in MPC, even with sizes being specified/fixed
+    n_scenarios = 1
+    scenario_probabilities = [1.0]
+    loads_kw_by_scenario = Dict{Int, Vector{Float64}}(1 => Float64.(s.electric_load.loads_kw))
+    production_factor_by_scenario = Dict{Int, Dict{String, Vector{Float64}}}(
+        1 => Dict{String, Vector{Float64}}(
+            t => Float64.([production_factor[t, ts] for ts in time_steps]) for t in techs.all
+        )
+    )
+
     MPCInputs(
         s,
         techs,
@@ -99,7 +115,11 @@ function MPCInputs(s::MPCScenario)
         # s.site.mg_tech_sizes_equal_grid_sizes,
         # s.site.node,
         fuel_cost_per_kwh,
-        heating_loads
+        heating_loads,
+        n_scenarios,
+        scenario_probabilities,
+        loads_kw_by_scenario,
+        production_factor_by_scenario
     )
 end
 

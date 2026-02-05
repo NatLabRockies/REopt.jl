@@ -23,23 +23,23 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
     r["size_gal"] = round(size_kwh / kwh_per_gal, digits=0)
 
     if size_kwh != 0
-    	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
-        r["soc_series_fraction"] = round.(value.(soc) ./ size_kwh, digits=3)
+    	soc = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvStoredEnergy"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+        r["soc_series_fraction"] = round.(soc ./ size_kwh, digits=3)
 
-        discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
+        discharge = [sum(p.scenario_probabilities[s] * value(sum(m[Symbol("dvHeatFromStorage"*_n)][s,b,q,ts] for q in p.heating_loads)) for s in 1:p.n_scenarios) for ts in p.time_steps]
         
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
-            storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
+            storage_to_turbine = [sum(p.scenario_probabilities[s] * value(sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][s,b,q,ts] for q in p.heating_loads)) for s in 1:p.n_scenarios) for ts in p.time_steps]
+            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(storage_to_turbine / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.((discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
         else
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(discharge / KWH_PER_MMBTU, digits=7)
             r["storage_to_turbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
 
         if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts]
+                sum(p.scenario_probabilities[s] * m[Symbol("dvHeatFromStorage"*_n)][s,b,"SpaceHeating",ts] for s in 1:p.n_scenarios)
             )
         else
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -48,7 +48,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "DomesticHotWater" in p.heating_loads && p.s.storage.attr[b].can_serve_dhw
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts]
+                sum(p.scenario_probabilities[s] * m[Symbol("dvHeatFromStorage"*_n)][s,b,"DomesticHotWater",ts] for s in 1:p.n_scenarios)
             )
         else
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 0.0)
@@ -57,7 +57,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "ProcessHeat" in p.heating_loads && p.s.storage.attr[b].can_serve_process_heat
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts]
+                sum(p.scenario_probabilities[s] * m[Symbol("dvHeatFromStorage"*_n)][s,b,"ProcessHeat",ts] for s in 1:p.n_scenarios)
             )
         else
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 0.0)
@@ -84,7 +84,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict, b
     =#
     r = Dict{String, Any}()
 
-    soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
+    soc = (m[Symbol("dvStoredEnergy"*_n)][1, b, ts] for ts in p.time_steps)
     r["soc_series_fraction"] = round.(value.(soc) ./ p.s.storage.attr[b].size_kwh, digits=3)
 
     d[b] = r
@@ -111,11 +111,11 @@ function add_cold_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict
     r["size_gal"] = round(size_kwh / kwh_per_gal, digits=0)
 
     if size_kwh != 0
-    	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
-        r["soc_series_fraction"] = round.(value.(soc) ./ size_kwh, digits=3)
+    	soc = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvStoredEnergy"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+        r["soc_series_fraction"] = round.(soc ./ size_kwh, digits=3)
 
-        discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
-        r["storage_to_load_series_ton"] = round.(value.(discharge) / KWH_THERMAL_PER_TONHOUR, digits=7)
+        discharge = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvDischargeFromStorage"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+        r["storage_to_load_series_ton"] = round.(discharge / KWH_THERMAL_PER_TONHOUR, digits=7)
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_ton"] = []
@@ -136,7 +136,7 @@ function add_cold_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict, 
     =#
     r = Dict{String, Any}()
 
-    soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
+    soc = (m[Symbol("dvStoredEnergy"*_n)][1, b, ts] for ts in p.time_steps)
     r["soc_series_fraction"] = round.(value.(soc) ./ p.s.storage.attr[b].size_kwh, digits=3)
 
     d[b] = r
@@ -163,20 +163,20 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
     r["size_kwh"] = size_kwh  
 
     if size_kwh != 0
-    	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
-        r["soc_series_fraction"] = round.(value.(soc) ./ size_kwh, digits=3)
+    	soc = [sum(p.scenario_probabilities[s] * value(m[Symbol("dvStoredEnergy"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps]
+        r["soc_series_fraction"] = round.(soc ./ size_kwh, digits=3)
 
-        discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads) for ts in p.time_steps)
+        discharge = [sum(p.scenario_probabilities[s] * value(sum(m[Symbol("dvHeatFromStorage"*_n)][s,b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)) for s in 1:p.n_scenarios) for ts in p.time_steps]
 
         # TODO: add something to track heat to steam turbine?
         # discharge = (sum(m[Symbol("dvThermalToSteamTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads) for ts in p.time_steps)
         # r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
-            storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
+            storage_to_turbine = [sum(p.scenario_probabilities[s] * value(sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][s,b,q,ts] for q in p.heating_loads)) for s in 1:p.n_scenarios) for ts in p.time_steps]
+            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(storage_to_turbine / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.((discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
         else
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(discharge / KWH_PER_MMBTU, digits=7)
             r["storage_to_turbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
     else

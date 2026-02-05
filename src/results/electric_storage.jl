@@ -27,11 +27,12 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
     r["size_kw"] = round(value(m[Symbol("dvStoragePower"*_n)][b]), digits=2)
 
     if r["size_kwh"] != 0
-    	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
-        r["soc_series_fraction"] = round.(value.(soc) ./ r["size_kwh"], digits=3)
+    	# Compute expected value across scenarios for SOC and discharge
+    	soc = (sum(p.scenario_probabilities[s] * value(m[Symbol("dvStoredEnergy"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps)
+        r["soc_series_fraction"] = round.(collect(soc) ./ r["size_kwh"], digits=3)
 
-        discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
-        r["storage_to_load_series_kw"] = round.(value.(discharge), digits=3)
+        discharge = (sum(p.scenario_probabilities[s] * value(m[Symbol("dvDischargeFromStorage"*_n)][s, b, ts]) for s in 1:p.n_scenarios) for ts in p.time_steps)
+        r["storage_to_load_series_kw"] = round.(collect(discharge), digits=3)
 
         r["initial_capital_cost"] = r["size_kwh"] * p.s.storage.attr[b].installed_cost_per_kwh +
             r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
@@ -77,10 +78,10 @@ MPC `ElectricStorage` results keys:
 function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict, b::String; _n="")
     r = Dict{String, Any}()
 
-    soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
+    soc = (m[Symbol("dvStoredEnergy"*_n)][1, b, ts] for ts in p.time_steps)
     r["soc_series_fraction"] = round.(value.(soc) ./ p.s.storage.attr[b].size_kwh, digits=3)
 
-    discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
+    discharge = (m[Symbol("dvDischargeFromStorage"*_n)][1, b, ts] for ts in p.time_steps)
     r["to_load_series_kw"] = round.(value.(discharge), digits=3)
 
     d[b] = r

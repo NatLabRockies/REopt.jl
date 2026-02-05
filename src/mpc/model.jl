@@ -37,7 +37,7 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
     if !p.s.settings.add_soc_incentive || !("ElectricStorage" in p.s.storage.types.elec)
 		@objective(m, Min, m[:Costs])
 	else # Keep SOC high
-		@objective(m, Min, m[:Costs] - sum(m[:dvStoredEnergy]["ElectricStorage", ts] for ts in p.time_steps) /
+		@objective(m, Min, m[:Costs] - sum(m[:dvStoredEnergy][s, "ElectricStorage", ts] for s in 1:p.n_scenarios, ts in p.time_steps) /
 									   (8760. / p.hours_per_time_step)
 		)
 	end
@@ -80,25 +80,27 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 
 	for ts in p.time_steps_without_grid
 
-		fix(m[:dvGridPurchase][ts], 0.0, force=true)
-
-		for t in p.s.storage.types.elec
-			fix(m[:dvGridToStorage][t, ts], 0.0, force=true)
+		for s in 1:p.n_scenarios, tier in 1:p.s.electric_tariff.n_energy_tiers
+			fix(m[:dvGridPurchase][s, ts, tier], 0.0, force=true)
 		end
 
-		for t in p.techs.elec, u in p.export_bins_by_tech[t]
-			fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
+		for s in 1:p.n_scenarios, t in p.s.storage.types.elec
+			fix(m[:dvGridToStorage][s, t, ts], 0.0, force=true)
+		end
+
+		for s in 1:p.n_scenarios, t in p.techs.elec, u in p.export_bins_by_tech[t]
+			fix(m[:dvProductionToGrid][s, t, u, ts], 0.0, force=true)
 		end
 	end
 
 	for b in p.s.storage.types.all
 		if p.s.storage.attr[b].size_kw == 0 || p.s.storage.attr[b].size_kwh == 0
-			@constraint(m, [ts in p.time_steps], m[:dvStoredEnergy][b, ts] == 0)
-			@constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
-						m[:dvProductionToStorage][b, t, ts] == 0)
-			@constraint(m, [ts in p.time_steps], m[:dvDischargeFromStorage][b, ts] == 0)
+			@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[:dvStoredEnergy][s, b, ts] == 0)
+			@constraint(m, [s in 1:p.n_scenarios, t in p.techs.elec, ts in p.time_steps_with_grid],
+						m[:dvProductionToStorage][s, b, t, ts] == 0)
+			@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[:dvDischargeFromStorage][s, b, ts] == 0)
 			if b in p.s.storage.types.elec
-				@constraint(m, [ts in p.time_steps], m[:dvGridToStorage][b, ts] == 0)
+				@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[:dvGridToStorage][s, b, ts] == 0)
 			end
 		else
 			add_general_storage_dispatch_constraints(m, p, b)
@@ -121,8 +123,8 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	add_production_constraints(m, p)
 
 	if !isempty(p.techs.no_turndown)
-		@constraint(m, [t in p.techs.no_turndown, ts in p.time_steps],
-            m[:dvRatedProduction][t,ts] == m[:dvSize][t]
+		@constraint(m, [s in 1:p.n_scenarios, t in p.techs.no_turndown, ts in p.time_steps],
+            m[:dvRatedProduction][s, t, ts] == m[:dvSize][t]
         )
 	end
 
@@ -158,10 +160,10 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
         add_gen_constraints(m, p)
 		m[:TotalPerUnitProdOMCosts] += @expression(m, 
 			sum(p.s.generator.om_cost_per_kwh * p.hours_per_time_step *
-			m[:dvRatedProduction][t, ts] for t in p.techs.gen, ts in p.time_steps)
+			m[:dvRatedProduction][s, t, ts] for s in 1:p.n_scenarios, t in p.techs.gen, ts in p.time_steps)
 		)
         m[:TotalGenFuelCosts] = @expression(m,
-            sum(m[:dvFuelUsage][t,ts] * p.s.generator.fuel_cost_per_gallon for t in p.techs.gen, ts in p.time_steps)
+            sum(m[:dvFuelUsage][s, t, ts] * p.s.generator.fuel_cost_per_gallon for s in 1:p.n_scenarios, t in p.techs.gen, ts in p.time_steps)
         )
         m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
 	end
@@ -225,24 +227,24 @@ function add_variables!(m::JuMP.AbstractModel, p::MPCInputs)
     @variables m begin
 		# dvSize[p.techs.all] >= 0  # System Size of Technology t [kW]
 		# dvPurchaseSize[p.techs.all] >= 0  # system kW beyond existing_kw that must be purchased
-		dvGridPurchase[p.time_steps] >= 0  # Power from grid dispatched to meet electrical load [kW]
-		dvRatedProduction[p.techs.all, p.time_steps] >= 0  # Rated production of technology t [kW]
-		dvCurtail[p.techs.all, p.time_steps] >= 0  # [kW]
-		dvProductionToStorage[p.s.storage.types.all, p.techs.all, p.time_steps] >= 0  # Power from technology t used to charge storage system b [kW]
-		dvDischargeFromStorage[p.s.storage.types.all, p.time_steps] >= 0 # Power discharged from storage system b [kW]
-		dvGridToStorage[p.s.storage.types.elec, p.time_steps] >= 0 # Electrical power delivered to storage by the grid [kW]
-		dvStoredEnergy[p.s.storage.types.all, 0:p.time_steps[end]] >= 0  # State of charge of storage system b
+		dvGridPurchase[1:p.n_scenarios, p.time_steps, 1:p.s.electric_tariff.n_energy_tiers] >= 0  # Power from grid dispatched to meet electrical load [kW]
+		dvRatedProduction[1:p.n_scenarios, p.techs.all, p.time_steps] >= 0  # Rated production of technology t [kW]
+		dvCurtail[1:p.n_scenarios, p.techs.all, p.time_steps] >= 0  # [kW]
+		dvProductionToStorage[1:p.n_scenarios, p.s.storage.types.all, p.techs.all, p.time_steps] >= 0  # Power from technology t used to charge storage system b [kW]
+		dvDischargeFromStorage[1:p.n_scenarios, p.s.storage.types.all, p.time_steps] >= 0 # Power discharged from storage system b [kW]
+		dvGridToStorage[1:p.n_scenarios, p.s.storage.types.elec, p.time_steps] >= 0 # Electrical power delivered to storage by the grid [kW]
+		dvStoredEnergy[1:p.n_scenarios, p.s.storage.types.all, 0:p.time_steps[end]] >= 0  # State of charge of storage system b
 		dvStoragePower[p.s.storage.types.all] >= 0   # Power capacity of storage system b [kW]
 		dvStorageEnergy[p.s.storage.types.all] >= 0   # Energy capacity of storage system b [kWh]
 		# TODO rm dvStoragePower/Energy dv's
-		dvPeakDemandTOU[p.ratchets, 1:1] >= 0  # Peak electrical power demand during ratchet r [kW]
-		dvPeakDemandMonth[p.months] >= 0  # Peak electrical power demand during month m [kW]
+		dvPeakDemandTOU[1:p.n_scenarios, p.ratchets, 1:p.s.electric_tariff.n_tou_demand_tiers] >= 0  # Peak electrical power demand during ratchet r [kW]
+		dvPeakDemandMonth[1:p.n_scenarios, p.months, 1:p.s.electric_tariff.n_monthly_demand_tiers] >= 0  # Peak electrical power demand during month m [kW]
 		# MinChargeAdder >= 0
 	end
 	# TODO: tiers in MPC tariffs and variables?
 
 	if !isempty(p.s.electric_tariff.export_bins)
-		@variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvProductionToGrid[1:p.n_scenarios, p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
 	end
 
     m[:dvSize] = p.existing_sizes
@@ -259,8 +261,8 @@ function add_variables!(m::JuMP.AbstractModel, p::MPCInputs)
 		@warn """Adding binary variable to model gas generator. 
 				 Some solvers are very slow with integer variables"""
 		@variables m begin
-			dvFuelUsage[p.techs.gen, p.time_steps] >= 0 # Fuel burned by technology t in each time step [kWh]
-			binGenIsOnInTS[p.techs.gen, p.time_steps], Bin  # 1 If technology t is operating in time step h; 0 otherwise
+			dvFuelUsage[1:p.n_scenarios, p.techs.gen, p.time_steps] >= 0 # Fuel burned by technology t in each time step [kWh]
+			binGenIsOnInTS[1:p.n_scenarios, p.techs.gen, p.time_steps], Bin  # 1 If technology t is operating in time step h; 0 otherwise
 		end
 	end
 

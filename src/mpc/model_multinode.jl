@@ -60,12 +60,12 @@ function build_mpc!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 
 		for b in p.s.storage.types.all
 			if p.s.storage.attr[b].size_kw == 0 || p.s.storage.attr[b].size_kwh == 0
-				@constraint(m, [ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][b, ts] == 0)
-				@constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
-							m[Symbol("dvProductionToStorage"*_n)][b, t, ts] == 0)
-				@constraint(m, [ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][b, ts] == 0)
+				@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][s, b, ts] == 0)
+				@constraint(m, [s in 1:p.n_scenarios, t in p.techs.elec, ts in p.time_steps_with_grid],
+							m[Symbol("dvProductionToStorage"*_n)][s, b, t, ts] == 0)
+				@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][s, b, ts] == 0)
 				if b in p.s.storage.types.elec
-					@constraint(m, [ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][b, ts] == 0)
+					@constraint(m, [s in 1:p.n_scenarios, ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][s, b, ts] == 0)
 				end
 			else
 				add_general_storage_dispatch_constraints(m, p, b; _n=_n)
@@ -88,8 +88,8 @@ function build_mpc!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 		add_production_constraints(m, p; _n=_n)
 
 		if !isempty(p.techs.no_turndown)
-			@constraint(m, [t in p.techs.no_turndown, ts in p.time_steps],
-				m[Symbol("dvRatedProduction"*_n)][t,ts] == m[Symbol("dvSize"*_n)][t]
+			@constraint(m, [s in 1:p.n_scenarios, t in p.techs.no_turndown, ts in p.time_steps],
+				m[Symbol("dvRatedProduction"*_n)][s, t, ts] == m[Symbol("dvSize"*_n)][t]
 			)
 		end
 
@@ -147,10 +147,6 @@ end
 
 function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 
-	dvs_idx_on_techs_time_steps = String[
-        "dvCurtail",
-		"dvRatedProduction",
-	]
 	dvs_idx_on_storagetypes_time_steps = String[
 		"dvDischargeFromStorage"
 	]
@@ -159,10 +155,12 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 
 		m[Symbol("dvSize"*_n)] = p.existing_sizes
 
-		for dv in dvs_idx_on_techs_time_steps
-			x = dv*_n
-			m[Symbol(x)] = @variable(m, [p.techs.all, p.time_steps], base_name=x, lower_bound=0)
-		end
+		# dvCurtail and dvRatedProduction need scenario dimension for OUU compatibility
+		dv = "dvCurtail"*_n
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
+		
+		dv = "dvRatedProduction"*_n
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
 		
 		m[Symbol("dvStoragePower"*_n)] = Dict{String, Float64}()
 		m[Symbol("dvStorageEnergy"*_n)] = Dict{String, Float64}()
@@ -173,33 +171,33 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 
 		for dv in dvs_idx_on_storagetypes_time_steps
 			x = dv*_n
-			m[Symbol(x)] = @variable(m, [p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
+			m[Symbol(x)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
 		end
 
 		dv = "dvGridToStorage"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
 
 		dv = "dvGridPurchase"*_n
-		m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.time_steps, 1:p.s.electric_tariff.n_energy_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvPeakDemandTOU"*_n
-		m[Symbol(dv)] = @variable(m, [p.ratchets, 1], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.ratchets, 1:p.s.electric_tariff.n_tou_demand_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvPeakDemandMonth"*_n
-		m[Symbol(dv)] = @variable(m, [p.months, 1], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.months, 1:p.s.electric_tariff.n_monthly_demand_tiers], base_name=dv, lower_bound=0)
 
 		dv = "dvProductionToStorage"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.all, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, p.techs.all, p.time_steps], base_name=dv, lower_bound=0)
 
 		dv = "dvStoredEnergy"*_n
-		m[Symbol(dv)] = @variable(m, [p.s.storage.types.all, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.s.storage.types.all, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
 
 		dv = "MinChargeAdder"*_n
 		m[Symbol(dv)] = 0
 
         if !isempty(p.s.electric_tariff.export_bins)
             dv = "dvProductionToGrid"*_n
-            m[Symbol(dv)] = @variable(m, [p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
+            m[Symbol(dv)] = @variable(m, [1:p.n_scenarios, p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
         end
 
         ex_name = "TotalPerUnitProdOMCosts"*_n

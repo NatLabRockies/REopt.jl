@@ -17,7 +17,7 @@ function add_prod_incent_vars_and_constraints(m, p)
 	##Constraint (6a)-2: Production Incentive According to Production
 	@constraint(m, IncentByProductionCon[t in p.techs.pbi],
 		m[:dvProdIncent][t] <= p.hours_per_time_step * p.pbi_benefit_per_kwh[t] * p.pbi_pwf[t] * p.third_party_factor *
-			sum(p.production_factor[t, ts] * m[:dvRatedProduction][t,ts] for ts in p.time_steps)
+			sum(p.scenario_probabilities[s] * p.production_factor_by_scenario[s][t][ts] * m[:dvRatedProduction][s, t,ts] for s in 1:p.n_scenarios, ts in p.time_steps)
 	)
 	##Constraint (6b): System size max to achieve production incentive
 	@constraint(m, IncentBySystemSizeCon[t in p.techs.pbi],

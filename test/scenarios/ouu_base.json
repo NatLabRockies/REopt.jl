@@ -1,0 +1,21 @@
+{
+    "Site": {
+        "latitude": 39.7407,
+        "longitude": -105.1694
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "LargeHotel",
+        "annual_kwh": 2000000.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 15.0
+    },
+    "PV": {
+        "max_kw": 1000.0
+    },
+    "ElectricStorage": {
+        "max_kw": 500.0,
+        "max_kwh": 2000.0
+    }
+}

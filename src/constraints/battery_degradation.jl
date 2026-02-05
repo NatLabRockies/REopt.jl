@@ -29,7 +29,7 @@ function constrain_degradation_variables(m, p; b="ElectricStorage")
     end
 
     @constraint(m, [d in days],
-        m[:Eavg][d] == 1/ts_per_day * sum(m[:dvStoredEnergy][b, ts] for ts in ts0[d]:tsF[d])
+        m[:Eavg][d] == 1/ts_per_day * sum(sum(p.scenario_probabilities[s] * m[:dvStoredEnergy][s, b, ts] for s in 1:p.n_scenarios) for ts in ts0[d]:tsF[d])
     )
 
     @constraint(m, [d in days],
@@ -38,13 +38,13 @@ function constrain_degradation_variables(m, p; b="ElectricStorage")
 
     # Power in equals power into storage from grid or local production
     @constraint(m, [ts in p.time_steps],
-    sum(m[:dvSegmentChargePower][ts, j] for j in 1:J) == sum(
-        m[:dvProductionToStorage][b, t, ts] for t in p.techs.elec) + m[:dvGridToStorage][b, ts]
+    sum(m[:dvSegmentChargePower][ts, j] for j in 1:J) == sum(p.scenario_probabilities[s] * (sum(
+        m[:dvProductionToStorage][s, b, t, ts] for t in p.techs.elec) + m[:dvGridToStorage][s, b, ts]) for s in 1:p.n_scenarios)
     )
 
     # Power out equals power discharged from storage to any destination
     @constraint(m, [ts in p.time_steps],
-    sum(m[:dvSegmentDischargePower][ts, j] for j in 1:J) == m[:dvDischargeFromStorage][b, ts]);
+    sum(m[:dvSegmentDischargePower][ts, j] for j in 1:J) == sum(p.scenario_probabilities[s] * m[:dvDischargeFromStorage][s, b, ts] for s in 1:p.n_scenarios));
 
     # Balance charging with daily e_plus, here is only collect all power across the day, so don't need to times efficiency
     @constraint(m, [d in days, j in 1:J], m[:Eplus_sum][d, j] == sum(m[:dvSegmentChargePower][ts0[d]:tsF[d], j])*p.hours_per_time_step)
