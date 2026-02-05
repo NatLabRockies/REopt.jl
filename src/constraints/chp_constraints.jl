@@ -167,6 +167,26 @@ function add_chp_hourly_om_charges(m, p; _n="")
     nothing
 end
 
+"""
+    add_absorption_chiller_only_constraints(m, p; _n="")
+
+Used in src/reopt.jl to add constraints that restrict output of CHP to serve absorption chiller only 
+in dispatch (or send heat to waste).
+"""
+function add_absorption_chiller_only_constraints(m, p; _n="")
+    @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in p.time_steps], 
+        m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
+    )
+    for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
+        for ts in p.time_steps
+            fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts], 0.0, force=true)
+            fix(m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts], 0.0, force=true)
+            fix(m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts], 0.0, force=true)
+        end
+    end
+end
+
+
 
 """
     add_chp_constraints(m, p; _n="")
