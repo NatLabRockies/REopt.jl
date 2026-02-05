@@ -228,4 +228,9 @@ function add_chp_constraints(m, p; _n="")
             end
         end
     end
+
+    if !isempty(p.techs.absorption_chiller) && p.s.chp.serve_absorption_chiller_only
+        add_absorption_chiller_only_constraints(m, p; _n="")
+    end
 end
+
