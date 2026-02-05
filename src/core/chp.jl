@@ -40,6 +40,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
+    operating_reserve_required_fraction::Real = off_grid_flag ? 0.0 : 0.0 # If off grid, 10%, else 0%. Applied to each time_step as a % of CHP generation. When positive, CHP requires reserves from Generator or Battery; when 0, CHP can provide reserves.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -113,6 +114,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
+    operating_reserve_required_fraction::Real = 0.0
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -149,7 +151,8 @@ function CHP(d::Dict;
             electric_load_series_kw::Array{<:Real,1}=Real[],
             year::Int64=2017,
             sector::String,
-            federal_procurement_type::String)
+            federal_procurement_type::String,
+            off_grid_flag::Bool=false)
     # If array inputs are coming from Julia JSON.parsefile (reader), they have type Vector{Any}; convert to expected type here
     for (k,v) in d
         if typeof(v) <: AbstractVector{Any} && k != "unavailability_periods"
@@ -273,6 +276,17 @@ function CHP(d::Dict;
     if chp.is_electric_only && (chp.thermal_efficiency_half_load > 0.0)
         @warn "CHP.thermal_efficiency_half_load is greater than zero but chp.is_electric_only is selected, so setting chp.thermal_efficiency_half_load to zero."
         setproperty!(chp, :thermal_efficiency_half_load, 0.0)
+    end
+
+    # Set operating_reserve_required_fraction based on off_grid_flag
+    if haskey(d, "operating_reserve_required_fraction")
+        chp.operating_reserve_required_fraction = d["operating_reserve_required_fraction"]
+    end
+
+    # Validate operating_reserve_required_fraction for on-grid scenarios
+    if !off_grid_flag && !(chp.operating_reserve_required_fraction == 0.0)
+        @warn "CHP operating_reserve_required_fraction applies only when off_grid_flag is true. Setting operating_reserve_required_fraction to 0.0 for this on-grid analysis."
+        chp.operating_reserve_required_fraction = 0.0
     end
 
     return chp

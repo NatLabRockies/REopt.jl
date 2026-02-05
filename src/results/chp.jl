@@ -99,11 +99,6 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         sum(sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads) + m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts]
             for t in p.techs.chp) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts])
     r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CHPThermalToLoadKW ./ KWH_PER_MMBTU), digits=5)
-
-	CHPToLoadKW = @expression(m, [ts in p.time_steps],
-		sum(value.(m[:dvHeatingProduction]["CHP",q,ts] for q in p.heating_loads)) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts]
-    )
-	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CHPThermalToLoadKW ./ KWH_PER_MMBTU), digits=5)
     
     if "DomesticHotWater" in p.heating_loads && p.s.chp.can_serve_dhw
         @expression(m, CHPToDHWKW[ts in p.time_steps], 

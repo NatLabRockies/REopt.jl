@@ -1361,12 +1361,16 @@ function setup_ghp_inputs(s::AbstractScenario, time_steps, time_steps_without_gr
 end
 
 function setup_operating_reserve_fraction(s::AbstractScenario, techs_operating_reserve_req_fraction)
-    # currently only PV and Wind require operating reserves
+    # Currently PV, Wind, and CHP can require or provide operating reserves in off-grid scenarios
     for pv in s.pvs 
         techs_operating_reserve_req_fraction[pv.name] = pv.operating_reserve_required_fraction
     end
 
     techs_operating_reserve_req_fraction["Wind"] = s.wind.operating_reserve_required_fraction
+
+    if !isnothing(s.chp)
+        techs_operating_reserve_req_fraction["CHP"] = s.chp.operating_reserve_required_fraction
+    end
 
     return nothing
 end

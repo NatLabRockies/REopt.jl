@@ -202,6 +202,13 @@ function Techs(s::Scenario)
         if s.chp.can_serve_process_heat
             push!(techs_can_serve_process_heat, "CHP")
         end
+        if s.settings.off_grid_flag
+            if s.chp.operating_reserve_required_fraction > 0.0
+                push!(requiring_oper_res, "CHP")
+            else
+                push!(providing_oper_res, "CHP")
+            end
+        end
     end
 
     if !isempty(s.ghp_option_list) && !isnothing(s.ghp_option_list[1])
