@@ -155,3 +155,31 @@ function add_thermal_load_constraints(m, p; _n="")
         end
     end
 end
+
+function add_absorption_chiller_load_constraints(m,p;_n="")
+    if !isempty(p.techs.absorption_chiller)
+        for q in p.heating_loads
+            if !isempty(p.absorption_chillers_using_heating_load[q])
+                @constraint(m, abschlcon[ts in p.time_steps_with_grid],
+                    sum(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts] for t in union(p.techs.heating, p.techs.chp))
+                    == 
+                    sum(m[Symbol("dvCoolingProduction"*_n)][t,ts] / p.thermal_cop[t] for t in p.absorption_chillers_using_heating_load[q])
+                )
+            else
+                for t in union(p.techs.heating, p.techs.chp)
+                    for ts in p.time_steps
+                        fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts], 0.0, force=true)
+                    end
+                end
+            end
+        end
+    else
+        for t in union(p.techs.heating, p.techs.chp)
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
+    end
+end
