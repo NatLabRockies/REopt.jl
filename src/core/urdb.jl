@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 # https://discourse.julialang.org/t/vector-of-matrices-vs-multidimensional-arrays/9602/5
 # 5d2360465457a3f77ddc131e has TOU demand
 # 59bc22705457a3372642da67 has monthly tiered demand (no TOU demand)
@@ -170,7 +170,7 @@ function download_urdb(urdb_label::String; version::Int=8)
     response = nothing
     try
         @info "Checking URDB for " urdb_label
-        r = HTTP.get(url, require_ssl_verification=false)  # cannot verify on NREL VPN
+        r = HTTP.get(url, require_ssl_verification=false)  # cannot verify on NLR VPN
         response = JSON.parse(String(r.body))
         if r.status != 200
             throw(@error("Bad response from URDB: $(response["errors"])"))  # TODO URDB has "errors"?
@@ -199,7 +199,7 @@ function download_urdb(util_name::String, rate_name::String; version::Int=8)
     response = nothing
     try
         @info "Checking URDB for " rate_name
-        r = HTTP.get(url, require_ssl_verification=false)  # cannot verify on NREL VPN
+        r = HTTP.get(url, require_ssl_verification=false)  # cannot verify on NLR VPN
         response = JSON.parse(String(r.body))
         if r.status != 200
             throw(@error("Bad response from URDB: $(response["errors"])"))  # TODO URDB has "errors"?

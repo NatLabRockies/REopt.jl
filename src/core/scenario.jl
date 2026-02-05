@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 struct Scenario <: AbstractScenario
     settings::Settings
     site::Site
@@ -613,7 +613,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "Non-hybrid GHX sizing complete using GhpGhx.jl"
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment"))
                 end
                 d["GHP"]["number_of_boreholes_nonhybrid"] = nonhybrid_results_resp_dict["number_of_boreholes"]
@@ -681,7 +681,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end
@@ -706,7 +706,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         @info "New hybrid GHX sizing complete using GhpGhx.jl"
                     catch e
                         @info e
-                        throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                        throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                             loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                             to the GhpGhx.jl package."))
                     end
@@ -827,7 +827,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end
