@@ -22,6 +22,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     cooling_thermal_factor::Float64 = NaN  # only needed with cooling load
     unavailability_periods::AbstractVector{Dict} = Dict[] # CHP unavailability periods for scheduled and unscheduled maintenance, list of dictionaries with keys of "['month', 'start_week_of_month', 'start_day_of_week', 'start_hour', 'duration_hours'] all values are one-indexed and start_day_of_week uses 1 for Monday, 7 for Sunday
     unavailability_hourly::AbstractVector{Int64} = Int64[] # Hourly 8760 profile of unavailability (1) and availability (0)
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing # Optional user-provided production factor time-series (length of time_steps_per_hour * 8760). If provided, this will override the production factor calculated from unavailability.
 
     # Optional inputs:
     size_class::Union{Int, Nothing} = nothing # CHP size class for using appropriate default inputs, with size_class=0 using an average of all other size class data 
@@ -113,6 +114,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0

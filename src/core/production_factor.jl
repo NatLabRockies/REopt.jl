@@ -278,8 +278,14 @@ end
 production_factor for CHP accounts for unavailability (`unavailability_periods`) of CHP due to 
 scheduled (mostly off-peak) and "unscheduled" (on-peak) maintenance. 
 Note: this same prod_factor should be applied to electric and thermal production
+
+If the user provides their own production_factor_series, that will be returned instead of generating from unavailability.
 """
 function get_production_factor(chp::AbstractCHP, year::Int=2017, outage_start_time_step::Int=0, outage_end_time_step::Int=0, ts_per_hour::Int=1)
+    
+    if !(isnothing(chp.production_factor_series))
+        return chp.production_factor_series
+    end
     
     prod_factor = [1.0 - chp.unavailability_hourly[i] for i in 1:8760 for _ in 1:ts_per_hour]
 
