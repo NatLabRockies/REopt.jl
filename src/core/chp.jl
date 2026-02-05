@@ -30,6 +30,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     fuel_type::String = "natural_gas" # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
     om_cost_per_kw::Float64 = 0.0 # Annual CHP fixed operations and maintenance costs in \$/kw-yr 
     om_cost_per_hr_per_kw_rated::Float64 = 0.0 # CHP non-fuel variable operations and maintenance costs in \$/hr/kw_rated
+    ramp_rate_fraction_per_hour::Float64 = 1.0 # Maximum rate of change in electric production per hour as a fraction of size_kw [kW/size_kw/hour].
     supplementary_firing_capital_cost_per_kw::Float64 = 150.0 # Installed CHP supplementary firing system cost in \$/kW (based on rated electric power)
     supplementary_firing_max_steam_ratio::Float64 = 1.0 # Ratio of max fired steam to un-fired steam production. Relevant only for combustion_turbine prime_mover 
     supplementary_firing_efficiency::Float64 = 0.92 # Thermal efficiency of the incremental steam production from supplementary firing. Relevant only for combustion_turbine prime_mover 
@@ -101,6 +102,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     fuel_type::String = "natural_gas"
     om_cost_per_kw::Float64 = 0.0
     om_cost_per_hr_per_kw_rated::Float64 = 0.0
+    ramp_rate_fraction_per_hour::Float64 = 1.0
     electric_efficiency_half_load::Float64 = NaN  # Assigned to electric_efficiency_full_load if not input
     thermal_efficiency_half_load::Float64 = NaN  # Assigned to thermal_efficiency_full_load if not input
     supplementary_firing_capital_cost_per_kw::Float64 = 150.0

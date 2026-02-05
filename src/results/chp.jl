@@ -67,9 +67,16 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 		CHPtoBatt = zeros(length(p.time_steps))
 	end
 	r["electric_to_storage_series_kw"] = round.(value.(CHPtoBatt), digits=3)
+	if p.s.chp.can_curtail
+		@expression(m, CHPtoCurtail[ts in p.time_steps],
+			sum(m[Symbol("dvCurtail"*_n)][t,ts] for t in p.techs.chp))
+	else
+		CHPtoCurtail = zeros(length(p.time_steps))
+	end
+	r["electric_curtailed_series_kw"] = round.(value.(CHPtoCurtail), digits=3)
 	@expression(m, CHPtoLoad[ts in p.time_steps],
 		sum(m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
-			for t in p.techs.chp) - CHPtoBatt[ts] - CHPtoGrid[ts])
+			for t in p.techs.chp) - CHPtoBatt[ts] - CHPtoGrid[ts] - CHPtoCurtail[ts])
 	r["electric_to_load_series_kw"] = round.(value.(CHPtoLoad), digits=3)
 	# Thermal dispatch breakdown
     if !isempty(p.s.storage.types.hot)
