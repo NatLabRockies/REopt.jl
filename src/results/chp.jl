@@ -2,10 +2,12 @@
 """
 `CHP` results keys:
 - `size_kw` Power capacity size of the CHP system [kW]
+- `size_thermal_kw` Thermal capacity size of the CHP system [kW] (only when can_produce_thermal_independently=true)
 - `size_supplemental_firing_kw` Power capacity of CHP supplementary firing system [kW]
 - `annual_fuel_consumption_mmbtu` Fuel consumed in a year [MMBtu]
 - `annual_electric_production_kwh` Electric energy produced in a year [kWh]
 - `annual_thermal_production_mmbtu` Thermal energy produced in a year (not including curtailed thermal) [MMBtu]
+- `annual_thermal_production_from_source_mmbtu` Total thermal from source including thermal for electric conversion (only when can_produce_thermal_independently=true) [MMBtu]
 - `electric_production_series_kw` Electric power production time-series array [kW]
 - `electric_to_grid_series_kw` Electric power exported time-series array [kW]
 - `electric_to_storage_series_kw` Electric power to charge the battery storage time-series array [kW]
@@ -33,6 +35,12 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	# Note: the node number is an empty string if evaluating a single `Site`.
     r = Dict{String, Any}()
 	r["size_kw"] = value(sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.chp))
+    
+    # Add thermal capacity size if operating in independent thermal production mode
+    if p.s.chp.can_produce_thermal_independently
+        r["size_thermal_kw"] = value(sum(m[Symbol("dvThermalSize"*_n)][t] for t in p.techs.chp))
+    end
+    
     r["size_supplemental_firing_kw"] = value(sum(m[Symbol("dvSupplementaryFiringSize"*_n)][t] for t in p.techs.chp))
 	@expression(m, CHPFuelUsedKWH, sum(m[Symbol("dvFuelUsage"*_n)][t, ts] for t in p.techs.chp, ts in p.time_steps))
 	r["annual_fuel_consumption_mmbtu"] = round(value(CHPFuelUsedKWH) / KWH_PER_MMBTU, digits=3)
@@ -48,6 +56,18 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r["thermal_production_series_mmbtu_per_hour"] = round.(value.(CHPThermalProdKW) / KWH_PER_MMBTU, digits=5)
 	
 	r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
+
+	# For independent thermal mode, also report total thermal from source (includes thermal consumed for electric production)
+	if p.s.chp.can_produce_thermal_independently
+		# Total thermal from source = fuel consumption × thermal_efficiency
+		# This matches the physics: thermal_source_output = thermal_to_loads + thermal_for_electric
+		r["annual_thermal_production_from_source_mmbtu"] = round(
+			r["annual_fuel_consumption_mmbtu"] * p.s.chp.thermal_efficiency_full_load, 
+			digits=3
+		)
+	else
+		r["annual_thermal_production_from_source_mmbtu"] = 0.0
+	end
 
 	@expression(m, CHPElecProdTotal[ts in p.time_steps],
 		sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for t in p.techs.chp))

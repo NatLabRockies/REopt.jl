@@ -1,0 +1,43 @@
+{
+    "Site": {
+        "latitude": 37.78, 
+        "longitude": -122.45
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 10.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 20.0
+    },
+    "Boiler": {
+        "fuel_cost_per_mmbtu": 5.0,
+        "efficiency": 0.80,
+        "max_mmbtu_per_hour": 17.065,
+        "installed_cost_per_mmbtu_per_hour": 0.0,
+        "om_cost_per_mmbtu": 0.0
+    },
+    "SteamTurbine": {
+        "electric_produced_to_thermal_consumed_ratio": 0.35,
+        "thermal_produced_to_thermal_consumed_ratio": 0.0,
+        "max_kw": 1000,
+        "min_kw": 0,
+        "installed_cost_per_kw": 2000.0,
+        "om_cost_per_kwh": 0.01,
+        "can_serve_dhw": true,
+        "can_serve_space_heating": true,
+        "can_serve_process_heat": true,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "federal_itc_fraction": 0.0
+    }
+}

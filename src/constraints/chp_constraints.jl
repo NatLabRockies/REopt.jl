@@ -136,6 +136,87 @@ end
 
 
 """
+    add_chp_independent_thermal_production_constraints(m, p; _n="")
+
+Add constraints for CHP operating in independent thermal production mode, where thermal 
+production is not coupled to electric production. This mode is suitable for technologies 
+like nuclear or geothermal that can produce heat independently.
+
+Key physics representation:
+- dvThermalSize represents the total thermal source capacity (reactor power, wellfield output)
+- Thermal from source can go to: (1) direct heating loads, or (2) power cycle for electricity
+- Electric production consumes thermal capacity via power cycle conversion
+- electric_efficiency represents thermal→electric conversion efficiency
+
+Constraints:
+- Total thermal utilization (direct heating + thermal for electric) ≤ thermal source capacity
+- Electric production ≤ electric generation equipment capacity
+- Fuel consumption = total thermal from source / source thermal efficiency
+"""
+function add_chp_independent_thermal_production_constraints(m, p; _n="")
+    # Constraint: Total thermal usage (direct + for electric production) limited by thermal source capacity
+    # For nuclear/geothermal: thermal_to_loads + thermal_for_electric <= thermal_source_capacity
+    # where: thermal_for_electric = electric_production / electric_efficiency (thermal→electric conversion)
+    # Note: dvRatedProduction is the dispatched/rated power, production_factor gives actual production
+    # IMPORTANT: production_factor scales actual production, NOT capacity limits
+    @constraint(m, CHPIndependentThermalSourceCon[t in p.techs.chp, ts in p.time_steps],
+        sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads) + 
+        p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] / p.s.chp.electric_efficiency_full_load <=
+        m[Symbol("dvThermalSize"*_n)][t]
+    )
+    
+    # Constraint: Thermal capacity bounds
+    @constraint(m, CHPThermalCapacityMin[t in p.techs.chp],
+        m[Symbol("dvThermalSize"*_n)][t] >= p.s.chp.min_thermal_kw
+    )
+    
+    @constraint(m, CHPThermalCapacityMax[t in p.techs.chp],
+        m[Symbol("dvThermalSize"*_n)][t] <= p.s.chp.max_thermal_kw
+    )
+end
+
+
+"""
+    add_chp_independent_fuel_burn_constraints(m, p; _n="")
+
+Add fuel consumption constraints for CHP operating in independent thermal mode.
+
+Key physics for nuclear/geothermal systems:
+- Fuel (or primary energy) produces thermal at the source
+- Total thermal from source = thermal to loads + thermal converted to electric
+- Fuel consumption = total_thermal_from_source / thermal_efficiency_of_source
+
+This differs from traditional CHP where:
+- Fuel goes to prime mover producing electric
+- Waste heat recovery produces thermal as byproduct
+"""
+function add_chp_independent_fuel_burn_constraints(m, p; _n="")
+    
+    # Fuel cost expression
+    m[:TotalCHPFuelCosts] = @expression(m, 
+        sum(p.pwf_fuel[t] * m[:dvFuelUsage][t, ts] * p.fuel_cost_per_kwh[t][ts] for t in p.techs.chp, ts in p.time_steps)
+    )
+
+    # For independent thermal systems (nuclear/geothermal):
+    # - thermal_efficiency_full_load = thermal_source_output / fuel_input
+    # - Total thermal from source = direct_thermal + thermal_for_electric_conversion
+    # - Fuel = (direct_thermal + thermal_for_electric) / thermal_efficiency
+    # Note: dvRatedProduction is dispatched power, production_factor gives actual production
+    
+    @constraint(m, CHPIndependentFuelBurnCon[t in p.techs.chp, ts in p.time_steps],
+        m[Symbol("dvFuelUsage"*_n)][t,ts] == p.hours_per_time_step * (
+            # Direct thermal to loads
+            sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads) / p.s.chp.thermal_efficiency_full_load +
+            # Thermal consumed for electric production (electric / electric_eff = thermal needed)
+            (p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] / p.s.chp.electric_efficiency_full_load) / p.s.chp.thermal_efficiency_full_load +
+            # Supplementary firing (if applicable)
+            m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] / p.s.chp.supplementary_firing_efficiency
+        )
+    )
+end
+
+
+"""
     add_chp_hourly_om_charges(m, p; _n="")
 
 - add decision variable "dvOMByHourBySizeCHP"*_n for the hourly CHP operations and maintenance costs
@@ -182,6 +263,12 @@ function add_chp_constraints(m, p; _n="")
         binCHPIsOnInTS[p.techs.chp, p.time_steps], Bin  # 1 If technology t is operating in time step; 0 otherwise
     end    
     
+    # Add thermal sizing decision variable if operating in independent thermal mode
+    if p.s.chp.can_produce_thermal_independently
+        dv = "dvThermalSize"*_n
+        m[Symbol(dv)] = @variable(m, [p.techs.chp], base_name=dv, lower_bound=0)
+    end
+    
     m[:TotalHourlyCHPOMCosts] = 0
     m[:TotalCHPFuelCosts] = 0
     m[:TotalCHPPerUnitProdOMCosts] = @expression(m, p.third_party_factor * p.pwf_om *
@@ -193,8 +280,17 @@ function add_chp_constraints(m, p; _n="")
         add_chp_hourly_om_charges(m, p)
     end
 
-    add_chp_fuel_burn_constraints(m, p; _n=_n)
-    add_chp_thermal_production_constraints(m, p; _n=_n)
+    # Apply constraints based on operating mode
+    if p.s.chp.can_produce_thermal_independently
+        # Independent thermal production mode
+        add_chp_independent_fuel_burn_constraints(m, p; _n=_n)
+        add_chp_independent_thermal_production_constraints(m, p; _n=_n)
+    else
+        # Traditional coupled thermal-electric production mode
+        add_chp_fuel_burn_constraints(m, p; _n=_n)
+        add_chp_thermal_production_constraints(m, p; _n=_n)
+    end
+    
     add_binCHPIsOnInTS_constraints(m, p; _n=_n)
     add_chp_rated_prod_constraint(m, p; _n=_n)
 

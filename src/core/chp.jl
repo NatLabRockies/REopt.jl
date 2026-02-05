@@ -40,6 +40,9 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
+    can_produce_thermal_independently::Bool = false # If CHP can produce thermal energy independently of electric production (e.g., nuclear, geothermal)
+    min_thermal_kw::Float64 = 0.0 # Minimum thermal capacity constraint for optimization (only used when can_produce_thermal_independently=true)
+    max_thermal_kw::Float64 = NaN # Maximum thermal capacity constraint for optimization (only used when can_produce_thermal_independently=true)
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -113,6 +116,9 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
+    can_produce_thermal_independently::Bool = false
+    min_thermal_kw::Float64 = 0.0
+    max_thermal_kw::Float64 = NaN
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
