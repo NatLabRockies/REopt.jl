@@ -35,6 +35,13 @@
         ],
         "doe_reference_name": "FlatLoad"
     },
+    "ExistingChiller": {
+        "cop": 3.4,
+        "max_thermal_factor_on_peak_load": 1.25
+    },
+    "CoolingLoad": {
+        "doe_reference_name": "Hospital"
+    },
     "ElectricTariff": {
         "monthly_energy_rates": [
             0.098,
@@ -181,5 +188,11 @@
         "boiler_fuel_cost_escalation_rate_fraction": 0.015,
         "chp_fuel_cost_escalation_rate_fraction": 0.015,
         "offtaker_discount_rate_fraction": 0.0624
+    },
+    "AbsorptionChiller": {
+        "min_ton": 1000.0,
+        "max_ton": 1000.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0
     }
 }
