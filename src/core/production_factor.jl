@@ -134,46 +134,78 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
     sam_prodfactor = []
 
     # Corresponding size in kW for generic reference turbines sizes
-    system_capacity_lookup = Dict(
-        "Bespoke 6 MW 196" => 6000,
-        "Bespoke 6 MW 170" => 6000,
-        "GE 1.5 MW" => 1500,
-        "Vestas V-47" => 660,
-        "Northern Power Systems 100" => 100,
-        "Bergey Excel 15" => 15.6
-    )
-    system_capacity = system_capacity_lookup[wind.size_class]
+    if wind.use_turbine_model_names
+        system_capacity_lookup = Dict(
+            "Bespoke 6 MW 196" => 6000,
+            "Bespoke 6 MW 170" => 6000,
+            "GE 1.5 MW" => 1500,
+            "Vestas V-47" => 660,
+            "Northern Power Systems 100" => 100,
+            "Bergey Excel 15" => 15.6
+        )
+        system_capacity = system_capacity_lookup[wind.size_class]
+        
+        # Corresponding rotor diameter in meters for generic reference turbines sizes
+        rotor_diameter_lookup = Dict(
+            "Bespoke 6 MW 196" => 98*2,
+            "Bespoke 6 MW 170" => 85*85,
+            "GE 1.5 MW" => 38.5*2,
+            "Vestas V-47" => 23.5*2,
+            "Northern Power Systems 100" => 10.35*2,
+            "Bergey Excel 15" => 4.8*2
+        )
+        wind_turbine_powercurve_lookup = Dict(
+            "Bespoke 6 MW 196" => [0, 0, 0, 0, 500.803, 1092.967, 1873.987, 3007.460, 4378.227,
+                        5536.927, 5847.313, 5985.611, 5998.921, 6000, 6000, 6000, 6000, 6000, 
+                        6000, 6000, 6000, 6000, 6000, 0, 0, 0],
+            "Bespoke 6 MW 170" => [0, 0, 0, 0, 377, 822, 1410, 2262, 3356, 4650, 5429, 5886,
+                        5970, 5999, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000,
+                        6000, 6000, 6000],
+            "GE 1.5 MW" => [0, 0, 0, 1.607, 61.167, 161.623, 305.430, 505.062, 742.33, 973.088,
+                        1193.92, 1319.44, 1401.963, 1453.444, 1482.913, 1497.966, 1497.333,
+                        1500, 1497, 1500, 1500, 1500, 1499, 1499, 1499, 1499],
+            "Vestas V-47" => [11.75, 11.75, 11.75, 11.75, 11.75, 41.093, 95.69, 165.221, 254.787,
+                        360.251, 467.499, 551.977, 612.809, 646.556, 658.420, 660, 660, 660,
+                        660, 660, 660, 660, 660, 660, 660, 660],
+            "Northern Power Systems 100" => [0, 0, 0, 0.5, 4.1, 10.5, 19, 29.4, 41, 54.3, 66.8, 
+                        77.7, 86.4, 92.8, 97.8, 100, 99.9, 99.2, 98.4, 97.5, 96.8, 96.4, 96.3,
+                        96.8, 98, 99.2],
+            "Bergey Excel 15" => [0, 0, 0, 0.112, 0.672, 2.074, 3.824, 6.089, 8.5, 11.265,
+                        13.680, 15.590, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6,
+                        15.6, 15.6, 15.6, 15.6, 15.6]
+        )
+    else
+        system_capacity_lookup = Dict(
+            "large"=> 2000,
+            "medium"=> 250,
+            "commercial"=> 100,  # Owen Roberts provided 50m for medium size_class, but Wind Toolkit has increments of 20m
+            "residential"=> 2.5
+        )
+        system_capacity = system_capacity_lookup[wind.size_class]
+        
+        # Corresponding rotor diameter in meters for generic reference turbines sizes
+        rotor_diameter_lookup = Dict(
+            "large" => 55*2,
+            "medium" => 21.9*2,
+            "commercial" => 13.8*2,
+            "residential" => 1.85*2
+        )
+        wind_turbine_powercurve_lookup = Dict(
+            "large" => [0, 0, 0, 70.119, 166.208, 324.625, 560.952, 890.771, 1329.664,
+                        1893.213, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000, 2000,
+                        2000, 2000, 2000, 2000, 2000, 2000],
+            "medium"=> [0, 0, 0, 8.764875, 20.776, 40.578125, 70.119, 111.346375, 166.208,
+                        236.651625, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250,
+                        250, 250, 250, 250, 250],
+            "commercial"=> [0, 0, 0, 3.50595, 8.3104, 16.23125, 28.0476, 44.53855, 66.4832,
+                            94.66065, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,
+                            100, 100, 100, 100, 100],
+            "residential"=> [0, 0, 0, 0.070542773, 0.1672125, 0.326586914, 0.564342188,
+                            0.896154492, 1.3377, 1.904654883, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5,
+                            2.5, 2.5, 2.5, 0, 0, 0, 0, 0, 0, 0]
+        )
+    end
     
-    # Corresponding rotor diameter in meters for generic reference turbines sizes
-    rotor_diameter_lookup = Dict(
-        "Bespoke 6 MW 196" => 98*2,
-        "Bespoke 6 MW 170" => 85*85,
-        "GE 1.5 MW" => 38.5*2,
-        "Vestas V-47" => 23.5*2,
-        "Northern Power Systems 100" => 10.35*2,
-        "Bergey Excel 15" => 4.8*2
-    )
-    wind_turbine_powercurve_lookup = Dict(
-        "Bespoke 6 MW 196" => [0, 0, 0, 0, 500.803, 1092.967, 1873.987, 3007.460, 4378.227,
-                    5536.927, 5847.313, 5985.611, 5998.921, 6000, 6000, 6000, 6000, 6000, 
-                    6000, 6000, 6000, 6000, 6000, 0, 0, 0],
-        "Bespoke 6 MW 170" => [0, 0, 0, 0, 377, 822, 1410, 2262, 3356, 4650, 5429, 5886,
-                    5970, 5999, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000,
-                    6000, 6000, 6000],
-        "GE 1.5 MW" => [0, 0, 0, 1.607, 61.167, 161.623, 305.430, 505.062, 742.33, 973.088,
-                    1193.92, 1319.44, 1401.963, 1453.444, 1482.913, 1497.966, 1497.333,
-                    1500, 1497, 1500, 1500, 1500, 1499, 1499, 1499, 1499],
-        "Vestas V-47" => [11.75, 11.75, 11.75, 11.75, 11.75, 41.093, 95.69, 165.221, 254.787,
-                    360.251, 467.499, 551.977, 612.809, 646.556, 658.420, 660, 660, 660,
-                    660, 660, 660, 660, 660, 660, 660, 660],
-        "Northern Power Systems 100" => [0, 0, 0, 0.5, 4.1, 10.5, 19, 29.4, 41, 54.3, 66.8, 
-                    77.7, 86.4, 92.8, 97.8, 100, 99.9, 99.2, 98.4, 97.5, 96.8, 96.4, 96.3,
-                    96.8, 98, 99.2],
-        "Bergey Excel 15" => [0, 0, 0, 0.112, 0.672, 2.074, 3.824, 6.089, 8.5, 11.265,
-                    13.680, 15.590, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6, 15.6,
-                    15.6, 15.6, 15.6, 15.6, 15.6]
-    )
-
     try        
         if Sys.isapple() 
             if Sys.ARCH == :aarch64
