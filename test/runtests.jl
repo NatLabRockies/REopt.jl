@@ -4435,7 +4435,7 @@ else  # run HiGHS tests
         @testset "ElectricStorage Size Class and Installed Costs Tests" begin
 
             # Get active PV defaults for checking
-            bess_defaults_path = joinpath(@__DIR__, "..", "..", "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
+            bess_defaults_path = joinpath(@__DIR__, "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
             bess_defaults_all = JSON.parsefile(bess_defaults_path)
 
             input_data["Financial"] = Dict()
