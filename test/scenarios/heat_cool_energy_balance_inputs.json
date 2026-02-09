@@ -74,13 +74,13 @@
         "min_gal": 20000.0,
         "max_gal": 20000.0,
         "internal_efficiency_fraction": 0.97,
-        "thermal_decay_rate_fraction": 0.004
+        "capacity_based_per_ts_thermal_decay_fraction": 0.004
     },
     "ColdThermalStorage":{
         "min_gal": 30000.0,
         "max_gal": 30000.0,
         "internal_efficiency_fraction": 0.97,
-        "thermal_decay_rate_fraction": 0.004,
+        "capacity_based_per_ts_thermal_decay_fraction": 0.004,
         "soc_init_fraction": 0.1
     },
     "AbsorptionChiller": {

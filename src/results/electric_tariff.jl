@@ -70,6 +70,7 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     r["year_one_min_charge_adder_before_tax"] = round(value(m[Symbol("MinChargeAdder"*_n)]) / p.pwf_e, digits=2)
                                 
     r["lifecycle_export_benefit_after_tax"] = -1 * round(value(m[Symbol("TotalExportBenefit"*_n)]) * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=2)
+    r["lifecycle_export_benefit_before_tax"] = -1 * round(value(m[Symbol("TotalExportBenefit"*_n)]), digits=2)
     r["year_one_export_benefit_before_tax"] = -1 * round(value(m[Symbol("TotalExportBenefit"*_n)]) / p.pwf_e, digits=0)
     r["year_one_export_benefit_after_tax"] = r["year_one_export_benefit_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
 

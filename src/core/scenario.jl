@@ -62,7 +62,7 @@ A Scenario struct can contain the following keys:
 - [ASHPSpaceHeater](@ref) (optional)
 - [ASHPWaterHeater](@ref) (optional)
 
-All values of `d` are expected to be `Dicts` except for `PV` and `GHP`, which can be either a `Dict` or `Dict[]` (for multiple PV arrays or GHP options).
+All values of `d` are expected to be `Dicts` except for `PV`, `ElectricStorage`, and `GHP`, which can be either a `Dict` or `Dict[]` (for multiple PV arrays or GHP options).
 
 !!! note 
     Set `flex_hvac_from_json=true` if `FlexibleHVAC` values were loaded in from JSON (necessary to 
@@ -109,8 +109,9 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     if haskey(d, "PV")
         if typeof(d["PV"]) <: AbstractArray
             for (i, pv) in enumerate(d["PV"])
-                if !(haskey(pv, "name"))
-                    pv["name"] = string("PV", i)
+                pv = dictkeys_tosymbols(pv)
+                if !(haskey(pv, :name))
+                    pv[:name] = string("PV", i)
                 end
                 push!(pvs, PV(
                     ; dictkeys_tosymbols(pv)...,
@@ -203,8 +204,23 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         
     storage_structs = Dict{String, AbstractStorage}()
     if haskey(d,  "ElectricStorage")
-        storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
-        storage_dict[:off_grid_flag] = settings.off_grid_flag
+        if typeof(d["ElectricStorage"]) <: AbstractArray
+            for (i, elecstor) in enumerate(d["ElectricStorage"])
+                storage_dict = dictkeys_tosymbols(elecstor)
+                storage_dict[:off_grid_flag] = settings.off_grid_flag
+                if !(haskey(storage_dict, :name))
+                    storage_dict[:name] = string("ElectricStorage", i)
+                end
+                storage_structs[storage_dict[:name]] = ElectricStorage(storage_dict, financial)
+            end
+        elseif typeof(d["ElectricStorage"]) <: AbstractDict
+            storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
+            storage_dict[:off_grid_flag] = settings.off_grid_flag
+            storage_struct = ElectricStorage(storage_dict, financial)
+            storage_structs[storage_struct.name] = storage_struct
+        else
+            throw(@error("ElectricStorage input must be Dict or Dict[]."))
+        end
     else
         storage_dict = Dict(:max_kw => 0.0)
     end

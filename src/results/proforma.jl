@@ -38,6 +38,15 @@ return Dict(
 )
 """
 function proforma_results(p::REoptInputs, d::Dict)
+    if "ElectricStorage" in keys(d)
+        if typeof(d["ElectricStorage"]) <: AbstractArray && length(d["ElectricStorage"]) == 1
+            d["ElectricStorage"] = d["ElectricStorage"][1]
+        elseif !(typeof(d["ElectricStorage"]) <: AbstractDict)
+            warn_msg = "Pro forma results for a REopt solution with multiple ElectricStorage is not yet supported"
+            @warn(warn_msg)
+            return Dict("warning" => warn_msg)
+        end
+    end
     r = Dict(
         "simple_payback_years" => 0.0,
         "internal_rate_of_return" => 0.0,
@@ -92,15 +101,16 @@ function proforma_results(p::REoptInputs, d::Dict)
         cbi = total_kw * storage.total_rebate_per_kw + total_kwh * storage.total_rebate_per_kwh
         m.total_ibi_and_cbi += cbi
 
-        # ITC
-        federal_itc_basis = capital_cost  # bug in v1 subtracted cbi from capital_cost here
-        federal_itc_amount = storage.total_itc_fraction * federal_itc_basis
-        m.federal_itc += federal_itc_amount
+            # ITC
+            federal_itc_basis = capital_cost  # bug in v1 subtracted cbi from capital_cost here
+            federal_itc_amount = storage.total_itc_fraction * federal_itc_basis
+            m.federal_itc += federal_itc_amount
 
-        # Depreciation
-        if storage.macrs_option_years in [5 ,7]
-            depreciation_schedule = get_depreciation_schedule(p, storage, federal_itc_basis)
-            m.total_depreciation += depreciation_schedule
+            # Depreciation
+            if storage.macrs_option_years in [5, 7]
+                depreciation_schedule = get_depreciation_schedule(p, storage, federal_itc_basis)
+                m.total_depreciation += depreciation_schedule
+            end
         end
     end
 

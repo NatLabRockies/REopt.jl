@@ -33,6 +33,7 @@ function add_generator_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
 			for t in p.techs.gen, ts in p.time_steps)
 	)
 	r["size_kw"] = round(value(sum(m[:dvSize][t] for t in p.techs.gen)), digits=2)
+	r["initial_capital_cost"] = round(value(sum(m[:dvSize][t] for t in p.techs.gen)) * p.s.generator.installed_cost_per_kw, digits=3)
 	r["lifecycle_fixed_om_cost_after_tax"] = round(value(GenPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 	r["lifecycle_variable_om_cost_after_tax"] = round(value(m[:TotalPerUnitProdOMCosts]) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 	r["lifecycle_fuel_cost_after_tax"] = round(value(m[:TotalGenFuelCosts]) * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=2)
@@ -91,7 +92,7 @@ function add_generator_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n=
 	r["variable_om_cost"] = round(value(m[:TotalPerUnitProdOMCosts]), digits=0)
 	r["fuel_cost"] = round(value(m[:TotalGenFuelCosts]), digits=2)
 
-    if p.s.storage.attr["ElectricStorage"].size_kw > 0
+	if any([p.s.storage.attr[b].size_kw for b in p.s.storage.types.elec] .> 0)
         generatorToBatt = @expression(m, [ts in p.time_steps],
             sum(m[:dvProductionToStorage][b, t, ts] for b in p.s.storage.types.elec, t in p.techs.gen))
         r["to_battery_series_kw"] = round.(value.(generatorToBatt), digits=3).data

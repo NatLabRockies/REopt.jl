@@ -21,6 +21,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
     size_kwh = round(value(m[Symbol("dvStorageEnergy"*_n)][b]), digits=3)
     r["size_kwh"] = size_kwh
     r["size_gal"] = round(size_kwh / kwh_per_gal, digits=0)
+	r["initial_capital_cost"] = round(value(m[Symbol("dvStorageEnergy"*_n)][b]) * p.s.storage.attr[b].installed_cost_per_kwh, digits=3)
 
     if size_kwh != 0
     	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
@@ -103,12 +104,13 @@ function add_cold_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict
     Note: the node number is an empty string if evaluating a single `Site`.
     =#
 
-    kwh_per_gal = get_kwh_per_gal(p.s.storage.attr["ColdThermalStorage"].hot_water_temp_degF,
-                                    p.s.storage.attr["ColdThermalStorage"].cool_water_temp_degF)
+    kwh_per_gal = get_kwh_per_gal(p.s.storage.attr[b].hot_water_temp_degF,
+                                    p.s.storage.attr[b].cool_water_temp_degF)
     
     r = Dict{String, Any}()
     size_kwh = round(value(m[Symbol("dvStorageEnergy"*_n)][b]), digits=3)
     r["size_gal"] = round(size_kwh / kwh_per_gal, digits=0)
+	r["initial_capital_cost"] = round(value(m[Symbol("dvStorageEnergy"*_n)][b]) * p.s.storage.attr[b].installed_cost_per_kwh, digits=3)
 
     if size_kwh != 0
     	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)

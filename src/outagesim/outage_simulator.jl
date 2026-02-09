@@ -223,9 +223,6 @@ Returns a dict
 ```
 """
 function simulate_outages(d::Dict, p::REoptInputs; microgrid_only::Bool=false)
-    batt_roundtrip_efficiency = (p.s.storage.attr["ElectricStorage"].charge_efficiency *
-                                p.s.storage.attr["ElectricStorage"].discharge_efficiency)
-
     # TODO handle generic PV names
     pv_kw_ac_hourly = zeros(length(p.time_steps))
     if "PV" in keys(d) && !(microgrid_only && !Bool(get(d["Outages"], "PV_upgraded", false)))
@@ -250,11 +247,20 @@ function simulate_outages(d::Dict, p::REoptInputs; microgrid_only::Bool=false)
     batt_kwh = 0
     batt_kw = 0
     init_soc = zeros(length(p.time_steps))
+    elec_stor_name = "ElectricStorage"
     if "ElectricStorage" in keys(d)
+        if typeof(d["ElectricStorage"]) <: AbstractArray && length(d["ElectricStorage"]) == 1
+            d["ElectricStorage"] = d["ElectricStorage"][1]
+        elseif !(typeof(d["ElectricStorage"]) <: AbstractDict)
+            throw(@error("simulate_outages for a REopt solution with multiple ElectricStorage is not yet supported"))
+        end
+        elec_stor_name = get(d["ElectricStorage"],"name","ElectricStorage")
         batt_kwh = get(d["ElectricStorage"], "size_kwh", 0)
         batt_kw = get(d["ElectricStorage"], "size_kw", 0)
         init_soc = get(d["ElectricStorage"], "soc_series_fraction", zeros(length(p.time_steps)))
     end
+    batt_roundtrip_efficiency = (p.s.storage.attr[elec_stor_name].charge_efficiency *
+                                p.s.storage.attr[elec_stor_name].discharge_efficiency)
     if microgrid_only && !Bool(get(d["Outages"], "electric_storage_microgrid_upgraded", false))
         batt_kwh = 0
         batt_kw = 0

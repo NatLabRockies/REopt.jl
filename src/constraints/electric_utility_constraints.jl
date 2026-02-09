@@ -142,8 +142,14 @@ function add_export_constraints(m, p; _n="")
         if typeof(binNEM) <: Real  # no need for wholesale binary
             binWHL = 1
             WHL_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
-                sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
+                #sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
+                #        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
+                sum(p.s.electric_tariff.export_rates[:WHL][ts] *
+                    (
+                        sum(m[Symbol("dvStorageToGrid"*_n)][b, ts] for b in p.s.storage.types.elec) + 
+                        sum(m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] for t in p.techs_by_exportbin[:WHL])
+                    ) for ts in p.time_steps
+                )
             )
         else
             binWHL = @variable(m, binary = true)
@@ -291,13 +297,13 @@ function add_simultaneous_export_import_constraint(m, p; _n="")
             }
         )
     else
-        bigM_hourly_load = maximum(p.s.electric_load.loads_kw)+maximum(p.s.space_heating_load.loads_kw)+maximum(p.s.process_heat_load.loads_kw)+maximum(p.s.dhw_load.loads_kw)+maximum(p.s.cooling_load.loads_kw_thermal)
+        bigM_hourly_load_plus_battery_power = maximum(p.s.electric_load.loads_kw)+maximum(p.s.space_heating_load.loads_kw)+maximum(p.s.process_heat_load.loads_kw)+maximum(p.s.dhw_load.loads_kw)+maximum(p.s.cooling_load.loads_kw_thermal)+sum(Real[p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec])
         @constraint(m, NoGridPurchasesBinary[ts in p.time_steps],
             sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
-            sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
+            sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load_plus_battery_power*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
         )
         @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
-            sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= bigM_hourly_load * m[Symbol("binNoGridPurchases"*_n)][ts]
+            sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= bigM_hourly_load_plus_battery_power * m[Symbol("binNoGridPurchases"*_n)][ts]
         )
     end
 end

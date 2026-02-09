@@ -15,7 +15,8 @@ Cold thermal energy storage sytem; specifically, a chilled water system used to 
     soc_min_fraction::Float64 = 0.1 # Minimum allowable TES thermal state of charge
     soc_init_fraction::Float64 = 0.5 # TES thermal state of charge at first hour of optimization
     installed_cost_per_gal::Float64 = 1.50 # Thermal energy-based cost of TES (e.g. volume of the tank)
-    thermal_decay_rate_fraction::Float64 = 0.0004 # Thermal loss (gain) rate as a fraction of energy storage capacity, per hour (frac*energy_capacity/hr = kw_thermal)
+    soc_based_per_ts_thermal_decay_fraction = 0.0 # Thermal loss (gain) rate as a fraction of energy storage capacity per timestep (frac*energy_capacity = kw_thermal); the provided default is for an hourly thermal loss/gain
+    capacity_based_per_ts_thermal_decay_fraction = 0.0004 # Thermal loss (gain) rate as a fraction of the energy storaged in each timestep (frac*energy_stored = kw_thermal)
     om_cost_per_gal::Float64 = 0.0 # Yearly fixed O&M cost dependent on storage energy size
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -33,7 +34,8 @@ Base.@kwdef struct ColdThermalStorageDefaults <: AbstractThermalStorageDefaults
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
     installed_cost_per_gal::Float64 = 1.50
-    thermal_decay_rate_fraction::Float64 = 0.0004
+    soc_based_per_ts_thermal_decay_fraction::Float64 = 0.0
+    capacity_based_per_ts_thermal_decay_fraction::Float64 = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -55,7 +57,8 @@ end
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
     installed_cost_per_gal::Float64 = 1.50
-    thermal_decay_rate_fraction::Float64 = 0.0004
+    soc_based_per_ts_thermal_decay_fraction = 0.0
+    capacity_based_per_ts_thermal_decay_fraction = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -76,7 +79,8 @@ Base.@kwdef struct HotThermalStorageDefaults <: AbstractThermalStorageDefaults
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
     installed_cost_per_gal::Float64 = 1.50
-    thermal_decay_rate_fraction::Float64 = 0.0004
+    soc_based_per_ts_thermal_decay_fraction::Float64 = 0.0
+    capacity_based_per_ts_thermal_decay_fraction::Float64 = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -161,7 +165,8 @@ struct ColdThermalStorage <: AbstractThermalStorage
     soc_min_fraction::Float64
     soc_init_fraction::Float64
     installed_cost_per_gal::Float64
-    thermal_decay_rate_fraction::Float64
+    soc_based_per_ts_thermal_decay_fraction::Float64
+    capacity_based_per_ts_thermal_decay_fraction::Float64
     om_cost_per_gal::Float64
     macrs_option_years::Int
     macrs_bonus_fraction::Float64
@@ -255,7 +260,8 @@ struct HotThermalStorage <: AbstractThermalStorage
     soc_min_fraction::Float64
     soc_init_fraction::Float64
     installed_cost_per_gal::Float64
-    thermal_decay_rate_fraction::Float64
+    soc_based_per_ts_thermal_decay_fraction::Float64
+    capacity_based_per_ts_thermal_decay_fraction::Float64
     om_cost_per_gal::Float64
     macrs_option_years::Int
     macrs_bonus_fraction::Float64

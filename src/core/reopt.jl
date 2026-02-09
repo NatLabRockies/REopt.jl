@@ -153,6 +153,9 @@ function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.Abst
 			if !isempty(p.techs.pv)
 				organize_multiple_pv_results(p, results_dict)
 			end
+			if !isempty(p.s.storage.types.elec)
+				organize_multiple_elec_stor_results(p, results_dict)
+			end
 			return results_dict
 		else
 			throw(@error("REopt scenarios solved either with errors or non-optimal solutions."))
@@ -214,6 +217,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				@constraint(m, [ts in p.time_steps], m[:dvGridToStorage][b, ts] == 0)
 				@constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
 						m[:dvProductionToStorage][b, t, ts] == 0)
+				@constraint(m, [ts in p.time_steps], m[Symbol("dvStorageToGrid"*_n)][b, ts] == 0)  # if there isn't a battery, then the battery can't export power to the grid
 			elseif b in p.s.storage.types.hot
 				@constraint(m, [q in p.heating_loads, ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0)
 				@constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps], m[:dvHeatToStorage][b,t,q,ts] == 0)
@@ -440,11 +444,21 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         add_dv_UnservedLoad_constraints(m,p)
 		add_outage_cost_constraints(m,p)
 		add_MG_production_constraints(m,p)
-		if !isempty(p.s.storage.types.elec)
-			add_MG_storage_dispatch_constraints(m,p)
+
+		if length(p.s.storage.types.elec) > 1
+			throw(@error("REopt does not support considering multiple ElectricStorage when modelling outages."))
+		end
+		if !isempty(p.s.storage.types.elec) #length=1
+			b = p.s.storage.types.elec[1]
+			if p.s.storage.attr[b].max_kw == 0 || p.s.storage.attr[b].max_kwh == 0
+				fix_MG_storage_variables(m,p)
+			else
+				add_MG_elec_storage_dispatch_constraints(m,p,b)
+			end
 		else
 			fix_MG_storage_variables(m,p)
 		end
+
 		add_cannot_have_MG_with_only_PVwind_constraints(m,p)
 		add_MG_size_constraints(m,p)
 		
@@ -490,7 +504,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 	for b in p.s.storage.types.elec
 		if p.s.storage.attr[b].model_degradation
-			add_degradation(m, p; b=b)
+			add_degradation(m, p, b)
 			if p.s.settings.add_soc_incentive # this warning should be tied to IF condition where SOC incentive is added
 				@warn "Settings.add_soc_incentive is set to true and it will incentivize BESS energy levels to be kept high. It could conflict with the battery degradation model and should be disabled."
 			end
@@ -620,6 +634,9 @@ function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 		if organize_pvs && !isempty(p.techs.pv)  # do not want to organize_pvs when running BAU case in parallel b/c then proform code fails
 			organize_multiple_pv_results(p, results)
 		end
+		if !isempty(p.s.storage.types.elec)
+			organize_multiple_elec_stor_results(p, results)
+		end
 
 		# add error messages (if any) and warnings to results dict
 		results["Messages"] = logger_to_dict()
@@ -650,6 +667,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		dvProductionToStorage[p.s.storage.types.all, union(p.techs.ghp,p.techs.all), p.time_steps] >= 0  # Power from technology t used to charge storage system b [kW]
 		dvDischargeFromStorage[p.s.storage.types.all, p.time_steps] >= 0 # Power discharged from storage system b [kW]
 		dvGridToStorage[p.s.storage.types.elec, p.time_steps] >= 0 # Electrical power delivered to storage by the grid [kW]
+		dvStorageToGrid[p.s.storage.types.elec, p.time_steps] >= 0 # TODO, add: "p.StorageSalesTiers" as well? export of energy from storage to the grid
 		dvStoredEnergy[p.s.storage.types.all, 0:p.time_steps[end]] >= 0  # State of charge of storage system b
 		dvStoragePower[p.s.storage.types.all] >= 0   # Power capacity of storage system b [kW]
 		dvStorageEnergy[p.s.storage.types.all] >= 0   # Energy capacity of storage system b [kWh]
@@ -657,6 +675,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		dvPeakDemandMonth[p.months, 1:p.s.electric_tariff.n_monthly_demand_tiers] >= 0  # Peak electrical power demand during month m [kW]
 		MinChargeAdder >= 0
         binGHP[p.ghp_options], Bin  # Can be <= 1 if require_ghp_purchase=0, and is ==1 if require_ghp_purchase=1
+				
 	end
 
 	if !isempty(p.s.storage.types.elec)
@@ -686,7 +705,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     end
 
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
-		@warn "Adding binary variable to prevent simultaneous grid import/export. Some solvers are very slow with integer variables"
+		@warn "Adding binary variable to prevent simultaneous grid import/export. Some solvers are very slow with integer variables."
 		@variable(m, binNoGridPurchases[p.time_steps], Bin)
 	end
 
@@ -722,7 +741,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     end
 
 	if !isempty(p.s.electric_utility.outage_durations) # add dvUnserved Load if there is at least one outage
-		@warn "Adding binary variable to model outages. Some solvers are very slow with integer variables"
+		@warn "Adding binary variable to model outages. Some solvers are very slow with integer variables."
 		max_outage_duration = maximum(p.s.electric_utility.outage_durations)
 		outage_time_steps = p.s.electric_utility.outage_time_steps
 		tZeros = p.s.electric_utility.outage_start_time_steps

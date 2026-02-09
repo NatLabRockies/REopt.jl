@@ -2,7 +2,6 @@
 
 
 function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
-	
 	dvs_idx_on_techs = String[
 		"dvSize",
 		"dvPurchaseSize",
@@ -16,7 +15,8 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		"dvStorageEnergy"
 	]
 	dvs_idx_on_storagetypes_time_steps = String[
-		"dvDischargeFromStorage"
+		"dvDischargeFromStorage",
+		"dvStorageToGrid"
 	]
 	
 	for p in ps

@@ -33,7 +33,8 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	# Note: the node number is an empty string if evaluating a single `Site`.
     r = Dict{String, Any}()
 	r["size_kw"] = value(sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.chp))
-    r["size_supplemental_firing_kw"] = value(sum(m[Symbol("dvSupplementaryFiringSize"*_n)][t] for t in p.techs.chp))
+	#TODO: add initial_capital_cost to results (need to handle installed_cost_per_kw being a vector when cost curve is used)
+	r["size_supplemental_firing_kw"] = value(sum(m[Symbol("dvSupplementaryFiringSize"*_n)][t] for t in p.techs.chp))
 	@expression(m, CHPFuelUsedKWH, sum(m[Symbol("dvFuelUsage"*_n)][t, ts] for t in p.techs.chp, ts in p.time_steps))
 	r["annual_fuel_consumption_mmbtu"] = round(value(CHPFuelUsedKWH) / KWH_PER_MMBTU, digits=3)
 	@expression(m, Year1CHPElecProd,
@@ -62,7 +63,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r["electric_to_grid_series_kw"] = round.(value.(CHPtoGrid), digits=3)
 	if !isempty(p.s.storage.types.elec)
 		@expression(m, CHPtoBatt[ts in p.time_steps],
-			sum(m[Symbol("dvProductionToStorage"*_n)]["ElectricStorage",t,ts] for t in p.techs.chp))
+			sum(m[Symbol("dvProductionToStorage"*_n)][b,t,ts] for t in p.techs.chp, b in p.s.storage.types.elec))
 	else
 		CHPtoBatt = zeros(length(p.time_steps))
 	end

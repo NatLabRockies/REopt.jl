@@ -25,6 +25,7 @@ function add_absorption_chiller_results(m::JuMP.AbstractModel, p::REoptInputs, d
 
 	r["size_kw"] = value(sum(m[:dvSize][t] for t in p.techs.absorption_chiller))
 	r["size_ton"] = r["size_kw"] / KWH_THERMAL_PER_TONHOUR
+	r["initial_capital_cost"] = round(value(sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.absorption_chiller)) * p.s.absorption_chiller.installed_cost_per_kw, digits=3)
 	@expression(m, ABSORPCHLtoTESKW[ts in p.time_steps],
 		sum(m[:dvProductionToStorage][b,t,ts] for b in p.s.storage.types.cold, t in p.techs.absorption_chiller))
 	r["thermal_to_storage_series_ton"] = round.(value.(ABSORPCHLtoTESKW) ./ KWH_THERMAL_PER_TONHOUR, digits=5)

@@ -22,6 +22,7 @@
 function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_mmbtu_per_hour"] = round(value(m[Symbol("dvSize"*_n)]["Boiler"]) / KWH_PER_MMBTU, digits=3)
+	r["initial_capital_cost"] = round(value(m[Symbol("dvSize"*_n)]["Boiler"]) * p.s.boiler.installed_cost_per_kw, digits=3)
 	r["fuel_consumption_series_mmbtu_per_hour"] = 
         round.(value.(m[:dvFuelUsage]["Boiler", ts] for ts in p.time_steps) / KWH_PER_MMBTU, digits=3)
     r["annual_fuel_consumption_mmbtu"] = round(sum(r["fuel_consumption_series_mmbtu_per_hour"]), digits=3)

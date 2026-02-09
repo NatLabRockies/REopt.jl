@@ -85,6 +85,8 @@ function add_pv_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 		PVPerUnitSizeOMCosts = p.third_party_factor * p.om_cost_per_kw[t] * p.pwf_om * m[Symbol("dvSize"*_n)][t]
 		r["lifecycle_om_cost_after_tax"] = round(value(PVPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
         r["lcoe_per_kwh"] = calculate_lcoe(p, r, get_pv_by_name(t, p.s.pvs))
+        r["year_one_om_cost_before_tax"] = round(value(PVPerUnitSizeOMCosts) / p.pwf_om, digits=0)
+        r["initial_capital_cost"] = round(value(m[Symbol("dvSize"*_n)][t]) * get_pv_by_name(t, p.s.pvs).installed_cost_per_kw, digits=3)
         d[t] = r
 	end
     nothing

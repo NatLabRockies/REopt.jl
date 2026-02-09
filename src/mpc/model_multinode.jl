@@ -152,7 +152,8 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 		"dvRatedProduction",
 	]
 	dvs_idx_on_storagetypes_time_steps = String[
-		"dvDischargeFromStorage"
+		"dvDischargeFromStorage",
+		"dvStorageToGrid"
 	]
 	for p in ps
 		_n = string("_", p.s.node)

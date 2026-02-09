@@ -37,6 +37,14 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
             r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
             p.s.storage.attr[b].installed_cost_constant
 
+        StoragePerUnitOMCosts = p.third_party_factor * p.pwf_om * (p.s.storage.attr[b].om_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b] +
+                                                                 p.s.storage.attr[b].om_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b])
+
+        r["lifecycle_om_cost_after_tax"] = round(value(StoragePerUnitOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
+        r["lifecycle_om_cost_before_tax"] = round(value(StoragePerUnitOMCosts), digits=0)
+        r["year_one_om_cost_before_tax"] = round(value(StoragePerUnitOMCosts) / (p.pwf_om * p.third_party_factor), digits=0)
+        r["year_one_om_cost_after_tax"] = round(value(StoragePerUnitOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction) / (p.pwf_om * p.third_party_factor), digits=0)
+            
         if p.s.storage.attr[b].model_degradation
             r["state_of_health"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
@@ -60,10 +68,14 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
                 end
             end
             r["residual_value"] = value(m[:residual_value])
-        end
+         end
+         # report the exported electricity from the battery:
+         r["storage_to_grid_series_kw"] = round.(value.(m[Symbol("dvStorageToGrid"*_n)][b, ts] for ts in p.time_steps), digits = 3)
+
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_kw"] = []
+        r["storage_to_grid_series_kw"] = []
     end
 
     d[b] = r
@@ -84,5 +96,25 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     r["to_load_series_kw"] = round.(value.(discharge), digits=3)
 
     d[b] = r
+    nothing
+end
+
+"""
+    organize_multiple_elec_stor_results(p::REoptInputs, d::Dict)
+
+The last step in results processing: if more than one ElectricStorage was modeled then move their results from the top
+level keys (that use each ElectricStorage.name) to an array of results with "ElectricStorage" as the top key in the results dict `d`.
+"""
+function organize_multiple_elec_stor_results(p::REoptInputs, d::Dict)
+    if length(p.s.storage.types.elec) == 1 && p.s.storage.types.elec[1] == "ElectricStorage"
+        return nothing
+    end
+    stors = Dict[]
+    for storname in p.s.storage.types.elec
+        d[storname]["name"] = storname  # add name to results dict to distinguish each ElectricStorage
+        push!(stors, d[storname])
+        delete!(d, storname)
+    end
+    d["ElectricStorage"] = stors
     nothing
 end

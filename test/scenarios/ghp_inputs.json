@@ -59,11 +59,11 @@
     "ColdThermalStorage": {
         "min_gal": 10,
         "max_gal": 10,
-        "thermal_decay_rate_fraction": 0.0
+        "capacity_based_per_ts_thermal_decay_fraction": 0.0
     },
     "HotThermalStorage": {
         "min_gal": 10,
         "max_gal": 10,
-        "thermal_decay_rate_fraction": 0.0
+        "capacity_based_per_ts_thermal_decay_fraction": 0.0
     }
 }

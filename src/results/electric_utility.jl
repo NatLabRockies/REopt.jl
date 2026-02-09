@@ -97,7 +97,7 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
                                                          tier in 1:p.s.electric_tariff.n_energy_tiers)
     r["energy_supplied_kwh"] = round(value(Year1UtilityEnergy), digits=2)
 
-    if p.s.storage.attr["ElectricStorage"].size_kwh > 0
+    if any([p.s.storage.attr[b].size_kwh for b in p.s.storage.types.elec] .> 0)
         GridToBatt = @expression(m, [ts in p.time_steps], 
             sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) 
 		)

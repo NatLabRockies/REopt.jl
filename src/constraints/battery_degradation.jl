@@ -13,7 +13,7 @@ function add_degradation_variables(m, p, segments)
 end
 
 
-function constrain_degradation_variables(m, p; b="ElectricStorage")
+function constrain_degradation_variables(m, p, b)
     days = 1:365*p.s.financial.analysis_years
     ts_per_day = 24 / p.hours_per_time_step
     ts_per_year = ts_per_day * 365
@@ -67,14 +67,12 @@ end
 
 
 """
-    add_degradation(m, p; b="ElectricStorage")
+    add_degradation(m, p, b)
 
 NOTE the average SOC and EFC variables are in absolute units. For example, the SOH variable starts 
     at the battery capacity in kWh.
 """
-function add_degradation(m, p; b="ElectricStorage")
-    
-    # Indices
+function add_degradation(m, p, b)
     days = 1:365*p.s.financial.analysis_years
     months = 1:p.s.financial.analysis_years*12
     J = length(p.s.storage.attr[b].degradation.cycle_fade_coefficient); # Number of segments

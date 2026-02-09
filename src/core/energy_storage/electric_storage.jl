@@ -182,6 +182,7 @@ end
     replace_cost_per_kw::Real = 0.0
     replace_cost_per_kwh::Real = 0.0
     replace_cost_constant::Real = 0.0
+    can_export_to_grid::Bool = false    
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
@@ -198,6 +199,9 @@ end
     model_degradation::Bool = false
     degradation::Dict = Dict()
     minimum_avg_soc_fraction::Float64 = 0.0
+    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Battery self-discharge as a fraction per timestep loss based on the rated kWh capacity of the sized storage system. 
+    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Battery self-discharge as a fraction per timestep loss based on kWh stored in each timestep
+    name::String = "ElectricStorage"
     optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
@@ -222,6 +226,7 @@ Base.@kwdef struct ElectricStorageDefaults
     replace_cost_per_kw::Real = 0.0
     replace_cost_per_kwh::Real = 0.0
     replace_cost_constant::Real = 0.0
+    can_export_to_grid::Bool = false    
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
@@ -238,6 +243,9 @@ Base.@kwdef struct ElectricStorageDefaults
     model_degradation::Bool = false
     degradation::Dict = Dict()
     minimum_avg_soc_fraction::Float64 = 0.0
+    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0
+    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0
+    name::String = "ElectricStorage"
     optimize_soc_init_fraction::Bool = false
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
@@ -262,6 +270,7 @@ struct ElectricStorage <: AbstractElectricStorage
     soc_min_applies_during_outages::Bool
     soc_init_fraction::Float64
     can_grid_charge::Bool
+    can_export_to_grid::Bool
     installed_cost_per_kw::Real
     installed_cost_per_kwh::Real
     installed_cost_constant::Real
@@ -287,6 +296,9 @@ struct ElectricStorage <: AbstractElectricStorage
     model_degradation::Bool
     degradation::Degradation
     minimum_avg_soc_fraction::Float64
+    capacity_based_per_ts_self_discharge_fraction::Float64
+    soc_based_per_ts_self_discharge_fraction::Float64
+    name::String
     optimize_soc_init_fraction::Bool
     min_duration_hours::Real
     max_duration_hours::Real
@@ -397,6 +409,7 @@ struct ElectricStorage <: AbstractElectricStorage
             s.soc_min_applies_during_outages,
             s.soc_init_fraction,
             s.can_grid_charge,
+            s.can_export_to_grid,
             s.installed_cost_per_kw,
             s.installed_cost_per_kwh,
             s.installed_cost_constant,
