@@ -4,28 +4,28 @@
       "size_class": 1,
       "name": "Residential",
       "size_class_kw_bounds": [0, 40],
-      "installed_cost_per_kw": 603,
-      "installed_cost_per_kwh": 449,
-      "installed_cost_constant": 7308,
-      "notes": "Based on ATB 2024 Residential 12.5 kW system and estimating minimum kW to 40 kW cost scaling"
+      "installed_cost_per_kw": 695,
+      "installed_cost_per_kwh": 580,
+      "installed_cost_constant": 0,
+      "notes": "Based on ATB 2025 Residential costs modeled for a 12.5 kWh 4-hour battery system in 2025 dollars"
     },
     {
       "size_class": 2,
       "name": "Small-Commercial",
       "size_class_kw_bounds": [40, 400],
-      "installed_cost_per_kw": 725,
-      "installed_cost_per_kwh": 432,
-      "installed_cost_constant": 109492,
-      "notes": "Based on ATB 2024 Residential 100 kW system and estimating 40 kW to 400 kW cost scaling"
+      "installed_cost_per_kw": 667,
+      "installed_cost_per_kwh": 527,
+      "installed_cost_constant": 0,
+      "notes": "Interpolated costs from ATB 2025 Residential and Commercial battery system costs in 2025 dollars"
     },
     {
       "size_class": 3,
       "name": "Commercial",
       "size_class_kw_bounds": [400,1.0e6],
-      "installed_cost_per_kw": 842,
-      "installed_cost_per_kwh": 213,
-      "installed_cost_constant": 194710,
-      "notes": "Based on ATB 2024 Residential 1800 kW system and estimating 400 kW to maximum kW cost scaling"
+      "installed_cost_per_kw": 520,
+      "installed_cost_per_kwh": 262,
+      "installed_cost_constant": 0,
+      "notes": "Based on ATB 2025 Commercial costs modeled for a 7200 kWh 1800 kW battery system in 2025 dollars"
     }
   ]
 }
