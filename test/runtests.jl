@@ -4446,5 +4446,88 @@ else  # run HiGHS tests
             GC.gc()
         end
 
+        @testset "ElectricStorage Size Class and Installed Costs Tests" begin
+
+            # Get active PV defaults for checking
+            bess_defaults_path = joinpath(@__DIR__, "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
+            bess_defaults_all = JSON.parsefile(bess_defaults_path)
+
+            input_data["Financial"] = Dict()
+            input_data["Financial"]["analysis_years"] = 20
+            input_data["Financial"]["offtaker_discount_rate_fraction"] = 0.06
+            input_data["Financial"]["offtaker_tax_rate_fraction"] = 0.26
+            input_data["Financial"]["elec_cost_escalation_rate_fraction"] = 0.03
+            input_data["Financial"]["om_cost_escalation_rate_fraction"] = 0.02
+
+            input_data["ElectricStorage"] = Dict()
+            input_data["ElectricStorage"]["total_itc_fraction"] = 0.0
+            input_data["ElectricStorage"]["macrs_option_years"] = 0
+            input_data["ElectricStorage"]["macrs_bonus_fraction"] = 0.0
+
+            input_data["ElectricLoad"] = Dict()
+            # Average load is 250 kw
+            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0], 8760)
+            # Peak load determines size class. We use size class bounds to vary size class.
+            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0+39
+            input_data["ElectricLoad"]["year"] = 2025
+
+            input_data["Site"] = Dict()
+            input_data["Site"]["longitude"] = -118.1164613
+            input_data["Site"]["latitude"] = 34.5794343
+
+            input_data["ElectricTariff"] = Dict()
+            input_data["ElectricTariff"]["blended_annual_energy_rate"] = 0.12
+            input_data["ElectricTariff"]["blended_annual_demand_rate"] = 12.0
+
+            # Test 1: No size class or costs provided in inputs.
+            # Model chooses size class 1 per given load inputs
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 1
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][1]["installed_cost_per_kw"]
+
+            # Size class is 2 for a larger peak.
+            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0+41
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 2
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][2]["installed_cost_per_kw"]
+
+            # Limit bess size class per max_kw
+            input_data["ElectricStorage"]["max_kw"] = 39
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 1
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][1]["installed_cost_per_kw"]
+
+            # Size class 3
+            input_data["ElectricStorage"]["min_kw"] = 401
+            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0+401
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 3
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 842
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 213
+            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 194710.0
+
+            # Size class selection obeys min_kw provided.
+            input_data["ElectricStorage"]["min_kw"] = 401
+            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0+1
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 3
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 842
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 213
+            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 194710.0
+
+            # Size class input, not loads, ultimately drives system costs.
+            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0+401.0
+            input_data["ElectricStorage"] = Dict()
+            input_data["ElectricStorage"]["size_class"] = 1
+            input_data["ElectricStorage"]["total_itc_fraction"] = 0.0
+            input_data["ElectricStorage"]["macrs_option_years"] = 0
+            input_data["ElectricStorage"]["macrs_bonus_fraction"] = 0.0
+            s = Scenario(input_data);
+            @test s.storage.attr["ElectricStorage"].size_class == 1
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 603
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 449
+            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 7308.0
+        end
+
     end
 end

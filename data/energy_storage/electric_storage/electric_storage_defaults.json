@@ -1,0 +1,31 @@
+{
+  "size_classes": [
+    {
+      "size_class": 1,
+      "name": "Residential",
+      "size_class_kw_bounds": [0, 40],
+      "installed_cost_per_kw": 695,
+      "installed_cost_per_kwh": 580,
+      "installed_cost_constant": 0,
+      "notes": "Based on ATB 2025 Residential costs modeled for a 12.5 kWh 4-hour battery system in 2025 dollars"
+    },
+    {
+      "size_class": 2,
+      "name": "Small-Commercial",
+      "size_class_kw_bounds": [40, 400],
+      "installed_cost_per_kw": 667,
+      "installed_cost_per_kwh": 527,
+      "installed_cost_constant": 0,
+      "notes": "Interpolated costs from ATB 2025 Residential and Commercial battery system costs in 2025 dollars"
+    },
+    {
+      "size_class": 3,
+      "name": "Commercial",
+      "size_class_kw_bounds": [400,1.0e6],
+      "installed_cost_per_kw": 520,
+      "installed_cost_per_kwh": 262,
+      "installed_cost_constant": 0,
+      "notes": "Based on ATB 2025 Commercial costs modeled for a 7200 kWh 1800 kW battery system in 2025 dollars"
+    }
+  ]
+}
