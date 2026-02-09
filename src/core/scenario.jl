@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 struct Scenario <: AbstractScenario
     settings::Settings
     site::Site
@@ -210,20 +210,31 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         electric_load_average = sum(electric_load.loads_kw) / (8760*settings.time_steps_per_hour)
         storage_dict["electric_load_annual_peak"] = electric_load_annual_peak
         storage_dict["electric_load_average"] = electric_load_average
+        storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
+        storage_dict[:off_grid_flag] = settings.off_grid_flag
     else
-        storage_dict = Dict("max_kw" => 0.0)
+        storage_dict = Dict(:max_kw => 0.0)
     end
     storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")
-        storage_structs["HotThermalStorage"] = HotThermalStorage(d["HotThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["HotThermalStorage"] = HotThermalStorage(
+                                                    dictkeys_tosymbols(d["HotThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
     end
     if haskey(d, "HighTempThermalStorage")
-        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(d["HighTempThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(
+                                                        dictkeys_tosymbols(d["HighTempThermalStorage"]), 
+                                                        financial, site, settings.time_steps_per_hour
+                                                    )
     end
     if haskey(d, "ColdThermalStorage")
-        storage_structs["ColdThermalStorage"] = ColdThermalStorage(d["ColdThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["ColdThermalStorage"] = ColdThermalStorage(
+                                                    dictkeys_tosymbols(d["ColdThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
     end
     storage = Storage(storage_structs)
 
@@ -609,7 +620,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "Non-hybrid GHX sizing complete using GhpGhx.jl"
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment"))
                 end
                 d["GHP"]["number_of_boreholes_nonhybrid"] = nonhybrid_results_resp_dict["number_of_boreholes"]
@@ -677,7 +688,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end
@@ -702,7 +713,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         @info "New hybrid GHX sizing complete using GhpGhx.jl"
                     catch e
                         @info e
-                        throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                        throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                             loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                             to the GhpGhx.jl package."))
                     end
@@ -823,7 +834,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end

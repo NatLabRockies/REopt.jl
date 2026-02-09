@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     Degradation
 
@@ -304,8 +304,7 @@ struct ElectricStorage <: AbstractElectricStorage
 
     function ElectricStorage(d::Dict, f::Financial, s::Site)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
-
-        s = ElectricStorageDefaults(;dictkeys_tosymbols(d)...)
+        s = ElectricStorageDefaults(;d...)
 
         if s.inverter_replacement_year >= f.analysis_years
             @warn "Battery inverter replacement costs (per_kw) will not be considered because inverter_replacement_year is greater than or equal to analysis_years."
