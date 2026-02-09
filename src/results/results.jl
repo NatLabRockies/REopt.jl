@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 
@@ -17,7 +17,11 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 
     for b in p.s.storage.types.hot
         if p.s.storage.attr[b].max_kwh > 0
-            add_hot_storage_results(m, p, d, b; _n)
+            if b == "HighTempThermalStorage"
+                add_high_temp_thermal_storage_results(m, p, d, b; _n)
+            else
+                add_hot_storage_results(m, p, d, b; _n)
+            end
         end
     end
 
@@ -104,6 +108,10 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
         add_electric_heater_results(m, p, d; _n)
     end
 
+    if "CST" in p.techs.electric_heater
+        add_concentrating_solar_results(m, p, d; _n)
+    end
+
     if "ASHPSpaceHeater" in p.techs.ashp
         add_ashp_results(m, p, d; _n)
     end
@@ -111,6 +119,18 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
     if "ASHPWaterHeater" in p.techs.ashp_wh
         add_ashp_wh_results(m, p, d; _n)
     end
+
+    d["Financial"]["year_one_fuel_cost_before_tax"] = 0.0
+    d["Financial"]["year_one_fuel_cost_after_tax"] = 0.0
+    for tech in p.techs.fuel_burning
+        if tech in keys(d)
+            d["Financial"]["year_one_fuel_cost_before_tax"] += d[tech]["year_one_fuel_cost_before_tax"]
+            d["Financial"]["year_one_fuel_cost_after_tax"] += d[tech]["year_one_fuel_cost_after_tax"]
+        end
+    end
+    
+    d["Financial"]["year_one_total_operating_cost_before_tax"] = d["ElectricTariff"]["year_one_bill_before_tax"] - d["ElectricTariff"]["year_one_export_benefit_before_tax"] + d["Financial"]["year_one_chp_standby_cost_before_tax"] + d["Financial"]["year_one_fuel_cost_before_tax"] + d["Financial"]["year_one_om_costs_before_tax"]
+    d["Financial"]["year_one_total_operating_cost_after_tax"] = d["ElectricTariff"]["year_one_bill_after_tax"] - d["ElectricTariff"]["year_one_export_benefit_after_tax"] + d["Financial"]["year_one_chp_standby_cost_after_tax"] + d["Financial"]["year_one_fuel_cost_after_tax"] + d["Financial"]["year_one_om_costs_after_tax"]
     
     return d
 end
@@ -120,6 +140,12 @@ end
     combine_results(bau::Dict, opt::Dict)
     
 Combine two results dictionaries into one using BAU and optimal scenario results.
+New fields added to the Financial output/results:
+- `npv`: Net Present Value of the optimal scenario
+- `year_one_total_operating_cost_savings_before_tax`: Total operating cost savings in year 1 before tax
+- `year_one_total_operating_cost_savings_after_tax`: Total operating cost savings in year 1 after tax
+- `breakeven_cost_of_emissions_reduction_per_tonne_CO2`: Breakeven cost of CO2 (usd per tonne) that would yield an npv of 0, holding all other inputs constant
+- `lifecycle_emissions_reduction_CO2_fraction`: Fraction of CO2 emissions reduced in the optimal scenario compared to the BAU scenario
 """
 function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAUScenario)
     bau_outputs = (
@@ -129,12 +155,19 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("Financial", "lifecycle_om_costs_before_tax"),
         ("Financial", "lifecycle_om_costs_after_tax"),
         ("Financial", "year_one_om_costs_before_tax"),
+        ("Financial", "year_one_om_costs_after_tax"),
+        ("Financial", "year_one_fuel_cost_before_tax"),
+        ("Financial", "year_one_fuel_cost_after_tax"),
+        ("Financial", "year_one_total_operating_cost_before_tax"),
+        ("Financial", "year_one_total_operating_cost_after_tax"),
         ("Financial", "lifecycle_fuel_costs_after_tax"),
         ("Financial", "lifecycle_chp_standby_cost_after_tax"),
         ("Financial", "lifecycle_elecbill_after_tax"),
         ("Financial", "lifecycle_production_incentive_after_tax"),
         ("Financial", "lifecycle_outage_cost"),
         ("Financial", "lifecycle_MG_upgrade_and_fuel_cost"),
+        ("Financial", "initial_capital_costs_after_incentives"),
+        ("Financial", "lifecycle_capital_costs"),
         ("ElectricTariff", "year_one_energy_cost_before_tax"),
         ("ElectricTariff", "year_one_demand_cost_before_tax"),
         ("ElectricTariff", "year_one_fixed_cost_before_tax"),
@@ -145,11 +178,20 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("ElectricTariff", "lifecycle_min_charge_adder_after_tax"),
         ("ElectricTariff", "lifecycle_export_benefit_after_tax"),
         ("ElectricTariff", "year_one_bill_before_tax"),
+        ("ElectricTariff", "year_one_bill_after_tax"),
         ("ElectricTariff", "year_one_export_benefit_before_tax"),
+        ("ElectricTariff", "year_one_export_benefit_after_tax"),
         ("ElectricTariff", "year_one_coincident_peak_cost_before_tax"),
         ("ElectricTariff", "lifecycle_coincident_peak_cost_after_tax"),
-        ("ElectricUtility", "electric_to_load_series_kw"),  
+        ("ElectricTariff", "monthly_fixed_cost_series_before_tax"),
+        ("ElectricTariff", "energy_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_energy_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_facility_demand_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_tou_demand_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_demand_cost_series_before_tax"),
+        ("ElectricUtility", "electric_to_load_series_kw"),
         ("ElectricUtility", "annual_energy_supplied_kwh"),
+        ("ElectricUtility","annual_renewable_electricity_supplied_kwh"),
         ("ElectricUtility", "annual_emissions_tonnes_CO2"),
         ("ElectricUtility", "annual_emissions_tonnes_NOx"),
         ("ElectricUtility", "annual_emissions_tonnes_SO2"),
@@ -166,18 +208,24 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("Generator", "lifecycle_variable_om_cost_after_tax"),
         ("Generator", "lifecycle_fuel_cost_after_tax"),
         ("Generator", "year_one_fuel_cost_before_tax"),
+        ("Generator", "year_one_fuel_cost_after_tax"),
         ("Generator", "year_one_variable_om_cost_before_tax"),
         ("Generator", "year_one_fixed_om_cost_before_tax"),
         ("FlexibleHVAC", "temperatures_degC_node_by_time"),
         ("ExistingBoiler", "lifecycle_fuel_cost_after_tax"),
         ("ExistingBoiler", "year_one_fuel_cost_before_tax"),
+        ("ExistingBoiler", "year_one_fuel_cost_after_tax"),
         ("ExistingBoiler", "annual_thermal_production_mmbtu"),
         ("ExistingBoiler", "annual_fuel_consumption_mmbtu"),
+        ("ExistingBoiler", "size_mmbtu_per_hour"),
         ("ExistingChiller", "annual_thermal_production_tonhour"),
         ("ExistingChiller", "annual_electric_consumption_kwh"),
-        ("Site", "annual_renewable_electricity_kwh"),
-        ("Site", "renewable_electricity_fraction"),
-        ("Site", "total_renewable_energy_fraction"),
+        ("ExistingChiller", "size_ton"),
+        ("Site", "annual_onsite_renewable_electricity_kwh"),
+        ("Site", "onsite_renewable_electricity_fraction_of_elec_load"),
+        ("Site", "onsite_renewable_energy_fraction_of_total_load"),
+        ("Site", "onsite_and_grid_renewable_electricity_fraction_of_elec_load"),
+        ("Site", "onsite_and_grid_renewable_energy_fraction_of_total_load"),
         ("Site", "annual_emissions_tonnes_CO2"),
         ("Site", "annual_emissions_tonnes_NOx"),
         ("Site", "annual_emissions_tonnes_SO2"),
@@ -244,6 +292,9 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         end
     end
         
+    opt["Financial"]["year_one_total_operating_cost_savings_before_tax"] = bau["Financial"]["year_one_total_operating_cost_before_tax"] - opt["Financial"]["year_one_total_operating_cost_before_tax"]
+    opt["Financial"]["year_one_total_operating_cost_savings_after_tax"] = bau["Financial"]["year_one_total_operating_cost_after_tax"] - opt["Financial"]["year_one_total_operating_cost_after_tax"]
+    
     # TODO add FlexibleHVAC opex savings
 
     return opt

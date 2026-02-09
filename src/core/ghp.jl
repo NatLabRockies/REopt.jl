@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 
 """
@@ -19,16 +19,19 @@ struct with outer constructor:
     installed_cost_ghx_per_ft::Float64 = 14.0
     installed_cost_building_hydronic_loop_per_sqft = 1.70
     om_cost_per_sqft_year::Float64 = -0.51
-    building_sqft::Float64 # Required input
+    building_sqft::Float64                                  # Required input
     space_heating_efficiency_thermal_factor::Float64 = NaN  # Default depends on building and location
-    cooling_efficiency_thermal_factor::Float64 = NaN # Default depends on building and location
+    cooling_efficiency_thermal_factor::Float64 = NaN        # Default depends on building and location
     ghpghx_response::Dict = Dict()
     can_serve_dhw::Bool = false
+    max_ton::Real                                           # Maximum heat pump capacity size. Default at a big number
+    max_number_of_boreholes::Real                           # Maximum GHX size
+    load_served_by_ghp::String                              # "scaled" or "nonpeak"
 
-    macrs_option_years::Int = 5
-    macrs_bonus_fraction::Float64 = 0.6
+    macrs_option_years::Int = 0
+    macrs_bonus_fraction::Float64 = 0.0
     macrs_itc_reduction::Float64 = 0.5
-    federal_itc_fraction::Float64 = 0.3
+    federal_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not "commercial/industrial"
     federal_rebate_per_ton::Float64 = 0.0
     federal_rebate_per_kw::Float64 = 0.0
     state_ibi_fraction::Float64 = 0.0
@@ -58,9 +61,6 @@ struct with outer constructor:
     om_cost_year_one::Float64 = NaN
 ```
 """
-
-
-
 Base.@kwdef mutable struct GHP <: AbstractGHP
     require_ghp_purchase::Union{Bool, Int64} = false  # 0 = false, 1 = true
     installed_cost_heatpump_per_ton::Float64 = 1075.0
@@ -80,6 +80,9 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = false
     can_supply_steam_turbine::Bool = false
+    max_ton::Real = BIG_NUMBER
+    max_number_of_boreholes::Real = BIG_NUMBER
+    load_served_by_ghp::String = "nonpeak"
 
     aux_heater_type::String = "electric"
     is_ghx_hybrid::Bool = false
@@ -87,8 +90,8 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
     aux_cooler_installed_cost_per_ton::Float64 = 400.00
     aux_unit_capacity_sizing_factor_on_peak_load::Float64 = 1.2
 
-    macrs_option_years::Int = 5
-    macrs_bonus_fraction::Float64 = 0.6
+    macrs_option_years::Int = 0
+    macrs_bonus_fraction::Float64 = 0.0
     macrs_itc_reduction::Float64 = 0.5
     federal_itc_fraction::Float64 = 0.3
     federal_rebate_per_ton::Float64 = 0.0
@@ -122,14 +125,27 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
 
     # Process and populate these parameters needed more directly by the model
     om_cost_year_one::Float64 = NaN
+    hybrid_solution_type::String = "" # automatic_guess_correct, flipped_guess, nonhybrid_solution
+    number_of_boreholes_auto_guess::Float64 = -1.0
+    number_of_boreholes_flipped_guess::Float64 = -1.0
+    number_of_boreholes_nonhybrid::Float64 = -1.0
+
+    iterations_auto_guess::Float64 = -1.0
+    iterations_flipped_guess::Float64 = -1.0
+    iterations_nonhybrid::Float64 = -1.0
+
+    solve_time_min::Float64 = -1.0
 
     # Account for expenses avoided by addition of GHP.
     avoided_capex_by_ghp_present_value::Float64 = 0.0
 end
 
 
-function GHP(response::Dict, d::Dict)
-    ghp = GHP(; ghpghx_response = response, dictkeys_tosymbols(d)...)
+function GHP(response::Dict, d::Dict; sector::String, federal_procurement_type::String)
+    d = dictkeys_tosymbols(d)
+    set_sector_defaults!(d; struct_name="GHP", sector=sector, federal_procurement_type=federal_procurement_type)
+
+    ghp = GHP(; ghpghx_response = response, d...)
     
     if !(0 <= ghp.aux_cooler_installed_cost_per_ton <= 1.0e6)
         @error "out of bounds aux_cooler_installed_cost_per_ton"
@@ -157,7 +173,7 @@ function GHP(response::Dict, d::Dict)
     end
     # incentives = IncentivesNoProdBased(**d_mod)
     
-    setup_installed_cost_curve!(ghp, response)
+    setup_installed_cost_curve!(d, ghp, response)
 
     setup_om_cost!(ghp)
 
@@ -171,10 +187,10 @@ function GHP(response::Dict, d::Dict)
 end
 
 """
-    setup_installed_cost_curve!(response::Dict, ghp::GHP)
+    setup_installed_cost_curve!(d::Dict, response::Dict, ghp::GHP)
 
 """
-function setup_installed_cost_curve!(ghp::GHP, response::Dict)
+function setup_installed_cost_curve!(d::Dict, ghp::GHP, response::Dict)
     big_number = 1.0e10
     # GHX and GHP sizing metrics for cost calculations
     total_ghx_ft = response["outputs"]["number_of_boreholes"] * response["outputs"]["length_boreholes_ft"]

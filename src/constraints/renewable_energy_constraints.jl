@@ -1,8 +1,9 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 	add_re_elec_constraints(m,p)
 
 Function to add minimum and/or maximum renewable electricity (as percentage of load) constraints, if specified by user.
+Includes renewable energy from grid if specified by user using Site input include_grid_renewable_fraction_in_RE_constraints.
 
 !!! note
     When a single outage is modeled (using outage_start_time_step), renewable electricity calculations account for operations during this outage (e.g., the critical load is used during time_steps_without_grid)
@@ -11,13 +12,16 @@ Function to add minimum and/or maximum renewable electricity (as percentage of l
 #Renewable electricity constraints
 function add_re_elec_constraints(m,p)
 	if !isnothing(p.s.site.renewable_electricity_min_fraction)
-		@constraint(m, MinREElecCon, m[:AnnualREEleckWh] >= p.s.site.renewable_electricity_min_fraction*m[:AnnualEleckWh])
+		@constraint(m, MinREElecCon, m[:AnnualOnsiteREEleckWh] + 
+			p.s.site.include_grid_renewable_fraction_in_RE_constraints * m[:AnnualGridREEleckWh]
+			>= p.s.site.renewable_electricity_min_fraction*m[:AnnualEleckWh])
 	end
 	if !isnothing(p.s.site.renewable_electricity_max_fraction)
-		@constraint(m, MaxREElecCon, m[:AnnualREEleckWh] <= p.s.site.renewable_electricity_max_fraction*m[:AnnualEleckWh])
+		@constraint(m, MaxREElecCon, m[:AnnualOnsiteREEleckWh] + 
+			p.s.site.include_grid_renewable_fraction_in_RE_constraints * m[:AnnualGridREEleckWh]
+			<= p.s.site.renewable_electricity_max_fraction*m[:AnnualEleckWh])
 	end
 end
-
 
 """
 	add_re_elec_calcs(m,p)
@@ -49,34 +53,53 @@ function add_re_elec_calcs(m,p)
 	# 		- (1-p.s.site.include_exported_renewable_electricity_in_total)*sum(m[:dvProductionToGrid][t,u,ts]*SteamTurbinePercentREEstimate for t in p.steam,  u in p.export_bins_by_tech[t], ts in p.time_steps) # minus exported RE from steam turbine, if RE accounting method = 0.
 	# 	))
 	# end
+	
+	if !isempty(p.techs.steam_turbine)
+		@warn("The presence of a steam turbine may cause the renewable energy fraction to be inaccurate.")
+	end
 
-	m[:AnnualREEleckWh] = @expression(m,p.hours_per_time_step * (
+	# Note: when we add capability for battery to discharge to grid, need to make sure only RE that is being consumed 
+	# 		onsite is counted so battery doesn't become a back door for RE to grid.
+	m[:AnnualOnsiteREEleckWh] = @expression(m, p.hours_per_time_step * (
 			sum(p.production_factor[t,ts] * p.levelization_factor[t] * m[:dvRatedProduction][t,ts] * 
-				p.tech_renewable_energy_fraction[t] for t in p.techs.elec, ts in p.time_steps
+				p.tech_renewable_energy_fraction[t] for t in setdiff(p.techs.elec, p.techs.steam_turbine), ts in p.time_steps
 			) - #total RE elec generation, excl steam turbine
 			sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t]*(
 				1-p.s.storage.attr[b].charge_efficiency*p.s.storage.attr[b].discharge_efficiency) 
-				for t in p.techs.elec, b in p.s.storage.types.elec, ts in p.time_steps
+				for t in setdiff(p.techs.elec, p.techs.steam_turbine), b in p.s.storage.types.elec, ts in p.time_steps
 			) - #minus battery efficiency losses
-			sum(m[:dvCurtail][t,ts]*p.tech_renewable_energy_fraction[t] for t in p.techs.elec, ts in p.time_steps) - # minus curtailment.
+			sum(m[:dvCurtail][t,ts] * p.tech_renewable_energy_fraction[t] 
+				for t in setdiff(p.techs.elec, p.techs.steam_turbine), ts in p.time_steps
+			) - # minus curtailment
 			(1 - p.s.site.include_exported_renewable_electricity_in_total) *
 			sum(m[:dvProductionToGrid][t,u,ts]*p.tech_renewable_energy_fraction[t] 
-				for t in p.techs.elec,  u in p.export_bins_by_tech[t], ts in p.time_steps
+				for t in setdiff(p.techs.elec, p.techs.steam_turbine), u in p.export_bins_by_tech[t], ts in p.time_steps
 			) # minus exported RE, if RE accounting method = 0.
 		)
 		# + SteamTurbineAnnualREEleckWh  # SteamTurbine RE Elec, already adjusted for p.hours_per_time_step
 	)		
-    # Note: if battery ends up being allowed to discharge to grid, need to make sure only RE that is being consumed onsite is counted so battery doesn't become a back door for RE to grid.
-	# Note: calculations currently do not ascribe any renewable energy attribute to grid-purchased electricity
+
+	# Note: when we add capability for battery to discharge to grid, need to subtract out *grid RE* discharged from battery 
+	# 		back to grid so that loop doesn't become a back door for increasing RE. This will require some careful thought!
+	m[:AnnualGridREEleckWh] = @expression(m, p.hours_per_time_step * (
+			sum(m[:dvGridPurchase][ts, tier] * p.s.electric_utility.renewable_energy_fraction_series[ts] 
+				for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers) # renewable energy from grid 
+			- sum(m[:dvGridToStorage][b, ts] * p.s.electric_utility.renewable_energy_fraction_series[ts] *
+				(1 - p.s.storage.attr[b].charge_efficiency * p.s.storage.attr[b].discharge_efficiency)
+				for ts in p.time_steps, b in p.s.storage.types.elec
+			) # minus battery efficiency losses from grid charging storage (assumes all that is charged is discharged)
+		) 
+	)
 
 	m[:AnnualEleckWh] = @expression(m,p.hours_per_time_step * (
 		 	# input electric load
 			sum(p.s.electric_load.loads_kw[ts] for ts in p.time_steps_with_grid) 
 			+ sum(p.s.electric_load.critical_loads_kw[ts] for ts in p.time_steps_without_grid)
-			# tech electric loads
-			# + sum(m[:dvCoolingProduction][t,ts] for t in p.ElectricChillers, ts in p.time_steps )/ p.ElectricChillerCOP # electric chiller elec load
-			# + sum(m[:dvCoolingProduction][t,ts] for t in p.AbsorptionChillers, ts in p.time_steps )/ p.AbsorptionChillerElecCOP # absorportion chiller elec load
-			# + sum(p.GHPElectricConsumed[g,ts] * m[:binGHP][g] for g in p.GHPOptions, ts in p.time_steps) # GHP elec load
+			- sum( p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts] for ts in p.time_steps)
+			# tech electric loads from thermal techs
+            + sum(m[:dvCoolingProduction][t, ts] / p.cooling_cop[t][ts] for t in setdiff(p.techs.cooling,p.techs.ghp), ts in p.time_steps)
+            + sum(m[:dvHeatingProduction][t, q, ts] / p.heating_cop[t][ts] for q in p.heating_loads, t in p.techs.electric_heater, ts in p.time_steps)
+			+ sum(p.ghp_electric_consumption_kw[g,ts] * m[:binGHP][g] for g in p.ghp_options, ts in p.time_steps)
 		)
 	)
 	nothing

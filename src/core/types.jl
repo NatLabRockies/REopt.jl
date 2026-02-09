@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 abstract type AbstractTech end
 abstract type AbstractStorage end
 abstract type AbstractFuelBurningTech <: AbstractTech end
@@ -47,6 +47,7 @@ mutable struct Techs
     can_serve_process_heat::Vector{String}
     ghp::Vector{String}
     ashp::Vector{String}
+    ashp_wh::Vector{String}
 end
 ```
 """

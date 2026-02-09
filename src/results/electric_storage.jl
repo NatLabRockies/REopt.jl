@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricStorage` results keys:
 - `size_kw` Optimal inverter capacity
@@ -9,7 +9,9 @@
 # The following results are reported if storage degradation is modeled:
 - `state_of_health`
 - `maintenance_cost`
-- `replacement_month`
+- `replacement_month` # only applies is maintenance_strategy = "replacement"
+- `residual_value`
+- `total_residual_kwh` # only applies is maintenance_strategy = "replacement"
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -32,7 +34,8 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
         r["storage_to_load_series_kw"] = round.(value.(discharge), digits=3)
 
         r["initial_capital_cost"] = r["size_kwh"] * p.s.storage.attr[b].installed_cost_per_kwh +
-            r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw
+            r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
+            p.s.storage.attr[b].installed_cost_constant
 
         StoragePerUnitOMCosts = p.third_party_factor * p.pwf_om * (p.s.storage.attr[b].om_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b] +
                                                                  p.s.storage.attr[b].om_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b])
@@ -43,12 +46,26 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
         r["year_one_om_cost_after_tax"] = round(value(StoragePerUnitOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction) / (p.pwf_om * p.third_party_factor), digits=0)
             
         if p.s.storage.attr[b].model_degradation
-            r["state_of_health"] = value.(m[:SOH]).data / value.(m[:dvStorageEnergy])[b];
+            r["state_of_health"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
             if p.s.storage.attr[b].degradation.maintenance_strategy == "replacement"
                 r["replacement_month"] = round(Int, value(
                     sum(mth * m[:binSOHIndicatorChange][mth] for mth in 1:p.s.financial.analysis_years*12)
                 ))
+                # Calculate total healthy BESS capacity at end of analysis period.
+                # Determine fraction of useful life left assuming same replacement frequency.
+                # Multiply by 0.2 to scale residual useful life since entire BESS is replaced when SOH drops below 80%.
+                # Total BESS capacity residual is (0.8 + residual useful fraction) * BESS capacity
+                # If not replacements happen then useful capacity is SOH[end]*BESS capacity.
+                if iszero(r["replacement_month"])
+                    r["total_residual_kwh"] = r["state_of_health"][end]*r["size_kwh"]
+                else
+                    # SOH[end] can be negative, so alternate method to calculate residual healthy SOH.
+                    total_replacements = (p.s.financial.analysis_years*12)/r["replacement_month"]
+                    r["total_residual_kwh"] = r["size_kwh"]*(
+                        0.2*(1 - (total_replacements - floor(total_replacements))) + 0.8
+                    )
+                end
             end
             r["residual_value"] = value(m[:residual_value])
          end

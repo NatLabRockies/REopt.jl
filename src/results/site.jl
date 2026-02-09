@@ -1,13 +1,15 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 	add_site_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict)
 
 Adds the Site results to the dictionary passed back from `run_reopt` using the solved model `m` and the `REoptInputs`.
 
 Site results:
-- `annual_renewable_electricity_kwh`
-- `renewable_electricity_fraction`
-- `total_renewable_energy_fraction`
+- `annual_onsite_renewable_electricity_kwh` # renewable electricity from on-site renewable electricity-generating technologies (including fuel-burning technologies)
+- `onsite_renewable_electricity_fraction_of_elec_load` # Portion of electricity consumption (incl. electric heating/cooling loads) that is derived from on-site renewable resource generation
+- `onsite_and_grid_renewable_electricity_fraction_of_elec_load` # "Calculation is the same as onsite_renewable_electricity_fraction_of_elec_load, but additionally includes the renewable energy content of grid-purchased electricity, accounting for any battery efficiency losses
+- `onsite_renewable_energy_fraction_of_total_load` # Portion of total annual energy consumption (including non-electric heating/cooling loads) that is derived from on-site renewable resource generation
+- `onsite_and_grid_renewable_energy_fraction_of_total_load` # Calculation is the same as onsite_renewable_energy_fraction_of_total_load, but additionally includes the renewable energy content of grid-purchased electricity, accounting for any battery efficiency losses
 - `annual_emissions_tonnes_CO2` # Average annual total tons of emissions associated with the site's grid-purchased electricity and on-site fuel consumption.
 - `annual_emissions_tonnes_NOx` # Average annual total tons of emissions associated with the site's grid-purchased electricity and on-site fuel consumption.
 - `annual_emissions_tonnes_SO2` # Average annual total tons of emissions associated with the site's grid-purchased electricity and on-site fuel consumption.
@@ -36,18 +38,19 @@ calculated in combine_results function if BAU scenario is run:
     By default, REopt uses marginal emissions rates for grid-purchased electricity. Marginal emissions rates are most appropriate for reporting a change in emissions (avoided or increased) rather than emissions totals.
     It is therefore recommended that emissions results from REopt (using default marginal emissions rates) be reported as the difference in emissions between the optimized and BAU case.
 
-
 """
 function add_site_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r = Dict{String, Any}()
 
 	# renewable elec
-	r["annual_renewable_electricity_kwh"] = round(value(m[:AnnualREEleckWh]), digits=2)
-	r["renewable_electricity_fraction"] = round(value(m[:AnnualREEleckWh])/value(m[:AnnualEleckWh]), digits=6)
-
+	r["annual_onsite_renewable_electricity_kwh"] = round(value(m[:AnnualOnsiteREEleckWh]), digits=2)
+	r["onsite_renewable_electricity_fraction_of_elec_load"] = round(value(m[:AnnualOnsiteREEleckWh])/value(m[:AnnualEleckWh]), digits=4)
+	r["onsite_and_grid_renewable_electricity_fraction_of_elec_load"] = round((value(m[:AnnualOnsiteREEleckWh]) + value(m[:AnnualGridREEleckWh])) /value(m[:AnnualEleckWh]), digits=4)
+	
 	# total renewable energy
 	add_re_tot_calcs(m,p)
-	r["total_renewable_energy_fraction"] = round(value(m[:AnnualRETotkWh])/value(m[:AnnualTotkWh]), digits=6)
+	r["onsite_renewable_energy_fraction_of_total_load"] = round(value(m[:AnnualOnsiteRETotkWh])/value(m[:AnnualTotkWh]), digits=4)
+	r["onsite_and_grid_renewable_energy_fraction_of_total_load"] = round((value(m[:AnnualOnsiteRETotkWh]) + value(m[:AnnualGridREEleckWh]))/value(m[:AnnualTotkWh]), digits=4)
 
 	# Lifecycle emissions results at Site level
 	if !isnothing(p.s.site.bau_emissions_lb_CO2_per_year)
@@ -64,16 +67,11 @@ function add_site_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r["lifecycle_emissions_from_fuelburn_tonnes_PM25"] = round(value(m[:Lifecycle_Emissions_Lbs_PM25_fuelburn]*TONNE_PER_LB), digits=2)
 
 	# Simple Average Annual Emissions results at Site level (total divided by analysis period)
-	r["annual_emissions_tonnes_CO2"] = r["lifecycle_emissions_tonnes_CO2"] / p.s.financial.analysis_years
-	r["annual_emissions_tonnes_NOx"] = r["lifecycle_emissions_tonnes_NOx"] / p.s.financial.analysis_years
-	r["annual_emissions_tonnes_SO2"] = r["lifecycle_emissions_tonnes_SO2"] / p.s.financial.analysis_years
-	r["annual_emissions_tonnes_PM25"] = r["lifecycle_emissions_tonnes_PM25"] / p.s.financial.analysis_years
-
-	r["annual_emissions_from_fuelburn_tonnes_CO2"] = r["lifecycle_emissions_from_fuelburn_tonnes_CO2"] / p.s.financial.analysis_years
-	r["annual_emissions_from_fuelburn_tonnes_NOx"] = r["lifecycle_emissions_from_fuelburn_tonnes_NOx"] / p.s.financial.analysis_years
-	r["annual_emissions_from_fuelburn_tonnes_SO2"] = r["lifecycle_emissions_from_fuelburn_tonnes_SO2"] / p.s.financial.analysis_years
-	r["annual_emissions_from_fuelburn_tonnes_PM25"] = r["lifecycle_emissions_from_fuelburn_tonnes_PM25"] / p.s.financial.analysis_years
-
+	for em in ["CO2", "NOx", "SO2", "PM25"]
+		r["annual_emissions_tonnes_$(em)"] = r["lifecycle_emissions_tonnes_$(em)"] / p.s.financial.analysis_years
+		r["annual_emissions_from_fuelburn_tonnes_$(em)"] = r["lifecycle_emissions_from_fuelburn_tonnes_$(em)"] / p.s.financial.analysis_years
+	end
+	
 	d["Site"] = r
 end
 
@@ -89,9 +87,7 @@ Function to calculate annual energy (electricity plus heat) demand and annual en
 #Renewable heat calculations and totalling heat/electric emissions
 function add_re_tot_calcs(m::JuMP.AbstractModel, p::REoptInputs)
  
-	AnnualREHeatkWh = 0 
-	AnnualHeatkWh = 0
-	if !isempty(union(p.techs.heating, p.techs.chp))
+	if !isempty(intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)))
 		# TODO: When steam turbine implemented, uncomment code below, replacing p.TechCanSupplySteamTurbine, p.STElecOutToThermInRatio, p.STThermOutToThermInRatio with new names
 		# # Steam turbine RE heat calculations
 		# if isempty(p.steam)
@@ -117,28 +113,44 @@ function add_re_tot_calcs(m::JuMP.AbstractModel, p::REoptInputs)
 		# 	)
 		# end
 
-		# Renewable heat (RE steam/hot water heat that is not being used to generate electricity)
-		AnnualREHeatkWh = @expression(m,p.hours_per_time_step*(
-				sum(m[:dvHeatingProduction][t,q,ts] * p.tech_renewable_energy_fraction[t] for t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.ghp), q in p.heating_loads, ts in p.time_steps) #total RE heat generation (excl steam turbine, GHP)
-				- sum(m[:dvProductionToWaste][t,q,ts]* p.tech_renewable_energy_fraction[t] for t in p.techs.chp, q in p.heating_loads, ts in p.time_steps) #minus CHP waste heat
-				+ sum(m[:dvSupplementaryThermalProduction][t,ts] * p.tech_renewable_energy_fraction[t] for t in p.techs.chp, ts in p.time_steps) # plus CHP supplemental firing thermal generation
-				- sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t]*(1-p.s.storage.attr[b].charge_efficiency*p.s.storage.attr[b].discharge_efficiency) for t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.ghp), b in p.s.storage.types.thermal, ts in p.time_steps) #minus thermal storage losses, note does not account for p.DecayRate
+		#To account for hot storage losses and the RE contributions from fuel-fired sources when calculating end-use load, these expressions are used.
+		m[:AnnualHeatContributionToStorage] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts] for t in union(p.techs.heating, p.techs.chp), b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualREFBToHotStoragekWh] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
+		m[:AnnualFBToHotStoragekWh] = @expression(m, sum(m[:dvProductionToStorage][b,t,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), b in p.s.storage.types.hot, ts in p.time_steps))
+		if value(m[:AnnualFBToHotStoragekWh]) > 0.0
+			m[:FBStorageDeliveryREFraction] = @expression(m, m[:AnnualREFBToHotStoragekWh] / m[:AnnualFBToHotStoragekWh])
+		else
+			m[:FBStorageDeliveryREFraction] = @expression(m, 0.0)
+		end
+		m[:AnnualHotStorageLosses] = @expression(m, m[:AnnualFBToHotStoragekWh] - sum(m[:dvDischargeFromStorage][b, ts]  for b in p.s.storage.types.hot, ts in p.time_steps))
+		if value(m[:AnnualHeatContributionToStorage]) > 0.0
+			m[:FBToHotStorageFraction] = @expression(m, m[:AnnualFBToHotStoragekWh] / m[:AnnualHeatContributionToStorage])
+		else
+			m[:FBToHotStorageFraction] = @expression(m, 0.0)
+		end
+		# End-use consumed heating load from renewable, fuel-fired sources (electrified heat is addressed in the renewable electricity calculation)
+		m[:AnnualREHeatkWh] = @expression(m,p.hours_per_time_step*(
+				sum(m[:dvHeatingProduction][t,q,ts] * p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total RE end-use heat generation from fuel sources
+				- sum(m[:dvProductionToWaste][t,q,ts]* p.tech_renewable_energy_fraction[t] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
+				- m[:FBStorageDeliveryREFraction] * m[:FBToHotStorageFraction] * m[:AnnualHotStorageLosses] # RE weight times hot storage loss attributable to FB techs
 			)
 			# - AnnualRESteamToSteamTurbine # minus RE steam feeding steam turbine, adjusted by p.hours_per_time_step 
 			# + AnnualSteamTurbineREThermOut #plus steam turbine RE generation, adjusted for storage losses, adjusted by p.hours_per_time_step (not included in first line because p.tech_renewable_energy_fraction for SteamTurbine is 0)
 		)
 
-		# Total heat (steam/hot water heat that is not being used to generate electricity)
-		AnnualHeatkWh = @expression(m,p.hours_per_time_step*(
-				sum(m[:dvHeatingProduction][t,q,ts] for t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.ghp), q in p.heating_loads, ts in p.time_steps) #total heat generation (need to see how GHP fits into this)
-				- sum(m[:dvProductionToWaste][t,q,ts] for t in p.techs.chp, q in p.heating_loads, ts in p.time_steps) #minus CHP waste heat
-				+ sum(m[:dvSupplementaryThermalProduction][t,ts] for t in p.techs.chp, ts in p.time_steps) # plus CHP supplemental firing thermal generation
-				- sum(m[:dvProductionToStorage][b,t,ts]*(1-p.s.storage.attr[b].charge_efficiency*p.s.storage.attr[b].discharge_efficiency) for t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.ghp), b in p.s.storage.types.thermal, ts in p.time_steps) #minus thermal storage losses
+		# End-use consumed heating load from fuel-fired sources (electrified heat is addressed in the renewable electricity calculation)
+		m[:AnnualHeatkWh] = @expression(m,p.hours_per_time_step*(
+				sum(m[:dvHeatingProduction][t,q,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #total end-use heat generation from fuel sources
+				- sum(m[:dvProductionToWaste][t,q,ts] for t in intersect(p.techs.fuel_burning, union(p.techs.heating, p.techs.chp)), q in p.heating_loads, ts in p.time_steps) #minus waste heat
+				- m[:FBToHotStorageFraction] * m[:AnnualHotStorageLosses] # hot storage loss attributable to FB techs
 			)
 			# - AnnualSteamToSteamTurbine # minus steam going to SteamTurbine; already adjusted by p.hours_per_time_step
 		)
+	else
+		m[:AnnualREHeatkWh] = @expression(m, 0.0) 
+		m[:AnnualHeatkWh] = @expression(m, 0.0) 
 	end 
-	m[:AnnualRETotkWh] = @expression(m, m[:AnnualREEleckWh] + AnnualREHeatkWh)
-	m[:AnnualTotkWh] = @expression(m, m[:AnnualEleckWh] + AnnualHeatkWh)
+	m[:AnnualOnsiteRETotkWh] = @expression(m, m[:AnnualOnsiteREEleckWh] + m[:AnnualREHeatkWh])
+	m[:AnnualTotkWh] = @expression(m, m[:AnnualEleckWh] + m[:AnnualHeatkWh]) 
 	nothing
 end

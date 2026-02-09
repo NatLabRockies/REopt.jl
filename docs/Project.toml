@@ -6,4 +6,4 @@ REopt = "d36ad4e8-d74a-4f7a-ace1-eaea049febf6"
 
 [compat]
 Documenter = "0.26"
-julia = "1.6, 1.7, 1.8"
+julia = "1"

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `ElectricHeater` results keys:
@@ -37,14 +37,23 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
         @expression(m, ElectricHeaterToHotTESKW[ts in p.time_steps],
 		    sum(m[:dvHeatToStorage][b,"ElectricHeater",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
             )
-            @expression(m, ElectricHeaterToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 
+        @expression(m, ElectricHeaterToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 
             sum(m[:dvHeatToStorage][b,"ElectricHeater",q,ts] for b in p.s.storage.types.hot)
             )
+        if "HighTempThermalStorage" in p.s.storage.types.hot
+            @expression(m, ElectricHeaterToHotSensibleTESKW[ts in p.time_steps],
+                sum(m[:dvHeatToStorage]["HighTempThermalStorage","ElectricHeater",q,ts] for q in p.heating_loads)
+                )
+        else
+            @expression(m, ElectricHeaterToHotSensibleTESKW[ts in p.time_steps], 0.0)
+        end
     else
         @expression(m, ElectricHeaterToHotTESKW[ts in p.time_steps], 0.0)
         @expression(m, ElectricHeaterToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+        @expression(m, ElectricHeaterToHotSensibleTESKW[ts in p.time_steps], 0.0)
     end
 	r["thermal_to_storage_series_mmbtu_per_hour"] = round.(value.(ElectricHeaterToHotTESKW) / KWH_PER_MMBTU, digits=3)
+    r["thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour"] = round.(value.(ElectricHeaterToHotSensibleTESKW) / KWH_PER_MMBTU, digits=3)
 
     if !isempty(p.techs.steam_turbine) && p.s.electric_heater.can_supply_steam_turbine
         @expression(m, ElectricHeaterToSteamTurbine[ts in p.time_steps], sum(m[:dvThermalToSteamTurbine]["ElectricHeater",q,ts] for q in p.heating_loads))

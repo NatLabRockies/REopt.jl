@@ -1,0 +1,86 @@
+{
+    "Financial": {
+        "offtaker_discount_rate_fraction": 0.0,
+        "offtaker_tax_rate_fraction": 0.26,
+        "elec_cost_escalation_rate_fraction": 0.0,
+        "chp_fuel_cost_escalation_rate_fraction": 0.0,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.0,
+        "om_cost_escalation_rate_fraction": 0.0
+    },
+    "Site": {
+        "latitude": 41.8809434,
+        "longitude": -72.2600655
+    },
+    "ElectricLoad": {
+        "monthly_totals_kwh": [
+            921984.0,
+            884352.0,
+            912576.0,
+            921984.0,
+            950208.0,
+            903168.0,
+            1025472.0,
+            978432.0,
+            1072512.0,
+            1044288.0,
+            987840.0,
+            950208.0
+        ],
+        "doe_reference_name": "LargeOffice"
+    },
+    "ElectricTariff": {
+        "blended_annual_demand_rate": 20.0,
+        "blended_annual_energy_rate": 0.12
+    },
+    "ElectricUtility": {
+        "net_metering_limit_kw": 5000.0
+    },
+    "PV": {
+        "min_kw": 500.0,
+        "max_kw": 500.0
+    },
+    "ElectricStorage": {
+        "min_kw": 100.0,
+        "max_kw": 100.0,
+        "min_kwh": 200.0,
+        "max_kwh": 200.0,
+        "battery_replacement_year": 4,
+        "inverter_replacement_year": 4,
+        "installed_cost_per_kw": 910.0,
+        "installed_cost_per_kwh": 455.0,
+        "installed_cost_constant": 0.0,        
+        "replace_cost_per_kw": 715.0,
+        "replace_cost_per_kwh": 318.0,
+        "replace_cost_constant": 0.0,
+        "om_cost_fraction_of_installed_cost": 0.0
+    },
+    "CHP": {
+        "prime_mover": "recip_engine",
+        "size_class": 5,
+        "installed_cost_per_kw": 4500.0,
+        "standby_rate_per_kw_per_month": 10.0,
+        "min_kw": 1104.0,
+        "min_allowable_kw": 1104.0,
+        "max_kw": 1104.0,
+        "fuel_type": "natural_gas",
+        "fuel_cost_per_mmbtu": 10.5,
+        "federal_itc_fraction": 0.3,
+        "macrs_option_years": 5,
+        "macrs_bonus_fraction": 0.6,
+        "macrs_itc_reduction": 0.5,
+        "min_turn_down_fraction": 0.0
+    },
+    "DomesticHotWaterLoad": {
+        "annual_mmbtu": 6795.0,
+        "doe_reference_name": "FlatLoad"
+    },
+    "SpaceHeatingLoad": {
+        "annual_mmbtu": 36205.0,
+        "doe_reference_name": "FlatLoad"
+    },
+    "ExistingBoiler": {
+        "fuel_type": "natural_gas",
+        "production_type": "hot_water",
+        "fuel_cost_per_mmbtu": 10.5
+    }
+}

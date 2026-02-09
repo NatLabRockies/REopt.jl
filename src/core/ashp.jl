@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 ASHPSpaceHeater
@@ -23,6 +23,7 @@ ASHPSpaceHeater has the following attributes:
     cooling_cf::Array{<:Real,1} # ASHP's cooling capacity factor curves
     can_serve_cooling::Bool # If ASHP can supply heat to the cooling load
     force_into_system::Bool # force into system to serve all space heating loads if true
+    force_dispatch::Bool # force ASHP to meet load or maximize output if true
     back_up_temp_threshold_degF::Real # Degree in F that system switches from ASHP to resistive heater 
     avoided_capex_by_ashp_present_value::Real # avoided capital expenditure due to presence of ASHP system vs. defaults heating and cooling techs
     max_ton::Real # maximum allowable thermal power (tons) 
@@ -48,6 +49,7 @@ struct ASHP <: AbstractThermalTech
     can_serve_process_heat::Bool
     can_serve_cooling::Bool
     force_into_system::Bool
+    force_dispatch::Bool
     back_up_temp_threshold_degF::Real
     avoided_capex_by_ashp_present_value::Real
     max_ton::Real
@@ -81,6 +83,7 @@ function ASHPSpaceHeater(;
     macrs_bonus_fraction::Real = 0.0, # Fraction of upfront project costs to depreciate under MACRS
     can_serve_cooling::Union{Bool, Nothing} = nothing # If ASHP can supply heat to the cooling load
     force_into_system::Bool = false # force into system to serve all space heating loads if true
+    force_dispatch::Bool = true # force ASHP to meet load or maximize output if true
     avoided_capex_by_ashp_present_value::Real = 0.0 # avoided capital expenditure due to presence of ASHP system vs. defaults heating and cooling techs
 
     #The following inputs are used to create the attributes heating_cop and heating cf: 
@@ -103,7 +106,7 @@ function ASHPSpaceHeater(;
 """
 function ASHPSpaceHeater(;
         min_ton::Real = 0.0,
-        max_ton::Real = BIG_NUMBER,
+        max_ton::Union{Real, Nothing} = nothing,
         min_allowable_ton::Union{Real, Nothing} = nothing,
         min_allowable_peak_capacity_fraction::Union{Real, Nothing} = nothing, 
         sizing_factor::Union{Real, Nothing} = nothing, 
@@ -114,6 +117,7 @@ function ASHPSpaceHeater(;
         avoided_capex_by_ashp_present_value::Real = 0.0,
         can_serve_cooling::Union{Bool, Nothing} = nothing,
         force_into_system::Bool = false,
+        force_dispatch::Bool = true,
         heating_cop_reference::Array{<:Real,1} = Real[],
         heating_cf_reference::Array{<:Real,1} = Real[],
         heating_reference_temps_degF::Array{<:Real,1} = Real[],
@@ -143,9 +147,6 @@ function ASHPSpaceHeater(;
     end
     if isnothing(back_up_temp_threshold_degF)
         back_up_temp_threshold_degF = defaults["back_up_temp_threshold_degF"]
-    end
-    if isnothing(max_ton)
-        max_ton = defaults["max_ton"]
     end
     if isnothing(sizing_factor)
         sizing_factor = defaults["sizing_factor"]
@@ -177,11 +178,6 @@ function ASHPSpaceHeater(;
     can_serve_process_heat = defaults["can_serve_process_heat"]
     
 
-    # Convert max sizes, cost factors from mmbtu_per_hour to kw
-    min_kw = min_ton * KWH_THERMAL_PER_TONHOUR
-    max_kw = max_ton * KWH_THERMAL_PER_TONHOUR
-    
-
     installed_cost_per_kw = installed_cost_per_ton / KWH_THERMAL_PER_TONHOUR
     om_cost_per_kw = om_cost_per_ton / KWH_THERMAL_PER_TONHOUR
 
@@ -206,6 +202,26 @@ function ASHPSpaceHeater(;
         cooling_cf = Float64[]
     end
 
+    if isnothing(max_ton)
+        if can_serve_cooling 
+            #these are in kW rathern than tons so will be larger as a measure of conservatism
+            max_ton = min(defaults["max_ton"], 10*(maximum(heating_load ./ heating_cf)+maximum(cooling_load ./ cooling_cf)))
+        else
+            max_ton = min(defaults["max_ton"], 10*maximum(heating_load ./ heating_cf))
+        end
+    else
+        if can_serve_cooling 
+            max_ton = min(max_ton, 10*(maximum(heating_load ./ heating_cf)+maximum(cooling_load ./ cooling_cf)))
+        else
+            max_ton = min(max_ton, 10*maximum(heating_load ./ heating_cf)) 
+        end
+        max_ton = max(max_ton, min_ton)
+    end
+
+    # Convert max sizes, cost factors from mmbtu_per_hour to kw
+    min_kw = min_ton * KWH_THERMAL_PER_TONHOUR
+    max_kw = max_ton * KWH_THERMAL_PER_TONHOUR    
+
     if !isnothing(min_allowable_ton) && !isnothing(min_allowable_peak_capacity_fraction)
         throw(@error("at most one of min_allowable_ton and min_allowable_peak_capacity_fraction may be input."))
     elseif !isnothing(min_allowable_ton)
@@ -213,7 +229,7 @@ function ASHPSpaceHeater(;
         @warn("user-provided minimum allowable ton is used in the place of the default; this may provided very small sizes if set to zero.")
     else
         if isnothing(min_allowable_peak_capacity_fraction)
-            min_allowable_peak_capacity_fraction = 0.5
+            min_allowable_peak_capacity_fraction = 0.25
         end
         min_allowable_kw = get_ashp_default_min_allowable_size(heating_load, heating_cf, cooling_load, cooling_cf, min_allowable_peak_capacity_fraction)
     end
@@ -244,6 +260,7 @@ function ASHPSpaceHeater(;
         can_serve_process_heat,
         can_serve_cooling,
         force_into_system,
+        force_dispatch,
         back_up_temp_threshold_degF,
         avoided_capex_by_ashp_present_value,
         max_ton,
@@ -278,6 +295,7 @@ function ASHPWaterHeater(;
     can_supply_steam_turbine::Union{Bool, nothing} = nothing # If the boiler can supply steam to the steam turbine for electric production
     avoided_capex_by_ashp_present_value::Real = 0.0 # avoided capital expenditure due to presence of ASHP system vs. defaults heating and cooling techs
     force_into_system::Bool = false # force into system to serve all hot water loads if true
+    force_dispatch::Bool = true # force ASHP to meet load or maximize output if true
     
     #The following inputs are used to create the attributes heating_cop and heating cf: 
     heating_cop_reference::Array{<:Real,1}, # COP of the heating (i.e., thermal produced / electricity consumed)
@@ -293,7 +311,7 @@ function ASHPWaterHeater(;
 """
 function ASHPWaterHeater(;
     min_ton::Real = 0.0,
-    max_ton::Real = BIG_NUMBER,
+    max_ton::Union{Real, Nothing} = nothing,
     min_allowable_ton::Union{Real, Nothing} = nothing,
     min_allowable_peak_capacity_fraction::Union{Real, Nothing} = nothing, 
     sizing_factor::Union{Real, Nothing} = nothing, 
@@ -303,6 +321,7 @@ function ASHPWaterHeater(;
     macrs_bonus_fraction::Real = 0.0,
     avoided_capex_by_ashp_present_value::Real = 0.0,
     force_into_system::Bool = false,
+    force_dispatch::Bool = true,
     heating_cop_reference::Array{<:Real,1} = Real[],
     heating_cf_reference::Array{<:Real,1} = Real[],
     heating_reference_temps_degF::Array{<:Real,1} = Real[],
@@ -322,9 +341,6 @@ function ASHPWaterHeater(;
     end
     if isnothing(back_up_temp_threshold_degF)
         back_up_temp_threshold_degF = defaults["back_up_temp_threshold_degF"]
-    end
-    if isnothing(max_ton)
-        max_ton = defaults["max_ton"]
     end
     if isnothing(sizing_factor)
         sizing_factor = defaults["sizing_factor"]
@@ -347,10 +363,6 @@ function ASHPWaterHeater(;
      can_serve_process_heat = defaults["can_serve_process_heat"]
      can_serve_cooling = defaults["can_serve_cooling"]
 
-    # Convert max sizes, cost factors from mmbtu_per_hour to kw
-    min_kw = min_ton * KWH_THERMAL_PER_TONHOUR
-    max_kw = max_ton * KWH_THERMAL_PER_TONHOUR
-
     installed_cost_per_kw = installed_cost_per_ton / KWH_THERMAL_PER_TONHOUR
     om_cost_per_kw = om_cost_per_ton / KWH_THERMAL_PER_TONHOUR
 
@@ -363,6 +375,18 @@ function ASHPWaterHeater(;
     
     heating_cf[heating_cop .== 1] .= 1
 
+    if isnothing(max_ton)
+        #these are in kW rathern than tons so will be larger as a measure of conservatism
+        max_ton = min(defaults["max_ton"], 10*maximum(heating_load ./ heating_cf))
+    else
+        max_ton = min(max_ton, 10*maximum(heating_load ./ heating_cf))
+    end
+    max_ton = max(max_ton, min_ton)
+
+    # Convert max sizes, cost factors from mmbtu_per_hour to kw
+    min_kw = min_ton * KWH_THERMAL_PER_TONHOUR
+    max_kw = max_ton * KWH_THERMAL_PER_TONHOUR  
+
     if !isnothing(min_allowable_ton) && !isnothing(min_allowable_peak_capacity_fraction)
         throw(@error("at most one of min_allowable_ton and min_allowable_peak_capacity_fraction may be input."))
     elseif !isnothing(min_allowable_ton)
@@ -370,7 +394,7 @@ function ASHPWaterHeater(;
         @warn("user-provided minimum allowable ton is used in the place of the default; this may provided very small sizes if set to zero.")
     else
         if isnothing(min_allowable_peak_capacity_fraction)
-            min_allowable_peak_capacity_fraction = 0.5
+            min_allowable_peak_capacity_fraction = 0.25
         end
         min_allowable_kw = get_ashp_default_min_allowable_size(heating_load, heating_cf, Real[], Real[], min_allowable_peak_capacity_fraction)
     end
@@ -398,6 +422,7 @@ function ASHPWaterHeater(;
         can_serve_process_heat,
         can_serve_cooling,
         force_into_system,
+        force_dispatch,
         back_up_temp_threshold_degF,
         avoided_capex_by_ashp_present_value,
         max_ton,

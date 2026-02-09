@@ -26293,7 +26293,8 @@
             40.62193249087678,
             36.699852574708,
             35.655914923145126
-        ]
+        ],
+        "year": 2022
     },
     "ElectricTariff": {
         "urdb_label": "5b44fc455457a31c4ea907ea"
@@ -26303,6 +26304,8 @@
         "building_sqft": 31623.0,
         "om_cost_per_sqft_year": 0,
         "heatpump_capacity_sizing_factor_on_peak_load": 1.0,
+        "macrs_bonus_fraction": 0.4,
+        "macrs_option_years": 5,
         "ghpghx_responses": [
             {
                 "outputs": {

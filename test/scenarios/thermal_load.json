@@ -24,7 +24,7 @@
         "doe_reference_name": "LargeOffice"
     },
     "ProcessHeatLoad": {
-        "industry_reference_name": "FlatLoad"
+        "industrial_reference_name": "FlatLoad"
     },
     "DomesticHotWaterLoad": {
         "doe_reference_name": "LargeOffice"

@@ -1,22 +1,24 @@
 # Examples
-To use REopt you will need to have a solver installed. REopt.jl has been tested with Xpress, Cbc, and CPLEX solvers, but it should work with other Linear Progam solvers (for PV and Storage scenarios) or Mixed Integer Linear Program solvers (for scenarios with outages and/or Generators).
+To use REopt you will need to have a solver installed. This just requires adding one of the compatible open-source solver Julia packages to your Julia environment, along with the JuMP.jl optimization modeling package. If you want to use a commercial solver which requires a licenese, installation of that solver is required external to the Julia environment.
+
+REopt.jl has been tested with HiGHS (preferred open-source), Xpress (commercial), Cbc, SCIP, and CPLEX (commercial) solvers, but it should work with other Linear Progam solvers (for PV and Storage scenarios) or Mixed Integer Linear Program solvers (for scenarios with outages and/or Generators).
 
 ## Basic
 A REopt optimization can be run with three lines: 
 ```julia
-using REopt, JuMP, Cbc
+using REopt, JuMP, HiGHS
 
-m = Model(Cbc.Optimizer)
-results = run_reopt(m, "test/scenarios/pv_storage.json")
+m = Model(HiGHS.Optimizer)
+results = run_reopt(m, "pv_storage.json")
 ```
 
-The `scenario.json` contains a `Dict` of inputs. For more on the `scenario.json` see the [REopt Inputs](@ref) section and find examples at [test/scenarios](https://github.com/NREL/REopt/blob/master/test/scenarios). For more examples of how to run REopt, see [`test_with_cplex.jl`](https://github.com/NREL/REopt/blob/master/test/test_with_cplex.jl) and [`test_with_xpress.jl`](https://github.com/NREL/REopt/blob/master/test/test_with_xpress.jl)
+The input file, in this case `pv_storage.json`, contains the set of user-defined inputs. For more on the inputs .json file, see the [REopt Inputs](@ref) section and find examples at [test/scenarios](https://github.com/NatLabRockies/REopt/blob/master/test/scenarios). For more examples of how to run REopt, see [`runtests.jl`](https://github.com/NatLabRockies/REopt.jl/blob/master/test/runtests.jl). To adjust settings such as optimality tolerance and logging, see more about relevant `Model()` arguments here: [open source solver setups](https://github.com/NatLabRockies/REopt_API/blob/master/julia_src/os_solvers.jl).
 
 To compare the optimized case to a "Business-as-usual" case (with existing techs or no techs), you can run the [BAUScenario](@ref) scenario in parallel by providing two `JuMP.Model`s like so:
 ```julia
-m1 = Model(Cbc.Optimizer)
-m2 = Model(Cbc.Optimizer)
-results = run_reopt([m1,m2], "./scenarios/pv_storage.json")
+m1 = Model(HiGHS.Optimizer)
+m2 = Model(HiGHS.Optimizer)
+results = run_reopt([m1,m2], "pv_storage.json")
 ```
 When the [BAUScenario](@ref) is included as shown above, the outputs will include comparative results such as the net present value and emissions reductions of the optimal system as compared to the BAU Scenario.
 
@@ -30,13 +32,13 @@ When the [BAUScenario](@ref) is included as shown above, the outputs will includ
 Using the `build_reopt!` method and `JuMP` methods one can modify the REopt model before optimizing.
 In the following example we add a cost for curtailed PV power.
 ```julia
-using Xpress
+using HiGHS
 using JuMP
 using REopt
 
-m = JuMP.Model(Xpress.Optimizer)
+m = JuMP.Model(HiGHS.Optimizer)
 
-p = REoptInputs("scenarios/pv_storage.json");
+p = REoptInputs("pv_storage.json");
 
 build_reopt!(m, p)
 

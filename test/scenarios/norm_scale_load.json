@@ -1,0 +1,14 @@
+{
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "ElectricLoad": {},
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 10
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.1,
+        "blended_annual_demand_rate": 10
+    }
+  }

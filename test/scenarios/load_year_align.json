@@ -1,0 +1,29 @@
+{
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "ElectricLoad": {},
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "FlatLoad_16_5",
+        "annual_mmbtu": 10000
+    },
+    "CoolingLoad": {
+        "doe_reference_name": "Hospital"
+    },    
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 9.0,
+        "efficiency": 1.0
+    },    
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.0,
+        "om_cost_escalation_rate_fraction": 0.0,
+        "offtaker_discount_rate_fraction": 0.0,
+        "offtaker_tax_rate_fraction": 0.0,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.1,
+        "blended_annual_demand_rate": 0.0
+    }
+}

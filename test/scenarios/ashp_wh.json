@@ -15,6 +15,7 @@
         "installed_cost_per_ton": 4050,
         "om_cost_per_ton": 0.0,
 		"macrs_option_years": 0,
+        "force_dispatch": false,
 		"macrs_bonus_fraction": 0.0
     },
     "Financial": {
