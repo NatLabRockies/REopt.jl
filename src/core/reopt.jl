@@ -717,7 +717,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		for t in union(p.techs.heating, p.techs.chp)
             for q in p.heating_loads
                 for ts in p.time_steps
-                    fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts], 0.0, force=true)
+                    fix(m[:dvHeatToAbsorptionChiller][t,q,ts], 0.0, force=true)
                 end
             end
         end
