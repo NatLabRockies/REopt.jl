@@ -67,6 +67,15 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     end
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(CSTToSteamTurbine) / KWH_PER_MMBTU, digits=3)
 
+    if "AbsorptionChiller" in p.techs.cooling
+		@expression(m, CSTtoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["CST",q,ts] for t in p.techs.chp, q in p.heating_loads)))
+		@expression(m, CSTtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["CST",q,ts] for t in p.techs.chp)))
+	else
+		@expression(m, CSTtoAbsorptionChillerKW[ts in p.time_steps], 0.0)
+		@expression(m, CSTtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+	end
+	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(CSTtoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
+
     @expression(m, CSTToWaste[ts in p.time_steps],
 		sum(m[:dvProductionToWaste]["CST", q, ts] for q in p.heating_loads)
     )
