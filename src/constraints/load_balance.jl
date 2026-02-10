@@ -173,6 +173,13 @@ function add_absorption_chiller_load_constraints(m,p;_n="")
                 end
             end
         end
+        for t in intersect(p.techs.heating,["GHP","ASHPWaterHeater","ASHPSpaceHeater"])
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
     else
         for t in union(p.techs.heating, p.techs.chp)
             for q in p.heating_loads
