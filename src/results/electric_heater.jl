@@ -64,8 +64,8 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(ElectricHeaterToSteamTurbine) / KWH_PER_MMBTU, digits=3)
 
     if "AbsorptionChiller" in p.techs.cooling
-		@expression(m, ElectricHeatertoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ElectricHeater",q,ts] for t in p.techs.chp, q in p.heating_loads)))
-		@expression(m, ElectricHeatertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ElectricHeater",q,ts] for t in p.techs.chp)))
+		@expression(m, ElectricHeatertoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ElectricHeater",q,ts] for q in p.heating_loads)))
+		@expression(m, ElectricHeatertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ElectricHeater",q,ts])))
 	else
 		@expression(m, ElectricHeatertoAbsorptionChillerKW[ts in p.time_steps], 0.0)
 		@expression(m, ElectricHeatertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)

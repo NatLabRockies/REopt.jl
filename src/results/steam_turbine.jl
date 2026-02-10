@@ -89,8 +89,8 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(SteamTurbineThermalToLoadKW) ./ KWH_PER_MMBTU, digits=5)
 
 	if "AbsorptionChiller" in p.techs.cooling
-		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["SteamTurbine",q,ts] for t in p.techs.chp, q in p.heating_loads)))
-		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["SteamTurbine",q,ts] for t in p.techs.chp)))
+		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.tech.steam_turbine, q in p.heating_loads)))
+		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.tech.steam_turbine)))
 	else
 		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], 0.0)
 		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)

@@ -97,8 +97,8 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     end	
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(CHPToSteamTurbineKW) / KWH_PER_MMBTU, digits=5)
 	if "AbsorptionChiller" in p.techs.cooling
-		@expression(m, CHPtoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["CHP",q,ts] for t in p.techs.chp, q in p.heating_loads)))
-		@expression(m, CHPtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["CHP",q,ts] for t in p.techs.chp)))
+		@expression(m, CHPtoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.chp, q in p.heating_loads)))
+		@expression(m, CHPtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.chp)))
 	else
 		@expression(m, CHPtoAbsorptionChillerKW[ts in p.time_steps], 0.0)
 		@expression(m, CHPtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
