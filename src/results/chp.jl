@@ -106,7 +106,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(CHPtoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
     @expression(m, CHPThermalToLoadKW[ts in p.time_steps],
         sum(sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads) + m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts]
-            for t in p.techs.chp) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts] - CHPtoAbsorptionChillerKW[ts])
+            for t in p.techs.chp) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts])
     r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CHPThermalToLoadKW ./ KWH_PER_MMBTU), digits=5)
 
 	CHPToLoadKW = @expression(m, [ts in p.time_steps],
