@@ -1419,7 +1419,7 @@ reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
     overrides the absorption chiller's heating load input as needed, using the first available heat input for which a technology
     exists.
 """
-function reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
+function reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load::Dict{String, Vector{String}}, s::AbstractScenario, techs::Techs)
     if !isempty(techs.can_serve_space_heating)
         @warn("AbsorptionChiller heating load input overridden to SpaceHeating to allow for compatible heating technologies to be present.")
         s.absorption_chiller.heating_load_input = "SpaceHeating"
@@ -1439,6 +1439,6 @@ function reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
         absorption_chillers_using_heating_load["DomesticHotWater"] = []
         absorption_chillers_using_heating_load["ProcessHeat"] = ["AbsorptionChiller"]
     else
-       @throw(error("Absorption Chiller is selected as a technology, but there are no heating technologies to supply any heat.")) 
+       throw(@error("Absorption Chiller is selected as a technology, but there are no heating technologies to supply any heat.")) 
     end
 end
