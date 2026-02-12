@@ -1124,6 +1124,16 @@ else  # run HiGHS tests
                 results = run_reopt(m, d)
                 @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 1725.761 atol=1e-3
                 @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ results["CHP"]["annual_thermal_production_mmbtu"] atol=1e-3
+                # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
+                d = JSON.parsefile("./scenarios/chp_waste.json")
+                d["CHP"]["serve_absorption_chiller_only"] = false
+                d["CHP"]["follow_electrical_load"] = true
+                s = Scenario(d)
+                p = REoptInputs(s)
+                p.s.electric_tariff.energy_rates[2,:] .= 0.0
+                results = run_reopt(m, p)
+                @test results["CHP"]["electric_to_load_series_kw"][2] ≈ min(results["CHP"]["size_kw"], p.s.electric_load.loads_kw[2]) atol=0.01
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
