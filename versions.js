@@ -1,5 +1,6 @@
 var DOC_VERSIONS = [
   "stable",
+  "v0.57",
   "v0.56",
   "v0.55",
   "v0.54",

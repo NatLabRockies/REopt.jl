@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>MPC Inputs · REopt.jl Documentation</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">REopt.jl Documentation</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">REopt</span><ul><li><a class="tocitem" href="../../reopt/examples/">Examples</a></li><li><a class="tocitem" href="../../reopt/inputs/">REopt Inputs</a></li><li><a class="tocitem" href="../../reopt/outputs/">Outputs</a></li><li><a class="tocitem" href="../../reopt/methods/">Methods</a></li></ul></li><li><span class="tocitem">Model Predictive Control</span><ul><li><a class="tocitem" href="../examples/">MPC Examples</a></li><li class="is-active"><a class="tocitem" href>MPC Inputs</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#MPC-Input-Structures"><span>MPC Input Structures</span></a></li><li><a class="tocitem" href="#MPCElectricTariff"><span>MPCElectricTariff</span></a></li><li><a class="tocitem" href="#MPCElectricLoad"><span>MPCElectricLoad</span></a></li><li><a class="tocitem" href="#MPCElectricStorage"><span>MPCElectricStorage</span></a></li><li><a class="tocitem" href="#MPCFinancial"><span>MPCFinancial</span></a></li><li><a class="tocitem" href="#MPCPV"><span>MPCPV</span></a></li><li><a class="tocitem" href="#MPCGenerator"><span>MPCGenerator</span></a></li><li><a class="tocitem" href="#MPCSettings"><span>MPCSettings</span></a></li><li><a class="tocitem" href="#MPCLimits"><span>MPCLimits</span></a></li></ul></li><li><a class="tocitem" href="../outputs/">MPC Outputs</a></li><li><a class="tocitem" href="../methods/">Methods</a></li></ul></li><li><span class="tocitem">Developer</span><ul><li><a class="tocitem" href="../../developer/concept/">Design Concepts for the REopt Module</a></li><li><a class="tocitem" href="../../developer/organization/">File Organization</a></li><li><a class="tocitem" href="../../developer/inputs/">The REoptInputs structure</a></li><li><a class="tocitem" href="../../developer/adding_tech/">Adding a Technology</a></li><li><a class="tocitem" href="../../developer/documentation/">Documenting the Code</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Model Predictive Control</a></li><li class="is-active"><a href>MPC Inputs</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>MPC Inputs</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/NatLabRockies/REopt.jl/blob/master/docs/src/mpc/inputs.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="MPC-Inputs"><a class="docs-heading-anchor" href="#MPC-Inputs">MPC Inputs</a><a id="MPC-Inputs-1"></a><a class="docs-heading-anchor-permalink" href="#MPC-Inputs" title="Permalink"></a></h1><p>The input structure for MPC models is very similar to the structure for <a href="../../reopt/inputs/#REopt-Inputs">REopt Inputs</a>. The primary differences are </p><ol><li><p>The <a href="#MPCElectricTariff">MPCElectricTariff</a> requires specifying individual rate components (and does not parse URDB rates like <a href="../../reopt/inputs/#ElectricTariff">ElectricTariff</a>).</p></li><li><p>The capacities of any provided DER must be provided</p></li><li><p>The load profile for each time step must be provided</p></li></ol><p>Just like <a href="../../reopt/inputs/#REopt-Inputs">REopt Inputs</a>, inputs to <code>run_mpc</code> can be provided in one of three formats:</p><ol><li>a file path (string) to a JSON file,</li><li>a <code>Dict</code>, or</li><li>using the <code>MPCInputs</code> struct</li></ol><p>The accepted keys for the JSON file or <code>Dict</code> are:</p><ul><li>ElectricLoad</li><li>ElectricTariff</li><li>PV</li><li>ElectricStorage</li><li>Financial</li><li>Generator</li><li>ElectricUtility</li><li>Settings</li></ul><p>The simplest scenario does not have any dispatch optimization and is essentially a cost &quot;calculator&quot;:</p><pre><code class="language-javascript">{
+    &quot;ElectricLoad&quot;: {
+        &quot;loads_kw&quot;: [10.0, 11.0, 12.0]
+    },
+    &quot;ElectricTariff&quot;: {
+        &quot;energy_rates&quot;: [0.1, 0.2, 0.3]
+    }
+}</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>The <code>ElectricLoad.loads_kw</code> can have an arbitrary length, but its length must be the same lengths as many other inputs such as the <code>MPCElectricTariff.energy_rates</code> and the <code>PV.production_factor_series</code>.</p></div></div><p>Here is a more complex <code>MPCScenario</code>, which is used in <a href="../examples/#MPC-Examples">MPC Examples</a>:</p><pre><code class="language-javascript">{
+    &quot;PV&quot;: {
+        &quot;size_kw&quot;: 150,
+        &quot;production_factor_series&quot;: [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.05,
+            0.10,
+            0.15,
+            0.30,
+            0.6,
+            0.5,
+            0.3,
+            0.02,
+            0.01,
+            0.005,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    &quot;ElectricStorage&quot;: {
+        &quot;size_kw&quot;: 30.0,
+        &quot;size_kwh&quot;: 60.0,
+        &quot;can_grid_charge&quot;: true
+    },
+    &quot;ElectricLoad&quot;: {
+        &quot;loads_kw&quot;: [
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100
+        ]
+    },
+    &quot;ElectricTariff&quot;: {
+        &quot;energy_rates&quot;: [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.15,
+            0.2,
+            0.2,
+            0.2,
+            0.3,
+            0.2,
+            0.2,
+            0.2,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+        ],
+        &quot;monthly_demand_rates&quot;: [10.0],
+        &quot;monthly_previous_peak_demands&quot;: [98.0],
+        &quot;tou_demand_rates&quot;: [0.0, 15.0],
+        &quot;tou_demand_time_steps&quot;: [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 
+            [16, 17, 18, 19, 20, 21, 22, 23, 24]
+        ],
+        &quot;tou_previous_peak_demands&quot;: [98.0, 97.0],
+        &quot;net_metering&quot;: false,
+        &quot;export_rates&quot;: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
+            0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+    }
+}</code></pre><h1 id="MPC-Input-Structures"><a class="docs-heading-anchor" href="#MPC-Input-Structures">MPC Input Structures</a><a id="MPC-Input-Structures-1"></a><a class="docs-heading-anchor-permalink" href="#MPC-Input-Structures" title="Permalink"></a></h1><p>Note that the keys of the input <code>Dict</code> or JSON file do not need the <code>MPC</code> prefix. </p><h2 id="MPCElectricTariff"><a class="docs-heading-anchor" href="#MPCElectricTariff">MPCElectricTariff</a><a id="MPCElectricTariff-1"></a><a class="docs-heading-anchor-permalink" href="#MPCElectricTariff" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCElectricTariff-Tuple{Dict}" href="#REopt.MPCElectricTariff-Tuple{Dict}"><code>REopt.MPCElectricTariff</code></a> — <span class="docstring-category">Method</span></header><section><div><pre><code class="language-julia">MPCElectricTariff(d::Dict)</code></pre><p>function for parsing user inputs into </p><pre><code class="language-julia">    struct MPCElectricTariff
+        monthly_previous_peak_demands::Array{Float64,1}
+        energy_rates::Array{Float64,1} 
+
+        monthly_demand_rates::Array{Float64,1}
+        time_steps_monthly::Array{Array{Int64,1},1}  # length = 0 or 12
+
+        tou_demand_rates::Array{Float64,1}
+        tou_demand_ratchet_time_steps::Array{Array{Int64,1},1}  # length = n_tou_demand_ratchets
+        tou_previous_peak_demands::Array{Float64,1}
+
+        fixed_monthly_charge::Float64
+        annual_min_charge::Float64
+        min_monthly_charge::Float64
+
+        export_rates::DenseAxisArray{Array{Float64,1}}
+        export_bins::Array{Symbol,1}
+    end</code></pre><p>Keys for <code>d</code> include:</p><ul><li><p><code>energy_rates</code></p><ul><li>REQUIRED</li><li>must have length equal to <code>ElectricLoad.loads_kw</code></li></ul></li><li><p><code>monthly_demand_rates</code></p><ul><li>default = [0]</li></ul></li><li><p><code>time_steps_monthly</code></p><ul><li>array of arrays for integer time steps that the <code>monthly_demand_rates</code> apply to</li><li>default = [collect(1:length(energy_rates))]</li></ul></li><li><p><code>monthly_previous_peak_demands</code></p><ul><li>default = [0]</li></ul></li><li><p><code>tou_demand_rates</code></p><ul><li>an array of time-of-use demand rates</li><li>must have length equal to <code>tou_demand_time_steps</code></li><li>default = []</li></ul></li><li><p><code>tou_demand_time_steps</code></p><ul><li>an array of arrays for the integer time steps that apply to the <code>tou_demand_rates</code></li><li>default = []</li></ul></li><li><p><code>tou_previous_peak_demands</code></p><ul><li>an array of the previous peak demands set in each time-of-use demand period</li><li>must have length equal to <code>tou_demand_time_steps</code></li><li>default = []</li></ul></li><li><p><code>net_metering</code></p><ul><li>boolean, if <code>true</code> then customer DER export is compensated at the <code>energy_rates</code></li></ul></li><li><p><code>export_rates</code></p><ul><li>can be a &lt;:Real or Array{&lt;:Real, 1}, or not provided</li><li>if provided, customer DER export is compensated at the <code>export_rates</code></li></ul></li></ul><p>NOTE: if both <code>net_metering=true</code> and <code>export_rates</code> are provided then the model can choose from either option.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L73-L145">source</a></section></article><h2 id="MPCElectricLoad"><a class="docs-heading-anchor" href="#MPCElectricLoad">MPCElectricLoad</a><a id="MPCElectricLoad-1"></a><a class="docs-heading-anchor-permalink" href="#MPCElectricLoad" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCElectricLoad" href="#REopt.MPCElectricLoad"><code>REopt.MPCElectricLoad</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCElectricLoad
+
+Base.@kwdef struct MPCElectricLoad
+    loads_kw::Array{Real,1}
+    critical_loads_kw::Union{Nothing, Array{Real,1}} = nothing
+end</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L2-L9">source</a></section></article><h2 id="MPCElectricStorage"><a class="docs-heading-anchor" href="#MPCElectricStorage">MPCElectricStorage</a><a id="MPCElectricStorage-1"></a><a class="docs-heading-anchor-permalink" href="#MPCElectricStorage" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCElectricStorage" href="#REopt.MPCElectricStorage"><code>REopt.MPCElectricStorage</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCElectricStorage</code></pre><pre><code class="language-julia">Base.@kwdef struct MPCElectricStorage &lt; AbstractElectricStorage
+    size_kw::Float64
+    size_kwh::Float64
+    charge_efficiency::Float64 =  0.96 * 0.975^2
+    discharge_efficiency::Float64 =  0.96 * 0.975^2
+    soc_min_fraction::Float64 = 0.2
+    soc_init_fraction::Float64 = 0.5
+    can_grid_charge::Bool = true
+    grid_charge_efficiency::Float64 = 0.96 * 0.975^2
+end</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L217-L232">source</a></section></article><h2 id="MPCFinancial"><a class="docs-heading-anchor" href="#MPCFinancial">MPCFinancial</a><a id="MPCFinancial-1"></a><a class="docs-heading-anchor-permalink" href="#MPCFinancial" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCFinancial" href="#REopt.MPCFinancial"><code>REopt.MPCFinancial</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCFinancial
+
+Base.@kwdef struct MPCFinancial
+    value_of_lost_load_per_kwh::Union{Array{R,1}, R} where R&lt;:Real = 1.00
+end</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L16-L22">source</a></section></article><h2 id="MPCPV"><a class="docs-heading-anchor" href="#MPCPV">MPCPV</a><a id="MPCPV-1"></a><a class="docs-heading-anchor-permalink" href="#MPCPV" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCPV" href="#REopt.MPCPV"><code>REopt.MPCPV</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCPV</code></pre><pre><code class="language-julia">Base.@kwdef struct MPCPV
+    name::String=&quot;PV&quot;
+    size_kw::Real = 0
+    production_factor_series::Union{Nothing, Array{Real,1}} = nothing
+end</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L28-L37">source</a></section></article><h2 id="MPCGenerator"><a class="docs-heading-anchor" href="#MPCGenerator">MPCGenerator</a><a id="MPCGenerator-1"></a><a class="docs-heading-anchor-permalink" href="#MPCGenerator" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCGenerator" href="#REopt.MPCGenerator"><code>REopt.MPCGenerator</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCGenerator</code></pre><p>struct with inner constructor:</p><pre><code class="language-julia">function MPCGenerator(;
+    size_kw::Real,
+    fuel_cost_per_gallon::Real = 3.0,
+    electric_efficiency_full_load::Real = 0.3233,
+    electric_efficiency_half_load::Real = electric_efficiency_full_load,
+    fuel_avail_gal::Real = 1.0e9,
+    fuel_higher_heating_value_kwh_per_gal::Real = KWH_PER_GAL_DIESEL,
+    min_turn_down_fraction::Real = 0.0,  # TODO change this to non-zero value
+    only_runs_during_grid_outage::Bool = true,
+    sells_energy_back_to_grid::Bool = false,
+    om_cost_per_kwh::Real=0.0,
+    )</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L248-L266">source</a></section></article><h2 id="MPCSettings"><a class="docs-heading-anchor" href="#MPCSettings">MPCSettings</a><a id="MPCSettings-1"></a><a class="docs-heading-anchor-permalink" href="#MPCSettings" title="Permalink"></a></h2><p>The MPCSettings is the same as the <a href="../../reopt/inputs/#Settings">Settings</a>.</p><h2 id="MPCLimits"><a class="docs-heading-anchor" href="#MPCLimits">MPCLimits</a><a id="MPCLimits-1"></a><a class="docs-heading-anchor-permalink" href="#MPCLimits" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.MPCLimits" href="#REopt.MPCLimits"><code>REopt.MPCLimits</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">MPCLimits</code></pre><p>struct for MPC specific input parameters:</p><ul><li><code>grid_draw_limit_kw_by_time_step::Vector{&lt;:Real}</code> limits for grid power consumption in each time step; length must be same as <code>length(loads_kw)</code>.</li><li><code>export_limit_kw_by_time_step::Vector{&lt;:Real}</code> limits for grid power export in each time step; length must be same as <code>length(loads_kw)</code>.</li></ul><div class="admonition is-category-warn"><header class="admonition-header">Warn</header><div class="admonition-body"><p><code>grid_draw_limit_kw_by_time_step</code> and <code>export_limit_kw_by_time_step</code> values can lead to  infeasible problems. For example, there is a constraint that the electric load must be met in  each time step and by limiting the amount of power from the grid the load balance constraint  could be infeasible.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/mpc/structs.jl#L325-L337">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../examples/">« MPC Examples</a><a class="docs-footer-nextpage" href="../outputs/">MPC Outputs »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 12 February 2026 21:38">Thursday 12 February 2026</span>. Using Julia version 1.10.10.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>REopt Inputs · REopt.jl Documentation</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">REopt.jl Documentation</span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">REopt</span><ul><li><a class="tocitem" href="../examples/">Examples</a></li><li class="is-active"><a class="tocitem" href>REopt Inputs</a><ul class="internal"><li><a class="tocitem" href="#Scenario"><span>Scenario</span></a></li><li><a class="tocitem" href="#BAUScenario"><span>BAUScenario</span></a></li><li><a class="tocitem" href="#Settings"><span>Settings</span></a></li><li><a class="tocitem" href="#Site"><span>Site</span></a></li><li><a class="tocitem" href="#ElectricLoad"><span>ElectricLoad</span></a></li><li><a class="tocitem" href="#ElectricTariff"><span>ElectricTariff</span></a></li><li><a class="tocitem" href="#Financial"><span>Financial</span></a></li><li><a class="tocitem" href="#ElectricUtility"><span>ElectricUtility</span></a></li><li><a class="tocitem" href="#PV"><span>PV</span></a></li><li><a class="tocitem" href="#Wind"><span>Wind</span></a></li><li><a class="tocitem" href="#ElectricStorage"><span>ElectricStorage</span></a></li><li><a class="tocitem" href="#Generator"><span>Generator</span></a></li><li><a class="tocitem" href="#ExistingBoiler"><span>ExistingBoiler</span></a></li><li><a class="tocitem" href="#CHP"><span>CHP</span></a></li><li><a class="tocitem" href="#AbsorptionChiller"><span>AbsorptionChiller</span></a></li><li><a class="tocitem" href="#Boiler"><span>Boiler</span></a></li><li><a class="tocitem" href="#HotThermalStorage"><span>HotThermalStorage</span></a></li><li><a class="tocitem" href="#HighTempThermalStorage"><span>HighTempThermalStorage</span></a></li><li><a class="tocitem" href="#ColdThermalStorage"><span>ColdThermalStorage</span></a></li><li><a class="tocitem" href="#HeatingLoad"><span>HeatingLoad</span></a></li><li><a class="tocitem" href="#CoolingLoad"><span>CoolingLoad</span></a></li><li><a class="tocitem" href="#FlexibleHVAC"><span>FlexibleHVAC</span></a></li><li><a class="tocitem" href="#ExistingChiller"><span>ExistingChiller</span></a></li><li><a class="tocitem" href="#GHP"><span>GHP</span></a></li><li><a class="tocitem" href="#SteamTurbine"><span>SteamTurbine</span></a></li><li><a class="tocitem" href="#ElectricHeater"><span>ElectricHeater</span></a></li><li><a class="tocitem" href="#ASHP"><span>ASHP</span></a></li><li><a class="tocitem" href="#CST"><span>CST</span></a></li></ul></li><li><a class="tocitem" href="../outputs/">Outputs</a></li><li><a class="tocitem" href="../methods/">Methods</a></li></ul></li><li><span class="tocitem">Model Predictive Control</span><ul><li><a class="tocitem" href="../../mpc/examples/">MPC Examples</a></li><li><a class="tocitem" href="../../mpc/inputs/">MPC Inputs</a></li><li><a class="tocitem" href="../../mpc/outputs/">MPC Outputs</a></li><li><a class="tocitem" href="../../mpc/methods/">Methods</a></li></ul></li><li><span class="tocitem">Developer</span><ul><li><a class="tocitem" href="../../developer/concept/">Design Concepts for the REopt Module</a></li><li><a class="tocitem" href="../../developer/organization/">File Organization</a></li><li><a class="tocitem" href="../../developer/inputs/">The REoptInputs structure</a></li><li><a class="tocitem" href="../../developer/adding_tech/">Adding a Technology</a></li><li><a class="tocitem" href="../../developer/documentation/">Documenting the Code</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">REopt</a></li><li class="is-active"><a href>REopt Inputs</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>REopt Inputs</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/NatLabRockies/REopt.jl/blob/master/docs/src/reopt/inputs.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="REopt-Inputs"><a class="docs-heading-anchor" href="#REopt-Inputs">REopt Inputs</a><a id="REopt-Inputs-1"></a><a class="docs-heading-anchor-permalink" href="#REopt-Inputs" title="Permalink"></a></h1><p>Inputs to the <code>run_reopt</code> function can be provided in one of four formats:</p><ol><li>a file path (string) to a JSON file,</li><li>a <code>Dict</code>, </li><li>using the <code>Scenario</code> struct, or</li><li>using the <code>REoptInputs</code> struct</li></ol><p>Any one of these types can be passed to the <a href="../methods/#run_reopt">run_reopt</a> method as shown in <a href="../examples/#Examples">Examples</a>.</p><p>The first option is perhaps the most straightforward. For example, the minimum requirements for a JSON scenario file would look like:</p><pre><code class="language-javascript">{
+    &quot;Site&quot;: {
+        &quot;longitude&quot;: -118.1164613,
+        &quot;latitude&quot;: 34.5794343
+    },
+    &quot;ElectricLoad&quot;: {
+        &quot;doe_reference_name&quot;: &quot;MidriseApartment&quot;,
+        &quot;annual_kwh&quot;: 1000000.0
+    },
+    &quot;ElectricTariff&quot;: {
+        &quot;urdb_label&quot;: &quot;5ed6c1a15457a3367add15ae&quot;
+    }
+}</code></pre><p>The order of the keys does not matter. Note that this scenario does not include any energy generation technologies and therefore the results can be used as a baseline for comparison to scenarios that result in cost-optimal generation technologies (alternatively, a user could include a <a href="#BAUScenario">BAUScenario</a> as shown in <a href="../examples/#Examples">Examples</a>).</p><p>To add PV to the analysis simply add a PV key with an empty dictionary (to use default values):</p><pre><code class="language-javascript">{
+    &quot;Site&quot;: {
+        &quot;longitude&quot;: -118.1164613,
+        &quot;latitude&quot;: 34.5794343
+    },
+    &quot;ElectricLoad&quot;: {
+        &quot;doe_reference_name&quot;: &quot;MidriseApartment&quot;,
+        &quot;annual_kwh&quot;: 1000000.0
+    },
+    &quot;ElectricTariff&quot;: {
+        &quot;urdb_label&quot;: &quot;5ed6c1a15457a3367add15ae&quot;
+    },
+    &quot;PV&quot;: {}
+}</code></pre><p>This scenario will consider the option to purchase a solar PV system to reduce energy costs, and if solar PV can reduce the energy costs then REopt will provide the optimal PV capacity (assuming perfect foresight!). See <a href="#PV">PV</a> for all available input keys and default values for <code>PV</code>. To override a default value, simply specify a value for a given key. For example, the site under consideration might have some existing PV capacity to account for, which can be done by setting the <code>existing_kw</code> key to the appropriate value.</p><h2 id="Scenario"><a class="docs-heading-anchor" href="#Scenario">Scenario</a><a id="Scenario-1"></a><a class="docs-heading-anchor-permalink" href="#Scenario" title="Permalink"></a></h2><p>The <code>Scenario</code> struct captures all of the possible user input keys (see <a href="#REopt-Inputs">REopt Inputs</a> for potential input formats). A Scenario struct will be automatically created if a <code>Dict</code> or file path are supplied to the <a href="../methods/#run_reopt">run_reopt</a> method. Alternatively, a user can create a <code>Scenario</code> struct and supply this to <a href="../methods/#run_reopt">run_reopt</a>. </p><article class="docstring"><header><a class="docstring-binding" id="REopt.Scenario" href="#REopt.Scenario"><code>REopt.Scenario</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">Scenario(d::Dict; flex_hvac_from_json=false)</code></pre><p>A Scenario struct can contain the following keys:</p><ul><li><a href="#Site">Site</a> (required)</li><li><a href="#Financial">Financial</a> (optional)</li><li><a href="#ElectricTariff">ElectricTariff</a> (required when <code>off_grid_flag=false</code>)</li><li><a href="#ElectricLoad">ElectricLoad</a> (required)</li><li><a href="#PV">PV</a> (optional, can be Array)</li><li><a href="#Wind">Wind</a> (optional)</li><li><a href="#ElectricStorage">ElectricStorage</a> (optional)</li><li><a href="#HotThermalStorage">HotThermalStorage</a> (optional)</li><li><a href="#HighTempThermalStorage">HighTempThermalStorage</a> (optional)</li><li><a href="#ColdThermalStorage">ColdThermalStorage</a> (optional)</li><li><a href="#ElectricStorage">ElectricStorage</a> (optional)</li><li><a href="#ElectricUtility">ElectricUtility</a> (optional)</li><li><a href="#Generator">Generator</a> (optional)</li><li><a href="#HeatingLoad">HeatingLoad</a> (optional)</li><li><a href="#CoolingLoad">CoolingLoad</a> (optional)</li><li><a href="#ExistingBoiler">ExistingBoiler</a> (optional)</li><li><a href="#Boiler">Boiler</a> (optional)</li><li><a href="#CHP">CHP</a> (optional)</li><li><a href="#FlexibleHVAC">FlexibleHVAC</a> (optional)</li><li><a href="#ExistingChiller">ExistingChiller</a> (optional)</li><li><a href="#AbsorptionChiller">AbsorptionChiller</a> (optional)</li><li><a href="#GHP">GHP</a> (optional, can be Array)</li><li><a href="#SteamTurbine">SteamTurbine</a> (optional)</li><li><a href="#ElectricHeater">ElectricHeater</a> (optional)</li><li><a href="#CST">CST</a> (optional)</li><li><a href="reopt/@ref">ASHPSpaceHeater</a> (optional)</li><li><a href="reopt/@ref">ASHPWaterHeater</a> (optional)</li></ul><p>All values of <code>d</code> are expected to be <code>Dicts</code> except for <code>PV</code> and <code>GHP</code>, which can be either a <code>Dict</code> or <code>Dict[]</code> (for multiple PV arrays or GHP options).</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Set <code>flex_hvac_from_json=true</code> if <code>FlexibleHVAC</code> values were loaded in from JSON (necessary to  handle conversion of Vector of Vectors from JSON to a Matrix in Julia).</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/scenario.jl#L33-L70">source</a></section><section><div><pre><code class="language-none">Scenario(fp::String)</code></pre><p>Consruct Scenario from filepath <code>fp</code> to JSON with keys aligned with the <code>Scenario(d::Dict)</code> method.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/scenario.jl#L1050-L1054">source</a></section></article><h2 id="BAUScenario"><a class="docs-heading-anchor" href="#BAUScenario">BAUScenario</a><a id="BAUScenario-1"></a><a class="docs-heading-anchor-permalink" href="#BAUScenario" title="Permalink"></a></h2><p>The Business-as-usual (BAU) inputs are automatically created based on the <code>BAUScenario</code> struct when a user supplies two <code>JuMP.Model</code>s to <code>run_reopt()</code> (as shown in <a href="../examples/#Examples">Examples</a>). The outputs of the BAU scenario are used to calculate comparative results such as the <code>Financial</code> net present value (<code>npv</code>).</p><article class="docstring"><header><a class="docstring-binding" id="REopt.BAUInputs" href="#REopt.BAUInputs"><code>REopt.BAUInputs</code></a> — <span class="docstring-category">Function</span></header><section><div><pre><code class="language-julia">BAUInputs(p::REoptInputs)</code></pre><p>The<code>BAUInputs</code> (REoptInputs for the Business As Usual scenario) are created based on the <code>BAUScenario</code>, which is in turn created based on the optimized-case <code>Scenario</code>.</p><p>The following assumptions are made for the BAU Inputs: </p><ul><li><code>PV</code> and <code>Generator</code> <code>min_kw</code> and <code>max_kw</code> set to the <code>existing_kw</code> values</li><li><code>ExistingBoiler</code> and <code>ExistingChiller</code>  # TODO</li><li>All other generation and storage tech sizes set to zero </li><li>Capital costs are assumed to be zero for existing <code>PV</code> and <code>Generator</code></li><li>O&amp;M costs and all other tech inputs are assumed to be the same for existing <code>PV</code> and <code>Generator</code> as those specified for the optimized case</li><li>Outage assumptions for deterministic vs stochastic # TODO </li></ul></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/bau_inputs.jl#L2-L14">source</a></section></article><h2 id="Settings"><a class="docs-heading-anchor" href="#Settings">Settings</a><a id="Settings-1"></a><a class="docs-heading-anchor-permalink" href="#Settings" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Settings" href="#REopt.Settings"><code>REopt.Settings</code></a> — <span class="docstring-category">Type</span></header><section><div><p>Captures high-level inputs affecting the optimization.</p><p><code>Settings</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    time_steps_per_hour::Int = 1 # corresponds to the time steps per hour for user-provided time series (e.g., `ElectricLoad.loads_kw` and `DomesticHotWaterLoad.fuel_loads_mmbtu_per_hour`) 
+    add_soc_incentive::Bool = true # when true, an incentive is added to the model&#39;s objective function to keep the ElectricStorage SOC high
+    off_grid_flag::Bool = false # true if modeling an off-grid system, not connected to bulk power system
+    include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model&#39;s objective function
+    include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model&#39;s objective function
+    solver_name::String = &quot;HiGHS&quot; # solver used to obtain a solution to model instance. available options: [&quot;HiGHS&quot;, &quot;Cbc&quot;, &quot;CPLEX&quot;, &quot;Xpress&quot;]</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/settings.jl#L2-L14">source</a></section></article><h2 id="Site"><a class="docs-heading-anchor" href="#Site">Site</a><a id="Site-1"></a><a class="docs-heading-anchor-permalink" href="#Site" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Site" href="#REopt.Site"><code>REopt.Site</code></a> — <span class="docstring-category">Type</span></header><section><div><p>Inputs related to the physical location:</p><p><code>Site</code> is a required REopt input with the following keys and default values:</p><pre><code class="language-julia">    latitude::Real, 
+    longitude::Real, 
+    land_acres::Union{Real, Nothing} = nothing, # acres of land available for PV panels and/or Wind turbines. Constraint applied separately to PV and Wind, meaning the two technologies are assumed to be able to be co-located.
+    roof_squarefeet::Union{Real, Nothing} = nothing,
+    min_resil_time_steps::Int=0, # The minimum number consecutive timesteps that load must be fully met once an outage begins. Only applies to multiple outage modeling using inputs outage_start_time_steps and outage_durations.
+    mg_tech_sizes_equal_grid_sizes::Bool = true,
+    sector::String = &quot;commercial/industrial&quot;, # available options: [&quot;commercial/industrial&quot;, &quot;federal&quot;]
+    federal_sector_state::String = &quot;&quot;,
+    federal_procurement_type::String = &quot;&quot;,
+    CO2_emissions_reduction_min_fraction::Union{Float64, Nothing} = nothing,
+    CO2_emissions_reduction_max_fraction::Union{Float64, Nothing} = nothing,
+    bau_emissions_lb_CO2_per_year::Union{Float64, Nothing} = nothing, # Auto-populated based on BAU run. This input will be overwritten if the BAU scenario is run, but can be user-provided if no BAU scenario is run.
+    bau_grid_emissions_lb_CO2_per_year::Union{Float64, Nothing} = nothing,
+    renewable_electricity_min_fraction::Union{Float64, Nothing} = nothing,
+    renewable_electricity_max_fraction::Union{Float64, Nothing} = nothing,
+    include_grid_renewable_fraction_in_RE_constraints::Bool = false,
+    include_exported_elec_emissions_in_total::Bool = true,
+    include_exported_renewable_electricity_in_total::Bool = true,
+    outdoor_air_temperature_degF::Union{Nothing, Array{&lt;:Real,1}} = nothing,
+    node::Int = 1,</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/site.jl#L2-L28">source</a></section></article><h2 id="ElectricLoad"><a class="docs-heading-anchor" href="#ElectricLoad">ElectricLoad</a><a id="ElectricLoad-1"></a><a class="docs-heading-anchor-permalink" href="#ElectricLoad" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ElectricLoad" href="#REopt.ElectricLoad"><code>REopt.ElectricLoad</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>ElectricLoad</code> is a required REopt input with the following keys and default values:</p><pre><code class="language-julia">    loads_kw::Array{&lt;:Real,1} = Real[],
+    normalize_and_scale_load_profile_input::Bool = false,  # Takes loads_kw and normalizes and scales it to annual_kwh, monthly_totals_kwh, or monthly_peaks_kw
+    path_to_csv::String = &quot;&quot;, # for csv containing loads_kw
+    doe_reference_name::String = &quot;&quot;,
+    blended_doe_reference_names::Array{String, 1} = String[],
+    blended_doe_reference_percents::Array{&lt;:Real,1} = Real[], # Values should be between 0-1 and sum to 1.0
+    year::Union{Int, Nothing} = doe_reference_name ≠ &quot;&quot; || blended_doe_reference_names ≠ String[] ? 2017 : nothing, # used in ElectricTariff to align rate schedule with weekdays/weekends. DOE CRB profiles defaults to using 2017. If providing load data, specify year of data.
+    city::String = &quot;&quot;,
+    annual_kwh::Union{Real, Nothing} = nothing, # scales the load profile to this annual energy. Can apply to either loads_kw (if normalize_and_scale_load_profile_input=true) or doe_reference loads
+    monthly_totals_kwh::Array{&lt;:Real,1} = Real[], # scales the load profile to these monthly energy totals. Must provide 12 values. Can apply to either loads_kw (if normalize_and_scale_load_profile_input=true) or doe_reference loads
+    monthly_peaks_kw::Array{&lt;:Real,1} = Real[], # scales the load profile to these monthly peak loads. Can apply to either loads_kw (if normalize_and_scale_load_profile_input=true) or doe_reference loads
+    critical_loads_kw::Union{Nothing, Array{Real,1}} = nothing,
+    loads_kw_is_net::Bool = true, # set to true if loads_kw is already net of on-site electricity generation.
+    critical_loads_kw_is_net::Bool = false, # set to true if critical_loads_kw is already net of on-site electricity generation.
+    critical_load_fraction::Real = off_grid_flag ? 1.0 : 0.5, # fractional input is applied to the typical load profile to determine critical loads.
+    operating_reserve_required_fraction::Real = off_grid_flag ? 0.1 : 0.0, # if off grid, 10%, else must be 0%. Applied to each time_step as a % of electric load.
+    min_load_met_annual_fraction::Real = off_grid_flag ? 0.99999 : 1.0 # if off grid, 99.999%, else must be 100%. Applied to each time_step as a % of electric load.</code></pre><div class="admonition is-info"><header class="admonition-header">Required inputs</header><div class="admonition-body"><p>Must provide either <code>loads_kw</code> or <code>path_to_csv</code> or [<code>doe_reference_name</code> and <code>city</code>] or <code>doe_reference_name</code> or [<code>blended_doe_reference_names</code> and <code>blended_doe_reference_percents</code>]. </p><p>When only <code>doe_reference_name</code> is provided the <code>Site.latitude</code> and <code>Site.longitude</code> are used to look up the ASHRAE climate zone, which determines the appropriate DoE Commercial Reference Building profile.</p><p>When using the [<code>doe_reference_name</code> and <code>city</code>] option, choose <code>city</code> from one of the cities used to represent the ASHRAE climate zones:</p><ul><li>Albuquerque</li><li>Atlanta</li><li>Baltimore</li><li>Boulder</li><li>Chicago</li><li>Duluth</li><li>Fairbanks</li><li>Helena</li><li>Houston</li><li>LosAngeles</li><li>LasVegas</li><li>Miami</li><li>Minneapolis</li><li>Phoenix</li><li>SanFrancisco</li><li>Seattle</li></ul><p>and <code>doe_reference_name</code> from:</p><ul><li>FastFoodRest</li><li>FullServiceRest</li><li>Hospital</li><li>LargeHotel</li><li>LargeOffice</li><li>MediumOffice</li><li>MidriseApartment</li><li>Outpatient</li><li>PrimarySchool</li><li>RetailStore</li><li>SecondarySchool</li><li>SmallHotel</li><li>SmallOffice</li><li>StripMall</li><li>Supermarket</li><li>Warehouse</li><li>FlatLoad # constant load year-round</li><li>FlatLoad<em>24</em>5 # constant load all hours of the weekdays</li><li>FlatLoad<em>16</em>7 # two 8-hour shifts for all days of the year; 6-10 a.m.</li><li>FlatLoad<em>16</em>5 # two 8-hour shifts for the weekdays; 6-10 a.m.</li><li>FlatLoad<em>8</em>7 # one 8-hour shift for all days of the year; 9 a.m.-5 p.m.</li><li>FlatLoad<em>8</em>5 # one 8-hour shift for the weekdays; 9 a.m.-5 p.m.</li></ul><p>Each <code>city</code> and <code>doe_reference_name</code> combination has a default <code>annual_kwh</code>, or you can provide your own <code>annual_kwh</code> or <code>monthly_totals_kwh</code> and the reference profile will be scaled appropriately.</p></div></div><div class="admonition is-info"><header class="admonition-header">Year</header><div class="admonition-body"><p>The ElectricLoad <code>year</code> is used in ElectricTariff to align rate schedules with weekdays/weekends. If providing your own <code>loads_kw</code>, ensure the <code>year</code> matches the year of your data. If utilizing <code>doe_reference_name</code> or <code>blended_doe_reference_names</code>, the default year of 2017 is used because these load profiles start on a Sunday.</p></div></div><div class="admonition is-info"><header class="admonition-header">Net Load and Load Scaling Considerations</header><div class="admonition-body"><p>If <code>loads_kw</code> is already net of on-site generation and you are modeling an existing generation source in REopt (e.g., PV), set <code>loads_kw_is_net=true</code> (default).  If <code>loads_kw</code> is net and you are additionally using <code>normalize_and_scale_load_profile_input</code> along with <code>annual_kwh</code> or <code>monthly_totals_kwh</code>, the scaling will be applied  to the net loads and the annual or monthly values you supply should also be net. </p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/electric_load.jl#L2-L82">source</a></section></article><h2 id="ElectricTariff"><a class="docs-heading-anchor" href="#ElectricTariff">ElectricTariff</a><a id="ElectricTariff-1"></a><a class="docs-heading-anchor-permalink" href="#ElectricTariff" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ElectricTariff-Tuple{}" href="#REopt.ElectricTariff-Tuple{}"><code>REopt.ElectricTariff</code></a> — <span class="docstring-category">Method</span></header><section><div><p><code>ElectricTariff</code> is a required REopt input for on-grid scenarios only (it cannot be supplied when <code>Settings.off_grid_flag</code> is true) with the following keys and default values:</p><pre><code class="language-julia">    urdb_label::String=&quot;&quot;,
+    urdb_response::Dict=Dict(), # Response JSON for URDB rates. Note: if creating your own urdb_response, ensure periods are zero-indexed.
+    urdb_utility_name::String=&quot;&quot;,
+    urdb_rate_name::String=&quot;&quot;,
+    urdb_metadata::Dict=Dict(), # Meta data about the URDB rate, from the URDB API response
+    wholesale_rate::T1=nothing, # Price of electricity sold back to the grid in absence of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour.
+    export_rate_beyond_net_metering_limit::T2=nothing, # Price of electricity sold back to the grid beyond total annual grid purchases, regardless of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour
+    monthly_energy_rates::Array=[], # Array (length of 12) of blended energy rates in dollars per kWh
+    monthly_demand_rates::Array=[], # Array (length of 12) of blended demand charges in dollars per kW
+    blended_annual_energy_rate::S=nothing, # Annual blended energy rate [$ per kWh] (total annual energy in kWh divided by annual cost in dollars)
+    blended_annual_demand_rate::R=nothing, # Average monthly demand charge [$ per kW per month]. Rate will be applied to monthly peak demand.
+    add_monthly_rates_to_urdb_rate::Bool=false, # Set to &#39;true&#39; to add the monthly blended energy rates and demand charges to the URDB rate schedule. Otherwise, blended rates will only be considered if a URDB rate is not provided.
+    tou_energy_rates_per_kwh::Array=[], # Time-of-use energy rates, provided by user. Must be an array with length equal to number of timesteps per year.
+    add_tou_energy_rates_to_urdb_rate::Bool=false, # Set to &#39;true&#39; to add the tou  energy rates to the URDB rate schedule. Otherwise, tou energy rates will only be considered if a URDB rate is not provided.
+    remove_tiers::Bool=false,
+    demand_lookback_months::AbstractArray{Int64, 1}=Int64[], # Array of 12 binary values, indicating months in which `demand_lookback_percent` applies. If any of these is true, `demand_lookback_range` should be zero.
+    demand_lookback_percent::Real=0.0, # Lookback percentage. Applies to either `demand_lookback_months` with value=1, or months in `demand_lookback_range`.
+    demand_lookback_range::Int=0, # Number of months for which `demand_lookback_percent` applies. If not 0, `demand_lookback_months` should not be supplied.
+    coincident_peak_load_active_time_steps::Vector{Vector{Int64}}=[Int64[]], # The optional coincident_peak_load_charge_per_kw will apply at the max grid-purchased power during these timesteps. Note timesteps are indexed to a base of 1 not 0.
+    coincident_peak_load_charge_per_kw::AbstractVector{&lt;:Real}=Real[] # Optional coincident peak demand charge that is applied to the max load during the timesteps specified in coincident_peak_load_active_time_steps.
+    ) where {
+        T1 &lt;: Union{Nothing, Real, Array{&lt;:Real}}, 
+        T2 &lt;: Union{Nothing, Real, Array{&lt;:Real}}, 
+        S &lt;: Union{Nothing, Real}, 
+        R &lt;: Union{Nothing, Real}
+    }</code></pre><div class="admonition is-info"><header class="admonition-header">Export Rates</header><div class="admonition-body"><p>There are three Export tiers and their associated export rates (negative cost values):</p><ol><li>NEM (Net Energy Metering) - set to the energy rate (or tier with the lowest energy rate, if tiered) </li><li>WHL (Wholesale) - set to wholesale_rate</li><li>EXC (Excess, beyond NEM) - set to export<em>rate</em>beyond<em>net</em>metering_limit</li></ol><p>Only one of NEM and Wholesale can be exported into due to the binary constraints. Excess can be exported into in the same time step as NEM.</p><p>Excess is meant to be combined with NEM: NEM export is limited to the total grid purchased energy in a year and some utilities offer a compensation mechanism for export beyond the site load. The Excess tier is not available with the Wholesale tier.</p></div></div><div class="admonition is-info"><header class="admonition-header">NEM input</header><div class="admonition-body"><p>The <code>NEM</code> boolean is determined by the <code>ElectricUtility.net_metering_limit_kw</code>. There is no need to pass in a <code>NEM</code> value.</p></div></div><div class="admonition is-info"><header class="admonition-header">Demand Lookback Inputs</header><div class="admonition-body"><p>Cannot use both <code>demand_lookback_months</code> and <code>demand_lookback_range</code> inputs, only one or the other. When using lookbacks, the peak demand in each month will be the greater of the peak kW in that month and the peak kW in the lookback months times the demand<em>lookback</em>percent. </p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/electric_tariff.jl#L44-L94">source</a></section></article><h2 id="Financial"><a class="docs-heading-anchor" href="#Financial">Financial</a><a id="Financial-1"></a><a class="docs-heading-anchor-permalink" href="#Financial" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Financial" href="#REopt.Financial"><code>REopt.Financial</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>Financial</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    om_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;om_cost_escalation_rate_fraction&quot;, 0.025),
+    elec_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;elec_cost_escalation_rate_fraction&quot;, 0.0166),
+    existing_boiler_fuel_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;existing_boiler_fuel_cost_escalation_rate_fraction&quot;, 0.0348),
+    boiler_fuel_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;boiler_fuel_cost_escalation_rate_fraction&quot;, 0.0348),
+    chp_fuel_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;chp_fuel_cost_escalation_rate_fraction&quot;, 0.0348),
+    generator_fuel_cost_escalation_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;generator_fuel_cost_escalation_rate_fraction&quot;, 0.0197),
+    offtaker_tax_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;offtaker_tax_rate_fraction&quot;, 0.26),
+    offtaker_discount_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;offtaker_discount_rate_fraction&quot;, 0.0624),
+    third_party_ownership::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;third_party_ownership&quot;, false),
+    owner_tax_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;owner_tax_rate_fraction&quot;, 0.26),
+    owner_discount_rate_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, federal_sector_state=federal_sector_state, struct_name=&quot;Financial&quot;), &quot;owner_discount_rate_fraction&quot;, 0.0624),
+    analysis_years::Int = 25,
+    value_of_lost_load_per_kwh::Union{Array{R,1}, R} where R&lt;:Real = 1.00, #only applies to multiple outage modeling
+    microgrid_upgrade_cost_fraction::Real = 0.0
+    macrs_five_year::Array{Float64,1} = [0.2, 0.32, 0.192, 0.1152, 0.1152, 0.0576],  # IRS pub 946
+    macrs_seven_year::Array{Float64,1} = [0.1429, 0.2449, 0.1749, 0.1249, 0.0893, 0.0892, 0.0893, 0.0446],
+    offgrid_other_capital_costs::Real = 0.0, # only applicable when `off_grid_flag` is true. Straight-line depreciation is applied to this capex cost, reducing taxable income.
+    offgrid_other_annual_costs::Real = 0.0 # only applicable when `off_grid_flag` is true. Considered tax deductible for owner. Costs are per year.
+    min_initial_capital_costs_before_incentives::Union{Nothing,Real} = nothing # minimum up-front capital cost for all technologies, excluding replacement costs and incentives.
+    max_initial_capital_costs_before_incentives::Union{Nothing,Real} = nothing # maximum up-front capital cost for all technologies, excluding replacement costs and incentives.
+    # Emissions cost inputs
+    CO2_cost_per_tonne::Real = 51.0,
+    CO2_cost_escalation_rate_fraction::Real = 0.042173,
+    NOx_grid_cost_per_tonne::Union{Nothing,Real} = nothing,
+    SO2_grid_cost_per_tonne::Union{Nothing,Real} = nothing,
+    PM25_grid_cost_per_tonne::Union{Nothing,Real} = nothing,
+    NOx_onsite_fuelburn_cost_per_tonne::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
+    SO2_onsite_fuelburn_cost_per_tonne::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
+    PM25_onsite_fuelburn_cost_per_tonne::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
+    NOx_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
+    SO2_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
+    PM25_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing # Default data from EASIUR based on location</code></pre><div class="admonition is-info"><header class="admonition-header">Third party financing</header><div class="admonition-body"><p>When <code>third_party_ownership</code> is <code>false</code> the offtaker&#39;s discount and tax percentages are used throughout the model:</p><pre><code class="language-julia">    if !third_party_ownership
+        owner_tax_rate_fraction = offtaker_tax_rate_fraction
+        owner_discount_rate_fraction = offtaker_discount_rate_fraction
+    end</code></pre></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/financial.jl#L2-L47">source</a></section></article><h2 id="ElectricUtility"><a class="docs-heading-anchor" href="#ElectricUtility">ElectricUtility</a><a id="ElectricUtility-1"></a><a class="docs-heading-anchor-permalink" href="#ElectricUtility" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ElectricUtility" href="#REopt.ElectricUtility"><code>REopt.ElectricUtility</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>ElectricUtility</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    net_metering_limit_kw::Real = 0, # Upper limit on the total capacity of technologies that can participate in net metering agreement.
+    interconnection_limit_kw::Real = 1.0e9, # Limit on total electric system capacity size that can be interconnected to the grid 
+    allow_simultaneous_export_import::Bool = true,  # if true the site has two meters (in effect). Set to false if the export rate is greater than the cost of energy (otherwise, REopt will export before meeting site load).
+    
+    # Single Outage Modeling Inputs (Outage Modeling Option 1):
+    outage_start_time_step::Int=0,  # for modeling a single outage, with critical load spliced into the baseline load ...
+    outage_end_time_step::Int=0,  # ... utility production_factor = 0 during the outage
+        
+    # Multiple Outage Modeling Inputs (Outage Modeling Option 2): 
+    # minimax the expected outage cost, with max taken over outage start time, expectation taken over outage duration
+    outage_start_time_steps::Array{Int,1}=Int[],  # we minimize the maximum outage cost over outage start times
+    outage_durations::Array{Int,1}=Int[],  # One-to-one with outage_probabilities. Outage_durations can be a random variable, and should be in timesteps aligning with time_steps_per_hour (e.g., duration of 4 equates to 1 hour if time_steps_per_hour is 4)
+    outage_probabilities::Array{R,1} where R&lt;:Real = [1.0],
+    
+    ### Cambium Emissions and Clean Energy Inputs ###
+    cambium_scenario::String = &quot;Mid-case&quot;, # Cambium Scenario for evolution of electricity sector (see Cambium documentation for descriptions).
+        ## Options: [&quot;Mid-case&quot;, &quot;Low renewable energy cost&quot;,   &quot;High renewable energy cost&quot;, &quot;High demand growth&quot;,  &quot;Low natural gas prices&quot;, &quot;High natural gas prices&quot;, &quot;Mid-case with 95% decarbonization by 2050&quot;,  &quot;Mid-case with 100% decarbonization by 2035&quot;]
+    cambium_location_type::String =  &quot;GEA Regions 2023&quot;, # Geographic boundary at which emissions and clean energy fraction are calculated. Options: [&quot;Nations&quot;, &quot;GEA Regions 2023&quot;] 
+    cambium_start_year::Int = 2025, # First year of operation of system. Emissions and clean energy fraction will be levelized starting in this year for the duration of cambium_levelization_years. # Options: any year 2025 through 2050.
+    cambium_levelization_years::Int = analysis_years, # Expected lifetime or analysis period of the intervention being studied. Emissions and clean energy fraction will be averaged over this period.
+    cambium_grid_level::String = &quot;enduse&quot;, # Options: [&quot;enduse&quot;, &quot;busbar&quot;]. Busbar refers to point where bulk generating stations connect to grid; enduse refers to point of consumption (includes distribution loss rate). 
+
+    ### Grid Climate Emissions Inputs ### 
+    # Climate Option 1 (Default): Use levelized emissions data from NLR&#39;s Cambium database by specifying the following fields:
+    cambium_co2_metric::String = &quot;lrmer_co2e&quot;, # Emissions metric used. Default: &quot;lrmer_co2e&quot; - Long-run marginal emissions rate for CO2-equivalant, combined combustion and pre-combustion emissions rates. Options: See metric definitions and names in the Cambium documentation
+
+    # Climate Option 2: Use CO2 emissions data from the EPA&#39;s AVERT based on the AVERT emissions region and specify annual percent decrease
+    co2_from_avert::Bool = false, # Default is to use Cambium data for CO2 grid emissions. Set to `true` to instead use data from the EPA&#39;s AVERT database. 
+
+    # Climate Option 3: Provide your own custom emissions factors for CO2 and specify annual percent decrease  
+    emissions_factor_series_lb_CO2_per_kwh::Union{Real,Array{&lt;:Real,1}} = Float64[], # Custom CO2 emissions profile. Can be scalar or timeseries (aligned with time_steps_per_hour). Ensure emissions year aligns with load year.
+
+    # Used with Climate Options 2 or 3: Annual percent decrease in CO2 emissions factors
+    emissions_factor_CO2_decrease_fraction::Union{Nothing, Real} = co2_from_avert || length(emissions_factor_series_lb_CO2_per_kwh) &gt; 0  ? EMISSIONS_DECREASE_DEFAULTS[&quot;CO2e&quot;] : nothing , # Annual percent decrease in the total annual CO2 emissions rate of the grid. A negative value indicates an annual increase.
+
+    ### Grid Health Emissions Inputs ###
+    # Health Option 1 (Default): Use health emissions data from the EPA&#39;s AVERT based on the AVERT emissions region and specify annual percent decrease
+    avert_emissions_region::String = &quot;&quot;, # AVERT emissions region. Default is based on location, or can be overriden by providing region here.
+
+    # Health Option 2: Provide your own custom emissions factors for health emissions and specify annual percent decrease:
+    emissions_factor_series_lb_NOx_per_kwh::Union{Real,Array{&lt;:Real,1}} = Float64[], # Custom NOx emissions profile. Can be scalar or timeseries (aligned with time_steps_per_hour). Ensure emissions year aligns with load year.
+    emissions_factor_series_lb_SO2_per_kwh::Union{Real,Array{&lt;:Real,1}} = Float64[], # Custom SO2 emissions profile. Can be scalar or timeseries (aligned with time_steps_per_hour). Ensure emissions year aligns with load year.
+    emissions_factor_series_lb_PM25_per_kwh::Union{Real,Array{&lt;:Real,1}} = Float64[], # Custom PM2.5 emissions profile. Can be scalar or timeseries (aligned with time_steps_per_hour). Ensure emissions year aligns with load year.
+
+    # Used with Health Options 1 or 2: Annual percent decrease in health emissions factors: 
+    emissions_factor_NOx_decrease_fraction::Real = EMISSIONS_DECREASE_DEFAULTS[&quot;NOx&quot;], 
+    emissions_factor_SO2_decrease_fraction::Real = EMISSIONS_DECREASE_DEFAULTS[&quot;SO2&quot;],
+    emissions_factor_PM25_decrease_fraction::Real = EMISSIONS_DECREASE_DEFAULTS[&quot;PM25&quot;]
+
+    ### Grid Clean Energy Fraction Inputs ###
+    cambium_cef_metric::String = &quot;cef_load&quot;, # Options = [&quot;cef_load&quot;, &quot;cef_gen&quot;] # cef_load is the fraction of generation that is clean, for the generation that is allocated to a region’s end-use load; cef_gen is the fraction of generation that is clean within a region
+    renewable_energy_fraction_series::Union{Real,Array{&lt;:Real,1}} = Float64[], # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)</code></pre><div class="admonition is-info"><header class="admonition-header">Outage modeling</header><div class="admonition-body"><h1>Indexing</h1><p>Outage indexing begins at 1 (not 0) and the outage is inclusive of the outage end time step.  For instance, to model a 3-hour outage from 12AM to 3AM on Jan 1, outage<em>start</em>time<em>step = 1 and outage</em>end<em>time</em>step = 3. To model a 1-hour outage from 6AM to 7AM on Jan 1, outage<em>start</em>time<em>step = 7 and outage</em>end<em>time</em>step = 7.</p><h1>Can use either singular or multiple outage modeling inputs, not both</h1><p>Cannot supply singular outage<em>start(or end)</em>time<em>step and multiple outage</em>start<em>time</em>steps. Must use one or the other.</p><h1>Using min<em>resil</em>time_steps to ensure critical load is met</h1><p>With multiple outage modeling, the model will choose to meet the critical loads only as cost-optimal. This trade-off depends on cost of not meeting load (see <code>Financial | value_of_lost_load_per_kwh</code>)  and the costs of meeting load, such as microgrid upgrade cost (see <code>Financial | microgrid_upgrade_cost_fraction</code>), fuel costs, and additional DER capacity. To ensure that REopt recommends a system that can meet  critical loads during a defined outage period, specify this duration using <code>Site | min_resil_time_steps</code>.</p><h1>Outage costs will be included in NPV and LCC</h1><p>Note that when using multiple outage modeling, the expected outage cost will be included in the net present value and lifecycle cost calculations (for both the BAU and optimized case).  You can set <code>Financial | value_of_lost_load_per_kwh</code> to 0 to ignore these costs. However, doing so will remove incentive for the model to meet critical loads during outages,  and you should therefore consider also specifying <code>Site | min_resil_time_steps</code>. You can alternatively post-process results to remove <code>lifecycle_outage_cost</code> from the NPV and LCCs.</p></div></div><div class="admonition is-info"><header class="admonition-header">Outages, Emissions, and Renewable Energy Calculations</header><div class="admonition-body"><p>If a single deterministic outage is modeled using outage<em>start</em>time<em>step and outage</em>end<em>time</em>step, emissions and renewable energy percentage calculations and constraints will factor in this outage. If stochastic outages are modeled using outage<em>start</em>time<em>steps, outage</em>durations, and outage_probabilities, emissions and renewable energy percentage calculations and constraints will not consider outages.</p></div></div><div class="admonition is-info"><header class="admonition-header">MPC vs. Non-MPC</header><div class="admonition-body"><p>This constructor is intended to be used with latitude/longitude arguments provided for the non-MPC case and without latitude/longitude arguments provided for the MPC case.</p></div></div><div class="admonition is-info"><header class="admonition-header">Climate and Health Emissions and Grid Clean Energy Modeling</header><div class="admonition-body"><p>Climate and health-related emissions from grid electricity come from two different data sources and have different REopt inputs as described below. </p><p><strong>Climate Emissions</strong></p><ul><li>For sites in the contiguous United States (CONUS): <ul><li>Default climate-related emissions factors come from NLR&#39;s Cambium database (Current version: 2022)<ul><li>By default, REopt uses <em>levelized long-run marginal emission rates for CO2-equivalent (CO2e) emissions</em> for the region in which the site is located.    By default, the emissions rates are levelized over the analysis period (e.g., from 2025 through 2049 for a 25-year analysis)</li><li>The inputs to the Cambium API request can be modified by the user based on emissions accounting needs (e.g., can change &quot;lifetime&quot; to 1 to analyze a single year&#39;s emissions)</li><li>Note for analysis periods extending beyond 2050: Values beyond 2050 are estimated with the 2050 values. Analysts are advised to use caution when selecting values that place significant weight on 2050 (e.g., greater than 50%)</li></ul></li><li>Users can alternatively choose to use emissions factors from the EPA&#39;s AVERT by setting <code>co2_from_avert</code> to <code>true</code></li></ul></li><li>For Alaska and HI: Grid CO2e emissions rates come from the eGRID database. These are single values repeated throughout the year. The default annual <code>emissions_factor_CO2_decrease_fraction</code> will be applied to this rate to account for future greening of the grid.   </li><li>For sites outside of the United States: REopt does not have default grid emissions rates for sites outside of the U.S. For these sites, users must supply custom emissions factor series (<code>emissions_factor_series_lb_CO2_per_kwh</code>) and projected emissions decreases (<code>emissions_factor_CO2_decrease_fraction</code>). </li></ul><p><strong>Health Emissions</strong></p><ul><li>For sites in CONUS: health-related emissions factors (PM2.5, SO2, and NOx) come from the EPA&#39;s AVERT database.</li><li>For Alaska and HI: Grid health emissions rates come from the eGRID database. These are single values repeated throughout the year. The default annual <code>emissions_factor_XXX_decrease_fraction</code> will be applied to this rate to account for future greening of the grid. </li><li>The default <code>avert_emissions_region</code> input is determined by the site&#39;s latitude and longitude. </li></ul><p>Alternatively, you may input the desired AVERT <code>avert_emissions_region</code>, which must be one of:  [&quot;California&quot;, &quot;Central&quot;, &quot;Florida&quot;, &quot;Mid-Atlantic&quot;, &quot;Midwest&quot;, &quot;Carolinas&quot;, &quot;New England&quot;,&quot;Northwest&quot;, &quot;New York&quot;, &quot;Rocky Mountains&quot;, &quot;Southeast&quot;, &quot;Southwest&quot;, &quot;Tennessee&quot;, &quot;Texas&quot;, &quot;Alaska&quot;, &quot;Hawaii (except Oahu)&quot;, &quot;Hawaii (Oahu)&quot;]</p><ul><li>For sites outside of the United States: REopt does not have default grid emissions rates for sites outside of the U.S. For these sites, users must supply custom emissions factor series (e.g., <code>emissions_factor_series_lb_NOx_per_kwh</code>) and projected emissions decreases (e.g., <code>emissions_factor_NOx_decrease_fraction</code>). </li></ul><p><strong>Grid Clean Energy Fraction</strong></p><ul><li>For sites in CONUS: <ul><li>Default clean energy fraction data comes from NLR&#39;s Cambium database (Current version: 2022)<ul><li>By default, REopt uses <em>clean energy fraction</em> for the region in which the site is located.</li></ul></li></ul></li><li>For sites outside of CONUS: REopt does not have default grid clean energy fraction data. Users must supply a custom <code>renewable_energy_fraction_series</code></li></ul></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/electric_utility.jl#L2-L116">source</a></section></article><h2 id="PV"><a class="docs-heading-anchor" href="#PV">PV</a><a id="PV-1"></a><a class="docs-heading-anchor-permalink" href="#PV" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.PV" href="#REopt.PV"><code>REopt.PV</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>PV</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    array_type::Int=1, # PV Watts array type (0: Ground Mount Fixed (Open Rack); 1: Rooftop, Fixed; 2: Ground Mount 1-Axis Tracking; 3 : 1-Axis Backtracking; 4: Ground Mount, 2-Axis Tracking)
+    tilt::Real = (array_type == 0 || array_type == 1) ? 20 : 0, # tilt = 20 for fixed rooftop arrays (1) or ground-mount (2) ; tilt = 0 for everything else (3 and 4)
+    module_type::Int=0, # PV module type (0: Standard; 1: Premium; 2: Thin Film)
+    losses::Real=0.14, # System losses
+    azimuth::Real = latitude≥0 ? 180 : 0, # set azimuth to zero for southern hemisphere
+    gcr::Real=0.4,  # Ground coverage ratio
+    radius::Int=0, # Radius, in miles, to use when searching for the closest climate data station. Use zero to use the closest station regardless of the distance
+    name::String=&quot;PV&quot;, # for use with multiple pvs 
+    location::String=&quot;both&quot;, # one of [&quot;roof&quot;, &quot;ground&quot;, &quot;both&quot;]
+    existing_kw::Real=0,
+    min_kw::Real=0,
+    max_kw::Real=1.0e9, # max new DC capacity (beyond existing_kw)
+    installed_cost_per_kw::Union{Real, AbstractVector{&lt;:Real}} = Float64[], # defaults to avg_installed_cost_per_kw for the determined size class as specified in data/pv/pv_defaults.json. Note that mount_premium scaling factors are applied for ground-mount systems based on array_type. 
+    om_cost_per_kw::Real=18.0,
+    degradation_fraction::Real=0.005,
+    macrs_option_years::Int = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;PV&quot;), &quot;macrs_option_years&quot;, 5),
+    macrs_bonus_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;PV&quot;), &quot;macrs_bonus_fraction&quot;, 1.0),
+    macrs_itc_reduction::Real = 0.5,
+    kw_per_square_foot::Real=0.01,
+    acres_per_kw::Real=6e-3,
+    inv_eff::Real=0.96,
+    dc_ac_ratio::Real=1.2,
+    production_factor_series::Union{Nothing, Array{&lt;:Real,1}} = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
+    federal_itc_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;PV&quot;), &quot;federal_itc_fraction&quot;, 0.3),
+    federal_rebate_per_kw::Real = 0.0,
+    state_ibi_fraction::Real = 0.0,
+    state_ibi_max::Real = 1.0e10,
+    state_rebate_per_kw::Real = 0.0,
+    state_rebate_max::Real = 1.0e10,
+    utility_ibi_fraction::Real = 0.0,
+    utility_ibi_max::Real = 1.0e10,
+    utility_rebate_per_kw::Real = 0.0,
+    utility_rebate_max::Real = 1.0e10,
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 1 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
+    can_net_meter::Bool = off_grid_flag ? false : true,
+    can_wholesale::Bool = off_grid_flag ? false : true,
+    can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
+    can_curtail::Bool = true,
+    operating_reserve_required_fraction::Real = off_grid_flag ? 0.25 : 0.0, # if off grid, 25%, else 0%. Applied to each time_step as a % of PV generation.
+    size_class::Union{Int, Nothing} = nothing, # Size class for cost curve selection
+    tech_sizes_for_cost_curve::AbstractVector = Float64[], # System sizes for detailed cost curve
+    use_detailed_cost_curve::Bool = false, # Use detailed cost curve instead of average cost
+    electric_load_annual_kwh::Real = 0.0, # Annual electric load (kWh) for size class determination
+    site_land_acres::Union{Real, Nothing} = nothing,  # site.land_acres to determine size_class if space constraineed
+    site_roof_squarefeet::Union{Real, Nothing} = nothing  # site.roof_squarefeet to determine size_class if space constraineed</code></pre><div class="admonition is-info"><header class="admonition-header">Multiple PV types</header><div class="admonition-body"><p>Multiple PV types can be considered by providing an array of PV inputs. See example in <code>src/test/scenarios/multiple_pvs.json</code></p></div></div><div class="admonition is-info"><header class="admonition-header">PV tilt and aziumth</header><div class="admonition-body"><p>If <code>tilt</code> is not provided, then it is set to the absolute value of <code>Site.latitude</code> for ground-mount systems and is set to 10 degrees for rooftop systems. If <code>azimuth</code> is not provided, then it is set to 180 if the site is in the northern hemisphere and 0 if in the southern hemisphere.</p></div></div><div class="admonition is-info"><header class="admonition-header">Cost curves and size classes</header><div class="admonition-body"></div></div><p>When using &#39;use<em>detailed</em>cost<em>curve&#39; is set to <code>true</code>, and providing specific values for `tech</em>sizes<em>for</em>cost<em>curve<code>and</code>installed</em>cost<em>per</em>kw<code>, both</code>tech<em>sizes</em>for<em>cost</em>curve<code>and</code>installed<em>cost</em>per<em>kw` must have the same length. Size class is automatically determined based on average load if not specified, which affects default costs. Ground-mount(&#39;array</em>type&#39; = 0,2,3,4) systems have different cost structures than rooftop (&#39;array_type&#39; = 1) systems when using default values.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/pv.jl#L2-L67">source</a></section></article><h2 id="Wind"><a class="docs-heading-anchor" href="#Wind">Wind</a><a id="Wind-1"></a><a class="docs-heading-anchor-permalink" href="#Wind" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Wind" href="#REopt.Wind"><code>REopt.Wind</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>Wind</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    min_kw = 0.0,
+    max_kw = 1.0e9,
+    installed_cost_per_kw = nothing,
+    om_cost_per_kw = 42.0,
+    production_factor_series = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
+    size_class = &quot;&quot;,
+    wind_meters_per_sec = [],
+    wind_direction_degrees = [],
+    temperature_celsius = [],
+    pressure_atmospheres = [],
+    acres_per_kw = 0.03, # assuming a power density of 30 acres per MW for turbine sizes &gt;= 1.5 MW. No size constraint applied to turbines below 1.5 MW capacity. (not exposed in API)
+    macrs_option_years = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;Wind&quot;), &quot;macrs_option_years&quot;, 5),
+    macrs_bonus_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;Wind&quot;), &quot;macrs_bonus_fraction&quot;, 1.0),
+    macrs_itc_reduction = 0.5,
+    federal_itc_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name=&quot;Wind&quot;), &quot;federal_itc_fraction&quot;, 0.3),
+    federal_rebate_per_kw = 0.0,
+    state_ibi_fraction = 0.0,
+    state_ibi_max = 1.0e10,
+    state_rebate_per_kw = 0.0,
+    state_rebate_max = 1.0e10,
+    utility_ibi_fraction = 0.0,
+    utility_ibi_max = 1.0e10,
+    utility_rebate_per_kw = 0.0,
+    utility_rebate_max = 1.0e10,
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 1 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
+    can_net_meter = true,
+    can_wholesale = true,
+    can_export_beyond_nem_limit = true
+    operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.</code></pre><div class="admonition is-info"><header class="admonition-header">Default assumptions</header><div class="admonition-body"><p><code>size_class</code> must be one of [&quot;residential&quot;, &quot;commercial&quot;, &quot;medium&quot;, &quot;large&quot;]. If <code>size_class</code> is not provided then it is determined based on the average electric load.</p><p>If no <code>installed_cost_per_kw</code> is provided then it is determined from:</p><pre><code class="language-julia">size_class_to_installed_cost = Dict(
+    &quot;residential&quot;=&gt; 7692.0,
+    &quot;commercial&quot;=&gt; 5776.0,
+    &quot;medium&quot;=&gt; 3807.0,
+    &quot;large&quot;=&gt; 2896.0
+)</code></pre><p>If the <code>production_factor_series</code> is not provided then NLR&#39;s System Advisor Model (SAM) is used to get the wind turbine  production factor.</p></div></div><div class="admonition is-info"><header class="admonition-header">Wind resource value inputs</header><div class="admonition-body"><p>Wind resource values are optional (i.e., <code>wind_meters_per_sec</code>, <code>wind_direction_degrees</code>, <code>temperature_celsius</code>, and <code>pressure_atmospheres</code>). If not provided then the resource values are downloaded from NLR&#39;s Wind Toolkit. These values are passed to SAM to get the turbine production factor.</p></div></div><div class="admonition is-info"><header class="admonition-header">Wind sizing and land constraint</header><div class="admonition-body"><p>Wind size is constrained by Site.land<em>acres, assuming a power density of Wind.acres</em>per_kw for turbine sizes above 1.5 MW (default assumption of 30 acres per MW).  If the turbine size recommended is smaller than 1.5 MW, the input for land available will not constrain the system size.  If the the land available constrains the system size to less than 1.5 MW, the system will be capped at 1.5 MW (i.e., turbines &lt; 1.5 MW are not subject to the acres/kW limit).  </p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/wind.jl#L2-L63">source</a></section></article><h2 id="ElectricStorage"><a class="docs-heading-anchor" href="#ElectricStorage">ElectricStorage</a><a id="ElectricStorage-1"></a><a class="docs-heading-anchor-permalink" href="#ElectricStorage" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ElectricStorageDefaults" href="#REopt.ElectricStorageDefaults"><code>REopt.ElectricStorageDefaults</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>ElectricStorage</code> is an optional optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    min_kw::Real = 0.0
+    max_kw::Real = 1.0e4
+    min_kwh::Real = 0.0
+    max_kwh::Real = 1.0e6
+    internal_efficiency_fraction::Float64 = 0.975
+    inverter_efficiency_fraction::Float64 = 0.96
+    rectifier_efficiency_fraction::Float64 = 0.96
+    soc_min_fraction::Float64 = 0.2
+    soc_min_applies_during_outages::Bool = false
+    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
+    can_grid_charge::Bool = off_grid_flag ? false : true
+    installed_cost_per_kw::Real = 968.0 # Cost of power components (e.g., inverter and BOS) 
+    installed_cost_per_kwh::Real = 253.0 # Cost of energy components (e.g., battery pack)
+    installed_cost_constant::Real = 222115.0 # &quot;+c&quot; constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
+    replace_cost_per_kw::Real = 0.0
+    replace_cost_per_kwh::Real = 0.0
+    replace_cost_constant::Real = 0.0
+    inverter_replacement_year::Int = 10
+    battery_replacement_year::Int = 10
+    cost_constant_replacement_year::Int = 10
+    om_cost_fraction_of_installed_cost::Float64 = 0.025 # Annual O&amp;M cost as a fraction of installed cost
+    macrs_option_years::Int = 5 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_itc_reduction::Float64 = 0.5
+    total_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    total_rebate_per_kw::Real = 0.0
+    total_rebate_per_kwh::Real = 0.0
+    charge_efficiency::Float64 = rectifier_efficiency_fraction * internal_efficiency_fraction^0.5
+    discharge_efficiency::Float64 = inverter_efficiency_fraction * internal_efficiency_fraction^0.5
+    grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
+    model_degradation::Bool = false
+    degradation::Dict = Dict()
+    minimum_avg_soc_fraction::Float64 = 0.0
+    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
+    min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
+    max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/energy_storage/electric_storage.jl#L164-L205">source</a></section></article><article class="docstring"><header><a class="docstring-binding" id="REopt.Degradation" href="#REopt.Degradation"><code>REopt.Degradation</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">Degradation</code></pre><p>Inputs used when <code>ElectricStorage.model_degradation</code> is <code>true</code>:</p><pre><code class="language-julia">Base.@kwdef mutable struct Degradation
+    calendar_fade_coefficient::Real = 1.16E-03
+    cycle_fade_coefficient::Vector{&lt;:Real} = [2.46E-05]
+    cycle_fade_fraction::Vector{&lt;:Real} = [1.0]
+    time_exponent::Real = 0.428
+    installed_cost_per_kwh_declination_rate::Real = 0.05
+    maintenance_strategy::String = &quot;augmentation&quot;  # one of [&quot;augmentation&quot;, &quot;replacement&quot;]
+    maintenance_cost_per_kwh::Vector{&lt;:Real} = Real[]
+end</code></pre><p>None of the above values are required. If <code>ElectricStorage.model_degradation</code> is <code>true</code> then the  defaults above are used. If the <code>maintenance_cost_per_kwh</code> is not provided then it is determined  using the <code>ElectricStorage.installed_cost_per_kwh</code> and the <code>installed_cost_per_kwh_declination_rate</code>  along with a present worth factor <span>$f$</span> to account for the present cost of buying a battery in the  future. The present worth factor for each day is:</p><p><span>$f(day) = \frac{ (1-r_g)^\frac{day}{365} } { (1+r_d)^\frac{day}{365} }$</span></p><p>where <span>$r_g$</span> = <code>installed_cost_per_kwh_declination_rate</code> and <span>$r_d$</span> = <code>p.s.financial.owner_discount_rate_fraction</code>.</p><p>Note this day-specific calculation of the present-worth factor accumulates differently from the annually updated discount rate for other net-present value calculations in REopt, and has a higher effective discount rate as a result.  The present  worth factor is used in the same manner irrespective of the <code>maintenance_strategy</code>.</p><div class="admonition is-category-warn"><header class="admonition-header">Warn</header><div class="admonition-body"><p>When modeling degradation the following ElectricStorage inputs are not used:</p><ul><li><code>replace_cost_per_kwh</code></li><li><code>battery_replacement_year</code></li><li><code>replace_cost_constant</code></li><li><code>cost_constant_replacement_year</code></li></ul><p>They are replaced by the <code>maintenance_cost_per_kwh</code> vector. Inverter replacement costs and inverter replacement year should still be used to model scheduled replacement of inverter.</p></div></div><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>When providing the <code>maintenance_cost_per_kwh</code> it must have a length equal to <code>Financial.analysis_years*365</code>-1.</p></div></div><p><strong>Battery State Of Health</strong></p><p>The state of health [<code>SOH</code>] is a linear function of the daily average state of charge [<code>Eavg</code>] and the daily equivalent full cycles [<code>EFC</code>]. The initial <code>SOH</code> is set to the optimal battery energy capacity  (in kWh). The evolution of the <code>SOH</code> beyond the first day is:</p><p><span>$SOH[d] = SOH[d-1] - h\left(     \frac{1}{2} k_{cal} Eavg[d-1] / \sqrt{d} + k_{cyc} EFC[d-1] \quad \forall d \in \{2\dots D\} \right)$</span></p><p>where:</p><ul><li><span>$k_{cal}$</span> is the <code>calendar_fade_coefficient</code></li><li><span>$k_{cyc}$</span> is the <code>cycle_fade_coefficient</code></li><li><span>$h$</span> is the hours per time step</li><li><span>$D$</span> is the total number of days, 365 * <code>analysis_years</code></li></ul><p>The <code>SOH</code> is used to determine the maintence cost of the storage system, which depends on the <code>maintenance_strategy</code>.</p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>Battery degradation parameters are from based on laboratory aging data, and are expected to be reasonable only within  the range of conditions tested. Battery lifetime can vary widely from these estimates based on battery use and system design.  Battery cost estimates are based on domain expertise and published guidelines and are not to be taken as an indicator of real  system costs.</p></div></div><p><strong>Augmentation Maintenance Strategy</strong></p><p>The augmentation maintenance strategy assumes that the battery energy capacity is maintained by replacing degraded cells daily in terms of cost. Using the definition of the <code>SOH</code> above the maintenance cost is:</p><p><span>$C_{\text{aug}} = \sum_{d \in \{2\dots D\}} C_{\text{install}} f(day) \left( SOH[d-1] - SOH[d] \right)$</span></p><p>where</p><ul><li><span>$f(day)$</span> is the present worth factor of battery degradation costs as described above;</li><li><span>$C_{\text{install}}$</span> is the <code>ElectricStorage.installed_cost_per_kwh</code>; and</li><li><span>$SOH[d-1] - SOH[d]$</span> is the incremental amount of battery capacity lost in a day.</li></ul><p>The <span>$C_{\text{aug}}$</span> is added to the objective function to be minimized with all other costs.</p><p><strong>Replacement Maintenance Strategy</strong></p><p>Modeling the replacement maintenance strategy is more complex than the augmentation strategy. Effectively the replacement strategy says that the battery has to be replaced once the <code>SOH</code> drops below 80% of the optimal, purchased capacity. It is possible that multiple replacements (at same replacement frequency) could be required under this strategy.</p><div class="admonition is-category-warn"><header class="admonition-header">Warn</header><div class="admonition-body"><p>The &quot;replacement&quot; maintenance strategy requires integer decision variables. Some solvers are slow with integer decision variables.</p></div></div><p>The replacement strategy cost is:</p><p><span>$C_{\text{repl}} = B_{\text{kWh}} N_{\text{repl}} f(d_{80}) C_{\text{install}}$</span></p><p>where:</p><ul><li><span>$B_{\text{kWh}}$</span> is the optimal battery capacity (<code>ElectricStorage.size_kwh</code> in the results dictionary);</li><li><span>$N_{\text{repl}}$</span> is the number of battery replacments required (a function of the month in which the <code>SOH</code> falls below 80% of original capacity);</li><li><span>$f(d_{80})$</span> is the present worth factor at approximately the 15th day of the month in which the <code>SOH</code> falls below 80% of original capacity;</li><li><span>$C_{\text{install}}$</span> is the <code>ElectricStorage.installed_cost_per_kwh</code>.</li></ul><p>The <span>$C_{\text{repl}}$</span> is added to the objective function to be minimized with all other costs.</p><p><strong>Battery residual value</strong></p><p>Since the battery can be replaced one-to-many times under this strategy, battery residual value captures the $ value of remaining battery life at end of analysis period. For example if replacement happens in month 145, then assuming 25 year analysis period there will be 2 replacements (months 145 and 290).  The last battery which was placed in service during month 290 only serves for 10 months (i.e. 6.89% of its expected life assuming 145 month replacement frequecy). In this case, the battery has 93.1% of residual life remaining as useful life left after analysis period ends. A residual value cost vector is created to hold this value for all months. Residual value is calculated as:</p><p><span>$C_{\text{residual}} = R f(d_{\text{last}}) C_{\text{install}}$</span> where:</p><ul><li><span>$R$</span> is the <code>residual_factor</code> which determines portion of battery life remaining at the end of the analysis period;</li><li><span>$f(d_{\text{last}})$</span> is the present worth factor at approximately the 15th day of the last month in the analysis period;</li><li><span>$C_{\text{install}}$</span> is the <code>ElectricStorage.installed_cost_per_kwh</code>.</li></ul><p>The <span>$C_{\text{residual}}$</span> is added to the objective function to be minimized with all other costs.</p><p><strong>Example of inputs</strong></p><p>The following shows how one would use the degradation model in REopt via the <a href="#Scenario">Scenario</a> inputs:</p><pre><code class="language-javascript">{
+    ...
+    &quot;ElectricStorage&quot;: {
+        &quot;installed_cost_per_kwh&quot;: 390,
+        ...
+        &quot;model_degradation&quot;: true,
+        &quot;degradation&quot;: {
+            &quot;calendar_fade_coefficient&quot;: 1.16E-03,
+            &quot;cycle_fade_coefficient&quot;: [2.46E-05],
+            &quot;cycle_fade_fraction&quot;: [1.0],
+            &quot;time_exponent&quot;: 0.428
+            &quot;installed_cost_per_kwh_declination_rate&quot;: 0.05,
+            &quot;maintenance_strategy&quot;: &quot;replacement&quot;,
+            ...
+        }
+    },
+    ...
+}</code></pre><p>Note that not all of the above inputs are necessary. When not providing <code>calendar_fade_coefficient</code> for example the default value will be used.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/energy_storage/electric_storage.jl#L2-L152">source</a></section></article><h2 id="Generator"><a class="docs-heading-anchor" href="#Generator">Generator</a><a id="Generator-1"></a><a class="docs-heading-anchor-permalink" href="#Generator" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Generator" href="#REopt.Generator"><code>REopt.Generator</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>Generator</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    only_runs_during_grid_outage::Bool = true,
+    existing_kw::Real = 0,
+    min_kw::Real = 0,
+    max_kw::Real = 1.0e6,
+    installed_cost_per_kw::Real = off_grid_flag ? 880 : only_runs_during_grid_outage ? 650.0 : 800.0,
+    om_cost_per_kw::Real = off_grid_flag ? 10.0 : 20.0,
+    om_cost_per_kwh::Real = 0.0,
+    fuel_cost_per_gallon::Real = 2.25,
+    electric_efficiency_full_load::Real = 0.322,
+    electric_efficiency_half_load::Real = electric_efficiency_full_load,
+    fuel_avail_gal::Real = 1.0e9,
+    fuel_higher_heating_value_kwh_per_gal::Real = 40.7,
+    min_turn_down_fraction::Real = off_grid_flag ? 0.15 : 0.0,
+    sells_energy_back_to_grid::Bool = false,
+    can_net_meter::Bool = false,
+    can_wholesale::Bool = false,
+    can_export_beyond_nem_limit = false,
+    can_curtail::Bool = false,
+    macrs_option_years::Int = 0,
+    macrs_bonus_fraction::Real = 0.0,
+    macrs_itc_reduction::Real = 0.0,
+    federal_itc_fraction::Real = 0.0,
+    federal_rebate_per_kw::Real = 0.0,
+    state_ibi_fraction::Real = 0.0,
+    state_ibi_max::Real = 1.0e10,
+    state_rebate_per_kw::Real = 0.0,
+    state_rebate_max::Real = 1.0e10,
+    utility_ibi_fraction::Real = 0.0,
+    utility_ibi_max::Real = 1.0e10,
+    utility_rebate_per_kw::Real = 0.0,
+    utility_rebate_max::Real = 1.0e10,
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 0 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
+    fuel_renewable_energy_fraction::Real = 0.0,
+    emissions_factor_lb_CO2_per_gal::Real = 22.58, # CO2e
+    emissions_factor_lb_NOx_per_gal::Real = 0.0775544,
+    emissions_factor_lb_SO2_per_gal::Real = 0.040020476,
+    emissions_factor_lb_PM25_per_gal::Real = 0.0,
+    replacement_year::Int = off_grid_flag ? 10 : analysis_years, # Project year in which generator capacity will be replaced at a cost of replace_cost_per_kw.
+    replace_cost_per_kw::Real = off_grid_flag ? installed_cost_per_kw : 0.0 # Per kW replacement cost for generator capacity. Replacement costs are considered tax deductible.</code></pre><div class="admonition is-info"><header class="admonition-header">Replacement costs</header><div class="admonition-body"><p>Generator replacement costs will not be considered if <code>Generator.replacement_year</code> &gt;= <code>Financial.analysis_years</code>.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/generator.jl#L2-L52">source</a></section></article><h2 id="ExistingBoiler"><a class="docs-heading-anchor" href="#ExistingBoiler">ExistingBoiler</a><a id="ExistingBoiler-1"></a><a class="docs-heading-anchor-permalink" href="#ExistingBoiler" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ExistingBoiler" href="#REopt.ExistingBoiler"><code>REopt.ExistingBoiler</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>ExistingBoiler</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    max_heat_demand_kw::Real=0, # Auto-populated based on SpaceHeatingLoad and DomesticHotWaterLoad inputs
+    production_type::String = &quot;hot_water&quot;, # Can be &quot;steam&quot; or &quot;hot_water&quot;
+    max_thermal_factor_on_peak_load::Real = 1.25,
+    installed_cost_per_mmbtu_per_hour::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis; cost is scaled to the size of boiler needed
+    installed_cost_dollars::Real = 0.0  # Represents needed CapEx in BAU, assuming net present cost basis; also incurred in Optimal case if still using at all
+    efficiency::Real = NaN, # Existing boiler system efficiency - conversion of fuel to usable heating thermal energy. See note below.
+    fuel_cost_per_mmbtu::Union{&lt;:Real, AbstractVector{&lt;:Real}} = [], # REQUIRED. Can be a scalar, a list of 12 monthly values, or a time series of values for every time step
+    fuel_type::String = &quot;natural_gas&quot;, # &quot;restrict_to&quot;: [&quot;natural_gas&quot;, &quot;landfill_bio_gas&quot;, &quot;propane&quot;, &quot;diesel_oil&quot;]
+    can_supply_steam_turbine::Bool = false,
+    retire_in_optimal::Bool = false,  # Do NOT use in the optimal case (still used in BAU)
+    fuel_renewable_energy_fraction::Real = get(FUEL_DEFAULTS[&quot;fuel_renewable_energy_fraction&quot;],fuel_type,0),
+    emissions_factor_lb_CO2_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_CO2_per_mmbtu&quot;],fuel_type,0),
+    emissions_factor_lb_NOx_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_NOx_per_mmbtu&quot;],fuel_type,0),
+    emissions_factor_lb_SO2_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_SO2_per_mmbtu&quot;],fuel_type,0),
+    emissions_factor_lb_PM25_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_PM25_per_mmbtu&quot;],fuel_type,0)
+    can_serve_dhw::Bool = true # If ExistingBoiler can supply heat to the domestic hot water load
+    can_serve_space_heating::Bool = true # If ExistingBoiler can supply heat to the space heating load
+    can_serve_process_heat::Bool = true # If ExistingBoiler can supply heat to the process heating load</code></pre><div class="admonition is-info"><header class="admonition-header">Max ExistingBoiler size</header><div class="admonition-body"><p>The maximum size [kW] of the <code>ExistingBoiler</code> will be set based on the peak heat demand as follows:</p><pre><code class="language-julia">max_kw = max_heat_demand_kw * max_thermal_factor_on_peak_load</code></pre></div></div><div class="admonition is-info"><header class="admonition-header">ExistingBoiler operating costs</header><div class="admonition-body"><p>The <code>ExistingBoiler</code>&#39;s <code>fuel_cost_per_mmbtu</code> field is a required input. The <code>fuel_cost_per_mmbtu</code> can be a scalar, a list of 12 monthly values, or a time series of values for every time step.</p></div></div><div class="admonition is-info"><header class="admonition-header">Determining `efficiency`</header><div class="admonition-body"><p>Must supply either: <code>efficiency</code> or <code>production_type</code>.</p><p>If <code>efficiency</code> is not supplied, the <code>efficiency</code> will be determined based on the <code>production_type</code>.  If <code>production_type</code> is not supplied, it defaults to <code>hot_water</code>. The following defaults are used:</p><pre><code class="language-julia">existing_boiler_efficiency_defaults = Dict(
+    &quot;hot_water&quot; =&gt; 0.8,
+    &quot;steam&quot; =&gt; 0.75
+)</code></pre></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/existing_boiler.jl#L29-L74">source</a></section></article><h2 id="CHP"><a class="docs-heading-anchor" href="#CHP">CHP</a><a id="CHP-1"></a><a class="docs-heading-anchor-permalink" href="#CHP" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.CHP" href="#REopt.CHP"><code>REopt.CHP</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>CHP</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    prime_mover::Union{String, Nothing} = nothing # Suggested to inform applicable default cost and performance. &quot;restrict_to&quot;: [&quot;recip_engine&quot;, &quot;micro_turbine&quot;, &quot;combustion_turbine&quot;, &quot;fuel_cell&quot;]
+    fuel_cost_per_mmbtu::Union{&lt;:Real, AbstractVector{&lt;:Real}} = [] # REQUIRED. Can be a scalar, a list of 12 monthly values, or a time series of values for every time step
+
+    # Required &quot;custom inputs&quot; if not providing prime_mover:
+    installed_cost_per_kw::Union{Float64, AbstractVector{Float64}} = NaN # Installed CHP system cost in $/kW (based on rated electric power)
+    tech_sizes_for_cost_curve::Union{Float64, AbstractVector{Float64}} = NaN # Size of CHP systems corresponding to installed cost input points&quot;
+    om_cost_per_kwh::Float64 = NaN # CHP non-fuel variable operations and maintenance costs in $/kwh
+    electric_efficiency_full_load::Float64 = NaN # Electric efficiency of CHP prime-mover at full-load, HHV-basis
+    electric_efficiency_half_load::Float64 = NaN # Electric efficiency of CHP prime-mover at half-load, HHV-basis
+    min_turn_down_fraction::Float64 = NaN # Minimum CHP electric loading in fraction of capacity (size_kw)
+    thermal_efficiency_full_load::Float64 = NaN # CHP fraction of fuel energy converted to hot-thermal energy at full electric load
+    thermal_efficiency_half_load::Float64 = NaN # CHP fraction of fuel energy converted to hot-thermal energy at half electric load
+    min_allowable_kw::Float64 = NaN # Minimum CHP size (based on electric) that still allows the model to choose zero (e.g. no CHP system)
+    cooling_thermal_factor::Float64 = NaN  # only needed with cooling load
+    unavailability_periods::AbstractVector{Dict} = Dict[] # CHP unavailability periods for scheduled and unscheduled maintenance, list of dictionaries with keys of &quot;[&#39;month&#39;, &#39;start_week_of_month&#39;, &#39;start_day_of_week&#39;, &#39;start_hour&#39;, &#39;duration_hours&#39;] all values are one-indexed and start_day_of_week uses 1 for Monday, 7 for Sunday
+    unavailability_hourly::AbstractVector{Int64} = Int64[] # Hourly 8760 profile of unavailability (1) and availability (0)
+
+    # Optional inputs:
+    size_class::Union{Int, Nothing} = nothing # CHP size class for using appropriate default inputs, with size_class=0 using an average of all other size class data 
+    min_kw::Float64 = 0.0 # Minimum CHP size (based on electric) constraint for optimization 
+    max_kw::Float64 = NaN # Maximum CHP size (based on electric) constraint for optimization. Determined by heuristic sizing based on heating load or electric load.    
+    fuel_type::String = &quot;natural_gas&quot; # &quot;restrict_to&quot;: [&quot;natural_gas&quot;, &quot;landfill_bio_gas&quot;, &quot;propane&quot;, &quot;diesel_oil&quot;]
+    om_cost_per_kw::Float64 = 0.0 # Annual CHP fixed operations and maintenance costs in $/kw-yr 
+    om_cost_per_hr_per_kw_rated::Float64 = 0.0 # CHP non-fuel variable operations and maintenance costs in $/hr/kw_rated
+    supplementary_firing_capital_cost_per_kw::Float64 = 150.0 # Installed CHP supplementary firing system cost in $/kW (based on rated electric power)
+    supplementary_firing_max_steam_ratio::Float64 = 1.0 # Ratio of max fired steam to un-fired steam production. Relevant only for combustion_turbine prime_mover 
+    supplementary_firing_efficiency::Float64 = 0.92 # Thermal efficiency of the incremental steam production from supplementary firing. Relevant only for combustion_turbine prime_mover 
+    standby_rate_per_kw_per_month::Float64 = 0.0 # Standby rate charged to CHP based on CHP electric power size
+    reduces_demand_charges::Bool = true # Boolean indicator if CHP does not reduce demand charges 
+    can_supply_steam_turbine::Bool=false # If CHP can supply steam to the steam turbine for electric production 
+    can_serve_dhw::Bool = true # If CHP can supply heat to the domestic hot water load
+    can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
+    can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
+    is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
+
+    macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_itc_reduction::Float64 = 0.5
+    federal_itc_fraction::Float64 = 0.0
+    federal_rebate_per_kw::Float64 = 0.0
+    state_ibi_fraction::Float64 = 0.0
+    state_ibi_max::Float64 = 1.0e10
+    state_rebate_per_kw::Float64 = 0.0
+    state_rebate_max::Float64 = 1.0e10
+    utility_ibi_fraction::Float64 = 0.0
+    utility_ibi_max::Float64 = 1.0e10
+    utility_rebate_per_kw::Float64 = 0.0
+    utility_rebate_max::Float64 = 1.0e10
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 0 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
+    can_curtail::Bool = false
+    fuel_renewable_energy_fraction::Float64 = FUEL_DEFAULTS[&quot;fuel_renewable_energy_fraction&quot;][fuel_type]
+    emissions_factor_lb_CO2_per_mmbtu::Float64 = FUEL_DEFAULTS[&quot;emissions_factor_lb_CO2_per_mmbtu&quot;][fuel_type]
+    emissions_factor_lb_NOx_per_mmbtu::Float64 = FUEL_DEFAULTS[&quot;emissions_factor_lb_NOx_per_mmbtu&quot;][fuel_type]
+    emissions_factor_lb_SO2_per_mmbtu::Float64 = FUEL_DEFAULTS[&quot;emissions_factor_lb_SO2_per_mmbtu&quot;][fuel_type]
+    emissions_factor_lb_PM25_per_mmbtu::Float64 = FUEL_DEFAULTS[&quot;emissions_factor_lb_PM25_per_mmbtu&quot;][fuel_type]</code></pre><div class="admonition is-info"><header class="admonition-header">Defaults and required inputs</header><div class="admonition-body"><p>See the <code>get_chp_defaults_prime_mover_size_class()</code> function docstring for details on the logic of choosing the type of CHP that is modeled If no information is provided, the default <code>prime_mover</code> is <code>recip_engine</code> and the <code>size_class</code> is 0 which represents the widest range of sizes available.</p><p><code>fuel_cost_per_mmbtu</code> is always required and can be a scalar, a list of 12 monthly values, or a time series of values for every time step</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/chp.jl#L6-L79">source</a></section></article><h2 id="AbsorptionChiller"><a class="docs-heading-anchor" href="#AbsorptionChiller">AbsorptionChiller</a><a id="AbsorptionChiller-1"></a><a class="docs-heading-anchor-permalink" href="#AbsorptionChiller" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.AbsorptionChiller" href="#REopt.AbsorptionChiller"><code>REopt.AbsorptionChiller</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>AbsorptionChiller</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    thermal_consumption_hot_water_or_steam::Union{String, Nothing} = nothing  # Defaults to &quot;hot_water&quot; if chp_prime_mover or boiler_type are not provided
+    chp_prime_mover::String = &quot;&quot;  # Informs thermal_consumption_hot_water_or_steam if not provided
+
+    # Defaults for fields below are dependent on thermal_consumption_hot_water_or_steam and max cooling load
+    installed_cost_per_ton::Union{Float64, Nothing} = nothing # Thermal power-based cost of absorption chiller (3.5 to 1 ton to kwt)
+    om_cost_per_ton::Union{Float64, Nothing} = nothing # Yearly fixed O&amp;M cost on a thermal power (ton) basis
+    min_ton::Float64 = 0.0, # Minimum thermal power size constraint for optimization
+    max_ton::Float64 = BIG_NUMBER, # Maximum thermal power size constraint for optimization
+    cop_thermal::Union{Float64, Nothing} = nothing, # Absorption chiller system coefficient of performance - conversion of hot thermal power input to usable cooling thermal energy output
+    cop_electric::Float64 = 14.1, # Absorption chiller electric consumption CoP from cooling tower heat rejection - conversion of electric power input to usable cooling thermal energy output
+    macrs_option_years::Float64 = 0, # MACRS schedule for financial analysis. Set to zero to disable
+    macrs_bonus_fraction::Float64 = 0 # Percent of upfront project costs to depreciate under MACRS
+    heating_load_input::Union{String, Nothing} = nothing # heating load that serves as input to absorption chiller</code></pre><p>!!! Note     To model AbsorptionChiller, there is logic which informs defaults for costs and COP:      (i) <code>thermal_consumption_hot_water_or_steam</code> from [&quot;steam&quot;, &quot;hot<em>water&quot;],      (ii) `chp</em>prime<em>mover` from [&quot;recip</em>engine&quot;, &quot;micro<em>turbine&quot;, &quot;combustion</em>turbine&quot;, &quot;fuel<em>cell&quot;], or      (iii) if (i) and (ii) are not provided, the default `thermal</em>consumption<em>hot</em>water<em>or</em>steam<code>is</code>hot<em>water`     The defaults for costs and COP will be populated from data/absorption</em>chiller/defaults.json,      based on the <code>thermal_consumption_hot_water_or_steam</code> or <code>chp_prime_mover</code>.      <code>boiler_type</code> is &quot;steam&quot; if <code>prime_mover</code> is &quot;combustion<em>turbine&quot; and is &quot;hot</em>water&quot; for all other <code>chp_prime_mover</code> types.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/absorption_chiller.jl#L3-L29">source</a></section></article><h2 id="Boiler"><a class="docs-heading-anchor" href="#Boiler">Boiler</a><a id="Boiler-1"></a><a class="docs-heading-anchor-permalink" href="#Boiler" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.Boiler" href="#REopt.Boiler"><code>REopt.Boiler</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">Boiler</code></pre><p>When modeling a heating load an <code>ExistingBoiler</code> model is created even if user does not provide the <code>ExistingBoiler</code> key. The <code>Boiler</code> model is not created by default. If a user provides the <code>Boiler</code> key then the optimal scenario has the option to purchase this new <code>Boiler</code> to meet the heating load in addition to using the <code>ExistingBoiler</code> to meet the heating load. </p><pre><code class="language-julia">function Boiler(;
+    min_mmbtu_per_hour::Real = 0.0, # Minimum thermal power size
+    max_mmbtu_per_hour::Real = 0.0, # Maximum thermal power size
+    efficiency::Real = 0.8, # boiler system efficiency - conversion of fuel to usable heating thermal energy
+    fuel_cost_per_mmbtu::Union{&lt;:Real, AbstractVector{&lt;:Real}} = 0.0,
+    macrs_option_years::Int = 0, # MACRS schedule for financial analysis. Set to zero to disable
+    macrs_bonus_fraction::Real = 0.0, # Fraction of upfront project costs to depreciate under MACRS
+    installed_cost_per_mmbtu_per_hour::Real = 293000.0, # Thermal power-based cost
+    om_cost_per_mmbtu_per_hour::Real = 2930.0, # Thermal power-based fixed O&amp;M cost
+    om_cost_per_mmbtu::Real = 0.0, # Thermal energy-based variable O&amp;M cost
+    fuel_type::String = &quot;natural_gas&quot;,  # &quot;restrict_to&quot;: [&quot;natural_gas&quot;, &quot;landfill_bio_gas&quot;, &quot;propane&quot;, &quot;diesel_oil&quot;, &quot;uranium&quot;]
+    can_supply_steam_turbine::Bool = true # If the boiler can supply steam to the steam turbine for electric production
+    can_serve_dhw::Bool = true # If Boiler can supply heat to the domestic hot water load
+    can_serve_space_heating::Bool = true # If Boiler can supply heat to the space heating load
+    can_serve_process_heat::Bool = true # If Boiler can supply heat to the process heating load
+    fuel_renewable_energy_fraction::Real = get(FUEL_DEFAULTS[&quot;fuel_renewable_energy_fraction&quot;],fuel_type,0) # fraction of renewable-sourced fuel input to boiler
+    emissions_factor_lb_CO2_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_CO2_per_mmbtu&quot;],fuel_type,0)
+    emissions_factor_lb_NOx_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_NOx_per_mmbtu&quot;],fuel_type,0)
+    emissions_factor_lb_SO2_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_SO2_per_mmbtu&quot;],fuel_type,0)
+    emissions_factor_lb_PM25_per_mmbtu::Real = get(FUEL_DEFAULTS[&quot;emissions_factor_lb_PM25_per_mmbtu&quot;],fuel_type,0)
+)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/boiler.jl#L26-L57">source</a></section></article><h2 id="HotThermalStorage"><a class="docs-heading-anchor" href="#HotThermalStorage">HotThermalStorage</a><a id="HotThermalStorage-1"></a><a class="docs-heading-anchor-permalink" href="#HotThermalStorage" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.HotThermalStorageDefaults" href="#REopt.HotThermalStorageDefaults"><code>REopt.HotThermalStorageDefaults</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>HotThermalStorage</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    min_gal::Float64 = 0.0
+    max_gal::Float64 = 0.0
+    hot_water_temp_degF::Float64 = 180.0
+    cool_water_temp_degF::Float64 = 160.0
+    internal_efficiency_fraction::Float64 = 0.999999
+    soc_min_fraction::Float64 = 0.1
+    soc_init_fraction::Float64 = 0.5
+    installed_cost_per_gal::Float64 = 1.50
+    thermal_decay_rate_fraction::Float64 = 0.0004
+    om_cost_per_gal::Float64 = 0.0
+    macrs_option_years::Int = 5 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_itc_reduction::Float64 = 0.5
+    total_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    total_rebate_per_kwh::Float64 = 0.0
+    can_serve_dhw::Bool = true
+    can_serve_space_heating::Bool = true
+    can_serve_process_heat::Bool = false</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/energy_storage/thermal_storage.jl#L46-L69">source</a></section></article><h2 id="HighTempThermalStorage"><a class="docs-heading-anchor" href="#HighTempThermalStorage">HighTempThermalStorage</a><a id="HighTempThermalStorage-1"></a><a class="docs-heading-anchor-permalink" href="#HighTempThermalStorage" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.HighTempThermalStorageDefaults" href="#REopt.HighTempThermalStorageDefaults"><code>REopt.HighTempThermalStorageDefaults</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>HighTempThermalStorage</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    fluid::String = &quot;INCOMP::Nak&quot;
+    min_kwh::Float64 = 0.0
+    max_kwh::Float64 = 0.0
+    hot_temp_degF::Float64 = 1065.0
+    cool_temp_degF::Float64 = 554.0
+    internal_efficiency_fraction::Float64 = 0.999999
+    soc_min_fraction::Float64 = 0.1
+    soc_init_fraction::Float64 = 0.5
+    installed_cost_per_kwh::Float64 = 86.0
+    thermal_decay_rate_fraction::Float64 = 0.0004
+    om_cost_per_kwh::Float64 = 0.0
+    macrs_option_years::Int = 5 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_itc_reduction::Float64 = 0.5
+    total_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    total_rebate_per_kwh::Float64 = 0.0
+    can_supply_steam_turbine::Bool = true
+    can_serve_dhw::Bool = false
+    can_serve_space_heating:Bool = false
+    can_serve_process_heat::Bool = true
+    one_direction_flow::Bool = false</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/energy_storage/thermal_storage.jl#L94-L120">source</a></section></article><h2 id="ColdThermalStorage"><a class="docs-heading-anchor" href="#ColdThermalStorage">ColdThermalStorage</a><a id="ColdThermalStorage-1"></a><a class="docs-heading-anchor-permalink" href="#ColdThermalStorage" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ColdThermalStorageDefaults" href="#REopt.ColdThermalStorageDefaults"><code>REopt.ColdThermalStorageDefaults</code></a> — <span class="docstring-category">Type</span></header><section><div><p>Cold thermal energy storage sytem; specifically, a chilled water system used to meet thermal cooling loads.</p><p><code>ColdThermalStorage</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    min_gal::Float64 = 0.0
+    max_gal::Float64 = 0.0
+    hot_water_temp_degF::Float64 = 56.0 # Warmed-side return water temperature from the cooling load to the ColdTES (top of tank)
+    cool_water_temp_degF::Float64 = 44.0 # Chilled-side supply water temperature from ColdTES (bottom of tank) to the cooling load
+    internal_efficiency_fraction::Float64 = 0.999999 # Thermal losses due to mixing from thermal power entering or leaving tank
+    soc_min_fraction::Float64 = 0.1 # Minimum allowable TES thermal state of charge
+    soc_init_fraction::Float64 = 0.5 # TES thermal state of charge at first hour of optimization
+    installed_cost_per_gal::Float64 = 1.50 # Thermal energy-based cost of TES (e.g. volume of the tank)
+    thermal_decay_rate_fraction::Float64 = 0.0004 # Thermal loss (gain) rate as a fraction of energy storage capacity, per hour (frac*energy_capacity/hr = kw_thermal)
+    om_cost_per_gal::Float64 = 0.0 # Yearly fixed O&amp;M cost dependent on storage energy size
+    macrs_option_years::Int = 5 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    macrs_itc_reduction::Float64 = 0.5
+    total_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    total_rebate_per_kwh::Float64 = 0.0</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/energy_storage/thermal_storage.jl#L4-L26">source</a></section></article><h2 id="HeatingLoad"><a class="docs-heading-anchor" href="#HeatingLoad">HeatingLoad</a><a id="HeatingLoad-1"></a><a class="docs-heading-anchor-permalink" href="#HeatingLoad" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.HeatingLoad-Tuple{}" href="#REopt.HeatingLoad-Tuple{}"><code>REopt.HeatingLoad</code></a> — <span class="docstring-category">Method</span></header><section><div><p><strong><code>HeatingLoad</code> is a base function for the types of heating load inputs with the following keys and default values:</strong></p><pre><code class="language-julia">    load_type::String = &quot;&quot;,  # Valid options are space_heating for SpaceHeatingLoad, domestic_hot_water for DomesticHotWaterLoad, and process_heat for ProcessHeatLoad
+    doe_reference_name::String = &quot;&quot;,  # For SpaceHeatingLoad and DomesticHotWaterLoad
+    blended_doe_reference_names::Array{String, 1} = String[],  # For SpaceHeatingLoad and DomesticHotWaterLoad
+    blended_doe_reference_percents::Array{&lt;:Real,1} = Real[],  # For SpaceHeatingLoad and DomesticHotWaterLoad
+    industrial_reference_name::String = &quot;&quot;,  # For ProcessHeatLoad
+    blended_industrial_reference_names::Array{String, 1} = String[],  # For ProcessHeatLoad
+    blended_industrial_reference_percents::Array{&lt;:Real,1} = Real[],  # For ProcessHeatLoad
+    city::String = &quot;&quot;,
+    year::Union{Int, Nothing} = doe_reference_name ≠ &quot;&quot; || blended_doe_reference_names ≠ String[] || industrial_reference_name ≠ &quot;&quot; || blended_industrial_reference_names ≠ String[] ? 2017 : nothing, # CRB profiles are 2017 by default. If providing load profile, specify year of data.
+    annual_mmbtu::Union{Real, Nothing} = nothing,
+    monthly_mmbtu::Array{&lt;:Real,1} = Real[],
+    addressable_load_fraction::Any = 1.0,  # Fraction of input fuel load which is addressable by heating technologies. Can be a scalar or vector with length aligned with use of monthly_mmbtu or fuel_loads_mmbtu_per_hour.
+    fuel_loads_mmbtu_per_hour::Array{&lt;:Real,1} = Real[], # Vector of space heating fuel loads [mmbtu/hr]. Length must equal 8760 * `Settings.time_steps_per_hour`
+    normalize_and_scale_load_profile_input::Bool = false,  # Takes fuel_loads_mmbtu_per_hour and normalizes and scales it to annual_mmbtu or monthly_mmbtu 
+    existing_boiler_efficiency::Real = NaN</code></pre><p>There are different ways to define a heating load:</p><ol><li>A time-series via the <code>fuel_loads_mmbtu_per_hour</code>,</li><li>Scaling a DOE Commercial Reference Building (CRB) or industrial reference profile or a blend of profiles to either the <code>annual_mmbtu</code> or <code>monthly_mmbtu</code> values;</li><li>Using the same <code>doe_reference_name</code> or <code>blended_doe_reference_names</code> from the <code>ElectricLoad</code>.</li><li>A time-series via the <code>fuel_loads_mmbtu_per_hour</code> along with <code>annual_mmbtu</code> or <code>monthly_mmbtu</code> with <code>normalize_and_scale_load_profile_input</code>=true</li></ol><p>When using an <code>ElectricLoad</code> defined from a <code>doe_reference_name</code> or <code>blended_doe_reference_names</code>  one only needs to provide an empty Dict in the scenario JSON to add a <code>SpaceHeatingLoad</code> to a  <code>Scenario</code>, i.e.:</p><pre><code class="language-json">...
+&quot;ElectricLoad&quot;: {&quot;doe_reference_name&quot;: &quot;MidriseApartment&quot;},
+&quot;SpaceHeatingLoad&quot; : {},
+...</code></pre><p>In this case the values provided for <code>doe_reference_name</code>, or  <code>blended_doe_reference_names</code> and  <code>blended_doe_reference_percents</code> are copied from the <code>ElectricLoad</code> to the the particular <code>HeatingLoad</code> type.</p><p>!!! note for all heating loads     Hot water, space heating, and process heat &quot;load&quot; inputs are in terms of energy input required (boiler fuel),      not the actual end use thermal energy demand. The fuel energy is multiplied by the existing<em>boiler</em>efficiency to get the actual energy      demand.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/heating_cooling_loads.jl#L2-L44">source</a></section></article><h2 id="CoolingLoad"><a class="docs-heading-anchor" href="#CoolingLoad">CoolingLoad</a><a id="CoolingLoad-1"></a><a class="docs-heading-anchor-permalink" href="#CoolingLoad" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.CoolingLoad" href="#REopt.CoolingLoad"><code>REopt.CoolingLoad</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>CoolingLoad</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    doe_reference_name::String = &quot;&quot;,
+    blended_doe_reference_names::Array{String, 1} = String[],
+    blended_doe_reference_percents::Array{&lt;:Real,1} = Real[],
+    city::String = &quot;&quot;,
+    year::Int = doe_reference_name ≠ &quot;&quot; || blended_doe_reference_names ≠ String[] ? 2017 : nothing, # CRB profiles are 2017 by default. If providing load profile, specify year of data.    
+    annual_tonhour::Union{Real, Nothing} = nothing,
+    monthly_tonhour::Array{&lt;:Real,1} = Real[],
+    thermal_loads_ton::Array{&lt;:Real,1} = Real[], # Vector of cooling thermal loads [ton] = [short ton hours/hour]. Length must equal 8760 * `Settings.time_steps_per_hour`
+    annual_fraction_of_electric_load::Union{Real, Nothing} = nothing, # Fraction of total electric load that is used for cooling 
+    monthly_fractions_of_electric_load::Array{&lt;:Real,1} = Real[],
+    per_time_step_fractions_of_electric_load::Array{&lt;:Real,1} = Real[]</code></pre><p>There are many ways to define a <code>CoolingLoad</code>:</p><ol><li>a time-series via the <code>thermal_loads_ton</code>,</li><li>DoE Commercial Reference Building (CRB) profile or a blend of CRB profiles which uses the buildings&#39; fraction of total electric for cooling profile applied to the <code>ElectricLoad</code></li><li>scaling a DoE Commercial Reference Building (CRB) profile or a blend of CRB profiles using <code>annual_tonhour</code> or <code>monthly_tonhour</code></li><li>the <code>annual_fraction_of_electric_load</code>, <code>monthly_fractions_of_electric_load</code>, or <code>per_time_step_fractions_of_electric_load</code> values, which get applied to the <code>ElectricLoad</code> to determine the cooling electric load;</li><li>or using the <code>doe_reference_name</code> or <code>blended_doe_reference_names</code> from the <code>ElectricLoad</code>.</li></ol><p>The electric-based <code>loads_kw</code> of the <code>CoolingLoad</code> is a <em>subset</em> of the total electric load <code>ElectricLoad</code>, so <code>CoolingLoad.loads_kw</code> for the BAU/conventional electric consumption of the <code>existing_chiller</code> is subtracted from the <code>ElectricLoad</code> for the non-cooling electric load balance constraint in the model. </p><p>When using an <code>ElectricLoad</code> defined from a <code>doe_reference_name</code> or <code>blended_doe_reference_names</code>  one only needs to provide an empty Dict in the scenario JSON to add a <code>CoolingLoad</code> to a  <code>Scenario</code>, i.e.:</p><pre><code class="language-json">...
+&quot;ElectricLoad&quot;: {&quot;doe_reference_name&quot;: &quot;MidriseApartment&quot;},
+&quot;CoolingLoad&quot; : {},
+...</code></pre><p>In this case the values provided for <code>doe_reference_name</code>, or  <code>blended_doe_reference_names</code> and  <code>blended_doe_reference_percents</code> are copied from the <code>ElectricLoad</code> to the <code>CoolingLoad</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/heating_cooling_loads.jl#L274-L311">source</a></section></article><h2 id="FlexibleHVAC"><a class="docs-heading-anchor" href="#FlexibleHVAC">FlexibleHVAC</a><a id="FlexibleHVAC-1"></a><a class="docs-heading-anchor-permalink" href="#FlexibleHVAC" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.FlexibleHVAC" href="#REopt.FlexibleHVAC"><code>REopt.FlexibleHVAC</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>FlexibleHVAC</code> is an optional REopt input with the following keys and default values: </p><pre><code class="language-julia">    system_matrix::AbstractMatrix{Float64}  # N x N, with N states (temperatures in RC network)
+    input_matrix::AbstractMatrix{Float64}  # N x M, with M inputs
+    exogenous_inputs::AbstractMatrix{Float64}  # M x T, with T time steps
+    control_node::Int64
+    initial_temperatures::AbstractVector{Float64}
+    temperature_upper_bound_degC::Union{Real, Nothing}
+    temperature_lower_bound_degC::Union{Real, Nothing}
+    installed_cost::Float64</code></pre><p>Every model with <code>FlexibleHVAC</code> includes a preprocessing step to calculate the business-as-usual (BAU) cost of meeting the thermal loads using a dead-band controller. The BAU cost is then used in the  binary decision for purchasing the <code>FlexibleHVAC</code> system: if the <code>FlexibleHVAC</code> system is purchased then the heating and cooling costs are determined by the HVAC dispatch that minimizes the lifecycle cost of energy. If the <code>FlexibleHVAC</code> system is not purchased then the BAU heating and cooling costs must be paid.</p><p>There are two construction methods for <code>FlexibleHVAC</code>, which depend on whether or not the data was  loaded in from a JSON file. The issue with data from JSON is that the vector-of-vectors from the JSON  file must be appropriately converted to Julia Matrices. When loading in a Scenario from JSON that  includes a <code>FlexibleHVAC</code> model, if you include the <code>flex_hvac_from_json</code> argument to the <code>Scenario</code>  constructor then the conversion to Matrices will be done appropriately. </p><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>At least one of the inputs for <code>temperature_upper_bound_degC</code> or <code>temperature_lower_bound_degC</code> must be provided to evaluate the <code>FlexibleHVAC</code> option. For example, if only <code>temperature_lower_bound_degC</code> is provided then only a heating system will be evaluated. Also, the heating system will only be used (or purchased) if the <code>exogenous_inputs</code> lead to the temperature at the <code>control_node</code> going below the <code>temperature_lower_bound_degC</code>.</p></div></div><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>The <code>ExistingChiller</code> is electric and so its operating cost is determined by the <code>ElectricTariff</code>.</p></div></div><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"><p>BAU heating costs will be determined by the <code>ExistingBoiler</code> inputs, including<code>fuel_cost_per_mmbtu</code>.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/flexible_hvac.jl#L12-L50">source</a></section></article><h2 id="ExistingChiller"><a class="docs-heading-anchor" href="#ExistingChiller">ExistingChiller</a><a id="ExistingChiller-1"></a><a class="docs-heading-anchor-permalink" href="#ExistingChiller" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ExistingChiller" href="#REopt.ExistingChiller"><code>REopt.ExistingChiller</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>ExistingChiller</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    loads_kw_thermal::Vector{&lt;:Real},
+    cop::Union{Real, Nothing} = nothing,
+    max_thermal_factor_on_peak_load::Real=1.25
+    installed_cost_per_kw::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis based on current size; also incurred in Optimal case if still using at all
+    installed_cost_dollars::Real = 0.0  # Represents needed CapEx in BAU, assuming net present cost basis; also incurred in Optimal case if still using at all
+    retire_in_optimal::Bool = false  # Do NOT use in the optimal case (still used in BAU)</code></pre><div class="admonition is-info"><header class="admonition-header">Max ExistingChiller size</header><div class="admonition-body"><p>The maximum size [kW] of the <code>ExistingChiller</code> will be set based on the peak thermal load as follows, and    this is really the <strong>actual</strong> estimated size of the existing chiller at the site:</p><pre><code class="language-julia">max_kw = maximum(loads_kw_thermal) * max_thermal_factor_on_peak_load</code></pre></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/existing_chiller.jl#L2-L19">source</a></section></article><h2 id="GHP"><a class="docs-heading-anchor" href="#GHP">GHP</a><a id="GHP-1"></a><a class="docs-heading-anchor-permalink" href="#GHP" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.GHP" href="#REopt.GHP"><code>REopt.GHP</code></a> — <span class="docstring-category">Type</span></header><section><div><p>GHP evaluations typically require the <code>GhpGhx.jl</code> package to be loaded unless the <code>GhpGhx.jl</code> package  was already used externally to create <code>inputs_dict[&quot;GHP&quot;][&quot;ghpghx_responses&quot;]</code>. See the Home page under  &quot;Additional package loading for GHP&quot; for instructions. This <code>GHP</code> struct uses the response from <code>GhpGhx.jl</code> to process input parameters for REopt including additional cost parameters for <code>GHP</code>.</p><pre><code class="language-none">GHP</code></pre><p>struct with outer constructor:</p><pre><code class="language-julia">    require_ghp_purchase::Union{Bool, Int64} = false  # 0 = false, 1 = true
+    installed_cost_heatpump_per_ton::Float64 = 1075.0
+    installed_cost_wwhp_heating_pump_per_ton::Float64 = 700.0
+    installed_cost_wwhp_cooling_pump_per_ton::Float64 = 700.0
+    heatpump_capacity_sizing_factor_on_peak_load::Float64 = 1.1
+    installed_cost_ghx_per_ft::Float64 = 14.0
+    installed_cost_building_hydronic_loop_per_sqft = 1.70
+    om_cost_per_sqft_year::Float64 = -0.51
+    building_sqft::Float64                                  # Required input
+    space_heating_efficiency_thermal_factor::Float64 = NaN  # Default depends on building and location
+    cooling_efficiency_thermal_factor::Float64 = NaN        # Default depends on building and location
+    ghpghx_response::Dict = Dict()
+    can_serve_dhw::Bool = false
+    max_ton::Real                                           # Maximum heat pump capacity size. Default at a big number
+    max_number_of_boreholes::Real                           # Maximum GHX size
+    load_served_by_ghp::String                              # &quot;scaled&quot; or &quot;nonpeak&quot;
+
+    macrs_option_years::Int = 0
+    macrs_bonus_fraction::Float64 = 0.0
+    macrs_itc_reduction::Float64 = 0.5
+    federal_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not &quot;commercial/industrial&quot;
+    federal_rebate_per_ton::Float64 = 0.0
+    federal_rebate_per_kw::Float64 = 0.0
+    state_ibi_fraction::Float64 = 0.0
+    state_ibi_max::Float64 = 1.0e10
+    state_rebate_per_ton::Float64 = 0.0
+    state_rebate_per_kw::Float64 = 0.0
+    state_rebate_max::Float64 = 1.0e10
+    utility_ibi_fraction::Float64 = 0.0
+    utility_ibi_max::Float64 = 1.0e10
+    utility_rebate_per_ton::Float64 = 0.0
+    utility_rebate_per_kw::Float64 = 0.0
+    utility_rebate_max::Float64 = 1.0e10
+
+    # Processed data from inputs and results of GhpGhx.jl
+    heating_thermal_kw::Vector{Float64} = []
+    cooling_thermal_kw::Vector{Float64} = []
+    yearly_electric_consumption_kw::Vector{Float64} = []
+    peak_combined_heatpump_thermal_ton::Float64 = NaN
+
+    # Intermediate parameters for cost processing
+    tech_sizes_for_cost_curve::Union{Float64, AbstractVector{Float64}} = NaN
+    installed_cost_per_kw::Union{Float64, AbstractVector{Float64}} = NaN
+    heatpump_capacity_ton::Float64 = NaN
+
+    # Process and populate these parameters needed more directly by the model
+    installed_cost::Float64 = NaN
+    om_cost_year_one::Float64 = NaN</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/ghp.jl#L4-L63">source</a></section></article><h2 id="SteamTurbine"><a class="docs-heading-anchor" href="#SteamTurbine">SteamTurbine</a><a id="SteamTurbine-1"></a><a class="docs-heading-anchor-permalink" href="#SteamTurbine" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.SteamTurbine" href="#REopt.SteamTurbine"><code>REopt.SteamTurbine</code></a> — <span class="docstring-category">Type</span></header><section><div><p><code>SteamTurbine</code> is an optional REopt input with the following keys and default values:</p><pre><code class="language-julia">    size_class::Union{Int64, Nothing} = nothing
+    min_kw::Float64 = 0.0
+    max_kw::Float64 = 1.0e9
+    electric_produced_to_thermal_consumed_ratio::Float64 = NaN
+    thermal_produced_to_thermal_consumed_ratio::Float64 = NaN
+    is_condensing::Bool = false
+    inlet_steam_pressure_psig::Float64 = NaN
+    inlet_steam_temperature_degF::Float64 = NaN
+    inlet_steam_superheat_degF::Float64 = 0.0
+    outlet_steam_pressure_psig::Float64 = NaN
+    outlet_steam_min_vapor_fraction::Float64 = 0.8  # Minimum practical vapor fraction of steam at the exit of the steam turbine
+    isentropic_efficiency::Float64 = NaN
+    gearbox_generator_efficiency::Float64 = NaN  # Combined gearbox (if applicable) and electric motor/generator efficiency
+    net_to_gross_electric_ratio::Float64 = NaN  # Efficiency factor to account for auxiliary loads such as pumps, controls, lights, etc
+    installed_cost_per_kw::Float64 = NaN   # Installed cost based on electric power capacity
+    om_cost_per_kw::Float64 = 0.0  # Fixed O&amp;M cost based on electric power capacity
+    om_cost_per_kwh::Float64 = NaN  # Variable O&amp;M based on electric energy produced
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 0 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
+    
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
+    can_curtail::Bool = false
+    can_waste_heat::Bool = false
+    can_serve_dhw::Bool = true
+    can_serve_space_heating::Bool = true
+    can_serve_process_heat::Bool = true
+    charge_storage_only::Bool = false
+
+    macrs_option_years::Int = 5 # Note that this value cannot be 0 if aiming to apply 100% bonus depreciation
+    macrs_bonus_fraction::Float64 = 1.0</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/steam_turbine.jl#L3-L42">source</a></section></article><h2 id="ElectricHeater"><a class="docs-heading-anchor" href="#ElectricHeater">ElectricHeater</a><a id="ElectricHeater-1"></a><a class="docs-heading-anchor-permalink" href="#ElectricHeater" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ElectricHeater" href="#REopt.ElectricHeater"><code>REopt.ElectricHeater</code></a> — <span class="docstring-category">Type</span></header><section><div><p>ElectricHeater</p><p>If a user provides the <code>ElectricHeater</code> key then the optimal scenario has the option to purchase  this new <code>ElectricHeater</code> to meet the heating load in addition to using the <code>ExistingBoiler</code>  to meet the heating load. </p><pre><code class="language-julia">function ElectricHeater(;
+    min_mmbtu_per_hour::Real = 0.0, # Minimum thermal power size
+    max_mmbtu_per_hour::Real = BIG_NUMBER, # Maximum thermal power size
+    installed_cost_per_mmbtu_per_hour::Union{Real, nothing} = nothing, # Thermal power-based cost
+    om_cost_per_mmbtu_per_hour::Union{Real, nothing} = nothing, # Thermal power-based fixed O&amp;M cost
+    macrs_option_years::Int = 0, # MACRS schedule for financial analysis. Set to zero to disable
+    macrs_bonus_fraction::Real = 0.0, # Fraction of upfront project costs to depreciate under MACRS
+    can_supply_steam_turbine::Union{Bool, nothing} = nothing # If the boiler can supply steam to the steam turbine for electric production
+    cop::Union{Real, nothing} = nothing # COP of the heating (i.e., thermal produced / electricity consumed)
+    can_serve_dhw::Bool = true # If electric heater can supply heat to the domestic hot water load
+    can_serve_space_heating::Bool = true # If electric heater can supply heat to the space heating load
+    can_serve_process_heat::Bool = true # If electric heater can supply heat to the process heating load
+)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/electric_heater.jl#L19-L41">source</a></section></article><h2 id="ASHP"><a class="docs-heading-anchor" href="#ASHP">ASHP</a><a id="ASHP-1"></a><a class="docs-heading-anchor-permalink" href="#ASHP" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.ASHP" href="#REopt.ASHP"><code>REopt.ASHP</code></a> — <span class="docstring-category">Type</span></header><section><div><p>ASHPSpaceHeater</p><p>If a user provides the <code>ASHPSpaceHeater</code> key then the optimal scenario has the option to purchase  this new <code>ASHP</code> to meet the heating load in addition to using the <code>ExistingBoiler</code> to meet the heating load. </p><p>ASHPSpaceHeater has the following attributes: </p><pre><code class="language-julia">    min_kw::Real # Minimum thermal power size
+    max_kw::Real # Maximum thermal power size
+    min_allowable_kw::Real # Minimum nonzero thermal power size if included
+    sizing_factor::Real # Size multiplier of system, relative that of the max load given by dispatch profile
+    installed_cost_per_kw::Real # Thermal power-based cost
+    om_cost_per_kw::Real # Thermal power-based fixed O&amp;M cost
+    macrs_option_years::Int # MACRS schedule for financial analysis. Set to zero to disable
+    macrs_bonus_fraction::Real # Fraction of upfront project costs to depreciate under MACRS
+    heating_cop::Array{&lt;:Real,1} # COP of the heating (i.e., thermal produced / electricity consumed)
+    cooling_cop::Array{&lt;:Real,1} # COP of the cooling (i.e., thermal produced / electricity consumed)
+    heating_cf::Array{&lt;:Real,1} # ASHP&#39;s heating capacity factor curves
+    cooling_cf::Array{&lt;:Real,1} # ASHP&#39;s cooling capacity factor curves
+    can_serve_cooling::Bool # If ASHP can supply heat to the cooling load
+    force_into_system::Bool # force into system to serve all space heating loads if true
+    force_dispatch::Bool # force ASHP to meet load or maximize output if true
+    back_up_temp_threshold_degF::Real # Degree in F that system switches from ASHP to resistive heater 
+    avoided_capex_by_ashp_present_value::Real # avoided capital expenditure due to presence of ASHP system vs. defaults heating and cooling techs
+    max_ton::Real # maximum allowable thermal power (tons) 
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/ashp.jl#L3-L32">source</a></section></article><h2 id="CST"><a class="docs-heading-anchor" href="#CST">CST</a><a id="CST-1"></a><a class="docs-heading-anchor-permalink" href="#CST" title="Permalink"></a></h2><article class="docstring"><header><a class="docstring-binding" id="REopt.CST" href="#REopt.CST"><code>REopt.CST</code></a> — <span class="docstring-category">Type</span></header><section><div><pre><code class="language-julia">CST</code></pre><p>If a user provides the <code>CST</code> key then the optimal scenario has the option to purchase this new  <code>CST</code> technology to meet compatible heating loads in addition to using the <code>ExistingBoiler</code>  to meet the heating load(s). </p><pre><code class="language-julia">function CST(;
+    min_kw::Real = 0.0, # Minimum thermal power size (capacity)
+    max_kw::Real = BIG_NUMBER, # Maximum thermal power size (capacity)
+    production_factor::AbstractVector{&lt;:Real} = Float64[],  production factor
+    elec_consumption_factor_series::AbstractVector{&lt;:Real} = Float64[], electric consumption factor per kw TODO: (do we need? are we including parasitics?) 
+    acres_per_kw::Union{Real,Nothing} = nothing, # 
+    macrs_option_years::Union{Int,Nothing} = nothing, # MACRS schedule for financial analysis. Set to zero to disable
+    macrs_bonus_fraction::Union{Real,Nothing} = nothing, # Fraction of upfront project costs to depreciate under MACRS
+    installed_cost_per_kw::Union{Real,Nothing} = nothing, # Thermal power-based cost, see cst_defaults.json for CST default by type
+    om_cost_per_kw::Union{Real,Nothing} = nothing, # Thermal power-based fixed O&amp;M cost, see cst_defaults.json for CST default by type
+    om_cost_per_kwh::Union{Real,Nothing} = nothing, # Thermal energy produced-based variable O&amp;M cost
+    tech_type::Union{String,Nothing} = nothing,  # restrict to: [&quot;ptc&quot;, &quot;mst&quot;, &quot;lf&quot;, &quot;swh_evactube&quot;, &quot;swh_flatplate&quot;]
+    can_supply_steam_turbine::Union{Bool,Nothing} = nothing # If the CST can supply steam to the steam turbine for electric production
+    can_serve_dhw::Union{Bool,Nothing} = nothing # If CST can supply heat to the domestic hot water load
+    can_serve_space_heating::Union{Bool,Nothing} = nothing # If CST can supply heat to the space heating load
+    can_serve_process_heat::Union{Bool,Nothing} = nothing # If CST can supply heat to the process heating load
+    can_waste_heat::Union{Bool,Nothing} = nothing # If CST can curtail excess heat
+    charge_storage_only::Union{Bool,Nothing} = nothing # If CST can only supply hot TES (i.e., cannot meet load directly)
+    emissions_factor_lb_CO2_per_mmbtu::Real = 0.0
+    emissions_factor_lb_NOx_per_mmbtu::Real = 0.0
+    emissions_factor_lb_SO2_per_mmbtu::Real = 0.0
+    emissions_factor_lb_PM25_per_mmbtu::Real = 0.0
+    inlet_temp_degF::Real = 400.0 # heat transfer medium temperature at inlet of CST heat offtaker (e.g., inlet to HTF hot tank or industrial process)
+    outlet_temp_degF::Real = 70.0 # heat transfer medium temperature at outlet of CST heat offtaker (e.g., HTF cold tank storage)
+)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/NatLabRockies/REopt.jl/blob/d11ad672f0b6eaf90c8513f036ac752ee3b8d65e/src/core/cst.jl#L27-L61">source</a></section></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../examples/">« Examples</a><a class="docs-footer-nextpage" href="../outputs/">Outputs »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 12 February 2026 21:38">Thursday 12 February 2026</span>. Using Julia version 1.10.10.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
