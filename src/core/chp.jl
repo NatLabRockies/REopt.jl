@@ -41,6 +41,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
     serve_absorption_chiller_only::Bool = false # If CHP only can serve absorption chiller with produced heat
+    months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which only absorption chiller is served.
     follow_electrical_load::Bool = false # If CHP follows the electrical load by running at capacity or meeting the load only.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
@@ -116,6 +117,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
     serve_absorption_chiller_only::Bool = false
+    months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[]
     follow_electrical_load::Bool = false
 
     macrs_option_years::Int = 5
