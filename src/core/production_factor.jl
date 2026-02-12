@@ -148,7 +148,7 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
         # Corresponding rotor diameter in meters for generic reference turbines sizes
         rotor_diameter_lookup = Dict(
             "Bespoke 6 MW 196" => 98*2,
-            "Bespoke 6 MW 170" => 85*85,
+            "Bespoke 6 MW 170" => 85*2,
             "GE 1.5 MW" => 38.5*2,
             "Vestas V-47" => 23.5*2,
             "Northern Power Systems 100" => 10.35*2,
