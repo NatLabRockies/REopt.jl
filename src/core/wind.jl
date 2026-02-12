@@ -230,6 +230,7 @@ struct Wind <: AbstractTech
             om_cost_per_kw,
             production_factor_series,
             size_class,
+            use_turbine_model_names,
             hub_height,
             wind_meters_per_sec,
             wind_direction_degrees,
