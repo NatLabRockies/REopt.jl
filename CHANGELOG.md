@@ -25,6 +25,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-load-following
+### Added
+- New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
+
+### Fixed
+- Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
+
 ## Develop 
 ### Fixed
 - Include boiler emissions in emissions calculations
