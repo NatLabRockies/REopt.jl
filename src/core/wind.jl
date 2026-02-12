@@ -111,7 +111,7 @@ struct Wind <: AbstractTech
         installed_cost_per_kw = nothing,
         om_cost_per_kw = 42.0,
         production_factor_series = nothing,
-        size_class = "",
+        size_class::String = "",
         use_turbine_model_names::Bool = false, 
         wind_meters_per_sec = [],
         wind_direction_degrees = [],
@@ -138,7 +138,7 @@ struct Wind <: AbstractTech
         can_net_meter = off_grid_flag ? false : true,
         can_wholesale = off_grid_flag ? false : true,
         can_export_beyond_nem_limit = off_grid_flag ? false : true,
-        can_curtail= true,
+        can_curtail = off_grid_flag ? false : true,
         average_elec_load = 0.0,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
         )
