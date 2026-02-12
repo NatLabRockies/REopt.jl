@@ -174,9 +174,12 @@ Used in the function add_chp_constraints to add constraints that restrict output
 in dispatch (or send heat to waste).
 """
 function add_absorption_chiller_only_constraints(m, p; _n="")
-    @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in p.time_steps], 
-        m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
-    )
+    monthly_timesteps = get_monthly_time_steps(p.s.electric_load.year; time_steps_per_hour=p.s.settings.time_steps_per_hour)
+    for mth in p.s.chp.months_serving_absorption_chiller_only
+        @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
+            m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
+        )
+    end
     for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
         for ts in p.time_steps
             fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts], 0.0, force=true)
