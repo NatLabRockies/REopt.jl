@@ -281,6 +281,11 @@ function CHP(d::Dict;
         setproperty!(chp, :thermal_efficiency_half_load, 0.0)
     end
 
+    if chp.serve_absorption_chiller_only && isempty(chp.months_serving_absorption_chiller_only)
+        @warn "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced."
+        chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
+    end 
+    
     return chp
 end
 
