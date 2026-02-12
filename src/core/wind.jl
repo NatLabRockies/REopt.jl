@@ -33,7 +33,8 @@
     production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
     can_net_meter = true,
     can_wholesale = true,
-    can_export_beyond_nem_limit = true
+    can_export_beyond_nem_limit = true,
+    can_curtail = true, 
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
 ```
 !!! note "Default assumptions" 
