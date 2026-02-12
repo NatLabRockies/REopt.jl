@@ -1118,12 +1118,18 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
-            @testset "CHP to Waste Heat + Absorption Chiller" begin
+            @testset "CHP Waste Heat, Absorption Chiller, Load Following Policies" begin
+                #part 1: test nonzero waste heat, with all dispatch to either waste or absorption chiller when enabled 
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 results = run_reopt(m, d)
-                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 1725.761 atol=1e-3
+                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 1327.290 atol=1e-3
                 @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ results["CHP"]["annual_thermal_production_mmbtu"] atol=1e-3
+                @test "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced." in string(results["Messages"]["warnings"])
+                @test "AbsorptionChiller heating load input overridden to SpaceHeating to allow for compatible heating technologies to be present." in string(results["Messages"]["warnings"])
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
                 # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")

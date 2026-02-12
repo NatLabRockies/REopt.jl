@@ -101,38 +101,10 @@
             6.04
         ],
         "federal_itc_fraction": 0.3,
-        "serve_absorption_chiller_only": true 
-    },
-    "DomesticHotWaterLoad": {
-        "monthly_mmbtu": [
-            135.097,
-            117.915,
-            96.579,
-            57.283,
-            15.684,
-            14.794,
-            19.994,
-            28.147,
-            37.784,
-            46.926,
-            147.828,
-            162.636
-        ],
-        "addressable_load_fraction": [
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0
-        ],
-        "doe_reference_name": "FlatLoad"
+        "serve_absorption_chiller_only": true,
+        "can_serve_space_heating": true,
+        "can_serve_dhw": false, 
+        "can_serve_process_heat": true
     },
     "SpaceHeatingLoad": {
         "monthly_mmbtu": [
@@ -180,7 +152,10 @@
             4.65,
             5.07,
             6.04
-        ]
+        ],
+        "can_serve_space_heating": true,
+        "can_serve_dhw": false, 
+        "can_serve_process_heat": true
     },
     "Financial": {
         "elec_cost_escalation_rate_fraction": 0.017,
