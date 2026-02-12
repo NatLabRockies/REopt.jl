@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 using Test
 using JuMP
 using HiGHS
@@ -36,7 +36,11 @@ else  # run HiGHS tests
             input_data["Site"]["sector"] = "commercial/industrial"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
+            @test s.financial.offtaker_tax_rate_fraction == 0.26
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0348
             @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
+            @test s.financial.om_cost_escalation_rate_fraction == 0.025
+            @test s.financial.offtaker_discount_rate_fraction == 0.0624
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
@@ -57,7 +61,11 @@ else  # run HiGHS tests
             input_data["Site"]["federal_procurement_type"] = "privateowned_thirdparty"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
-            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.00581 #national avg
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.024 #national avg
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0074 #national avg
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
@@ -78,7 +86,11 @@ else  # run HiGHS tests
             input_data["Site"]["federal_sector_state"] = "CA"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.0
-            @test s.financial.elec_cost_escalation_rate_fraction == -0.00088
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0079
+            @test s.financial.elec_cost_escalation_rate_fraction == -0.0062
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.ghp_option_list[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :federal_itc_fraction)
                     default = 0
@@ -149,14 +161,14 @@ else  # run HiGHS tests
             latitude, longitude = 65.0102196310875, 25.465387094897675
             radius = 0
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "intl"
+            @test dataset == "nsrdb"
 
             # 4. Fairbanks, AK 
             site = "Fairbanks"
             latitude, longitude = 64.84112047064114, -147.71570239058084 
             radius = 20
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "tmy3"  
+            @test dataset == "nsrdb"
         end
 
         @testset "ASHP min allowable size and COP, CF Profiles" begin

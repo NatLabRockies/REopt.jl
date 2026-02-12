@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 prime_movers = ["recip_engine", "micro_turbine", "combustion_turbine", "fuel_cell"]
 conflict_res_min_allowable_fraction_of_max = 0.25
