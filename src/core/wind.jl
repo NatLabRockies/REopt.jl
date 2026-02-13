@@ -142,6 +142,11 @@ struct Wind <: AbstractTech
         average_elec_load = 0.0,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
         )
+        
+        # Initialize dictionaries based on use_turbine_model_names flag
+        size_class_to_hub_height = Dict{String, Int}()
+        size_class_to_installed_cost = Dict{String, Float64}()
+        
         if use_turbine_model_names
             @warn "Using specific turbine model names for `size_class`. Ensure that `size_class` is one of the following turbine model names: [\"Bergey Excel 15\", \"Northern Power Systems 100\", \"Vestas V-47\", \"GE 1.5 MW\", \"Bespoke 6 MW 170\", \"Bespoke 6 MW 196\"]"
             size_class_to_hub_height = Dict(
@@ -174,7 +179,8 @@ struct Wind <: AbstractTech
                 "large"=> 2896.0
             )
         end
-            # Size class selection logic remains similar but references the appropriate dict
+        
+        # Size class selection logic
         if size_class == ""
             if use_turbine_model_names
                 if average_elec_load <= 16
