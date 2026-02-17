@@ -13,7 +13,7 @@
     wind_direction_degrees = [],
     temperature_celsius = [],
     pressure_atmospheres = [],
-    acres_per_kw = 0.0126, # assuming a power density for the Bespoke 6 MW 170. No size constraint applied to turbines below 1.5 MW capacity.. (not exposed in API)
+    acres_per_kw = 0.03, # assuming a power density of 30 acres per MW for turbine sizes >= 1.5 MW. No size constraint applied to turbines below 1.5 MW capacity.. (not exposed in API). Value should be 0.0126 if use_turbine_model_names = true, used for the Bespoke 6 MW 170. 
     macrs_option_years = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_option_years", 5),
     macrs_bonus_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_bonus_fraction", 1.0),
     macrs_itc_reduction = 0.5,
@@ -38,7 +38,18 @@
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
 ```
 !!! note "Default assumptions" 
-    `size_class` must be one of ["Bergey Excel 15", "Northern Power Systems 100", "Vestas V-47", "GE 1.5 MW", "Bespoke 6 MW 170", "Bespoke 6 MW 196"]. If `size_class` is not provided then it is determined based on the average electric load.
+    `size_class` must be one of ["residential", "commercial", "medium", "large"]. If `size_class` is not provided then it is determined based on the average electric load.
+
+    If no `installed_cost_per_kw` is provided then it is determined from:
+    ```julia
+    size_class_to_installed_cost = Dict(
+        "residential"=> 7692.0,
+        "commercial"=> 5776.0,
+        "medium"=> 3807.0,
+        "large"=> 2896.0
+    )
+    ```    
+    If use_turbine_model_names = true, then `size_class` must be one of ["Bergey Excel 15", "Northern Power Systems 100", "Vestas V-47", "GE 1.5 MW", "Bespoke 6 MW 170", "Bespoke 6 MW 196"]. If `size_class` is not provided then it is determined based on the average electric load.
 
     If no `installed_cost_per_kw` is provided then it is determined from:
     ```julia
@@ -117,7 +128,7 @@ struct Wind <: AbstractTech
         wind_direction_degrees = [],
         temperature_celsius = [],
         pressure_atmospheres = [],
-        acres_per_kw = 0.0126, # assuming a power density for the Bespoke 6 MW 170. No size constraint applied to turbines below 1.5 MW capacity.
+        acres_per_kw = use_turbine_model_names ? 0.0126 : 0.03, # assuming a power density of 30 acres per MW for turbine sizes >= 1.5 MW. No size constraint applied to turbines below 1.5 MW capacity.. Value should be 0.0126 if use_turbine_model_names = true, used for the Bespoke 6 MW 170. 
         macrs_option_years = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_option_years", 5),
         macrs_bonus_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_bonus_fraction", 1.0),
         macrs_itc_reduction = 0.5,
