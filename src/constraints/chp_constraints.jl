@@ -224,7 +224,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     )
     #Enforce dispatch: output = system size - (overage)
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] + p.s.electric_load.loads_kw[ts] \ * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
+        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] + p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
     )
 end
 
