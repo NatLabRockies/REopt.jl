@@ -1421,19 +1421,19 @@ reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
 """
 function reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load::Dict{String, Vector{String}}, s::AbstractScenario, techs::Techs)
     if !isempty(techs.can_serve_space_heating)
-        @warn("AbsorptionChiller heating load input overridden to SpaceHeating to allow for compatible heating technologies to be present.")
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to SpaceHeating.")
         s.absorption_chiller.heating_load_input = "SpaceHeating"
         absorption_chillers_using_heating_load["SpaceHeating"] = ["AbsorptionChiller"]
         absorption_chillers_using_heating_load["DomesticHotWater"] = []
         absorption_chillers_using_heating_load["ProcessHeat"] = []
     elseif !isempty(techs.can_serve_dhw)
-        @warn("AbsorptionChiller heating load input overridden to DomesticHotWater to allow for compatible heating technologies to be present.")
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to DomesticHotWater.")
         s.absorption_chiller.heating_load_input = "DomesticHotWater"
         absorption_chillers_using_heating_load["SpaceHeating"] = []
         absorption_chillers_using_heating_load["DomesticHotWater"] = ["AbsorptionChiller"]
         absorption_chillers_using_heating_load["ProcessHeat"] = []
     elseif !isempty(techs.can_serve_process_heat)
-        @warn("AbsorptionChiller heating load input overridden to ProcessHeat to allow for compatible heating technologies to be present.")
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to ProcessHeat.")
         s.absorption_chiller.heating_load_input = "ProcessHeat"
         absorption_chillers_using_heating_load["SpaceHeating"] = []
         absorption_chillers_using_heating_load["DomesticHotWater"] = []

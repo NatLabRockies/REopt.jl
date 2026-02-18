@@ -1138,7 +1138,7 @@ else  # run HiGHS tests
                 @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 1327.290 atol=1e-3
                 @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ results["CHP"]["annual_thermal_production_mmbtu"] atol=1e-3
                 @test "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced." in string(results["Messages"]["warnings"])
-                @test "AbsorptionChiller heating load input overridden to SpaceHeating to allow for compatible heating technologies to be present." in string(results["Messages"]["warnings"])
+                @test "No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to SpaceHeating." in string(results["Messages"]["warnings"])
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
