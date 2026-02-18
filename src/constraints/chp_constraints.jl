@@ -202,26 +202,14 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     dv = "dvCHPSizeTimesExcess"*_n
     m[Symbol(dv)] = @variable(m, [p.time_steps], lower_bound=0, base_name=dv)
     # binary variable enforcement for size >= load
-    if !isempty(p.techs.cooling)
-        max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw[ts]
-                + p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts] for ts in p.time_steps) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads)  #exclude heating electrification but include elec cooling? 
-                )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - (p.s.electric_load.loads_kw[ts] + p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts])) / max_diff_size_bigM
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - ((p.s.electric_load.loads_kw[ts] + p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts]) - p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
-        )
-    else
-        max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads)  #exclude heating electrification but include elec cooling? 
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - (p.s.electric_load.loads_kw[ts] - m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
-        )
-    end
+    max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads))  #exclude heating electrification but include elec cooling? 
+    )
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
+    )
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - (p.s.electric_load.loads_kw[ts] - m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
+    )
     # set dvCHPSizeTimesExcess = binCHPSizeExceedsElectricLoad * dvSize
     # big-M is min CF times heat load
     
