@@ -168,12 +168,12 @@ function add_chp_hourly_om_charges(m, p; _n="")
 end
 
 """
-    add_absorption_chiller_only_constraints(m, p; _n="")
+    add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
 
-Used in the function add_chp_constraints to add constraints that restrict output of CHP to serve absorption chiller only 
-in dispatch (or send heat to waste).
+Used in the function add_chp_constraints to add constraints that restrict heat output of CHP to only serve absorption chiller  
+load or send to waste in dispatch.
 """
-function add_absorption_chiller_only_constraints(m, p; _n="")
+function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
     monthly_timesteps = get_monthly_time_steps(p.s.electric_load.year; time_steps_per_hour=p.s.settings.time_steps_per_hour)
     for mth in p.s.chp.months_serving_absorption_chiller_only
         @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
@@ -271,7 +271,7 @@ function add_chp_constraints(m, p; _n="")
     end
 
     if !isempty(p.techs.absorption_chiller) && p.s.chp.serve_absorption_chiller_only
-        add_absorption_chiller_only_constraints(m, p; _n=_n)
+        add_chp_to_absorption_chiller_only_constraints(m, p; _n=_n)
     end
 
     if p.s.chp.follow_electrical_load
