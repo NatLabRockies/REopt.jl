@@ -32,7 +32,7 @@ The workflow will automatically:
 
 ## Method 2: Automated Script
 
-A script has been created to automatically cancel and delete all workflow runs from the last 30 minutes: `cancel_recent_workflows.sh`
+A script has been created to automatically cancel and delete workflow runs from a specified time period: `cancel_recent_workflows.sh`
 
 ### Prerequisites
 
@@ -45,8 +45,14 @@ A script has been created to automatically cancel and delete all workflow runs f
 # Make sure you're authenticated with GitHub CLI
 gh auth status
 
-# Run the script
+# Run with defaults (auto-detect repo, 30 minutes)
 ./cancel_recent_workflows.sh
+
+# Specify repository and time period
+./cancel_recent_workflows.sh NatLabRockies/REopt.jl 45
+
+# Or use with explicit arguments
+./cancel_recent_workflows.sh <owner/repo> <minutes_ago>
 ```
 
 ## Method 3: Manual Cancellation and Deletion

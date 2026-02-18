@@ -1,16 +1,37 @@
 #!/bin/bash
 
-# Script to cancel and delete GitHub Actions workflow runs triggered in the last 30 minutes
+# Script to cancel and delete GitHub Actions workflow runs triggered in the last N minutes
 # This script requires GitHub CLI (gh) to be installed and authenticated with appropriate permissions
+#
+# Usage:
+#   ./cancel_recent_workflows.sh [REPO] [MINUTES_AGO]
+#
+# Arguments:
+#   REPO        - GitHub repository in format "owner/repo" (default: auto-detect from current git repo)
+#   MINUTES_AGO - Number of minutes to look back (default: 30)
 
 set -e
 
-REPO="NatLabRockies/REopt.jl"
-CUTOFF_TIME=$(date -u -d '30 minutes ago' --iso-8601=seconds)
+# Get repository from argument or detect from git
+if [ -n "$1" ]; then
+  REPO="$1"
+else
+  # Try to detect from git remote
+  REPO=$(git remote get-url origin 2>/dev/null | sed -E 's|.*github\.com[:/]([^/]+/[^/]+?)(\.git)?$|\1|' || echo "")
+  if [ -z "$REPO" ]; then
+    REPO="NatLabRockies/REopt.jl"
+  fi
+fi
+
+# Get minutes ago from argument or use default
+MINUTES_AGO="${2:-30}"
+
+CUTOFF_TIME=$(date -u -d "$MINUTES_AGO minutes ago" --iso-8601=seconds)
 
 echo "================================================"
 echo "Cancelling and Deleting Recent Workflow Runs"
 echo "Repository: $REPO"
+echo "Minutes ago: $MINUTES_AGO"
 echo "Cutoff time: $CUTOFF_TIME"
 echo "================================================"
 echo ""
@@ -70,5 +91,5 @@ for RUN_ID in $WORKFLOW_RUNS; do
 done
 
 echo "================================================"
-echo "All workflow runs from the last 30 minutes have been processed."
+echo "All workflow runs from the last $MINUTES_AGO minutes have been processed."
 echo "================================================"
