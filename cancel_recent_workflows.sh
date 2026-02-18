@@ -45,7 +45,7 @@ WORKFLOW_RUNS=$(gh api \
   --jq ".workflow_runs[] | select(.created_at >= \"$CUTOFF_TIME\") | .id")
 
 if [ -z "$WORKFLOW_RUNS" ]; then
-  echo "No workflow runs found in the last 30 minutes."
+  echo "No workflow runs found in the last $MINUTES_AGO minutes."
   exit 0
 fi
 
