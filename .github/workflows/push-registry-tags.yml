@@ -1,0 +1,67 @@
+name: Push Registry Tags
+
+on:
+  workflow_dispatch:
+
+jobs:
+  push-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history including tags
+          
+      - name: Fetch NREL remote and required commits
+        run: |
+          git remote add nrel https://github.com/NREL/REopt.jl || true
+          git fetch nrel 77a4a120a42eda9694e2fd57cef68f9475129704 \
+                          8cd9a1326b9a595b71496728ede94e2e2b0690ac \
+                          1bdbb658597cc8879380b7b3f37d56d58834d2ea \
+                          8d61ed40d0bc85a604aa78965ed5dbcde1fe700a \
+                          794c0ae95d1985b3090eff723be60867ae307321 \
+                          4e08fe26538b4d455f5f155a35001c7fdc896888 \
+                          4c815c11e3c03858f954c9258d73dcaf410934ff \
+                          d84336fc81fc0e86173a93be8bf0e74b64972721 \
+                          9174cef955b1603e5c52f5bb41341f826486e195 \
+                          1f8b80213ca1080c6bf35c394c2406bd2fdd11f8 \
+                          0085341139a2999eb14b486680832014fd5c1f3f \
+                          8bc98f3d09e57c6a5882dbb59ca827805c3477a7 \
+                          27eae363a470fc7f8137f1bd4e6cffb2832f9454 \
+                          e5efe256ffec6697ade71e1cdfb61212d61d5b3b \
+                          9fe47ebda1565c670d45e0b49cb3e68aac17eab0
+      
+      - name: Create tags
+        run: |
+          # Delete existing tags if they exist
+          git tag -d v0.32.8 v0.33.0 v0.34.0 v0.35.0 v0.35.1 v0.36.0 v0.37.0 v0.37.1 v0.37.2 v0.37.3 v0.37.4 v0.37.5 v0.38.0 v0.38.1 v0.38.2 2>/dev/null || true
+          
+          # Create new tags
+          git tag -a v0.32.8 77a4a120a42eda9694e2fd57cef68f9475129704 -m "Version 0.32.8"
+          git tag -a v0.33.0 8cd9a1326b9a595b71496728ede94e2e2b0690ac -m "Version 0.33.0"
+          git tag -a v0.34.0 1bdbb658597cc8879380b7b3f37d56d58834d2ea -m "Version 0.34.0"
+          git tag -a v0.35.0 8d61ed40d0bc85a604aa78965ed5dbcde1fe700a -m "Version 0.35.0"
+          git tag -a v0.35.1 794c0ae95d1985b3090eff723be60867ae307321 -m "Version 0.35.1"
+          git tag -a v0.36.0 4e08fe26538b4d455f5f155a35001c7fdc896888 -m "Version 0.36.0"
+          git tag -a v0.37.0 4c815c11e3c03858f954c9258d73dcaf410934ff -m "Version 0.37.0"
+          git tag -a v0.37.1 d84336fc81fc0e86173a93be8bf0e74b64972721 -m "Version 0.37.1"
+          git tag -a v0.37.2 9174cef955b1603e5c52f5bb41341f826486e195 -m "Version 0.37.2"
+          git tag -a v0.37.3 1f8b80213ca1080c6bf35c394c2406bd2fdd11f8 -m "Version 0.37.3"
+          git tag -a v0.37.4 0085341139a2999eb14b486680832014fd5c1f3f -m "Version 0.37.4"
+          git tag -a v0.37.5 8bc98f3d09e57c6a5882dbb59ca827805c3477a7 -m "Version 0.37.5"
+          git tag -a v0.38.0 27eae363a470fc7f8137f1bd4e6cffb2832f9454 -m "Version 0.38.0"
+          git tag -a v0.38.1 e5efe256ffec6697ade71e1cdfb61212d61d5b3b -m "Version 0.38.1"
+          git tag -a v0.38.2 9fe47ebda1565c670d45e0b49cb3e68aac17eab0 -m "Version 0.38.2"
+      
+      - name: Push tags
+        run: |
+          git push origin v0.32.8 v0.33.0 v0.34.0 v0.35.0 v0.35.1 v0.36.0 v0.37.0 v0.37.1 v0.37.2 v0.37.3 v0.37.4 v0.37.5 v0.38.0 v0.38.1 v0.38.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Verify tags
+        run: |
+          echo "Tags pushed successfully! Verifying..."
+          for tag in v0.32.8 v0.33.0 v0.34.0 v0.35.0 v0.35.1 v0.36.0 v0.37.0 v0.37.1 v0.37.2 v0.37.3 v0.37.4 v0.37.5 v0.38.0 v0.38.1 v0.38.2; do
+            echo "Tag $tag: $(git log -1 --format='%H -> %T' $tag)"
+          done
