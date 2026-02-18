@@ -4,4 +4,3 @@ docs/build/
 docs/Manifest.toml
 **.log
 **/xpauth.xpr
-**/*.xpr
