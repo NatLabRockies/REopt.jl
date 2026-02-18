@@ -12,7 +12,25 @@ As of 2026-02-18 04:07 UTC, the following workflow runs were identified:
 | 22126082161 | Run tests | completed | 2026-02-18T04:06:44Z |
 | 22126081879 | Running Copilot coding agent | in_progress | 2026-02-18T04:06:43Z |
 
-## Automated Script
+## Method 1: Using the GitHub Actions Workflow (Recommended)
+
+The easiest way to cancel and delete recent workflow runs is to use the provided GitHub Actions workflow. This workflow has the necessary permissions to perform these operations.
+
+### Steps:
+
+1. Go to the Actions tab in the GitHub repository
+2. Select "Cancel and Delete Recent Workflow Runs" from the left sidebar
+3. Click "Run workflow" button
+4. Enter the number of minutes (default is 30)
+5. Click "Run workflow" to execute
+
+The workflow will automatically:
+- Find all workflow runs triggered within the specified time period
+- Cancel any in-progress or queued runs
+- Delete all identified workflow runs (except itself)
+- Provide a detailed log of all operations
+
+## Method 2: Automated Script
 
 A script has been created to automatically cancel and delete all workflow runs from the last 30 minutes: `cancel_recent_workflows.sh`
 
@@ -31,7 +49,7 @@ gh auth status
 ./cancel_recent_workflows.sh
 ```
 
-## Manual Cancellation and Deletion
+## Method 3: Manual Cancellation and Deletion
 
 If you prefer to manually cancel and delete workflow runs, use the following commands:
 

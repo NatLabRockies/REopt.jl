@@ -1,0 +1,104 @@
+name: Cancel and Delete Recent Workflow Runs
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes_ago:
+        description: 'Cancel and delete workflows triggered within this many minutes ago'
+        required: true
+        default: '30'
+        type: string
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel-and-delete-recent-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cancel and delete recent workflow runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MINUTES_AGO: ${{ inputs.minutes_ago }}
+        run: |
+          set -e
+          
+          echo "================================================"
+          echo "Cancelling and Deleting Recent Workflow Runs"
+          echo "Repository: ${{ github.repository }}"
+          echo "Minutes ago: $MINUTES_AGO"
+          echo "================================================"
+          echo ""
+          
+          # Calculate cutoff time
+          CUTOFF_TIME=$(date -u -d "$MINUTES_AGO minutes ago" --iso-8601=seconds)
+          echo "Cutoff time: $CUTOFF_TIME"
+          echo ""
+          
+          # Get all workflow runs from the last N minutes
+          echo "Fetching workflow runs triggered after $CUTOFF_TIME..."
+          WORKFLOW_RUNS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/runs?per_page=100" \
+            --jq ".workflow_runs[] | select(.created_at >= \"$CUTOFF_TIME\") | .id")
+          
+          if [ -z "$WORKFLOW_RUNS" ]; then
+            echo "No workflow runs found in the last $MINUTES_AGO minutes."
+            exit 0
+          fi
+          
+          echo "Found the following workflow runs to cancel and delete:"
+          echo "$WORKFLOW_RUNS"
+          echo ""
+          
+          # Cancel and delete each workflow run (except the current one)
+          for RUN_ID in $WORKFLOW_RUNS; do
+            # Skip the current workflow run
+            if [ "$RUN_ID" = "${{ github.run_id }}" ]; then
+              echo "Skipping current workflow run: $RUN_ID"
+              continue
+            fi
+            
+            echo "Processing workflow run: $RUN_ID"
+            
+            # Get workflow run details
+            RUN_INFO=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/actions/runs/$RUN_ID" \
+              --jq '{name: .name, status: .status, created_at: .created_at}')
+            
+            echo "  Details: $RUN_INFO"
+            
+            # Cancel the workflow run if it's in progress or queued
+            STATUS=$(echo "$RUN_INFO" | jq -r '.status')
+            if [ "$STATUS" = "in_progress" ] || [ "$STATUS" = "queued" ] || [ "$STATUS" = "waiting" ]; then
+              echo "  Cancelling workflow run $RUN_ID..."
+              gh api \
+                --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "/repos/${{ github.repository }}/actions/runs/$RUN_ID/cancel" || echo "  Failed to cancel (may already be completed)"
+            else
+              echo "  Workflow run is already $STATUS, skipping cancellation."
+            fi
+            
+            # Delete the workflow run
+            echo "  Deleting workflow run $RUN_ID..."
+            gh api \
+              --method DELETE \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/actions/runs/$RUN_ID" && echo "  Successfully deleted!" || echo "  Failed to delete!"
+            
+            echo ""
+          done
+          
+          echo "================================================"
+          echo "All workflow runs from the last $MINUTES_AGO minutes have been processed."
+          echo "================================================"
