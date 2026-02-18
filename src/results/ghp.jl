@@ -14,7 +14,7 @@ GHP results:
 - `cooling_thermal_load_reduction_with_ghp_ton`
 - `thermal_to_space_heating_load_series_mmbtu_per_hour`
 - `thermal_to_dhw_load_series_mmbtu_per_hour`
-- `thermal_to_load_series_ton`
+- `thermal_to_load_series_ton` # Thermal production to cooling load
 - `annual_thermal_production_mmbtu`  # GHP's heating thermal power production in a year [MMBtu]
 - `annual_thermal_production_tonhour`  # GHP's cooling thermal power production in a year [ton]
 
