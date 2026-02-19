@@ -1,9 +1,14 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `HotThermalStorage` results keys:
+- `size_kwh` Optimal TES capacity, by energy [kWh]
 - `size_gal` Optimal TES capacity, by volume [gal]
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
 - `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
+- `storage_to_steamturbine_series_mmbtu_per_hour` 
+- `storage_to_space_heating_load_series_mmbtu_per_hour`
+- `storage_to_dhw_load_series_mmbtu_per_hour`
+- `storage_to_process_heat_load_series_mmbtu_per_hour`
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -30,11 +35,11 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
         
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
             storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
         else
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
 
         if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
@@ -66,7 +71,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_mmbtu_per_hour"] = []
-        r["storage_to_turbine_series_mmbtu_per_hour"] = []
+        r["storage_to_steamturbine_series_mmbtu_per_hour"] = []
     end
 
     d[b] = r
@@ -148,6 +153,7 @@ end
 - `size_kwh` Optimal TES capacity, by energy capacity [kWh]
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
 - `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
+- `storage_to_steamturbine_series_mmbtu_per_hour` 
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -173,16 +179,16 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
         # r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
             storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
         else
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_turbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_mmbtu_per_hour"] = []
-        r["storage_to_turbine_series_mmbtu_per_hour"] = []
+        r["storage_to_steamturbine_series_mmbtu_per_hour"] = []
     end
 
     d[b] = r

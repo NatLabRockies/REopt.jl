@@ -33,6 +33,9 @@ Classify the change according to the following categories:
 ### Fixed
 - Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
 
+### Changed
+- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
+
 ## v0.57.0 
 ### Fixed
 - Include boiler emissions in emissions calculations
