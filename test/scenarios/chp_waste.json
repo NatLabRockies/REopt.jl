@@ -35,6 +35,13 @@
         ],
         "doe_reference_name": "FlatLoad"
     },
+    "ExistingChiller": {
+        "cop": 3.4,
+        "max_thermal_factor_on_peak_load": 1.25
+    },
+    "CoolingLoad": {
+        "doe_reference_name": "Hospital"
+    },
     "ElectricTariff": {
         "monthly_energy_rates": [
             0.098,
@@ -93,38 +100,11 @@
             5.07,
             6.04
         ],
-        "federal_itc_fraction": 0.3
-    },
-    "DomesticHotWaterLoad": {
-        "monthly_mmbtu": [
-            135.097,
-            117.915,
-            96.579,
-            57.283,
-            15.684,
-            14.794,
-            19.994,
-            28.147,
-            37.784,
-            46.926,
-            147.828,
-            162.636
-        ],
-        "addressable_load_fraction": [
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0
-        ],
-        "doe_reference_name": "FlatLoad"
+        "federal_itc_fraction": 0.3,
+        "serve_absorption_chiller_only": true,
+        "can_serve_space_heating": true,
+        "can_serve_dhw": false, 
+        "can_serve_process_heat": true
     },
     "SpaceHeatingLoad": {
         "monthly_mmbtu": [
@@ -172,7 +152,10 @@
             4.65,
             5.07,
             6.04
-        ]
+        ],
+        "can_serve_space_heating": true,
+        "can_serve_dhw": false, 
+        "can_serve_process_heat": true
     },
     "Financial": {
         "elec_cost_escalation_rate_fraction": 0.017,
@@ -180,5 +163,11 @@
         "boiler_fuel_cost_escalation_rate_fraction": 0.015,
         "chp_fuel_cost_escalation_rate_fraction": 0.015,
         "offtaker_discount_rate_fraction": 0.0624
+    },
+    "AbsorptionChiller": {
+        "min_ton": 1000.0,
+        "max_ton": 1000.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0
     }
 }

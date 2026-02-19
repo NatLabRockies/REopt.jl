@@ -40,6 +40,9 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
+    serve_absorption_chiller_only::Bool = false # If CHP produced heat either serves absorption chiller or sends it to waste; only applies to the months specified in months_serving_absorption_chiller_only if true
+    months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which CHP only sevres the absorption chiller, with 1=January and 12=December; only applied when serve_absorption_chiller_only = true
+    follow_electrical_load::Bool = false # If CHP follows the electrical load by running at capacity or meeting the load only.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -113,6 +116,9 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
+    serve_absorption_chiller_only::Bool = false
+    months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[]
+    follow_electrical_load::Bool = false
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -275,6 +281,11 @@ function CHP(d::Dict;
         setproperty!(chp, :thermal_efficiency_half_load, 0.0)
     end
 
+    if chp.serve_absorption_chiller_only && isempty(chp.months_serving_absorption_chiller_only)
+        @warn "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced."
+        chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
+    end 
+    
     return chp
 end
 
