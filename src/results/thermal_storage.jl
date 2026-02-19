@@ -4,8 +4,8 @@
 - `size_kwh` Optimal TES capacity, by energy [kWh]
 - `size_gal` Optimal TES capacity, by volume [gal]
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
 - `storage_to_steamturbine_series_mmbtu_per_hour` 
+- `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
 - `storage_to_space_heating_load_series_mmbtu_per_hour`
 - `storage_to_dhw_load_series_mmbtu_per_hour`
 - `storage_to_process_heat_load_series_mmbtu_per_hour`
@@ -174,9 +174,6 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
 
         discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads) for ts in p.time_steps)
 
-        # TODO: add something to track heat to steam turbine?
-        # discharge = (sum(m[Symbol("dvThermalToSteamTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads) for ts in p.time_steps)
-        # r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
             storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
             r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
