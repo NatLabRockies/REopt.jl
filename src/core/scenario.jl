@@ -203,6 +203,13 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         
     storage_structs = Dict{String, AbstractStorage}()
     if haskey(d,  "ElectricStorage")
+        storage_dict = d["ElectricStorage"]
+        storage_dict["off_grid_flag"] = settings.off_grid_flag
+
+        electric_load_annual_peak = maximum(electric_load.loads_kw)
+        electric_load_average = sum(electric_load.loads_kw) / (8760*settings.time_steps_per_hour)
+        storage_dict["electric_load_annual_peak"] = electric_load_annual_peak
+        storage_dict["electric_load_average"] = electric_load_average
         storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
         storage_dict[:off_grid_flag] = settings.off_grid_flag
     else
