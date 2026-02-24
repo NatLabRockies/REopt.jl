@@ -470,6 +470,12 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
                                         prime_mover, size_class_calc, hot_water_or_steam, boiler_effic, thermal_efficiency,
                                         avg_cooling, abschl_efficiency, include_cooling)
         chp_max_size_kw = 2 * chp_elec_size_heuristic_kw
+        if !isnothing(max_electric_load_kw)
+            chp_max_size_kw = max(chp_max_size_kw, max_electric_load_kw)
+        end
+        if !isnothing(avg_electric_load_kw)
+            chp_elec_size_heuristic_kw = max(chp_elec_size_heuristic_kw, avg_electric_load_kw)
+        end
     # If available, calculate heuristic CHP size based on average electric load, and max size based on peak electric load
     elseif !isnothing(avg_electric_load_kw) && !isnothing(max_electric_load_kw)
         chp_elec_size_heuristic_kw = avg_electric_load_kw
@@ -519,6 +525,12 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
                                             prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency, 
                                             avg_cooling, abschl_efficiency, include_cooling)
             chp_max_size_kw = 2 * chp_elec_size_heuristic_kw
+            if !isnothing(max_electric_load_kw)
+                chp_max_size_kw = max(chp_max_size_kw, max_electric_load_kw)
+            end
+            if !isnothing(avg_electric_load_kw)
+                chp_elec_size_heuristic_kw = max(chp_elec_size_heuristic_kw, avg_electric_load_kw)
+            end
             size_class = get_size_class_from_size(chp_elec_size_heuristic_kw, class_bounds, n_classes)            
         end
     end
