@@ -116,6 +116,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         @expression(m, CHPToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","DomesticHotWater",ts] - CHPToHotTESByQuality["DomesticHotWater",ts] - CHPToSteamTurbineByQualityKW["DomesticHotWater",ts] 
 			- CHPThermalToWasteByQualityKW["DomesticHotWater",ts]
+		)
     else
         @expression(m, CHPToDHWKW[ts in p.time_steps], 0.0)
     end
