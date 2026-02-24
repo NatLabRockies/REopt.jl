@@ -115,8 +115,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     if "DomesticHotWater" in p.heating_loads && p.s.chp.can_serve_dhw
         @expression(m, CHPToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","DomesticHotWater",ts] - CHPToHotTESByQuality["DomesticHotWater",ts] - CHPToSteamTurbineByQualityKW["DomesticHotWater",ts] 
-			- CHPThermalToWasteByQualityKW["DomesticHotWater",ts] - CHPtoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
-        )
+			- CHPThermalToWasteByQualityKW["DomesticHotWater",ts]
     else
         @expression(m, CHPToDHWKW[ts in p.time_steps], 0.0)
     end
@@ -125,7 +124,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     if "SpaceHeating" in p.heating_loads && p.s.chp.can_serve_space_heating
         @expression(m, CHPToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","SpaceHeating",ts] - CHPToHotTESByQuality["SpaceHeating",ts] - CHPToSteamTurbineByQualityKW["SpaceHeating",ts]
-			- CHPThermalToWasteByQualityKW["SpaceHeating",ts] - CHPtoAbsorptionChillerByQualityKW["SpaceHeating",ts]
+			- CHPThermalToWasteByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, CHPToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -135,7 +134,7 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     if "ProcessHeat" in p.heating_loads && p.s.chp.can_serve_process_heat
         @expression(m, CHPToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","ProcessHeat",ts] - CHPToHotTESByQuality["ProcessHeat",ts] - CHPToSteamTurbineByQualityKW["ProcessHeat",ts]
-			- CHPThermalToWasteByQualityKW["ProcessHeat",ts] - CHPtoAbsorptionChillerByQualityKW["ProcessHeat",ts]
+			- CHPThermalToWasteByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, CHPToProcessHeatKW[ts in p.time_steps], 0.0)
