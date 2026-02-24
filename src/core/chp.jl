@@ -384,9 +384,14 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
                                                 avg_electric_load_kw::Union{Float64, Nothing}=nothing,
                                                 max_electric_load_kw::Union{Float64, Nothing}=nothing,
                                                 is_electric_only::Union{Bool, Nothing}=nothing,
-                                                thermal_efficiency::Float64=NaN)
+                                                thermal_efficiency::Float64=NaN, 
+                                                avg_cooling_load_kw::Union{Float64,Nothing}=nothing,
+                                                chiller_efficiency::Union{Float64,Nothing}=nothing,
+                                                include_cooling_in_size::Union{Bool,Nothing}=nothing
+                                                )
     
     prime_mover_defaults_all = JSON.parsefile(joinpath(@__DIR__, "..", "..", "data", "chp", "chp_defaults.json"))
+    absorption_chiller_defaults_all = JSON.parsefile(joinpath(@__DIR__, "..", "..", "data", "absorption_chiller", "absorption_chiller_defaults.json"))
     avg_boiler_fuel_load_under_recip_over_ct = Dict([("hot_water", 27.0), ("steam", 7.0)])  # [MMBtu/hr] Based on external calcs for size versus production by prime_mover type
 
     # Inputs validation
@@ -410,6 +415,12 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
         end
     end
 
+    if !isnothing(avg_cooling_load_kw)  # Option 1
+        if avg_cooling_load_kw <= 0
+            throw(@error("avg_cooling_load_kw must be >= 0.0"))
+        end
+    end
+
     if !isnothing(size_class) && !isnothing(prime_mover) # Option 3
         n_classes = length(prime_mover_defaults_all[prime_mover]["installed_cost_per_kw"])
         # Note, size_class=0 is first class, so (n_class-1) is largest valid size_class number
@@ -427,6 +438,15 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
     # and estimate max size based on 2x the heuristic size
     recalc_heuristic_flag = false
     boiler_effic = NaN
+    if isnothing(include_cooling_in_size)
+        avg_cooling = 0.0
+        abschl_efficiency = 1.0
+        include_cooling = false
+    else
+        avg_cooling = isnothing(avg_cooling_load_kw) ? 0.0 : avg_cooling_load_kw
+        abschl_efficiency = isnothing(chiller_efficiency) ? absorption_chiller_defaults_all[hot_water_or_steam]["cop_thermal"] : chiller_efficiency
+        include_cooling = include_cooling_in_size
+    end
     if !isnothing(avg_boiler_fuel_load_mmbtu_per_hour) && !is_electric_only
         if isnothing(prime_mover)
             if avg_boiler_fuel_load_mmbtu_per_hour <= avg_boiler_fuel_load_under_recip_over_ct[hot_water_or_steam]
@@ -447,7 +467,8 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
             boiler_effic = boiler_efficiency
         end
         chp_elec_size_heuristic_kw = get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_load_mmbtu_per_hour, 
-                                        prime_mover, size_class_calc, hot_water_or_steam, boiler_effic, thermal_efficiency)
+                                        prime_mover, size_class_calc, hot_water_or_steam, boiler_effic, thermal_efficiency,
+                                        avg_cooling, abschl_efficiency, include_cooling)
         chp_max_size_kw = 2 * chp_elec_size_heuristic_kw
     # If available, calculate heuristic CHP size based on average electric load, and max size based on peak electric load
     elseif !isnothing(avg_electric_load_kw) && !isnothing(max_electric_load_kw)
@@ -495,7 +516,8 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
         while !(size_class in size_class_last)
             append!(size_class_last, size_class)
             chp_elec_size_heuristic_kw = get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_load_mmbtu_per_hour, 
-            prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency)
+                                            prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency, 
+                                            avg_cooling, abschl_efficiency, include_cooling)
             chp_max_size_kw = 2 * chp_elec_size_heuristic_kw
             size_class = get_size_class_from_size(chp_elec_size_heuristic_kw, class_bounds, n_classes)            
         end
@@ -521,7 +543,8 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
 end
 
 function get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_load_mmbtu_per_hour, 
-                                prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency=NaN)
+                                prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency=NaN,
+                                avg_cooling_load_kw=0.0, absorption_chiller_efficiency=1.0, include_cooling_in_size=false)
     if isnan(thermal_efficiency)
         therm_effic = prime_mover_defaults_all[prime_mover]["thermal_efficiency_full_load"][hot_water_or_steam][size_class+1]
     else
@@ -537,6 +560,9 @@ function get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_loa
     elec_effic = prime_mover_defaults_all[prime_mover]["electric_efficiency_full_load"][size_class+1]
     avg_heating_thermal_load_mmbtu_per_hr = avg_boiler_fuel_load_mmbtu_per_hour * boiler_effic
     chp_fuel_rate_mmbtu_per_hr = avg_heating_thermal_load_mmbtu_per_hr / therm_effic
+    if include_cooling_in_size
+        chp_fuel_rate_mmbtu_per_hr += avg_cooling_load_kw / (absorption_chiller_efficiency * KWH_PER_MMBTU)
+    end
     chp_elec_size_heuristic_kw = chp_fuel_rate_mmbtu_per_hr * elec_effic * KWH_PER_MMBTU
     
     return chp_elec_size_heuristic_kw
