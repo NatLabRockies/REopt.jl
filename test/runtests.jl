@@ -265,10 +265,31 @@ else  # run HiGHS tests
             @test response["chp_elec_size_heuristic_kw"] ≈ 44.1538 atol=1e-3
             @test response["chp_max_size_kw"] ≈ 88.3077 atol=1e-3
             
-            #Case 3: heating + cooling vi absorption chiller only (low electric load)
+            #Case 3: heating + cooling via absorption chiller only (low electric load)
             avg_cooling_load_kw = 100.0
             chiller_efficiency = 1.0
             include_cooling_in_size = true
+            
+            response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
+                                            avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
+                                            prime_mover=prime_mover,
+                                            size_class=size_class,
+                                            max_kw=max_kw,
+                                            boiler_efficiency=boiler_efficiency,
+                                            avg_electric_load_kw=avg_electric_load_kw,
+                                            max_electric_load_kw=max_electric_load_kw,
+                                            is_electric_only=is_electric_only,
+                                            thermal_efficiency=thermal_efficiency,
+                                            avg_cooling_load_kw=avg_cooling_load_kw,
+                                            chiller_efficiency=chiller_efficiency,
+                                            include_cooling_in_size=include_cooling_in_size
+                                            )
+            @test response["chp_elec_size_heuristic_kw"] ≈ 72.8538 atol=1e-3
+            @test response["chp_max_size_kw"] ≈ 145.7077 atol=1e-3
+
+            #Case 4: with higher electric load, still sized according to thermal input
+            avg_electric_load_kw = 2000.0
+            max_electric_load_kw = 3000.0
             
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
