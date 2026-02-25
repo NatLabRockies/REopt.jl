@@ -707,6 +707,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			if !isempty(p.techs.steam_turbine)
 				@variable(m, dvHeatFromStorageToTurbine[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
 			end
+			@variable(m, dvHeatFromStorageToAbsorptionChiller[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
     	end
 	end
 

@@ -128,6 +128,7 @@ function add_thermal_load_constraints(m, p; _n="")
                     + sum(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts] for t in union(p.techs.heating, p.techs.chp))
                     + sum(m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] for t in p.techs.can_supply_steam_turbine)
                     + sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot)
+                    + sum(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] for b in p.s.storage.types.hot)
                 )
             else
                 @constraint(m, HeatLoadBalanceCon[q in p.heating_loads, ts in p.time_steps_with_grid],
@@ -138,6 +139,7 @@ function add_thermal_load_constraints(m, p; _n="")
                     + sum(m[Symbol("dvProductionToWaste"*_n)][t,q,ts] for t in union(p.techs.heating, p.techs.chp))
                     + sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot, t in union(p.techs.heating, p.techs.chp))
                     + sum(m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts] for t in union(p.techs.heating, p.techs.chp))
+                    + sum(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] for b in p.s.storage.types.hot)
                 )
             end
 
