@@ -11,7 +11,13 @@
 - `electric_to_storage_series_kw` Electric power to charge the battery series [kW]
 - `electric_to_load_series_kw` Electric power to serve load series [kW]
 - `thermal_to_storage_series_mmbtu_per_hour` Thermal production to charge the HotThermalStorage series [MMBtu/hr]
-- `thermal_to_load_series_mmbtu_per_hour` Thermal production to serve the heating load SERVICES [MMBtu/hr]
+- `thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour`
+- `thermal_to_load_series_mmbtu_per_hour` Thermal power to serve the heating load time-series array [MMBtu/hr] (superset of "to_absorption_chiller", "to_space_heating_load", "to_dhw_load", and "to_process_heat_load")
+- `thermal_to_absorption_chiller_series_mmbtu_per_hour`
+- `thermal_to_dhw_load_series_mmbtu_per_hour` Thermal power to serve domestic hot water load [MMBtu/hr]
+- `thermal_to_space_heating_load_series_mmbtu_per_hour` Thermal power to serve space heating load [MMBtu/hr]
+- `thermal_to_process_heat_load_series_mmbtu_per_hour` Thermal power to serve process heat load [MMBtu/hr]
+
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -87,6 +93,15 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 	@expression(m, SteamTurbineThermalToLoadKW[ts in p.time_steps],
 		sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads) - SteamTurbinetoHotTESKW[ts])
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(SteamTurbineThermalToLoadKW) ./ KWH_PER_MMBTU, digits=5)
+
+	if "AbsorptionChiller" in p.techs.cooling
+		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads)))
+		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine)))
+	else
+		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], 0.0)
+		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+	end
+	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(SteamTurbinetoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
 	
 	if "DomesticHotWater" in p.heating_loads && p.s.steam_turbine.can_serve_dhw
         @expression(m, SteamTurbineToDHWKW[ts in p.time_steps], 

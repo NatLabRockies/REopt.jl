@@ -8,7 +8,11 @@
 - `annual_thermal_production_mmbtu`  # Thermal power production in a year [MMBtu]
 - `thermal_to_storage_series_mmbtu_per_hour` # Thermal power production to TES (HotThermalStorage) series [MMBtu/hr]
 - `thermal_to_steamturbine_series_mmbtu_per_hour`  # Thermal power production to SteamTurbine series [MMBtu/hr]
-- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr]
+- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr] (superset of "to_absorption_chiller", "to_space_heating_load", "to_dhw_load", and "to_process_heat_load")
+- `thermal_to_absorption_chiller_series_mmbtu_per_hour`  # Thermal power production to serve absorption chiller load series [MMBtu/hr]
+- `thermal_to_dhw_load_series_mmbtu_per_hour`  # Thermal power production to serve domestic hot water load series [MMBtu/hr]
+- `thermal_to_space_heating_load_series_mmbtu_per_hour`  # Thermal power production to serve space heating load series [MMBtu/hr]
+- `thermal_to_process_heat_load_series_mmbtu_per_hour`  # Thermal power production to serve process heat load series [MMBtu/hr]
 - `lifecycle_fuel_cost_after_tax`  # Life cycle fuel cost [\$]
 - `year_one_fuel_cost_before_tax`  # Year one fuel cost, before tax [\$]
 - `year_one_fuel_cost_after_tax`  # Year one fuel cost, after tax [\$]
@@ -52,6 +56,15 @@ function add_existing_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
         @expression(m, BoilerToSteamTurbineByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
     end
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(BoilerToSteamTurbineKW) ./ KWH_PER_MMBTU, digits=5)
+
+    if "AbsorptionChiller" in p.techs.cooling
+		@expression(m, BoilertoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ExistingBoiler",q,ts] for q in p.heating_loads)))
+		@expression(m, BoilertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["ExistingBoiler",q,ts])))
+	else
+		@expression(m, BoilertoAbsorptionChillerKW[ts in p.time_steps], 0.0)
+		@expression(m, BoilertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+	end
+	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(BoilertoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
 
 
 	BoilerToLoadKW = @expression(m, [ts in p.time_steps],

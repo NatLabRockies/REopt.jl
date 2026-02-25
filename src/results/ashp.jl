@@ -119,6 +119,7 @@ end
 - `annual_thermal_production_mmbtu`  # Thermal heating energy produced in a year [MMBtu]
 - `thermal_to_storage_series_mmbtu_per_hour`  # Thermal power production to TES (HotThermalStorage) series [MMBtu/hr]
 - `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr]
+- `thermal_to_dhw_load_series_mmbtu_per_hour` # Thermal power production to serve domestic hot water load series [MMBtu/hr]
 
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
