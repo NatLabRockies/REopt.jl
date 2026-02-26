@@ -1405,7 +1405,6 @@ Possible keys in r:
 function backup_reliability(r::Dict)
     reliability_inputs = backup_reliability_inputs(r=r)
 	cumulative_results, fuel_survival, fuel_used = return_backup_reliability(; reliability_inputs... )
-    print("fuel used is: $(fuel_used)")
 	process_reliability_results(cumulative_results, fuel_survival, fuel_used)
 end
 
