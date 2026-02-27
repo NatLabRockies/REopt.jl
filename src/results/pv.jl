@@ -138,7 +138,7 @@ function add_pv_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
         
         PVtoCUR = (m[Symbol("dvCurtail"*_n)][t, ts] for ts in p.time_steps)
 		r["electric_curtailed_series_kw"] = round.(value.(PVtoCUR), digits=3)
-		PVtoLoad = (m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
+		PVtoLoad = (m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts]
 					- r["electric_curtailed_series_kw"][ts]
 					- r["electric_to_grid_series_kw"][ts]
 					- r["electric_to_storage_series_kw"][ts]
