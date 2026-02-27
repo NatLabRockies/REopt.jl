@@ -1,8 +1,6 @@
 
 
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
-"""
-    MPCElectricLoad
 
 """
 `MPCSite` is an optional REopt MPC input with the following keys and default values:
