@@ -213,9 +213,9 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 
 	if !isempty(p.techs.electrolyzer)
 		add_electrolyzer_constraints(m, p)
-		m[:TotalPerUnitProdOMCosts] += @expression(m,
-			sum(p.s.electrolyzer.om_cost_per_kwh * p.hours_per_time_step *
+		@expression(m, ElectrolyzerOMCost, sum(p.s.electrolyzer.om_cost_per_kwh * p.hours_per_time_step *
 			m[:dvRatedProduction][t, ts] for t in p.techs.electrolyzer, ts in p.time_steps))
+		add_to_expression!(m[:TotalPerUnitProdOMCosts], m[ElectrolyzerOMCost]) 
 	else
 		@constraint(m, [t in p.techs.elec, ts in p.time_steps],
 				m[:dvProductionToElectrolyzer][t, ts] == 0)

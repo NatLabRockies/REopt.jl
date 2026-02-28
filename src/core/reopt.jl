@@ -485,7 +485,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		)
 		if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
 			add_to_expression!(TotalStorageCapCosts, p.third_party_factor * sum(p.s.storage.attr[b].net_present_cost_cost_constant * m[:binIncludeStorageCostConstant][b] ))
-			m[:ElectricStorageCapCost] += sum(p.s.storage.attr[b].installed_cost_constant * m[:binIncludeStorageCostConstant][b])
+			m[:ElectricStorageCapCost] += p.s.storage.attr[b].installed_cost_constant * m[:binIncludeStorageCostConstant][b]
 		end
 		m[:ElectricStorageOMCost] += p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * m[:ElectricStorageCapCost]
 
