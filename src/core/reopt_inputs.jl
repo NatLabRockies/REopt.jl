@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     REoptInputs
 
@@ -246,13 +246,13 @@ function REoptInputs(s::AbstractScenario)
     if !isempty(s.storage.types.hot)
         for b in s.storage.types.hot
             heating_loads_served_by_tes[b] = String[]
-            if s.storage.attr[b].can_serve_dhw && !isnothing(s.dhw_load)
+            if s.storage.attr[b].can_serve_dhw && ("DomesticHotWater" in heating_loads) && sum(heating_loads_kw["DomesticHotWater"]) > 0.0
                 push!(heating_loads_served_by_tes[b],"DomesticHotWater")
             end
-            if s.storage.attr[b].can_serve_space_heating && !isnothing(s.space_heating_load)
+            if s.storage.attr[b].can_serve_space_heating && ("SpaceHeating" in heating_loads) && sum(heating_loads_kw["SpaceHeating"]) > 0.0
                 push!(heating_loads_served_by_tes[b],"SpaceHeating")
             end
-            if s.storage.attr[b].can_serve_process_heat && !isnothing(s.process_heat_load)
+            if s.storage.attr[b].can_serve_process_heat && ("ProcessHeat" in heating_loads) && sum(heating_loads_kw["ProcessHeat"]) > 0.0
                 push!(heating_loads_served_by_tes[b],"ProcessHeat")
             end
         end
@@ -386,7 +386,6 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     pv_to_location = Dict(t => copy(d) for t in techs.pv)
     maxsize_pv_locations = DenseAxisArray([1.0e9, 1.0e9, 1.0e9], pvlocations)
     # default to large max size per location. Max size by roof, ground, both
-
     if !isempty(techs.pv)
         setup_pv_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw, production_factor,
             pvlocations, pv_to_location, maxsize_pv_locations, techs.segmented, n_segs_by_tech, 
@@ -415,7 +414,8 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
 
     if "Boiler" in techs.all
         setup_boiler_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-            tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+            tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+            om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     end
 
     if "CHP" in techs.all
@@ -476,6 +476,10 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
         heating_cop["GHP"] = ones(length(time_steps))
         heating_cf["GHP"] = ones(length(time_steps))
         cooling_cf["GHP"] = ones(length(time_steps))
+    end
+
+    if "CST" in techs.all
+        setup_cst_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, heating_cop, heating_cf)
     end
 
     # filling export_bins_by_tech MUST be done after techs_by_exportbin has been filled in
@@ -547,13 +551,12 @@ and all of the other arguments will be updated as well.
 """
 function update_cost_curve!(tech::AbstractTech, tech_name::String, financial::Financial,
     cap_cost_slope, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint
-    )
+    )    
     cost_slope, cost_curve_bp_x, cost_yint, n_segments = cost_curve(tech, financial)
-    cap_cost_slope[tech_name] = cost_slope[1]
-    min_allowable_kw = 0.0
-    if isdefined(tech, :min_allowable_kw)
-        min_allowable_kw = tech.min_allowable_kw
-    end
+    cap_cost_slope[tech_name] = first(cost_slope)
+    
+    min_allowable_kw = isdefined(tech, :min_allowable_kw) ? tech.min_allowable_kw : 0.0
+    
     if n_segments > 1 || (typeof(tech)==CHP && min_allowable_kw > 0.0)
         cap_cost_slope[tech_name] = cost_slope
         push!(segmented_techs, tech_name)
@@ -561,15 +564,16 @@ function update_cost_curve!(tech::AbstractTech, tech_name::String, financial::Fi
         seg_min_size[tech_name] = Dict{Int,Float64}()
         n_segs_by_tech[tech_name] = n_segments
         seg_yint[tech_name] = Dict{Int,Float64}()
+        
         for s in 1:n_segments
-            seg_min_size[tech_name][s] = max(cost_curve_bp_x[s], min_allowable_kw)
+            seg_min_size[tech_name][s] = typeof(tech)==CHP ? max(cost_curve_bp_x[s], min_allowable_kw) : cost_curve_bp_x[s]
             seg_max_size[tech_name][s] = cost_curve_bp_x[s+1]
             seg_yint[tech_name][s] = cost_yint[s]
         end
     end
+
     nothing
 end
-
 
 function setup_pv_inputs(s::AbstractScenario, max_sizes, min_sizes,
     existing_sizes, cap_cost_slope, om_cost_per_kw, production_factor,
@@ -611,7 +615,6 @@ function setup_pv_inputs(s::AbstractScenario, max_sizes, min_sizes,
                 beyond_existing_kw = min(roof_max_kw, beyond_existing_kw)
                 pv_roof_limited = true
             end
-
         elseif pv.location == "ground"
             ground_existing_pv_kw += pv.existing_kw
             if !(s.site.land_acres === nothing)
@@ -648,6 +651,43 @@ function setup_pv_inputs(s::AbstractScenario, max_sizes, min_sizes,
         maxsize_pv_locations[:both] = float(both_existing_pv_kw + roof_max_kw + land_max_kw)
     end
 
+    return nothing
+end
+
+"""
+    function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw,  
+        production_factor, techs_by_exportbin, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint, techs,
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
+        heating_cf
+        )
+
+Update tech-indexed data arrays necessary to build the JuMP model with the values for CHP.
+"""
+function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw,  
+    production_factor, techs_by_exportbin, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint, techs,
+    tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
+    heating_cf
+    )
+    max_sizes["CHP"] = s.chp.max_kw
+    min_sizes["CHP"] = s.chp.min_kw
+    update_cost_curve!(s.chp, "CHP", s.financial,
+        cap_cost_slope, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint
+    )
+    om_cost_per_kw["CHP"] = s.chp.om_cost_per_kw
+    production_factor["CHP", :] = get_production_factor(s.chp, s.electric_load.year, s.electric_utility.outage_start_time_step, 
+        s.electric_utility.outage_end_time_step, s.settings.time_steps_per_hour)
+    fillin_techs_by_exportbin(techs_by_exportbin, s.chp, "CHP")
+    if !s.chp.can_curtail
+        push!(techs.no_curtail, "CHP")
+    end  
+    tech_renewable_energy_fraction["CHP"] = s.chp.fuel_renewable_energy_fraction
+    tech_emissions_factors_CO2["CHP"] = s.chp.emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU  # lb/mmtbu * mmtbu/kWh
+    tech_emissions_factors_NOx["CHP"] = s.chp.emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_SO2["CHP"] = s.chp.emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_PM25["CHP"] = s.chp.emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU
+    chp_fuel_cost_per_kwh = s.chp.fuel_cost_per_mmbtu ./ KWH_PER_MMBTU
+    fuel_cost_per_kwh["CHP"] = per_hour_value_to_time_series(chp_fuel_cost_per_kwh, s.settings.time_steps_per_hour, "CHP")   
+    heating_cf["CHP"] = ones(8760*s.settings.time_steps_per_hour)
     return nothing
 end
 
@@ -803,7 +843,7 @@ function setup_existing_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes,
     max_sizes["ExistingBoiler"] = s.existing_boiler.max_kw
     min_sizes["ExistingBoiler"] = 0.0
     existing_sizes["ExistingBoiler"] = 0.0
-    cap_cost_slope["ExistingBoiler"] = 0.0
+    cap_cost_slope["ExistingBoiler"] = s.existing_boiler.installed_cost_per_kw
     boiler_efficiency["ExistingBoiler"] = s.existing_boiler.efficiency
     # om_cost_per_kw["ExistingBoiler"] = 0.0
     tech_renewable_energy_fraction["ExistingBoiler"] = s.existing_boiler.fuel_renewable_energy_fraction
@@ -819,18 +859,24 @@ end
 
 """
     function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, 
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for (new) boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
 function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     max_sizes["Boiler"] = s.boiler.max_kw
     min_sizes["Boiler"] = s.boiler.min_kw
     existing_sizes["Boiler"] = 0.0
     boiler_efficiency["Boiler"] = s.boiler.efficiency
     tech_renewable_energy_fraction["Boiler"] = s.boiler.fuel_renewable_energy_fraction
+    tech_emissions_factors_CO2["Boiler"] = s.boiler.emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU  # lb/mmtbu * mmtbu/kWh
+    tech_emissions_factors_NOx["Boiler"] = s.boiler.emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_SO2["Boiler"] = s.boiler.emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_PM25["Boiler"] = s.boiler.emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU 
     
     # The Boiler only has a MACRS benefit, no ITC etc.
     if s.boiler.macrs_option_years in [5, 7]
@@ -853,7 +899,6 @@ function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing
     end
 
     om_cost_per_kw["Boiler"] = s.boiler.om_cost_per_kw
-    production_factor["Boiler", :] = get_production_factor(s.boiler)
     boiler_fuel_cost_per_kwh = s.boiler.fuel_cost_per_mmbtu ./ KWH_PER_MMBTU
     fuel_cost_per_kwh["Boiler"] = per_hour_value_to_time_series(boiler_fuel_cost_per_kwh, s.settings.time_steps_per_hour, "Boiler")
     heating_cf["Boiler"]  = ones(8760*s.settings.time_steps_per_hour)
@@ -870,7 +915,7 @@ function setup_existing_chiller_inputs(s::AbstractScenario, max_sizes, min_sizes
     max_sizes["ExistingChiller"] = s.existing_chiller.max_kw
     min_sizes["ExistingChiller"] = 0.0
     existing_sizes["ExistingChiller"] = 0.0
-    cap_cost_slope["ExistingChiller"] = 0.0
+    cap_cost_slope["ExistingChiller"] = s.existing_chiller.installed_cost_per_kw
     cooling_cop["ExistingChiller"] .= s.existing_chiller.cop
     cooling_cf["ExistingChiller"]  = ones(8760*s.settings.time_steps_per_hour)
     # om_cost_per_kw["ExistingChiller"] = 0.0
@@ -1020,6 +1065,32 @@ function setup_electric_heater_inputs(s, max_sizes, min_sizes, cap_cost_slope, o
         )
     else
         cap_cost_slope["ElectricHeater"] = s.electric_heater.installed_cost_per_kw
+    end
+
+end
+
+function setup_cst_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, heating_cop, heating_cf)
+    max_sizes["CST"] = s.cst.max_kw
+    min_sizes["CST"] = s.cst.min_kw
+    om_cost_per_kw["CST"] = s.cst.om_cost_per_kw
+    heating_cop["CST"] = 1000*ones(s.settings.time_steps_per_hour*8760)  # TODO: merge ASHP developments to make heating_cop a time series, and import the electrical consumption from SAM.
+    heating_cf["CST"] = s.cst.production_factor
+
+    if s.cst.macrs_option_years in [5, 7]
+        cap_cost_slope["CST"] = effective_cost(;
+            itc_basis = s.cst.installed_cost_per_kw,
+            replacement_cost = 0.0,
+            replacement_year = s.financial.analysis_years,
+            discount_rate = s.financial.owner_discount_rate_fraction,
+            tax_rate = s.financial.owner_tax_rate_fraction,
+            itc = 0.0,
+            macrs_schedule = s.cst.macrs_option_years == 5 ? s.financial.macrs_five_year : s.financial.macrs_seven_year,
+            macrs_bonus_fraction = s.cst.macrs_bonus_fraction,
+            macrs_itc_reduction = 0.0,
+            rebate_per_kw = 0.0
+        )
+    else
+        cap_cost_slope["CST"] = s.cst.installed_cost_per_kw
     end
 
 end

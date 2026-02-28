@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Boiler` results keys:
 - `size_mmbtu_per_hour`  # Thermal production capacity size of the Boiler [MMBtu/hr]
@@ -37,7 +37,7 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
         @expression(m, NewBoilerToHotTESKW[ts in p.time_steps],
 		    sum(m[:dvHeatToStorage][b,"Boiler",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
             )
-            @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], m[Symbol("dvHeatToStorage"*_n)][b,"Boiler",q,ts] for b in p.s.storage.types.hot)
+            @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], sum(m[Symbol("dvHeatToStorage"*_n)][b,"Boiler",q,ts] for b in p.s.storage.types.hot))
     else
         NewBoilerToHotTESKW = zeros(length(p.time_steps))
         @expression(m, NewBoilerToHotTESByQuality[q in p.heating_loads, ts in p.time_steps], 0.0)

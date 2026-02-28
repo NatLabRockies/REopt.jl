@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 const existing_boiler_efficiency_defaults = Dict(
                                                 "hot_water" => EXISTING_BOILER_EFFICIENCY,
                                                 "steam" => 0.75
@@ -7,6 +7,9 @@ const existing_boiler_efficiency_defaults = Dict(
 struct ExistingBoiler <: AbstractThermalTech  # useful to create AbstractHeatingTech or AbstractThermalTech?
     max_kw::Real
     production_type::String
+    max_thermal_factor_on_peak_load::Real    
+    installed_cost_per_kw::Real
+    installed_cost_dollars::Real 
     efficiency::Real
     fuel_cost_per_mmbtu::Union{<:Real, AbstractVector{<:Real}}
     fuel_type::String
@@ -29,6 +32,8 @@ end
     max_heat_demand_kw::Real=0, # Auto-populated based on SpaceHeatingLoad and DomesticHotWaterLoad inputs
     production_type::String = "hot_water", # Can be "steam" or "hot_water"
     max_thermal_factor_on_peak_load::Real = 1.25,
+    installed_cost_per_mmbtu_per_hour::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis; cost is scaled to the size of boiler needed
+    installed_cost_dollars::Real = 0.0  # Represents needed CapEx in BAU, assuming net present cost basis; also incurred in Optimal case if still using at all
     efficiency::Real = NaN, # Existing boiler system efficiency - conversion of fuel to usable heating thermal energy. See note below.
     fuel_cost_per_mmbtu::Union{<:Real, AbstractVector{<:Real}} = [], # REQUIRED. Can be a scalar, a list of 12 monthly values, or a time series of values for every time step
     fuel_type::String = "natural_gas", # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
@@ -71,6 +76,8 @@ function ExistingBoiler(;
     max_heat_demand_kw::Real=0,
     production_type::String = "hot_water",
     max_thermal_factor_on_peak_load::Real = 1.25,
+    installed_cost_per_mmbtu_per_hour::Real = 0.0,
+    installed_cost_dollars::Real = 0.0,
     efficiency::Real = NaN,
     fuel_cost_per_mmbtu::Union{<:Real, AbstractVector{<:Real}} = [], # REQUIRED. Can be a scalar, a list of 12 monthly values, or a time series of values for every time step
     fuel_type::String = "natural_gas", # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
@@ -97,11 +104,21 @@ function ExistingBoiler(;
         efficiency = existing_boiler_efficiency_defaults[production_type]
     end
 
-    max_kw = max_heat_demand_kw * max_thermal_factor_on_peak_load
+    max_kw = max_heat_demand_kw * max_thermal_factor_on_peak_load  # This is really the **actual** size in BAU
+
+    installed_cost_per_kw = 0.0
+    if !(installed_cost_per_mmbtu_per_hour == 0.0) && (installed_cost_dollars == 0.0)
+        installed_cost_per_kw = installed_cost_per_mmbtu_per_hour / KWH_PER_MMBTU * max_thermal_factor_on_peak_load
+    elseif !(installed_cost_per_mmbtu_per_hour == 0.0) && !(installed_cost_dollars == 0.0)
+        throw(@error("A non-zero value for both installed_cost_per_mmbtu_per_hour and installed_cost_dollars was input for ExistingBoiler; only provide one or the other"))
+    end
 
     ExistingBoiler(
         max_kw,
         production_type,
+        max_thermal_factor_on_peak_load,
+        installed_cost_per_kw,
+        installed_cost_dollars,
         efficiency,
         fuel_cost_per_mmbtu,
         fuel_type,

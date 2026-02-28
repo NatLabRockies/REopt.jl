@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     mutable struct StorageTypes
@@ -64,25 +64,25 @@ mutable struct StorageTypes
                     push!(hydrogen_storage, k)
 
                 end
-            else
-                if v.max_kw > 0.0 && v.max_kwh > 0.0
 
-                    push!(all_storage, k)
-                    push!(non_hydrogen_storage, k)
+            elseif v.max_kwh > 0.0
 
-                    if typeof(v) <: AbstractElectricStorage
-                        push!(elec_storage, k)
-                    elseif typeof(v) <: HotThermalStorage
-                        push!(hot_storage, k)
-                    elseif typeof(v) <: HighTempThermalStorage || typeof(v) <: MPCHighTempThermalStorage #TODO: make AbstractHighTempThermalStorage to check instead?
-                        push!(hot_storage, k)
-                        push!(high_temp_thermal_storage, k)
-                    elseif typeof(v) <: ColdThermalStorage
-                        push!(cold_storage, k)
-                    else
-                        throw(@error("Storage not labeled as Hot or Cold, or Electric."))
-                    end
+                push!(all_storage, k)
+                push!(non_hydrogen_storage, k)
+
+                if typeof(v) <: AbstractElectricStorage
+                    push!(elec_storage, k)
+                elseif typeof(v) <: HotThermalStorage
+                    push!(hot_storage, k)
+                elseif typeof(v) <: HighTempThermalStorage || typeof(v) <: MPCHighTempThermalStorage #TODO: make AbstractHighTempThermalStorage to check instead?
+                    push!(hot_storage, k)
+                    push!(high_temp_thermal_storage, k)
+                elseif typeof(v) <: ColdThermalStorage
+                    push!(cold_storage, k)
+                else
+                    throw(@error("Storage not labeled as Hot or Cold, or Electric."))
                 end
+                
             end
         end
 

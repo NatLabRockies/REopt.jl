@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 
 """
@@ -28,10 +28,10 @@ struct with outer constructor:
     max_number_of_boreholes::Real                           # Maximum GHX size
     load_served_by_ghp::String                              # "scaled" or "nonpeak"
 
-    macrs_option_years::Int = 5
-    macrs_bonus_fraction::Float64 = 0.6
+    macrs_option_years::Int = 0
+    macrs_bonus_fraction::Float64 = 0.0
     macrs_itc_reduction::Float64 = 0.5
-    federal_itc_fraction::Float64 = 0.3
+    federal_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not "commercial/industrial"
     federal_rebate_per_ton::Float64 = 0.0
     federal_rebate_per_kw::Float64 = 0.0
     state_ibi_fraction::Float64 = 0.0
@@ -90,8 +90,8 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
     aux_cooler_installed_cost_per_ton::Float64 = 400.00
     aux_unit_capacity_sizing_factor_on_peak_load::Float64 = 1.2
 
-    macrs_option_years::Int = 5
-    macrs_bonus_fraction::Float64 = 0.6
+    macrs_option_years::Int = 0
+    macrs_bonus_fraction::Float64 = 0.0
     macrs_itc_reduction::Float64 = 0.5
     federal_itc_fraction::Float64 = 0.3
     federal_rebate_per_ton::Float64 = 0.0
@@ -125,14 +125,27 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
 
     # Process and populate these parameters needed more directly by the model
     om_cost_year_one::Float64 = NaN
+    hybrid_solution_type::String = "" # automatic_guess_correct, flipped_guess, nonhybrid_solution
+    number_of_boreholes_auto_guess::Float64 = -1.0
+    number_of_boreholes_flipped_guess::Float64 = -1.0
+    number_of_boreholes_nonhybrid::Float64 = -1.0
+
+    iterations_auto_guess::Float64 = -1.0
+    iterations_flipped_guess::Float64 = -1.0
+    iterations_nonhybrid::Float64 = -1.0
+
+    solve_time_min::Float64 = -1.0
 
     # Account for expenses avoided by addition of GHP.
     avoided_capex_by_ghp_present_value::Float64 = 0.0
 end
 
 
-function GHP(response::Dict, d::Dict)
-    ghp = GHP(; ghpghx_response = response, dictkeys_tosymbols(d)...)
+function GHP(response::Dict, d::Dict; sector::String, federal_procurement_type::String)
+    d = dictkeys_tosymbols(d)
+    set_sector_defaults!(d; struct_name="GHP", sector=sector, federal_procurement_type=federal_procurement_type)
+
+    ghp = GHP(; ghpghx_response = response, d...)
     
     if !(0 <= ghp.aux_cooler_installed_cost_per_ton <= 1.0e6)
         @error "out of bounds aux_cooler_installed_cost_per_ton"

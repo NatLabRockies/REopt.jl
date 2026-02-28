@@ -48,6 +48,7 @@ REopt.add_hot_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::Str
 ## HighTempThermalStorage outputs
 ```@docs
 REopt.add_high_temp_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::String)
+REopt.add_high_temp_thermal_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::String)
 ```
 
 ## ColdThermalStorage outputs
@@ -85,7 +86,7 @@ REopt.add_heating_load_results
 REopt.add_cooling_load_results
 ```
 
-## Uncertain Outages outputs
+## Outages outputs
 ```@docs
 REopt.add_outage_results
 ```
@@ -128,4 +129,9 @@ REopt.add_hydrogen_storage_results
 ## FuelCell outputs
 ```@docs
 REopt.add_fuel_cell_results
+```
+
+## CST outputs
+```@docs
+REopt.add_concentrating_solar_results
 ```

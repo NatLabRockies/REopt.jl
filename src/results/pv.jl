@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `PV` results keys:
 - `size_kw` Optimal PV DC capacity
@@ -35,6 +35,24 @@ function add_pv_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         r["production_factor_series"] = Vector(p.production_factor[t, :])
 		r["size_kw"] = round(value(m[Symbol("dvSize"*_n)][t]), digits=4)
 
+        pv_tech = get_pv_by_name(t, p.s.pvs)
+        if typeof(pv_tech.installed_cost_per_kw) <: Number
+            r["installed_cost_per_kw"] = pv_tech.installed_cost_per_kw
+        else
+            # Get cost from cost curve
+            r["installed_cost_per_kw"] = get_pv_initial_capex(p, pv_tech, r["size_kw"]) / r["size_kw"]
+        end
+
+        if !isnothing(pv_tech.size_class) && !isempty(pv_tech.tech_sizes_for_cost_curve)
+            optimal_size = r["size_kw"] - pv_tech.existing_kw  # New capacity only
+            min_size = minimum(pv_tech.tech_sizes_for_cost_curve)
+            max_size = maximum(pv_tech.tech_sizes_for_cost_curve)
+            
+            if optimal_size < min_size || optimal_size > max_size
+                @warn "PV $(t): Optimal size ($(round(optimal_size, digits=1)) kW) doesn't match size class $(pv_tech.size_class) range ($(round(min_size, digits=1))-$(round(max_size, digits=1)) kW). For more accurate results, rerun with an appropriate size class or define the pv installed cost. Ignore if using custom costs instead of default size class costs."            
+            end
+        end
+		
 		# NOTE: must use anonymous expressions in this loop to overwrite values for cases with multiple PV
 		if !isempty(p.s.storage.types.elec)
 			PVtoBatt = (sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) for ts in p.time_steps)
@@ -82,6 +100,7 @@ function add_pv_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 		Year1PVProd = (sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for ts in p.time_steps) * p.hours_per_time_step)
 		r["year_one_energy_produced_kwh"] = round(value(Year1PVProd), digits=0)
         r["annual_energy_produced_kwh"] = round(r["year_one_energy_produced_kwh"] * p.levelization_factor[t], digits=2)
+        r["om_cost_per_kw"] = p.om_cost_per_kw[t]
 		PVPerUnitSizeOMCosts = p.third_party_factor * p.om_cost_per_kw[t] * p.pwf_om * m[Symbol("dvSize"*_n)][t]
 		r["lifecycle_om_cost_after_tax"] = round(value(PVPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
         r["lcoe_per_kwh"] = calculate_lcoe(p, r, get_pv_by_name(t, p.s.pvs))

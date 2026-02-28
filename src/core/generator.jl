@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Generator` is an optional REopt input with the following keys and default values:
 ```julia
@@ -9,7 +9,7 @@
     installed_cost_per_kw::Real = off_grid_flag ? 880 : only_runs_during_grid_outage ? 650.0 : 800.0,
     om_cost_per_kw::Real = off_grid_flag ? 10.0 : 20.0,
     om_cost_per_kwh::Real = 0.0,
-    fuel_cost_per_gallon::Real = 3.61,
+    fuel_cost_per_gallon::Real = 2.25,
     electric_efficiency_full_load::Real = 0.322,
     electric_efficiency_half_load::Real = electric_efficiency_full_load,
     fuel_avail_gal::Real = 1.0e9,
@@ -104,7 +104,7 @@ struct Generator <: AbstractGenerator
         installed_cost_per_kw::Real = off_grid_flag ? 880 : only_runs_during_grid_outage ? 650.0 : 800.0,
         om_cost_per_kw::Real= off_grid_flag ? 10.0 : 20.0,
         om_cost_per_kwh::Real = 0.0,
-        fuel_cost_per_gallon::Real = 3.61,
+        fuel_cost_per_gallon::Real = 2.25,
         electric_efficiency_full_load::Real = 0.322,
         electric_efficiency_half_load::Real = electric_efficiency_full_load,
         fuel_avail_gal::Real = 1.0e9,

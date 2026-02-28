@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 
@@ -23,13 +23,24 @@ GHP results:
 function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r = Dict{String, Any}()
     @expression(m, GHPOptionChosen, sum(g * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options))
-	ghp_option_chosen = convert(Int64, value(GHPOptionChosen))
+	ghp_option_chosen = round(Int64, value(GHPOptionChosen)) # Use integer rounding to avoid precision issues
     r["ghp_option_chosen"] = ghp_option_chosen
     # r["size_heat_pump_ton"] = 0.0
     # r["size_wwhp_heating_pump_ton"] = 0.0
     # r["size_wwhp_cooling_pump_ton"] = 0.0
 
     if ghp_option_chosen >= 1
+        
+        r["hybrid_solution_type"] = p.s.ghp_option_list[ghp_option_chosen].hybrid_solution_type
+        r["solve_time_min"] = p.s.ghp_option_list[ghp_option_chosen].solve_time_min
+        r["number_of_boreholes_nonhybrid"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_nonhybrid
+        r["number_of_boreholes_auto_guess"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_auto_guess
+        r["number_of_boreholes_flipped_guess"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_flipped_guess
+
+        r["iterations_nonhybrid"] = p.s.ghp_option_list[ghp_option_chosen].iterations_nonhybrid
+        r["iterations_auto_guess"] = p.s.ghp_option_list[ghp_option_chosen].iterations_auto_guess
+        r["iterations_flipped_guess"] = p.s.ghp_option_list[ghp_option_chosen].iterations_flipped_guess
+
         r["ghpghx_chosen_outputs"] = p.s.ghp_option_list[ghp_option_chosen].ghpghx_response["outputs"]
 
         if r["ghpghx_chosen_outputs"]["heat_pump_configuration"] == "WSHP"

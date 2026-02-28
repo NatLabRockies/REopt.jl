@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ExistingBoiler` results keys:
 - `size_mmbtu_per_hour`  # Thermal production capacity size of the Boiler [MMBtu/hr]
@@ -22,7 +22,9 @@
 """
 function add_existing_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
-    r["size_mmbtu_per_hour"] = round(value(m[Symbol("dvSize"*_n)]["ExistingBoiler"]) / KWH_PER_MMBTU, digits=3)
+    max_prod_kw = maximum(value.(sum(m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,:] for q in p.heating_loads)))
+    size_actual_mmbtu_per_hour = max_prod_kw / KWH_PER_MMBTU * p.s.existing_boiler.max_thermal_factor_on_peak_load
+    r["size_mmbtu_per_hour"] = round(size_actual_mmbtu_per_hour, digits=3)
 	r["fuel_consumption_series_mmbtu_per_hour"] = 
         round.(value.(m[:dvFuelUsage]["ExistingBoiler", ts] for ts in p.time_steps) ./ KWH_PER_MMBTU, digits=5)
     r["annual_fuel_consumption_mmbtu"] = round(sum(r["fuel_consumption_series_mmbtu_per_hour"]), digits=5)

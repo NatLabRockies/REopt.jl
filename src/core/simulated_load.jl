@@ -17,6 +17,7 @@ function simulated_load(d::Dict)
     # Latitude and longitude are required if not normalizing and scaling load profile input
     normalize_and_scale_load_profile_input = get(d, "normalize_and_scale_load_profile_input", false)
     year = get(d, "year", 2017)
+    time_steps_per_hour = get(d, "time_steps_per_hour", 1)
     latitude = get(d, "latitude", 0.0)
     longitude = get(d, "longitude", 0.0)
     if (isnothing(latitude) || isnothing(longitude)) && !normalize_and_scale_load_profile_input
@@ -145,6 +146,22 @@ function simulated_load(d::Dict)
                 throw(@error("monthly_totals_kwh must contain a value for each month, and it is null for these months: $bad_index"))
             end
         end
+        # Monthly peak loads (default is empty list)
+        monthly_peaks_kw = get(d, "monthly_peaks_kw", Real[])
+        if !isempty(monthly_peaks_kw)
+            if !(length(monthly_peaks_kw) == 12)
+                throw(@error("monthly_peaks_kw must contain a value for each of the 12 months"))
+            end
+            bad_index = []
+            for (i, peak) in enumerate(monthly_peaks_kw)
+                if isnothing(peak) || peak <= 0
+                    append!(bad_index, i)
+                end
+            end
+            if !isempty(bad_index)
+                throw(@error("monthly_peaks_kw must contain a positive value for each month, and it is null or non-positive for these months: $bad_index"))
+            end
+        end
 
         # Build dependent inputs for electric load
         elec_load_inputs = Dict{Symbol, Any}()
@@ -158,6 +175,7 @@ function simulated_load(d::Dict)
         else
             elec_load_inputs[:normalize_and_scale_load_profile_input] = normalize_and_scale_load_profile_input
             elec_load_inputs[:loads_kw] = load_profile
+            elec_load_inputs[:time_steps_per_hour] = time_steps_per_hour
         end
         elec_load_inputs[:year] = year
 
@@ -165,7 +183,8 @@ function simulated_load(d::Dict)
                                 latitude=latitude,
                                 longitude=longitude,
                                 annual_kwh=annual_kwh,
-                                monthly_totals_kwh=monthly_totals_kwh
+                                monthly_totals_kwh=monthly_totals_kwh,
+                                monthly_peaks_kw=monthly_peaks_kw
                             )
 
         # Get the default cooling portion of the total electric load (used when we want cooling load without annual_tonhour input)
@@ -215,13 +234,26 @@ function simulated_load(d::Dict)
 
         electric_loads_kw = round.(electric_load.loads_kw, digits=3)
 
+        # Calculate actual/scaled monthly energy and peaks which may not match inputs perfectly
+        monthly_timesteps = REopt.get_monthly_time_steps(year; time_steps_per_hour=time_steps_per_hour)
+        actual_energies = Float64[]
+        actual_peaks = Float64[]
+        for month in 1:12
+            start_idx = monthly_timesteps[month][1]
+            end_idx = monthly_timesteps[month][end]
+            push!(actual_energies, sum(electric_loads_kw[start_idx:end_idx]) / time_steps_per_hour)
+            push!(actual_peaks, maximum(electric_loads_kw[start_idx:end_idx]))
+        end
+
         response = Dict([
                         ("loads_kw", electric_loads_kw),
-                        ("annual_kwh", sum(electric_loads_kw)),
+                        ("annual_kwh", sum(electric_loads_kw) / time_steps_per_hour),
                         ("min_kw", minimum(electric_loads_kw)),
                         ("mean_kw", sum(electric_loads_kw) / length(electric_loads_kw)),
                         ("max_kw", maximum(electric_loads_kw)),
-                        ("cooling_defaults", cooling_defaults_dict)
+                        ("cooling_defaults", cooling_defaults_dict),
+                        ("monthly_totals_kwh", actual_energies),
+                        ("monthly_peaks_kw", actual_peaks)
                         ])
 
         return response

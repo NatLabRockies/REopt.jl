@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     add_cost_curve_vars_and_constraints(m, p; _n="")
 
@@ -99,10 +99,35 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
     end
 
     if !isempty(p.techs.pv)
+        m[:PVCapexNoIncentives] = JuMP.GenericAffExpr{Float64, JuMP.VariableRef}()
         for pv in p.s.pvs
-            add_to_expression!(m[:InitialCapexNoIncentives], 
-                pv.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
-            )
+            cost_list = pv.installed_cost_per_kw
+            size_list = pv.tech_sizes_for_cost_curve
+            t="PV"
+            if t in p.techs.segmented && !isempty(size_list)
+                # Use "no incentives" version of p.cap_cost_slope and p.seg_yint
+                cost_slope_no_inc = [cost_list[1]]
+                seg_yint_no_inc = [0.0]
+                for s in range(2, stop=length(size_list))
+                    tmp_slope = round((cost_list[s] * size_list[s] - cost_list[s-1] * size_list[s-1]) /
+                                    (size_list[s] - size_list[s-1]), digits=0)
+                    tmp_y_int = round(cost_list[s-1] * size_list[s-1] - tmp_slope * size_list[s-1], digits=0)
+                    append!(cost_slope_no_inc, tmp_slope)
+                    append!(seg_yint_no_inc, tmp_y_int)
+                end
+                append!(cost_slope_no_inc, cost_list[end])
+                append!(seg_yint_no_inc, 0.0)
+
+                add_to_expression!(m[:PVCapexNoIncentives],
+                    sum(cost_slope_no_inc[s] * m[Symbol("dvSegmentSystemSize"*t)][s] + 
+                        seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
+                )
+            else            
+                add_to_expression!(m[:PVCapexNoIncentives], 
+                    pv.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
+                )
+            end
+            add_to_expression!(m[:InitialCapexNoIncentives], m[:PVCapexNoIncentives])
         end
     end
 
@@ -112,6 +137,11 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                 p.s.storage.attr[b].installed_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b]
                 + p.s.storage.attr[b].installed_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b]
             )
+            if !(p.s.storage.attr[b].installed_cost_constant == 0) || !(p.s.storage.attr[b].replace_cost_constant == 0)
+                add_to_expression!(m[:InitialCapexNoIncentives], 
+                    p.s.storage.attr[b].installed_cost_constant * m[Symbol("binIncludeStorageCostConstant"*_n)][b]
+                )
+            end            
         end
     end
 
@@ -135,7 +165,7 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
         size_list = p.s.chp.tech_sizes_for_cost_curve
 
         t="CHP"
-        if t in p.techs.segmented
+        if t in p.techs.segmented && !isempty(size_list)
             # Use "no incentives" version of p.cap_cost_slope and p.seg_yint
             cost_slope_no_inc = [cost_list[1]]
             seg_yint_no_inc = [0.0]
@@ -151,7 +181,7 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
 
             add_to_expression!(m[:CHPCapexNoIncentives],
                 sum(cost_slope_no_inc[s] * m[Symbol("dvSegmentSystemSize"*t)][s] + 
-                    seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in 1:p.n_segs_by_tech[t])
+                    seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
             )
         else
             add_to_expression!(m[:CHPCapexNoIncentives], cost_list * m[Symbol("dvPurchaseSize"*_n)]["CHP"])
@@ -207,6 +237,25 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
     if "ASHPWaterHeater" in p.techs.all
         add_to_expression!(m[:InitialCapexNoIncentives], 
             p.s.ashp_wh.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["ASHPWaterHeater"]
+        )
+    end
+
+    if "CST" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.cst.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["CST"]
+        )
+    end    
+
+    # ExistingBoiler and ExistingChiller costs are never discounted by incentives or tax deductions
+    if "ExistingBoiler" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives],
+            m[Symbol("ExistingBoilerCost"*_n)]
+        )
+    end
+
+    if "ExistingChiller" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives],
+            m[Symbol("ExistingChillerCost"*_n)]
         )
     end
 

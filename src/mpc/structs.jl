@@ -1,4 +1,6 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+
+
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `MPCSite` is an optional REopt MPC input with the following keys and default values:
@@ -257,8 +259,8 @@ end
     soc_init_fraction::Float64 = 0.5, # Initial state of charge fraction
     can_grid_charge::Bool = true, # True/False for if storage can charge from the grid
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0, # Efficiency of charging the storage from the grid
-    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Battery self-discharge per timestep, as a fraction of the system's rated kWh capacity
-    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Battery self-discharge per timestep, as a fraction of the kWh stored in each timestep
+    capacity_self_discharge_rate_fraction::Float64 = 0.0 # hydrogen self-discharge per timestep, as a fraction of the system's rated kWh capacity
+    soc_self_discharge_rate_fraction::Float64 = 0.0 # hydrogen self-discharge per timestep, as a fraction of the kWh stored in each timestep
 ```
 """
 Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
@@ -273,8 +275,8 @@ Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     max_kw::Float64 = size_kw
     max_kwh::Float64 = size_kwh
     minimum_avg_soc_fraction::Float64 = 0.0
-    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0
-    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0
+    capacity_self_discharge_rate_fraction::Float64 = 0.0
+    soc_self_discharge_rate_fraction::Float64 = 0.0
     fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
 end
 
@@ -366,8 +368,8 @@ end
     size_kg::Float64, # Size of the hydrogen storage in kg
     soc_min_fraction::Float64 = 0.05, # Minimum state of charge fraction
     soc_init_fraction::Float64 = 0.5, # Initial state of charge fraction
-    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the rated kg capacity of the H2 storage tank
-    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the kg of H2 stored in each timestep
+    capacity_self_discharge_rate_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the rated kg capacity of the H2 storage tank
+    soc_self_discharge_rate_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the kg of H2 stored in each timestep
     minimum_avg_soc_fraction::Float64 = 0.0, # Minimum average state of charge fraction of the system over a typical year of operation
 ```
 """
@@ -375,8 +377,8 @@ Base.@kwdef struct MPCHydrogenStorage <: AbstractHydrogenStorage
     size_kg::Float64
     soc_min_fraction::Float64 = 0.01
     soc_init_fraction::Float64 = 0.5
-    capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0
-    soc_based_per_ts_self_discharge_fraction::Float64 = 0.0
+    capacity_self_discharge_rate_fraction::Float64 = 0.0
+    soc_self_discharge_rate_fraction::Float64 = 0.0
     max_kg::Float64 = size_kg
     minimum_avg_soc_fraction::Float64 = 0.0
 end

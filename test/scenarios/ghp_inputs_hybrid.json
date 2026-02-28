@@ -1,0 +1,44 @@
+{
+    "Site": {
+        "latitude": 41.878114, 
+        "longitude": -87.629798
+    },
+    "Financial": {
+        "analysis_years": 25,
+        "om_cost_escalation_rate_fraction": 0.025,
+        "elec_cost_escalation_rate_fraction": 0.017,
+        "boiler_fuel_cost_escalation_rate_fraction": 0.015,
+        "offtaker_discount_rate_fraction": 0.0638,
+        "offtaker_tax_rate_fraction": 0.26
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "FastFoodRest"
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.10,
+        "blended_annual_demand_rate": 15.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "FastFoodRest"
+    },  
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 15.0
+    },
+    "CoolingLoad": {
+        "doe_reference_name": "FastFoodRest"
+    },
+    "GHP": {
+        "require_ghp_purchase": 1,
+        "building_sqft": 2500.0,
+        "can_serve_dhw": false,
+        "ghpghx_inputs": [{
+            "heat_pump_configuration": "WSHP",
+            "hybrid_ghx_sizing_method": "Automatic",
+            "simulation_years": 25,
+            "max_sizing_iterations": 15
+        }]
+    },    
+    "PV": {
+        "max_kw": 100000.0
+      }
+}

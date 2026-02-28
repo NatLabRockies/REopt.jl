@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 using Xpress
 using Random
 using DelimitedFiles
@@ -48,8 +48,22 @@ end
         m = Model(optimizer_with_attributes(Xpress.Optimizer, "MIPRELSTOP" => 0.01, "OUTPUTLOG" => 0))
         results = run_reopt(m, inputs)
     
-        @test round(results["CHP"]["size_kw"], digits=0) ≈ 468.7 atol=1.0
-        @test round(results["Financial"]["lcc"], digits=0) ≈ 1.3476e7 atol=1.0e7
+        @test round(results["CHP"]["size_kw"], digits=0) ≈ 263.0 atol=50.0
+        @test round(results["Financial"]["lcc"], digits=0) ≈ 1.11e7 rtol=0.05
+        finalize(backend(m))
+        empty!(m)
+        GC.gc()
+
+        # Test constrained CAPEX
+        initial_capex_no_incentives = results["Financial"]["initial_capital_costs"]
+        min_capex = initial_capex_no_incentives * 1.3
+        model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        data_sizing["Financial"]["min_initial_capital_costs_before_incentives"] = min_capex
+        results = run_reopt(model, data_sizing)
+        @test results["Financial"]["initial_capital_costs"] ≈ min_capex rtol=1e-5
+        finalize(backend(model))
+        empty!(model)
+        GC.gc()                
     end
 
     @testset "CHP Cost Curve and Min Allowable Size" begin
@@ -81,6 +95,7 @@ end
             [0, init_capex_chp_expected * data_cost_curve["CHP"]["federal_itc_fraction"]])
     
         #PV
+        data_cost_curve["PV"] = Dict()
         data_cost_curve["PV"]["min_kw"] = 1500
         data_cost_curve["PV"]["max_kw"] = 1500
         data_cost_curve["PV"]["installed_cost_per_kw"] = 1600
@@ -102,16 +117,15 @@ end
         init_capex_total_expected = init_capex_chp_expected + init_capex_pv_expected
         lifecycle_capex_total_expected = lifecycle_capex_chp_expected + lifecycle_capex_pv_expected
     
-        init_capex_total = results["Financial"]["initial_capital_costs"]
-        lifecycle_capex_total = results["Financial"]["initial_capital_costs_after_incentives"]
-    
-    
         # Check initial CapEx (pre-incentive/tax) and life cycle CapEx (post-incentive/tax) cost with expect
-        @test init_capex_total_expected ≈ init_capex_total atol=0.0001*init_capex_total_expected
-        @test lifecycle_capex_total_expected ≈ lifecycle_capex_total atol=0.0001*lifecycle_capex_total_expected
+        @test init_capex_total_expected ≈ results["Financial"]["initial_capital_costs"] atol=0.0001*init_capex_total_expected
+        @test lifecycle_capex_total_expected ≈ results["Financial"]["initial_capital_costs_after_incentives"] atol=0.0001*lifecycle_capex_total_expected
     
         # Test CHP.min_allowable_kw - the size would otherwise be ~100 kW less by setting min_allowable_kw to zero
         @test results["CHP"]["size_kw"] ≈ data_cost_curve["CHP"]["min_allowable_kw"] atol=0.1
+        finalize(backend(m))
+        empty!(m)
+        GC.gc()
     end
 
     @testset "CHP Unavailability and Outage" begin
@@ -168,6 +182,9 @@ end
         @test sum(chp_total_elec_prod) ≈ sum(chp_to_load) atol=1.0e-5*sum(chp_total_elec_prod)
         @test sum(cooling_elec_consumption[outage_start:outage_end]) == 0.0
         @test sum(chp_total_elec_prod[unavail_2_start:unavail_2_end]) == 0.0  
+        finalize(backend(m))
+        empty!(m)
+        GC.gc()
     end
 
     @testset "CHP Supplementary firing and standby" begin
@@ -181,6 +198,7 @@ end
         data = JSON.parsefile("./scenarios/chp_supplementary_firing.json")
         data["CHP"]["supplementary_firing_capital_cost_per_kw"] = 10000
         data["ElectricLoad"]["loads_kw"] = repeat([800.0], 8760)
+        data["ElectricLoad"]["year"] = 2022
         data["DomesticHotWaterLoad"]["fuel_loads_mmbtu_per_hour"] = repeat([6.0], 8760)
         data["SpaceHeatingLoad"]["fuel_loads_mmbtu_per_hour"] = repeat([6.0], 8760)
         #part 1: supplementary firing not used when less efficient than the boiler and expensive 
@@ -208,8 +226,40 @@ end
         @test results["CHP"]["size_supplemental_firing_kw"] ≈ 321.71 atol=0.1
         @test results["CHP"]["annual_thermal_production_mmbtu"] ≈ 149136.6 rtol=1e-5
         @test results["ElectricTariff"]["lifecycle_demand_cost_after_tax"] ≈ 5212.7 rtol=1e-5
+        finalize(backend(m1))
+        empty!(m1)
+        finalize(backend(m2))
+        empty!(m2)
+        GC.gc()
     end
-end
+
+    @testset "CHP to Waste Heat" begin
+        m = Model(optimizer_with_attributes(Xpress.Optimizer, "OUTPUTLOG" => 0))
+        d = JSON.parsefile("./scenarios/chp_waste.json")
+        results = run_reopt(m, d)
+        @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 4174.455 atol=1e-3
+        finalize(backend(m))
+        empty!(m)
+        GC.gc()
+    end
+
+    @testset "CHP Proforma Metrics" begin
+        # This test compares the resulting simple payback period (years) for CHP to a proforma spreadsheet model which has been verified
+        # All financial parameters which influence this calc have been input to avoid breaking with changing defaults
+        input_data = JSON.parsefile("./scenarios/chp_payback.json")
+        s = Scenario(input_data)
+        inputs = REoptInputs(s)
+
+        m1 = Model(optimizer_with_attributes(Xpress.Optimizer, "MIPRELSTOP" => 0.01, "OUTPUTLOG" => 0))
+        m2 = Model(optimizer_with_attributes(Xpress.Optimizer, "MIPRELSTOP" => 0.01, "OUTPUTLOG" => 0))
+        results = run_reopt([m1,m2], inputs)
+        @test abs(results["Financial"]["simple_payback_years"] - 8.12) <= 0.02
+        finalize(backend(m1))
+        empty!(m1)
+        finalize(backend(m2))
+        empty!(m2)
+        GC.gc()
+    end
 
 @testset "FlexibleHVAC" begin
 
@@ -1344,7 +1394,7 @@ end
 
     pop!(input_data["GHP"], "ghpghx_inputs", nothing)
     pop!(input_data["GHP"], "ghpghx_responses", nothing)
-    ghp_obj = REopt.GHP(JSON.parsefile("scenarios/ghpghx_hybrid_results.json"), input_data["GHP"])
+    ghp_obj = REopt.GHP(JSON.parsefile("scenarios/ghpghx_hybrid_results.json"), input_data["GHP"]; sector="commercial/industrial", federal_procurement_type="")
 
     calculated_ghx_residual_value = ghp_obj.ghx_only_capital_cost*
     (

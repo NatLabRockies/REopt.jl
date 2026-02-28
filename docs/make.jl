@@ -28,5 +28,5 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/NREL/REopt.jl.git",
+    repo = "github.com/NatLabRockies/REopt.jl.git",
 )
