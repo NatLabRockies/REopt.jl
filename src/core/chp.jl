@@ -288,11 +288,11 @@ function CHP(d::Dict;
     
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
-        min_load_kw = minimum(electric_load_series_kw)
+        min_load_kw = round(minimum(electric_load_series_kw), digits=1)
         
         # Check if even the minimum CHP size would cause infeasibility
         if chp.min_kw > 0.0
-            min_threshold_kw = chp.min_turn_down_fraction * chp.min_kw
+            min_threshold_kw = round(chp.min_turn_down_fraction * chp.min_kw, digits=1)
             if min_load_kw < min_threshold_kw
                 throw(@error(
                     "CHP load-following will cause infeasibility: " *
