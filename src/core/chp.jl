@@ -286,6 +286,24 @@ function CHP(d::Dict;
         chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
     end 
     
+    # Validate load-following won't cause infeasibility with min_turn_down_fraction
+    if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
+        min_load_kw = minimum(electric_load_series_kw)
+        
+        # Check if even the minimum CHP size would cause infeasibility
+        if chp.min_kw > 0.0
+            min_threshold_kw = chp.min_turn_down_fraction * chp.min_kw
+            if min_load_kw < min_threshold_kw
+                throw(@error(
+                    "CHP load-following will cause infeasibility: " *
+                    "minimum electric load ($min_load_kw kW) is less than " *
+                    "min_turn_down_fraction * min_kw ($min_threshold_kw kW). " *
+                    "Set min_turn_down_fraction to 0.0 or reduce min_kw below $(min_load_kw / chp.min_turn_down_fraction) kW."
+                ))
+            end
+        end
+    end
+    
     return chp
 end
 
