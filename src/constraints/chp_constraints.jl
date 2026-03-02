@@ -179,12 +179,13 @@ function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
         @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
             m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
         )
-    end
-    for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
-        for ts in p.time_steps
-            fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts], 0.0, force=true)
-            fix(m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts], 0.0, force=true)
-            fix(m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts], 0.0, force=true)
+        # During restricted months, CHP cannot serve other heating loads (space heating, DHW)
+        for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
+            for ts in monthly_timesteps[mth]
+                fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts], 0.0, force=true)
+                fix(m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts], 0.0, force=true)
+                fix(m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts], 0.0, force=true)
+            end
         end
     end
 end
