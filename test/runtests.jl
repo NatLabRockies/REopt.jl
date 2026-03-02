@@ -1229,7 +1229,7 @@ else  # run HiGHS tests
             end
 
             @testset "CHP Waste Heat, Absorption Chiller, Load Following Policies" begin
-                #part 1: test nonzero waste heat, with all dispatch to either waste or absorption chiller when enabled 
+                # part 1: test nonzero waste heat, with all dispatch to either waste or absorption chiller when enabled 
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 results = run_reopt(m, d)
@@ -1240,6 +1240,7 @@ else  # run HiGHS tests
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
+
                 # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
@@ -1250,6 +1251,97 @@ else  # run HiGHS tests
                 p.s.electric_tariff.energy_rates[2,:] .= 0.0
                 results = run_reopt(m, p)
                 @test results["CHP"]["electric_to_load_series_kw"][2] ≈ min(results["CHP"]["size_kw"], p.s.electric_load.loads_kw[2]) atol=0.01
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+                
+                # part 3: CHP + PV + HTES - PV is curtailed/exported even though it's free and available, 
+                #   HTES is sized because CHP is dispatching to electric when not enough thermal to fully use
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_load_following_base.json")
+                d["PV"] = Dict(
+                    "min_kw" => 100.0,
+                    "max_kw" => 100.0,
+                    "installed_cost_per_kw" => 1500.0
+                )
+                d["HotThermalStorage"] = Dict(
+                    "min_gal" => 0.0,
+                    "max_gal" => 20000.0,
+                    "installed_cost_per_gal" => 1.5
+                )
+                results = run_reopt(m, d)
+                s = Scenario(d)
+                p = REoptInputs(s)
+                elec_load = p.s.electric_load.loads_kw
+                chp_elec_output = results["CHP"]["electric_production_series_kw"]
+                pv_to_load = results["PV"]["electric_to_load_series_kw"]
+                pv_to_grid = results["PV"]["electric_to_grid_series_kw"]
+                pv_curtailed = results["PV"]["electric_curtailed_series_kw"]
+
+                pv_production = pv_to_load .+ pv_to_grid .+ pv_curtailed
+                total_actual_unused_onsite = sum(pv_curtailed) + sum(pv_to_grid)
+                total_expected_unused_onsite = sum(
+                    max(0.0, pv_production[ts] - (elec_load[ts] - chp_elec_output[ts]))
+                    for ts in 1:length(chp_elec_output)
+                )
+                @test isapprox(total_actual_unused_onsite, total_expected_unused_onsite; rtol=1e-3)
+                println("Hot TES size = ", results["HotThermalStorage"]["size_gal"], " gallons")
+                @test results["HotThermalStorage"]["size_gal"] > 10000.0
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # Test error throw when load following with min_kw and min_turn_down_fraction causes infeasibility
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_load_following_base.json")
+                d["CHP"]["min_kw"] = 500.0
+                d["CHP"]["min_turn_down_fraction"] = 0.5
+                # Pass dict directly to run_reopt to catch error gracefully
+                results = run_reopt(m, d)
+                @test occursin("CHP load-following will cause infeasibility", string(results["Messages"]["errors"]))
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # part 4: CHP + Absorption Chiller with May-September restriction to only send CHP thermal to Absorption Chiller
+                # Helper function for month calculation
+                function get_month_from_timestep(ts, time_steps_per_hour=1)
+                    hour = (ts - 1) / time_steps_per_hour
+                    day = floor(Int, hour / 24) + 1
+                    month_starts = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+                    for m in 12:-1:1
+                        if day > month_starts[m]
+                            return m
+                        end
+                    end
+                    return 1
+                end
+
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_absorption_chiller.json")
+                results = run_reopt(m, d)
+
+                chp_thermal_to_space = results["CHP"]["thermal_to_space_heating_load_series_mmbtu_per_hour"]
+                chp_thermal_to_dhw = results["CHP"]["thermal_to_dhw_load_series_mmbtu_per_hour"]
+
+                # Validate monthly restriction: In May-Sep, thermal should ONLY go to absorption chiller or waste
+                restricted_months = [5, 6, 7, 8, 9]
+                violations = count(1:8760) do ts
+                    month = get_month_from_timestep(ts)
+                    if month in restricted_months
+                        thermal_to_heating = chp_thermal_to_space[ts] + chp_thermal_to_dhw[ts]
+                        return thermal_to_heating > 0.01
+                    end
+                    return false
+                end
+                @test violations == 0
+
+                # Verify CHP can serve heating loads in other months (October-April)
+                non_restricted_heating = sum(chp_thermal_to_space[ts] + chp_thermal_to_dhw[ts] 
+                                                for ts in 1:8760 
+                                                if !(get_month_from_timestep(ts) in restricted_months))
+                @test non_restricted_heating > 1.0
+
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
