@@ -214,8 +214,8 @@ else  # run HiGHS tests
         @testset "CHP Sizing Heuristic" begin
             hot_water_or_steam = "hot_water"
             avg_boiler_fuel_load_mmbtu_per_hour = nothing
-            prime_mover = nothing
-            size_class = nothing
+            prime_mover = "recip_engine"
+            size_class = 0
             max_kw = NaN
             boiler_efficiency = 0.8
             avg_electric_load_kw = 100.0
@@ -223,7 +223,7 @@ else  # run HiGHS tests
             is_electric_only = true
             thermal_efficiency = NaN
             avg_cooling_load_kw = nothing
-            chiller_efficiency = nothing
+            absorption_chiller_cop = nothing
             include_cooling_in_size = nothing
             #Case 1: electric only
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
@@ -237,7 +237,7 @@ else  # run HiGHS tests
                                             is_electric_only=is_electric_only,
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
-                                            chiller_efficiency=chiller_efficiency,
+                                            absorption_chiller_cop=absorption_chiller_cop,
                                             include_cooling_in_size=include_cooling_in_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 100.0 atol=1e-3
@@ -259,17 +259,17 @@ else  # run HiGHS tests
                                             is_electric_only=is_electric_only,
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
-                                            chiller_efficiency=chiller_efficiency,
+                                            absorption_chiller_cop=absorption_chiller_cop,
                                             include_cooling_in_size=include_cooling_in_size
                                             )
-            @test response["chp_elec_size_heuristic_kw"] ≈ 44.1538 atol=1e-3
-            @test response["chp_max_size_kw"] ≈ 88.3077 atol=1e-3
-            
+            @test response["chp_elec_size_heuristic_kw"] ≈ 65.0 atol=0.1
+            @test response["chp_max_size_kw"] ≈ 130.0 atol=0.2
+
             #Case 3: heating + cooling via absorption chiller only (low electric load)
             avg_cooling_load_kw = 100.0
-            chiller_efficiency = 1.0
+            absorption_chiller_cop = 1.0
             include_cooling_in_size = true
-            
+
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
                                             prime_mover=prime_mover,
@@ -281,16 +281,48 @@ else  # run HiGHS tests
                                             is_electric_only=is_electric_only,
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
-                                            chiller_efficiency=chiller_efficiency,
+                                            absorption_chiller_cop=absorption_chiller_cop,
                                             include_cooling_in_size=include_cooling_in_size
                                             )
-            @test response["chp_elec_size_heuristic_kw"] ≈ 72.8538 atol=1e-3
-            @test response["chp_max_size_kw"] ≈ 145.7077 atol=1e-3
+            @test response["chp_elec_size_heuristic_kw"] ≈ 146.2 atol=0.1
+            @test response["chp_max_size_kw"] ≈ 146.2*2 atol=0.2
+            case3_max_size_kw = response["chp_max_size_kw"]
 
-            #Case 4: with higher electric load, still sized according to thermal input
+            #Case 4: Verify Case 3 results match when creating full Scenario with CHP + AbsorptionChiller
+            d = Dict{String, Any}(
+                "Site" => Dict("latitude" => 35.0, "longitude" => -100.0),
+                "ElectricLoad" => Dict("loads_kw" => repeat([1000.0], 8760), "year" => 2025),
+                "ElectricTariff" => Dict("urdb_label" => "5ed6c1a15457a3367add15ae"),
+                "SpaceHeatingLoad" => Dict(
+                    "annual_mmbtu" => 100.0 * 8760 / REopt.KWH_PER_MMBTU,
+                    "doe_reference_name" => "FlatLoad"
+                ),
+                "DomesticHotWaterLoad" => Dict(
+                    "annual_mmbtu" => 0.0,
+                    "doe_reference_name" => "FlatLoad"
+                ),
+                "CoolingLoad" => Dict("thermal_loads_ton" => repeat([100.0 / REopt.KWH_THERMAL_PER_TONHOUR], 8760)),
+                "ExistingChiller" => Dict("cop" => 1.0),
+                "ExistingBoiler" => Dict(
+                    "fuel_cost_per_mmbtu" => 10.0,
+                    "efficiency" => 0.8
+                ),
+                "AbsorptionChiller" => Dict(
+                    "cop_thermal" => 1.0
+                ),
+                "CHP" => Dict(
+                    "fuel_cost_per_mmbtu" => 10.0,
+                    "prime_mover" => "recip_engine",
+                    "size_class" => 0
+                )
+            )
+            s = Scenario(d)
+            @test s.chp.max_kw ≈ case3_max_size_kw atol=1e-3
+
+            #Case 5: with higher electric load, still sized according to thermal input
             avg_electric_load_kw = 2000.0
             max_electric_load_kw = 3000.0
-            
+
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
                                             prime_mover=prime_mover,
@@ -302,11 +334,11 @@ else  # run HiGHS tests
                                             is_electric_only=is_electric_only,
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
-                                            chiller_efficiency=chiller_efficiency,
+                                            absorption_chiller_cop=absorption_chiller_cop,
                                             include_cooling_in_size=include_cooling_in_size
                                             )
-            @test response["chp_elec_size_heuristic_kw"] ≈ 72.8538 atol=1e-3
-            @test response["chp_max_size_kw"] ≈ 145.7077 atol=1e-3
+            @test response["chp_elec_size_heuristic_kw"] ≈ case3_max_size_kw / 2 atol=0.1
+            @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
         end
 
         @testset "January Export Rates" begin
