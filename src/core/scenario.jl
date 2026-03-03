@@ -478,7 +478,6 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         if max_cooling_demand_kw > 0 && include_cooling_in_size
             # Use already-processed cooling_load object
             avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
-            println("avg cooling load kw = ", avg_cooling_load_kw)
             # Get absorption chiller COP if specified, otherwise will use default
             if haskey(d, "AbsorptionChiller") && haskey(d["AbsorptionChiller"], "cop_thermal")
                 absorption_chiller_cop = d["AbsorptionChiller"]["cop_thermal"]
