@@ -96,6 +96,7 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     if "DomesticHotWater" in p.heating_loads && p.s.cst.can_serve_dhw
         @expression(m, CSTToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","DomesticHotWater",ts] - CSTToHotTESByQualityKW["DomesticHotWater",ts] - CSTToSteamTurbineByQuality["DomesticHotWater",ts] - CSTToWasteByQualityKW["DomesticHotWater",ts]
+			- CSTtoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, CSTToDHWKW[ts in p.time_steps], 0.0)
@@ -105,6 +106,7 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     if "SpaceHeating" in p.heating_loads && p.s.cst.can_serve_space_heating
         @expression(m, CSTToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","SpaceHeating",ts] - CSTToHotTESByQualityKW["SpaceHeating",ts] - CSTToSteamTurbineByQuality["SpaceHeating",ts] - CSTToWasteByQualityKW["SpaceHeating",ts]
+			- CSTtoAbsorptionChillerByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, CSTToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -114,6 +116,7 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     if "ProcessHeat" in p.heating_loads && p.s.cst.can_serve_process_heat
         @expression(m, CSTToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","ProcessHeat",ts] - CSTToHotTESByQualityKW["ProcessHeat",ts] - CSTToSteamTurbineByQuality["ProcessHeat",ts] - CSTToWasteByQualityKW["ProcessHeat",ts]
+			- CSTtoAbsorptionChillerByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, CSTToProcessHeatKW[ts in p.time_steps], 0.0)

@@ -75,6 +75,7 @@ function add_existing_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "DomesticHotWater" in p.heating_loads && p.s.existing_boiler.can_serve_dhw
         @expression(m, BoilerToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ExistingBoiler","DomesticHotWater",ts] - BoilerToHotTESByQualityKW["DomesticHotWater",ts] - BoilerToSteamTurbineByQualityKW["DomesticHotWater",ts]
+			- BoilertoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, BoilerToDHWKW[ts in p.time_steps], 0.0)
@@ -84,6 +85,7 @@ function add_existing_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "SpaceHeating" in p.heating_loads && p.s.existing_boiler.can_serve_space_heating
         @expression(m, BoilerToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ExistingBoiler","SpaceHeating",ts] - BoilerToHotTESByQualityKW["SpaceHeating",ts] - BoilerToSteamTurbineByQualityKW["SpaceHeating",ts]
+			- BoilertoAbsorptionChillerByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, BoilerToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -93,6 +95,7 @@ function add_existing_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "ProcessHeat" in p.heating_loads && p.s.existing_boiler.can_serve_process_heat
         @expression(m, BoilerToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ExistingBoiler","ProcessHeat",ts] - BoilerToHotTESByQualityKW["ProcessHeat",ts] - BoilerToSteamTurbineByQualityKW["ProcessHeat",ts]
+			- BoilertoAbsorptionChillerByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, BoilerToProcessHeatKW[ts in p.time_steps], 0.0)

@@ -105,7 +105,8 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 	
 	if "DomesticHotWater" in p.heating_loads && p.s.steam_turbine.can_serve_dhw
         @expression(m, SteamTurbineToDHWKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","DomesticHotWater",ts] - SteamTurbineToHotTESByQualityKW["DomesticHotWater",ts] 
+            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","DomesticHotWater",ts] - SteamTurbineToHotTESByQualityKW["DomesticHotWater",ts]
+			- SteamTurbinetoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, SteamTurbineToDHWKW[ts in p.time_steps], 0.0)
@@ -114,7 +115,8 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
     
     if "SpaceHeating" in p.heating_loads && p.s.steam_turbine.can_serve_space_heating
         @expression(m, SteamTurbineToSpaceHeatingKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","SpaceHeating",ts] - SteamTurbineToHotTESByQualityKW["SpaceHeating",ts] 
+            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","SpaceHeating",ts] - SteamTurbineToHotTESByQualityKW["SpaceHeating",ts]
+			- SteamTurbinetoAbsorptionChillerByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, SteamTurbineToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -123,7 +125,8 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
     
     if "ProcessHeat" in p.heating_loads && p.s.steam_turbine.can_serve_process_heat
         @expression(m, SteamTurbineToProcessHeatKW[ts in p.time_steps], 
-            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","ProcessHeat",ts] - SteamTurbineToHotTESByQualityKW["ProcessHeat",ts] 
+            m[Symbol("dvHeatingProduction"*_n)]["SteamTurbine","ProcessHeat",ts] - SteamTurbineToHotTESByQualityKW["ProcessHeat",ts]
+			- SteamTurbinetoAbsorptionChillerByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, SteamTurbineToProcessHeatKW[ts in p.time_steps], 0.0)

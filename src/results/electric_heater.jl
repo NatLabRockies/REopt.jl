@@ -92,6 +92,7 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "DomesticHotWater" in p.heating_loads && p.s.electric_heater.can_serve_dhw
         @expression(m, ElectricHeaterToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ElectricHeater","DomesticHotWater",ts] - ElectricHeaterToHotTESByQualityKW["DomesticHotWater",ts] - ElectricHeaterToSteamTurbineByQuality["DomesticHotWater",ts] - ElectricHeaterToWasteByQualityKW["DomesticHotWater",ts]
+			- ElectricHeatertoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, ElectricHeaterToDHWKW[ts in p.time_steps], 0.0)
@@ -101,6 +102,7 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "SpaceHeating" in p.heating_loads && p.s.electric_heater.can_serve_space_heating
         @expression(m, ElectricHeaterToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ElectricHeater","SpaceHeating",ts] - ElectricHeaterToHotTESByQualityKW["SpaceHeating",ts] - ElectricHeaterToSteamTurbineByQuality["SpaceHeating",ts] - ElectricHeaterToWasteByQualityKW["SpaceHeating",ts]
+			- ElectricHeatertoAbsorptionChillerByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, ElectricHeaterToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -110,6 +112,7 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     if "ProcessHeat" in p.heating_loads && p.s.electric_heater.can_serve_process_heat
         @expression(m, ElectricHeaterToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ElectricHeater","ProcessHeat",ts] - ElectricHeaterToHotTESByQualityKW["ProcessHeat",ts] - ElectricHeaterToSteamTurbineByQuality["ProcessHeat",ts] - ElectricHeaterToWasteByQualityKW["ProcessHeat",ts]
+			- ElectricHeatertoAbsorptionChillerByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, ElectricHeaterToProcessHeatKW[ts in p.time_steps], 0.0)
