@@ -89,7 +89,7 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     r["thermal_curtailed_series_mmbtu_per_hour"] = round.(value.(CSTToWaste) / KWH_PER_MMBTU, digits=3)
 
 	@expression(m, CSTToLoad[ts in p.time_steps],
-		sum(m[:dvHeatingProduction]["CST", q, ts] for q in p.heating_loads) - CSTToHotTESKW[ts] - CSTToSteamTurbine[ts] - CSTToWaste[ts]
+		sum(m[:dvHeatingProduction]["CST", q, ts] for q in p.heating_loads) - CSTToHotTESKW[ts] - CSTToSteamTurbine[ts] - CSTToWaste[ts] - CSTtoAbsorptionChillerKW[ts]
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CSTToLoad) / KWH_PER_MMBTU, digits=3)
 

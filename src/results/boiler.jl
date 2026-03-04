@@ -64,7 +64,7 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
 	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(NewBoilertoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
 
 	BoilerToLoad = @expression(m, [ts in p.time_steps],
-		sum(value.(m[:dvHeatingProduction]["Boiler", q, ts]) for q in p.heating_loads) - NewBoilerToHotTESKW[ts] - NewBoilerToSteamTurbine[ts] 
+		sum(value.(m[:dvHeatingProduction]["Boiler", q, ts]) for q in p.heating_loads) - NewBoilerToHotTESKW[ts] - NewBoilerToSteamTurbine[ts] - NewBoilertoAbsorptionChillerKW[ts]
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(BoilerToLoad / KWH_PER_MMBTU), digits=3)
 

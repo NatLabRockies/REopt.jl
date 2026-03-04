@@ -85,7 +85,7 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
     )
 
 	@expression(m, ElectricHeaterToLoad[ts in p.time_steps],
-		sum(m[:dvHeatingProduction]["ElectricHeater", q, ts] for q in p.heating_loads) - ElectricHeaterToHotTESKW[ts] - ElectricHeaterToSteamTurbine[ts] - ElectricHeaterToWaste[ts]
+		sum(m[:dvHeatingProduction]["ElectricHeater", q, ts] for q in p.heating_loads) - ElectricHeaterToHotTESKW[ts] - ElectricHeaterToSteamTurbine[ts] - ElectricHeaterToWaste[ts] - ElectricHeatertoAbsorptionChillerKW[ts]
     )
 	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(ElectricHeaterToLoad) / KWH_PER_MMBTU, digits=3)
 
