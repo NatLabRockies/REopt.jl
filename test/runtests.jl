@@ -2189,9 +2189,8 @@ else  # run HiGHS tests
             chp_thermal_to_chiller_series = results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]
             absorpchl_thermal_series = results["AbsorptionChiller"]["thermal_consumption_series_mmbtu_per_hour"]
             hot_tes_mmbtu_per_hour_to_load_series = results["HotThermalStorage"]["storage_to_load_series_mmbtu_per_hour"]
+            hot_tes_mmbtu_per_hour_to_chiller_series = results["HotThermalStorage"]["storage_to_absorption_chiller_series_mmbtu_per_hour"]
             tes_inflows = sum(chp_thermal_to_tes_series) + sum(boiler_thermal_to_tes_series)
-            total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series)
-            tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series)
             total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series) + sum(chp_thermal_to_chiller_series)
             tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series) + sum(hot_tes_mmbtu_per_hour_to_chiller_series)
             total_thermal_expected = boiler_thermal_load_mmbtu_total + sum(chp_thermal_to_waste_series) + tes_inflows + sum(absorpchl_thermal_series)
