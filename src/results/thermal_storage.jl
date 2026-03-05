@@ -4,11 +4,12 @@
 - `size_kwh` Optimal TES capacity, by energy [kWh]
 - `size_gal` Optimal TES capacity, by volume [gal]
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_steamturbine_series_mmbtu_per_hour` 
-- `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
-- `storage_to_space_heating_load_series_mmbtu_per_hour`
-- `storage_to_dhw_load_series_mmbtu_per_hour`
-- `storage_to_process_heat_load_series_mmbtu_per_hour`
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -169,15 +170,18 @@ end
 
 """
 `HighTempThermalStorage` results keys:
-- `size_kwh` Optimal TES capacity, by energy capacity [kWh]
+- `size_kwh` Optimal TES capacity, by energy [kWh]
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_load_series_mmbtu_per_hour` Vector of power used to meet load over the first year [MMBTU/hr]
-- `storage_to_steamturbine_series_mmbtu_per_hour` 
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
-
 """
 function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict, b::String; _n="")
     # Adds the `HighTempThermalStorage` results to the dictionary passed back from `run_reopt` using the solved model `m` and the `REoptInputs` for node `_n`.
