@@ -59,7 +59,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - storage_to_turbine_sh[ts] - HotTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
             )
         else
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -68,7 +68,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "DomesticHotWater" in p.heating_loads && p.s.storage.attr[b].can_serve_dhw
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - storage_to_turbine_dhw[ts] - HotTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
             )
         else
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 0.0)
@@ -77,7 +77,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "ProcessHeat" in p.heating_loads && p.s.storage.attr[b].can_serve_process_heat
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - storage_to_turbine_ph[ts] - HotTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
             )
         else
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 0.0)
