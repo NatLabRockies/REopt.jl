@@ -2181,21 +2181,27 @@ else  # run HiGHS tests
             boiler_fuel_consumption_calculated = results["ExistingBoiler"]["annual_fuel_consumption_mmbtu"]
             boiler_thermal_series = results["ExistingBoiler"]["thermal_production_series_mmbtu_per_hour"]
             boiler_to_load_series = results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]
+            boiler_to_chiller_series = results["ExistingBoiler"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]
             boiler_thermal_to_tes_series = results["ExistingBoiler"]["thermal_to_storage_series_mmbtu_per_hour"]
             chp_thermal_to_load_series = results["CHP"]["thermal_to_load_series_mmbtu_per_hour"]
             chp_thermal_to_tes_series = results["CHP"]["thermal_to_storage_series_mmbtu_per_hour"]
             chp_thermal_to_waste_series = results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]
+            chp_thermal_to_chiller_series = results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]
             absorpchl_thermal_series = results["AbsorptionChiller"]["thermal_consumption_series_mmbtu_per_hour"]
             hot_tes_mmbtu_per_hour_to_load_series = results["HotThermalStorage"]["storage_to_load_series_mmbtu_per_hour"]
             tes_inflows = sum(chp_thermal_to_tes_series) + sum(boiler_thermal_to_tes_series)
             total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series)
             tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series)
+            total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series) + sum(chp_thermal_to_chiller_series)
+            tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series) + sum(hot_tes_mmbtu_per_hour_to_chiller_series)
             total_thermal_expected = boiler_thermal_load_mmbtu_total + sum(chp_thermal_to_waste_series) + tes_inflows + sum(absorpchl_thermal_series)
             boiler_fuel_expected = (total_thermal_expected - total_chp_production - tes_outflows) / inputs.s.existing_boiler.efficiency
             total_thermal_mmbtu_calculated = sum(boiler_thermal_series) + total_chp_production + tes_outflows
+            total_absorption_chiller_input = sum(chp_thermal_to_chiller_series) + sum(boiler_to_chiller_series)
 
             @test round(boiler_fuel_consumption_calculated, digits=0) ≈ boiler_fuel_expected atol=8.0
             @test round(total_thermal_mmbtu_calculated, digits=0) ≈ total_thermal_expected atol=8.0  
+            @test round(sum(absorpchl_thermal_series), digits=0) ≈ total_absorption_chiller_input atol=8.0  
 
             # Test CHP["cooling_thermal_factor"] = 0.8, AbsorptionChiller["cop_thermal"] = 0.7 (from inputs .json)
             absorpchl_heat_in_kwh = results["AbsorptionChiller"]["annual_thermal_consumption_mmbtu"] * REopt.KWH_PER_MMBTU
@@ -3264,7 +3270,7 @@ else  # run HiGHS tests
             results = run_reopt(m, inputs)
             
             thermal_techs = ["ExistingBoiler", "CHP", "SteamTurbine"]
-            thermal_loads = ["load", "storage", "steamturbine", "waste"]  # We don't track AbsorptionChiller thermal consumption by tech
+            thermal_loads = ["load", "steamturbine", "storage", "waste","absorption_chiller"]  
             tech_to_thermal_load = Dict{Any, Any}()
             for tech in thermal_techs
                 tech_to_thermal_load[tech] = Dict{Any, Any}()
@@ -3282,9 +3288,11 @@ else  # run HiGHS tests
             end
             # Hot TES is the other thermal supply
             hottes_to_load = results["HotThermalStorage"]["storage_to_load_series_mmbtu_per_hour"]
+            hottes_to_turbine = results["HotThermalStorage"]["storage_to_steamturbine_series_mmbtu_per_hour"]
+            hottes_to_chiller = results["HotThermalStorage"]["storage_to_absorption_chiller_series_mmbtu_per_hour"]
             
             # BAU boiler loads
-            load_boiler_fuel = s.space_heating_load.loads_kw / input_data["ExistingBoiler"]["efficiency"] ./ REopt.KWH_PER_MMBTU
+            load_boiler_fuel = s.space_heating_load.loads_kw ./ input_data["ExistingBoiler"]["efficiency"] ./ REopt.KWH_PER_MMBTU
             load_boiler_thermal = load_boiler_fuel .* input_data["ExistingBoiler"]["efficiency"]
             
             # Fuel/thermal **consumption**
@@ -3295,12 +3303,15 @@ else  # run HiGHS tests
             
             # Check that all thermal supply to load meets the BAU load plus AbsorptionChiller load which is not explicitly tracked
             alltechs_thermal_to_load_total = sum([sum(tech_to_thermal_load[tech]["load"]) for tech in thermal_techs]) + sum(hottes_to_load)
-            thermal_load_total = sum(load_boiler_thermal) + sum(absorptionchiller_thermal_in)
+            thermal_load_total = sum(load_boiler_thermal)
             @test alltechs_thermal_to_load_total ≈ thermal_load_total rtol=1e-5
             
             # Check that all thermal to steam turbine is equal to steam turbine thermal consumption
-            alltechs_thermal_to_steamturbine_total = sum([sum(tech_to_thermal_load[tech]["steamturbine"]) for tech in ["ExistingBoiler", "CHP"]])
+            alltechs_thermal_to_steamturbine_total = sum([sum(tech_to_thermal_load[tech]["steamturbine"]) for tech in ["ExistingBoiler", "CHP"]]) + sum(hottes_to_turbine)
             @test alltechs_thermal_to_steamturbine_total ≈ sum(steamturbine_thermal_in) atol=3
+
+            alltechs_thermal_to_absorption_chiller_total = sum([sum(tech_to_thermal_load[tech]["absorption_chiller"]) for tech in thermal_techs]) + sum(hottest_to_absorption_chiller)
+            @test alltechs_thermal_to_absorption_chiller_total ≈ sum(absorptionchiller_thermal_in) atol=3
             
             # Check that "thermal_to_steamturbine" is zero for each tech which has input of can_supply_steam_turbine as False
             for tech in ["ExistingBoiler", "CHP"]
