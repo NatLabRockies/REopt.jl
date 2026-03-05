@@ -191,20 +191,66 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
     	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
         r["soc_series_fraction"] = round.(value.(soc) ./ size_kwh, digits=3)
 
-        discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads) for ts in p.time_steps)
-
+        discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
+        if "AbsorptionChiller" in p.techs.cooling
+            @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts] for q in p.heating_loads)))
+            @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], value(m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts]))
+        else
+            @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], 0.0)
+            @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+        end
+        r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = round(value.(HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
+        
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
             storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
+            storage_to_turbine_sh = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"SpaceHeating",ts]) for ts in p.time_steps)
+            storage_to_turbine_dhw = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"DomesticHotWater",ts]) for ts in p.time_steps)
+            storage_to_turbine_ph = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"ProcessHeat",ts]) for ts in p.time_steps)
             r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine .- HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
         else
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge) / KWH_PER_MMBTU, digits=7)
+            storage_to_turbine = zeros(length(p.time_steps))
+            storage_to_turbine_sh = zeros(length(p.time_steps))
+            storage_to_turbine_dhw = zeros(length(p.time_steps))
+            storage_to_turbine_ph = zeros(length(p.time_steps))
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
             r["storage_to_steamturbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
+
+        if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
+            @expression(m, HighTempTESToSpaceHeatingKW[ts in p.time_steps], 
+                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - storage_to_turbine_sh[ts] - HighTempTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
+            )
+        else
+            @expression(m, HighTempTESToSpaceHeatingKW[ts in p.time_steps], 0.0)
+        end
+        r["storage_to_space_heating_load_series_mmbtu_per_hour"] = round.(value.(HighTempTESToSpaceHeatingKW) ./ KWH_PER_MMBTU, digits=5)
+
+        if "DomesticHotWater" in p.heating_loads && p.s.storage.attr[b].can_serve_dhw
+            @expression(m, HighTempTESToDHWKW[ts in p.time_steps], 
+                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - storage_to_turbine_dhw[ts] - HighTempTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
+            )
+        else
+            @expression(m, HighTempTESToDHWKW[ts in p.time_steps], 0.0)
+        end
+        r["storage_to_dhw_load_series_mmbtu_per_hour"] = round.(value.(HighTempTESToDHWKW) ./ KWH_PER_MMBTU, digits=5)
+
+        if "ProcessHeat" in p.heating_loads && p.s.storage.attr[b].can_serve_process_heat
+            @expression(m, HighTempTESToProcessHeatKW[ts in p.time_steps], 
+                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - storage_to_turbine_ph[ts] - HighTempTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
+            )
+        else
+            @expression(m, HighTempTESToProcessHeatKW[ts in p.time_steps], 0.0)
+        end
+        r["storage_to_process_heat_load_series_mmbtu_per_hour"] = round.(value.(HighTempTESToProcessHeatKW) ./ KWH_PER_MMBTU, digits=5)
     else
         r["soc_series_fraction"] = []
-        r["storage_to_load_series_mmbtu_per_hour"] = []
         r["storage_to_steamturbine_series_mmbtu_per_hour"] = []
+        r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = []
+        r["storage_to_load_series_mmbtu_per_hour"] = []
+        r["storage_to_space_heating_load_series_mmbtu_per_hour"] = []
+        r["storage_to_dhw_load_series_mmbtu_per_hour"] = []
+        r["storage_to_process_heat_load_series_mmbtu_per_hour"] = []
     end
 
     d[b] = r
