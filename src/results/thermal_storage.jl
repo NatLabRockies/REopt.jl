@@ -203,7 +203,7 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
             @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], 0.0)
             @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
         end
-        r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = round(value.(HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
+        r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
         
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
             storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)

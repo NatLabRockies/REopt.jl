@@ -3309,7 +3309,7 @@ else  # run HiGHS tests
             alltechs_thermal_to_steamturbine_total = sum([sum(tech_to_thermal_load[tech]["steamturbine"]) for tech in ["ExistingBoiler", "CHP"]]) + sum(hottes_to_turbine)
             @test alltechs_thermal_to_steamturbine_total ≈ sum(steamturbine_thermal_in) atol=3
 
-            alltechs_thermal_to_absorption_chiller_total = sum([sum(tech_to_thermal_load[tech]["absorption_chiller"]) for tech in thermal_techs]) + sum(hottest_to_absorption_chiller)
+            alltechs_thermal_to_absorption_chiller_total = sum([sum(tech_to_thermal_load[tech]["absorption_chiller"]) for tech in thermal_techs]) + sum(hottes_to_chiller)
             @test alltechs_thermal_to_absorption_chiller_total ≈ sum(absorptionchiller_thermal_in) atol=3
             
             # Check that "thermal_to_steamturbine" is zero for each tech which has input of can_supply_steam_turbine as False
