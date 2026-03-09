@@ -26,6 +26,7 @@ struct Scenario <: AbstractScenario
     steam_turbine::Union{SteamTurbine, Nothing}
     electric_heater::Union{ElectricHeater, Nothing}
     water_power::WaterPower
+    water_storage::Array{}
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
@@ -254,6 +255,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             print("\n No changes made to the tributary flow input vector \n")
         end
 
+        water_storage = []
+        if d["water_power"]["maximum_capacity_cubic_meters_upper_reservoir"] > 0
+            push!(water_storage, "upper_reservoir")
+        end
+
+        if d["water_power"]["maximum_capacity_cubic_meters_downstream_reservoir"] > 0
+            push!(water_storage, "downstream_reservoir")
+        end
+
         water_power = WaterPower(; 
                 existing_kw_per_turbine = d["water_power"]["existing_kw_per_turbine"],
                 turbine_cost_per_kw = d["water_power"]["turbine_cost_per_kw"],
@@ -272,9 +282,9 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 coefficient_f_reservoir_head=d["water_power"]["coefficient_f_reservoir_head"],
                 fixed_turbine_efficiency = d["water_power"]["fixed_turbine_efficiency"],
                 water_inflow_cubic_meter_per_second=d["water_power"]["water_inflow_cubic_meter_per_second"],  
-                cubic_meter_maximum=d["water_power"]["cubic_meter_maximum"], 
-                cubic_meter_minimum=d["water_power"]["cubic_meter_minimum"],   
-                initial_reservoir_volume = d["water_power"]["initial_reservoir_volume"],
+                maximum_volume_fraction_upper_reservoir=d["water_power"]["maximum_volume_fraction_upper_reservoir"], 
+                minimum_volume_fraction_upper_reservoir=d["water_power"]["minimum_volume_fraction_upper_reservoir"],   
+                initial_reservoir_volume_fraction_upper_reservoir = d["water_power"]["initial_reservoir_volume_fraction_upper_reservoir"],
                 minimum_water_output_cubic_meter_per_second_per_turbine = d["water_power"]["minimum_water_output_cubic_meter_per_second_per_turbine"],
                 maximum_water_output_cubic_meter_per_second_per_turbine = d["water_power"]["maximum_water_output_cubic_meter_per_second_per_turbine"],
                 minimum_water_output_cubic_meter_per_second_total_of_all_turbines=d["water_power"]["minimum_water_output_cubic_meter_per_second_total_of_all_turbines"],
@@ -288,11 +298,11 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 can_curtail=d["water_power"]["can_curtail"],
 
                 model_downstream_reservoir=d["water_power"]["model_downstream_reservoir"],
-                initial_downstream_reservoir_water_volume=d["water_power"]["initial_downstream_reservoir_water_volume"],
+                initial_reservoir_volume_fraction_downstream_reservoir=d["water_power"]["initial_reservoir_volume_fraction_downstream_reservoir"],
                 minimum_outflow_from_downstream_reservoir_cubic_meter_per_second=d["water_power"]["minimum_outflow_from_downstream_reservoir_cubic_meter_per_second"],
                 maximum_outflow_from_downstream_reservoir_cubic_meter_per_second=d["water_power"]["maximum_outflow_from_downstream_reservoir_cubic_meter_per_second"],
-                minimum_downstream_reservoir_volume_cubic_meters=d["water_power"]["minimum_downstream_reservoir_volume_cubic_meters"],
-                maximum_downstream_reservoir_volume_cubic_meters=d["water_power"]["maximum_downstream_reservoir_volume_cubic_meters"],
+                minimum_volume_fraction_downstream_reservoir=d["water_power"]["minimum_volume_fraction_downstream_reservoir"],
+                maximum_volume_fraction_downstream_reservoir=d["water_power"]["maximum_volume_fraction_downstream_reservoir"],
                 number_of_pumps=d["water_power"]["number_of_pumps"],
                 water_pump_average_cubic_meters_per_second_per_kw=d["water_power"]["water_pump_average_cubic_meters_per_second_per_kw"],
                 existing_kw_per_pump=d["water_power"]["existing_kw_per_pump"],
@@ -302,7 +312,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 are_pumps_reversible = d["water_power"]["are_pumps_reversible"],
                 pump_kw_to_turbine_kw_ratio_for_reversible_pumps = d["water_power"]["pump_kw_to_turbine_kw_ratio_for_reversible_pumps"],
                 minimum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["minimum_water_flow_cubic_meter_per_second_per_pump"],
-                maximum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["maximum_water_flow_cubic_meter_per_second_per_pump"]
+                maximum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["maximum_water_flow_cubic_meter_per_second_per_pump"],
+
+                minimum_capacity_cubic_meters_upper_reservoir = d["water_power"]["minimum_capacity_cubic_meters_upper_reservoir"],
+                maximum_capacity_cubic_meters_upper_reservoir = d["water_power"]["maximum_capacity_cubic_meters_upper_reservoir"],
+                cost_per_cubic_meter_upper_reservoir = d["water_power"]["cost_per_cubic_meter_upper_reservoir"],
+                minimum_capacity_cubic_meters_downstream_reservoir = d["water_power"]["minimum_capacity_cubic_meters_downstream_reservoir"],
+                maximum_capacity_cubic_meters_downstream_reservoir = d["water_power"]["maximum_capacity_cubic_meters_downstream_reservoir"],
+                cost_per_cubic_meter_downstream_reservoir = d["water_power"]["cost_per_cubic_meter_downstream_reservoir"]
+
                 ) 
 
     else
@@ -1136,6 +1154,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         steam_turbine,
         electric_heater,
         water_power,
+        water_storage,
         cst,
         ashp,
         ashp_wh

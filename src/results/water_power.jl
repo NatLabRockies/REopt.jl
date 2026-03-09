@@ -73,6 +73,9 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	# Upstream reservoir volume
 	upstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[:dvWaterVolume][ts])
 	r["upstream_reservoir_water_volume_cubic_meters"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
+	r["upstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[:dvUpperReservoirCapacity]).data, digits=3)
+
+
 	# Water flow into upstream reservoir (input into the model)
 	r["input_to_model_tributary_water_flow"] = p.s.water_power.water_inflow_cubic_meter_per_second
 	# Water outflow from the turbines
@@ -104,6 +107,8 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		downstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts])
 		r["downstream_reservoir_water_volume_cubic_meters"] = round.(value.(downstream_reservoir_volume).data, digits=3) 
 		
+		r["downstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[:dvDownstreamReservoirCapacity]).data, digits=3)
+
 	end
 	# Compile results for the pumps
 	if (p.s.water_power.model_downstream_reservoir == true) && (p.s.water_power.number_of_pumps > 0)

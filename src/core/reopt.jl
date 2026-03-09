@@ -441,6 +441,14 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         end
 	end
 
+	if "downstream_reservoir" in p.s.water_storage
+		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.water_power.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity] )
+	end
+	
+	if "upper_reservoir" in p.s.water_storage
+		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.water_power.cost_per_cubic_meter_upper_reservoir * m[:dvUpperReservoirCapacity] )
+	end
+
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
 		sum( p.om_cost_per_kw[t] * m[:dvSize][t] for t in p.techs.all )
 	)
@@ -517,7 +525,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
 		# Capital Costs
-		m[:TotalTechCapCosts] + TotalStorageCapCosts + m[:GHPCapCosts] +
+		m[:TotalTechCapCosts] + TotalStorageCapCosts + m[:GHPCapCosts] + WaterStorageCapCosts +
 
 		# Fixed O&M, tax deductible for owner
 		(TotalPerUnitSizeOMCosts + m[:GHPOMCosts] + m[:ElectricStorageOMCost]) * (1 - p.s.financial.owner_tax_rate_fraction) +

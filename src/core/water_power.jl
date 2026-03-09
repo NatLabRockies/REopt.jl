@@ -40,17 +40,17 @@
 
     # Inputs for the upper reservoir
     water_inflow_cubic_meter_per_second::Array=[], # tributary water flowing into the dam's pond
-    cubic_meter_maximum::Real=0, #maximum capacity of the dam
-    cubic_meter_minimum::Real=0, #minimum water level of the dam
-    initial_reservoir_volume::Real=0.0,  # The initial volume of water in the reservoir
+    maximum_volume_fraction_upper_reservoir::Real=0, #maximum capacity of the dam
+    minimum_volume_fraction_upper_reservoir::Real=0, #minimum water level of the dam
+    initial_reservoir_volume_fraction_upper_reservoir::Real=0.0,  # The initial volume of water in the reservoir
     
     # Inputs for a downstream reservoir
     model_downstream_reservoir::Bool=false,
-    initial_downstream_reservoir_water_volume::Real=0.0,
+    initial_reservoir_volume_fraction_downstream_reservoir::Real=0.0,
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=0,
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=1000000,
-    minimum_downstream_reservoir_volume_cubic_meters::Real=0,
-    maximum_downstream_reservoir_volume_cubic_meters::Real=1000000,
+    minimum_volume_fraction_downstream_reservoir::Real=0,
+    maximum_volume_fraction_downstream_reservoir::Real=1000000,
     
     # Additional inputs
     spillway_maximum_cubic_meter_per_second::Real=nothing # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
@@ -62,6 +62,12 @@
 
     om_cost_per_kw_turbine::Real=0,
     om_cost_per_kw_pump::Real=0
+    minimum_capacity_cubic_meters_upper_reservoir::Real=0,
+    maximum_capacity_cubic_meters_upper_reservoir::Real=1000000,
+    cost_per_cubic_meter_upper_reservoir::Real=50,
+    minimum_capacity_cubic_meters_downstream_reservoir::Real=0,
+    maximum_capacity_cubic_meters_downstream_reservoir::Real=1000000,
+    cost_per_cubic_meter_downstream_reservoir::Real=50
 
 ```
 """
@@ -99,15 +105,15 @@ mutable struct WaterPower <: AbstractTech
     minimum_water_flow_cubic_meter_per_second_per_pump
     maximum_water_flow_cubic_meter_per_second_per_pump
     water_inflow_cubic_meter_per_second
-    cubic_meter_maximum  
-    cubic_meter_minimum 
-    initial_reservoir_volume 
+    maximum_volume_fraction_upper_reservoir  
+    minimum_volume_fraction_upper_reservoir 
+    initial_reservoir_volume_fraction_upper_reservoir 
     model_downstream_reservoir
-    initial_downstream_reservoir_water_volume
+    initial_reservoir_volume_fraction_downstream_reservoir
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
-    minimum_downstream_reservoir_volume_cubic_meters
-    maximum_downstream_reservoir_volume_cubic_meters
+    minimum_volume_fraction_downstream_reservoir
+    maximum_volume_fraction_downstream_reservoir
     spillway_maximum_cubic_meter_per_second
     hydro_production_factor_series 
     can_net_meter  
@@ -116,6 +122,12 @@ mutable struct WaterPower <: AbstractTech
     can_curtail
     om_cost_per_kw_turbine
     om_cost_per_kw_pump
+    minimum_capacity_cubic_meters_upper_reservoir
+    maximum_capacity_cubic_meters_upper_reservoir
+    cost_per_cubic_meter_upper_reservoir
+    minimum_capacity_cubic_meters_downstream_reservoir
+    maximum_capacity_cubic_meters_downstream_reservoir
+    cost_per_cubic_meter_downstream_reservoir
 
     function WaterPower(;
         number_of_turbines::Real=0, 
@@ -150,15 +162,15 @@ mutable struct WaterPower <: AbstractTech
         minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
         maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000,
         water_inflow_cubic_meter_per_second::Array=[], # tributary water flowing into the dam's pond
-        cubic_meter_maximum::Real=0, #maximum capacity of the dam
-        cubic_meter_minimum::Real=0, #minimum water level of the dam
-        initial_reservoir_volume::Real=0.0,  # The initial volume of water in the reservoir
+        maximum_volume_fraction_upper_reservoir::Real=0, #maximum capacity of the dam
+        minimum_volume_fraction_upper_reservoir::Real=0, #minimum water level of the dam
+        initial_reservoir_volume_fraction_upper_reservoir::Real=0.0,  # The initial volume of water in the reservoir
         model_downstream_reservoir::Bool=false,
-        initial_downstream_reservoir_water_volume::Real=0.0,
+        initial_reservoir_volume_fraction_downstream_reservoir::Real=0.0,
         minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=0,
         maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=1000000,
-        minimum_downstream_reservoir_volume_cubic_meters::Real=0,
-        maximum_downstream_reservoir_volume_cubic_meters::Real=1000000,
+        minimum_volume_fraction_downstream_reservoir::Real=0,
+        maximum_volume_fraction_downstream_reservoir::Real=1000000,
         spillway_maximum_cubic_meter_per_second::Real=nothing, # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
         hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
         can_net_meter::Bool = off_grid_flag ? false : true,
@@ -166,7 +178,13 @@ mutable struct WaterPower <: AbstractTech
         can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
         can_curtail::Bool = true,
         om_cost_per_kw_turbine::Real=0,
-        om_cost_per_kw_pump::Real=0
+        om_cost_per_kw_pump::Real=0,
+        minimum_capacity_cubic_meters_upper_reservoir::Real=0,
+        maximum_capacity_cubic_meters_upper_reservoir::Real=1000000,
+        cost_per_cubic_meter_upper_reservoir::Real=50,
+        minimum_capacity_cubic_meters_downstream_reservoir::Real=0,
+        maximum_capacity_cubic_meters_downstream_reservoir::Real=1000000,
+        cost_per_cubic_meter_downstream_reservoir::Real=50
         )
         
         #=
@@ -202,11 +220,11 @@ mutable struct WaterPower <: AbstractTech
         if number_of_turbines > 8
             @warn("Setting the 'number_of_turbines' to a high value can increase complexity of the optimization problem and reduce solve times")
         end
-        if cubic_meter_maximum < cubic_meter_minimum
-            throw(@error("The 'cubic_meter_maximum' must be greater than or equal to the 'cubic_meter_minimum"))
+        if maximum_volume_fraction_upper_reservoir < minimum_volume_fraction_upper_reservoir
+            throw(@error("The 'maximum_volume_fraction_upper_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upper_reservoir"))
         end
-        if initial_reservoir_volume < cubic_meter_minimum || initial_reservoir_volume > cubic_meter_maximum
-            throw(@error("The 'initial_reservoir_volume' must be between the 'cubic_meter_minimum' and 'cubic_meter_maximum' "))
+        if initial_reservoir_volume_fraction_upper_reservoir < minimum_volume_fraction_upper_reservoir || initial_reservoir_volume_fraction_upper_reservoir > maximum_volume_fraction_upper_reservoir
+            throw(@error("The 'initial_reservoir_volume_fraction_upper_reservoir' must be between the 'minimum_volume_fraction_upper_reservoir' and 'maximum_volume_fraction_upper_reservoir' "))
         end
 
         new(
@@ -245,16 +263,16 @@ mutable struct WaterPower <: AbstractTech
             maximum_water_flow_cubic_meter_per_second_per_pump,
 
             water_inflow_cubic_meter_per_second,
-            cubic_meter_maximum,
-            cubic_meter_minimum,
-            initial_reservoir_volume,
+            maximum_volume_fraction_upper_reservoir,
+            minimum_volume_fraction_upper_reservoir,
+            initial_reservoir_volume_fraction_upper_reservoir,
 
             model_downstream_reservoir,
-            initial_downstream_reservoir_water_volume,
+            initial_reservoir_volume_fraction_downstream_reservoir,
             minimum_outflow_from_downstream_reservoir_cubic_meter_per_second,
             maximum_outflow_from_downstream_reservoir_cubic_meter_per_second,
-            minimum_downstream_reservoir_volume_cubic_meters,
-            maximum_downstream_reservoir_volume_cubic_meters,
+            minimum_volume_fraction_downstream_reservoir,
+            maximum_volume_fraction_downstream_reservoir,
 
             spillway_maximum_cubic_meter_per_second,
             hydro_production_factor_series,
@@ -263,7 +281,14 @@ mutable struct WaterPower <: AbstractTech
             can_export_beyond_nem_limit,
             can_curtail,
             om_cost_per_kw_turbine,
-            om_cost_per_kw_pump
+            om_cost_per_kw_pump,
+            
+            minimum_capacity_cubic_meters_upper_reservoir,
+            maximum_capacity_cubic_meters_upper_reservoir,
+            cost_per_cubic_meter_upper_reservoir,
+            minimum_capacity_cubic_meters_downstream_reservoir,
+            maximum_capacity_cubic_meters_downstream_reservoir,
+            cost_per_cubic_meter_downstream_reservoir
         )
     end
 end
