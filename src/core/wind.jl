@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Wind` is an optional REopt input with the following keys and default values:
 ```julia
@@ -47,12 +47,12 @@
         "large"=> 2896.0
     )
     ```
-    If the `production_factor_series` is not provided then NREL's System Advisor Model (SAM) is used to get the wind turbine 
+    If the `production_factor_series` is not provided then NLR's System Advisor Model (SAM) is used to get the wind turbine 
     production factor.
 
 !!! note "Wind resource value inputs"
     Wind resource values are optional (i.e., `wind_meters_per_sec`, `wind_direction_degrees`, `temperature_celsius`, and `pressure_atmospheres`).
-    If not provided then the resource values are downloaded from NREL's Wind Toolkit.
+    If not provided then the resource values are downloaded from NLR's Wind Toolkit.
     These values are passed to SAM to get the turbine production factor.
     
 !!! note "Wind sizing and land constraint" 
