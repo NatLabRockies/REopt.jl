@@ -17,7 +17,7 @@ function add_elec_load_balance_constraints(m, p; _n="")
             + p.s.electric_load.loads_kw[ts]
             - p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts]
             + sum(p.ghp_electric_consumption_kw[g,ts] * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options)
-            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power)
+            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power_pumps)
         )
     else
         @info("******************Adding load balance with export")
@@ -35,7 +35,7 @@ function add_elec_load_balance_constraints(m, p; _n="")
             + p.s.electric_load.loads_kw[ts]
             - p.s.cooling_load.loads_kw_thermal[ts] / p.cooling_cop["ExistingChiller"][ts]
             + sum(p.ghp_electric_consumption_kw[g,ts] * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options)
-            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power)
+            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power_pumps)
         )
     end
 
@@ -56,7 +56,7 @@ function add_elec_load_balance_constraints(m, p; _n="")
             sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) 
                 + m[Symbol("dvCurtail"*_n)][t, ts] for t in p.techs.elec)
             + p.s.electric_load.critical_loads_kw[ts]
-            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power)
+            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power_pumps)
         )
     else # load balancing constraint for off-grid runs 
         @constraint(m, [ts in p.time_steps_without_grid],
@@ -66,7 +66,7 @@ function add_elec_load_balance_constraints(m, p; _n="")
             sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec)
                 + m[Symbol("dvCurtail"*_n)][t, ts] for t in p.techs.elec)
             + p.s.electric_load.critical_loads_kw[ts] * m[Symbol("dvOffgridLoadServedFraction"*_n)][ts]
-            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power)
+            + sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power_pumps)
         )
         ##Constraint : For off-grid scenarios, annual load served must be >= minimum percent specified
         @constraint(m, 

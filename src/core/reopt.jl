@@ -399,17 +399,10 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(p.s.electric_tariff.coincpeak_periods)
         add_coincident_peak_charge_constraints(m, p)
     end
-
-	# Remove water_power from the calculation:
-	NonHydroTechs=[]
-	for water_power_tech in p.techs.water_power
-		NonHydroTechs = filter!(x->x != water_power_tech, p.techs.all) # TODO: remove this line somehow
-	end
-	print("\n Non hydro techs are:")
-	print(NonHydroTechs)
+	
     if !isempty(setdiff(p.techs.all, p.techs.segmented))
         m[:TotalTechCapCosts] += p.third_party_factor *
-            sum( p.cap_cost_slope[t] * m[:dvPurchaseSize][t] for t in setdiff(NonHydroTechs, p.techs.segmented))
+            sum( p.cap_cost_slope[t] * m[:dvPurchaseSize][t] for t in setdiff(p.techs.all, p.techs.segmented))
     end
     if !isempty(p.techs.segmented)
         @warn "Adding binary variable(s) to model cost curves"
@@ -719,20 +712,19 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		print("\n Creating variables for existing water_power")
 		@variables m begin
 			dvWaterVolume[p.time_steps] >= 0			
-			dvWaterOutFlow[p.techs.water_power, p.time_steps] >= 0  #p.techs.water_power - index on this as well in the future
-			binTurbineActive[p.techs.water_power, p.time_steps], Bin
-			TurbineEfficiency[p.techs.water_power, p.time_steps] >= 0
+			dvWaterOutFlow[p.techs.water_power_turbines, p.time_steps] >= 0  
+			binTurbineActive[p.techs.water_power_turbines, p.time_steps], Bin
 			ReservoirHead[p.time_steps] >= 0
 			dvSpillwayWaterFlow[p.time_steps] >= 0
-			dvPumpPowerInput[p.techs.water_power, p.time_steps] >= 0
-			dvPumpedWaterFlow[p.techs.water_power, p.time_steps] >= 0
+			dvPumpPowerInput[p.techs.water_power_pumps, p.time_steps] >= 0
+			dvPumpedWaterFlow[p.techs.water_power_pumps, p.time_steps] >= 0
 			# Note: the power flow from the water_power are part of: dvRatedProduction, dvProductionToGrid, and dvProductionToStorage
 		end
 		if p.s.water_power.model_downstream_reservoir
 			@variables m begin
 				dvDownstreamReservoirWaterVolume[p.time_steps] >= 0
 				dvDownstreamReservoirWaterOutflow[p.time_steps] >= 0
-				binPumpingWaterActive[p.techs.water_power, p.time_steps], Bin
+				binPumpingWaterActive[p.techs.water_power_pumps, p.time_steps], Bin
 				binTurbineOrPump[p.time_steps], Bin
 				dvPumpEfficiency[p.techs.water_power, p.time_steps] >= 0
 			end	

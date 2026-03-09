@@ -114,6 +114,8 @@ function add_water_power_constraints(m,p)
 
 	print("*********The p.techs.elec are: $(p.techs.elec)")
 
+
+
 	# Total water volume is between the max and min levels
 	@constraint(m, [ts in p.time_steps],
 		m[:dvWaterVolume][ts] <= p.s.water_power.cubic_meter_maximum
@@ -183,6 +185,11 @@ function add_water_power_constraints(m,p)
 		@constraint(m, [ts in p.time_steps], m[:dvSpillwayWaterFlow][ts] <= p.s.water_power.spillway_maximum_cubic_meter_per_second)
 	end 
 
+	# Set the dvSize for the turbines
+	@constraint(m, [t in p.techs.water_power_turbines],
+		m[:dvSize][t] >= m[:turbine_power_rating][t]
+	)
+
 	# Model a downstream reservoir
 	if p.s.water_power.model_downstream_reservoir == true
 		print("\n Adding downstream reservoir variables and constraints")
@@ -223,6 +230,8 @@ function add_water_power_constraints(m,p)
 			@constraint(m, [ts in p.time_steps], m[:dvRatedProduction][pump,ts] == 0)
 		end
 
+	
+
 		# Ensure that the turbines aren't on when the pumping is happening
 			# binTurbineOrPump is 1 when the turbines are on; binTurbineOrPump is 0 when the pumps are operating
 		@constraint(m, [ts in p.time_steps], sum(m[:binTurbineActive][t,ts] for t in p.techs.water_power_turbines) <= p.s.water_power.number_of_turbines * m[:binTurbineOrPump][ts] )
@@ -237,6 +246,11 @@ function add_water_power_constraints(m,p)
 		# Define the power rating for each pump
 		@variable(m, pump_power_rating[t in p.techs.water_power_pumps] >= 0)
 		
+		# Set the dvSize for the pumps
+		@constraint(m, [t in p.techs.water_power_pumps],
+			m[:dvSize][t] == m[:pump_power_rating][t]
+		)
+
 		# Pump size constraints
 		if p.s.water_power.are_pumps_reversible && ((p.s.water_power.existing_kw_per_pump == nothing) || (p.s.water_power.existing_kw_per_pump != 0))
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] == p.s.water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps *  m[:turbine_power_rating][t])
@@ -295,9 +309,18 @@ function add_water_power_constraints(m,p)
 	# Define the minimum operating time (in time steps) for the water_power turbine
 	if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1
 		print("\n Adding minimum operating time constraint \n")
-		@variable(m, indicator_min_operating_time[t in p.techs.water_power_turbines, ts in p.time_steps, dv in dvs], Bin)
+		@variable(m, indicator_min_operating_time[t in p.techs.water_power, ts in p.time_steps, dv in dvs], Bin)
 		for dv in dvs
-			for t in p.techs.water_power_turbines, ts in 1:Int(length(p.time_steps)- p.s.water_power.minimum_operating_time_steps_individual_turbine - 1 )
+			if dv == "binTurbineActive"
+				techs = p.techs.water_power_turbines
+				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_individual_turbine
+			elseif dv == "binPumpingWaterActive"
+				techs = p.techs.water_power_pumps
+				min_operating_timesteps = 1 # TODO: update this to be an input into the model
+			else
+				throw(@error("Error in applying the local maximum operating time constraint"))
+			end
+			for t in techs, ts in 1:Int(length(p.time_steps)- min_operating_timesteps - 1 )
 				@constraint(m, m[:indicator_min_operating_time][t, ts, dv] =>  { sum(m[Symbol(dv)][t,ts+i] for i in 1:p.s.water_power.minimum_operating_time_steps_individual_turbine) >= p.s.water_power.minimum_operating_time_steps_individual_turbine} ) 
 				@constraint(m, !m[:indicator_min_operating_time][t, ts, dv] => { m[Symbol(dv)][t,ts+1] - m[Symbol(dv)][t,ts] <= 0  } )
 			end
@@ -311,12 +334,14 @@ function add_water_power_constraints(m,p)
 		for dv in dvs
 			if dv == "binTurbineActive"
 				variable = Symbol("dvWaterOutFlow")
+				techs = p.techs.water_power_turbines
 			elseif dv == "binPumpingWaterActive"
 				variable = Symbol("dvPumpedWaterFlow")
+				techs = p.techs.water_power_pumps
 			else
 				throw(@error("Error in applying the local maximum operating time constraint"))
 			end
-			for t in p.techs.water_power_turbines, ts in (2 + p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output):Int(length(p.time_steps))
+			for t in techs, ts in (2 + p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output):Int(length(p.time_steps))
 				for i in 1:p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output
 					@constraint(m, m[:indicator_turn_down][t, ts, dv] => {m[variable][t, ts-i] == m[variable][t,ts-i-1]})
 				end
@@ -336,6 +361,9 @@ function add_water_power_constraints(m,p)
 	
 	# TODO: remove this constraint, which prevents a spike in the spillway use during the first time step
 	@constraint(m, [ts in p.time_steps], m[:dvSpillwayWaterFlow][1] == 0)
+
+	print("\n *** The levelization factor for WaterPower_Turbine1 is: $(p.levelization_factor["WaterPower_Turbine1"])")
+	
 
 end
 

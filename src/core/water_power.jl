@@ -58,7 +58,10 @@
     can_net_meter::Bool = off_grid_flag ? false : true,
     can_wholesale::Bool = off_grid_flag ? false : true,
     can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
-    can_curtail::Bool = true
+    can_curtail::Bool = true,
+
+    om_cost_per_kw_turbine::Real=0,
+    om_cost_per_kw_pump::Real=0
 
 ```
 """
@@ -111,6 +114,8 @@ mutable struct WaterPower <: AbstractTech
     can_wholesale  
     can_export_beyond_nem_limit 
     can_curtail
+    om_cost_per_kw_turbine
+    om_cost_per_kw_pump
 
     function WaterPower(;
         number_of_turbines::Real=0, 
@@ -159,7 +164,9 @@ mutable struct WaterPower <: AbstractTech
         can_net_meter::Bool = off_grid_flag ? false : true,
         can_wholesale::Bool = off_grid_flag ? false : true,
         can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
-        can_curtail::Bool = true
+        can_curtail::Bool = true,
+        om_cost_per_kw_turbine::Real=0,
+        om_cost_per_kw_pump::Real=0
         )
         
         #=
@@ -254,8 +261,9 @@ mutable struct WaterPower <: AbstractTech
             can_net_meter,
             can_wholesale,
             can_export_beyond_nem_limit,
-            can_curtail
-
+            can_curtail,
+            om_cost_per_kw_turbine,
+            om_cost_per_kw_pump
         )
     end
 end

@@ -77,7 +77,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	r["input_to_model_tributary_water_flow"] = p.s.water_power.water_inflow_cubic_meter_per_second
 	# Water outflow from the turbines
 	water_outflow_total = @expression(m, [ts in p.time_steps],
-		sum(m[:dvWaterOutFlow][t, ts] for t in p.techs.water_power) 
+		sum(m[:dvWaterOutFlow][t, ts] for t in p.techs.water_power_turbines) 
 		)
 	r["water_outflow_for_all_turbines_combined"] = round.(value.(water_outflow_total).data, digits=3) 
 
@@ -109,20 +109,23 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	if (p.s.water_power.model_downstream_reservoir == true) && (p.s.water_power.number_of_pumps > 0)
 		# Save combined results for all of the pumps
 		totalPumpedWaterFlow = @expression(m, [ts in p.time_steps],
-		sum(m[:dvPumpedWaterFlow][t, ts] for t in p.techs.water_power))
+		sum(m[:dvPumpedWaterFlow][t, ts] for t in p.techs.water_power_pumps))
 		r["pump_water_flow_all_pumps_combined"] = round.(value.(totalPumpedWaterFlow).data, digits=3)
 		
 		totalPumpPowerInput = @expression(m, [ts in p.time_steps],
-		sum(m[:dvPumpPowerInput][t, ts] for t in p.techs.water_power))
+		sum(m[:dvPumpPowerInput][t, ts] for t in p.techs.water_power_pumps))
 		r["pump_power_input_kw_all_pumps_combined"] = round.(value.(totalPumpPowerInput).data, digits=3)
 		
 		TurbineOrPump = @expression(m, [ts in p.time_steps], m[:binTurbineOrPump][ts])
 		r["turbine_or_pump_active"] = round.(value.(TurbineOrPump).data, digits=3)
 		NumberOfPumpsActive = @expression(m, [ts in p.time_steps],
-		sum(m[:binPumpingWaterActive][t, ts] for t in p.techs.water_power))
+		sum(m[:binPumpingWaterActive][t, ts] for t in p.techs.water_power_pumps))
 		r["number_of_pumps_active"] = round.(value.(NumberOfPumpsActive).data, digits=3)
 		
 		r["individual_pump_results"] = Dict([])
+
+		print("\n **** p.techs.water_power_pumps are: $(p.techs.water_power_pumps)")
+
 		for i in p.techs.water_power_pumps		
 			r["individual_pump_results"][string(i)*"_results"] = Dict([])
 			
