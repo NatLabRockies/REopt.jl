@@ -1,8 +1,8 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
 function add_water_power_constraints(m,p)
-	@info "Adding constraints for existing water_power"
-		
+	@info "Adding constraints for water_power"
+	
 	if p.s.water_power.computation_type == "quadratic_partially_discretized"	
 		@info "Adding quadratic_partially_discretized constraint type for the water_power power output: model with with a discretized water_power efficiency"
 		
@@ -10,7 +10,7 @@ function add_water_power_constraints(m,p)
 		@variable(m, turbine_efficiency[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0)
 		@variable(m, efficiency_reservoir_head_product[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0)
 
-		turbine_techs = p.techs.water_power_turbines
+		Hydro_techs = p.techs.water_power_turbines
 		
 		for t in 1:Int(length(Hydro_techs))
 			@constraint(m, [ts in p.time_steps],
@@ -206,7 +206,12 @@ function add_water_power_constraints(m,p)
 		@constraint(m, [ts in p.time_steps], 
 					   m[:dvDownstreamReservoirWaterOutflow][ts] <= p.s.water_power.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
 					)
-					
+		
+		# The pumps cannot act as power generators
+		for pump in p.techs.water_power_pumps
+			@constraint(m, [ts in p.time_steps], m[:dvRatedProduction][pump,ts] == 0)
+		end
+
 		# Ensure that the turbines aren't on when the pumping is happening
 			# binTurbineOrPump is 1 when the turbines are on; binTurbineOrPump is 0 when the pumps are operating
 		@constraint(m, [ts in p.time_steps], sum(m[:binTurbineActive][t,ts] for t in p.techs.water_power_turbines) <= p.s.water_power.number_of_turbines * m[:binTurbineOrPump][ts] )
