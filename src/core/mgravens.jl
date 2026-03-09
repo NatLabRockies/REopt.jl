@@ -517,6 +517,7 @@ function convert_mgravens_inputs_to_reopt_inputs(mgravens::Dict)
                 reopt_inputs["PV"]["existing_kw"] = 0.0  # Initialize existing_kw for REopt inputs
                 largest_pv = 0.0
                 largest_pv_name = ""
+                # TODO handle if no existing_mg_pvs which will error for "" largest_pv_name below for pv_data
                 for pv in existing_mg_pvs
                     pv_data = existing_assets[pv]["PowerElectronicsConnection.PowerElectronicsUnit"]
                     if !isnothing(pv_data["PowerElectronicsUnit.maxP"])
