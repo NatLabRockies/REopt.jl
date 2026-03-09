@@ -35,6 +35,8 @@
     existing_kw_per_pump::Real=0,
     are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
+    minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
+    maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000,
 
     # Inputs for the upper reservoir
     water_inflow_cubic_meter_per_second::Array=[], # tributary water flowing into the dam's pond
@@ -62,9 +64,11 @@
 """
 
 mutable struct WaterPower <: AbstractTech
-
-    existing_kw_per_turbine
     number_of_turbines
+    turbine_cost_per_kw
+    max_kw_turbine
+    min_kw_turbine
+    existing_kw_per_turbine
     computation_type
     average_cubic_meters_per_second_per_kw
     coefficient_a_efficiency 
@@ -75,70 +79,87 @@ mutable struct WaterPower <: AbstractTech
     coefficient_f_reservoir_head
     number_of_efficiency_bins
     fixed_turbine_efficiency
-    water_inflow_cubic_meter_per_second
-    cubic_meter_maximum  
-    cubic_meter_minimum 
-    initial_reservoir_volume 
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines
     minimum_water_output_cubic_meter_per_second_per_turbine
     maximum_water_output_cubic_meter_per_second_per_turbine
     minimum_operating_time_steps_individual_turbine
     minimum_operating_time_steps_at_local_maximum_turbine_output
     minimum_turbine_off_time_steps
-    spillway_maximum_cubic_meter_per_second
-    hydro_production_factor_series 
-    can_net_meter  
-    can_wholesale  
-    can_export_beyond_nem_limit 
-    can_curtail
+    number_of_pumps
+    max_kw_pump
+    min_kw_pump
+    pump_cost_per_kw
+    water_pump_average_cubic_meters_per_second_per_kw
+    existing_kw_per_pump
+    are_pumps_reversible
+    pump_kw_to_turbine_kw_ratio_for_reversible_pumps
+    minimum_water_flow_cubic_meter_per_second_per_pump
+    maximum_water_flow_cubic_meter_per_second_per_pump
+    water_inflow_cubic_meter_per_second
+    cubic_meter_maximum  
+    cubic_meter_minimum 
+    initial_reservoir_volume 
     model_downstream_reservoir
     initial_downstream_reservoir_water_volume
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
     minimum_downstream_reservoir_volume_cubic_meters
     maximum_downstream_reservoir_volume_cubic_meters
-    number_of_pumps
-    water_pump_average_cubic_meters_per_second_per_kw
-    existing_kw_per_pump
+    spillway_maximum_cubic_meter_per_second
+    hydro_production_factor_series 
+    can_net_meter  
+    can_wholesale  
+    can_export_beyond_nem_limit 
+    can_curtail
 
     function WaterPower(;
-        existing_kw_per_turbine::Real=0.0,
-        number_of_turbines::Real=0,
-        computation_type::String="average_power_conversion",
-        average_cubic_meters_per_second_per_kw::Real=0.0,
-        coefficient_a_efficiency::Real=0.0,
+        number_of_turbines::Real=0, 
+        turbine_cost_per_kw::Real=5000.0,
+        max_kw_turbine::Real=10000000,
+        min_kw_turbine::Real=0,
+        existing_kw_per_turbine::Real=nothing,
+        computation_type::String="average_power_conversion", # "average_power_conversion", "quadratic_partially_discretized", "fixed_efficiency_linearized_reservoir_head", or "quadratic_unsimplified"
+        average_cubic_meters_per_second_per_kw::Real=0, # only applied when the computation_type = "average_power_conversion"
+        coefficient_a_efficiency::Real=0.0, 
         coefficient_b_efficiency::Real=0.0,
         coefficient_c_efficiency::Real=0.0,
-        coefficient_d_reservoir_head::Real=0.0,
+        coefficient_d_reservoir_head::Real=0.0, # coefficient for a quadratic term for the reservoir head equation, which is only applied when the computation_type = "quadratic_unsimplified"
         coefficient_e_reservoir_head::Real=0.0,
-        coefficient_f_reservoir_head::Real=0.0,
-        number_of_efficiency_bins::Real=3,
-        fixed_turbine_efficiency::Real=0.9,
-        water_inflow_cubic_meter_per_second::Union{Nothing, Array{<:Real,1}} = nothing, # water flowing into the dam's pond
-        cubic_meter_maximum::Real=1000000, #maximum capacity of the reservoir
-        cubic_meter_minimum::Real=0.0, #minimum water level of the reservoir
-        initial_reservoir_volume::Real=500000, # the initial volume of the reservoir
-        minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0.0,
+        coefficient_f_reservoir_head::Real=0.0, 
+        number_of_efficiency_bins::Real=3, # only applied when the computation_type = "quadratic_partially_discretized"
+        fixed_turbine_efficiency::Real=0.9, # only applied when the computation_type = "fixed_efficiency_linearized_reservoir_head"
+        minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0,
         minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
         maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
-        minimum_operating_time_steps_individual_turbine::Real=1.0,
-        minimum_operating_time_steps_at_local_maximum_turbine_output::Real=0.0, 
+        minimum_operating_time_steps_individual_turbine::Real=0.0, # the minimum time (in time steps) that an invidual turbine must run for (can avoid turning a turbine on for just 15 minute, for instance)
+        minimum_operating_time_steps_at_local_maximum_turbine_output::Real=0.0,
         minimum_turbine_off_time_steps::Real=0.0,
-        spillway_maximum_cubic_meter_per_second::Real=nothing, 
-        hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing,
-        can_net_meter::Bool = false,
-        can_wholesale::Bool = false,
-        can_export_beyond_nem_limit::Bool = false,
-        can_curtail::Bool = true,
+        number_of_pumps::Real=0,
+        max_kw_pump::Real=10000000,
+        min_kw_pump::Real=0,
+        pump_cost_per_kw::Real=5000.0,
+        water_pump_average_cubic_meters_per_second_per_kw::Real=0,
+        existing_kw_per_pump::Real=0,
+        are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
+        pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
+        minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
+        maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000,
+        water_inflow_cubic_meter_per_second::Array=[], # tributary water flowing into the dam's pond
+        cubic_meter_maximum::Real=0, #maximum capacity of the dam
+        cubic_meter_minimum::Real=0, #minimum water level of the dam
+        initial_reservoir_volume::Real=0.0,  # The initial volume of water in the reservoir
         model_downstream_reservoir::Bool=false,
-        initial_downstream_reservoir_water_volume::Real=500000,
+        initial_downstream_reservoir_water_volume::Real=0.0,
         minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=0,
         maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Real=1000000,
         minimum_downstream_reservoir_volume_cubic_meters::Real=0,
         maximum_downstream_reservoir_volume_cubic_meters::Real=1000000,
-        number_of_pumps::Real=0,
-        water_pump_average_cubic_meters_per_second_per_kw::Real=0,
-        existing_kw_per_pump::Real=0
+        spillway_maximum_cubic_meter_per_second::Real=nothing, # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
+        hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
+        can_net_meter::Bool = off_grid_flag ? false : true,
+        can_wholesale::Bool = off_grid_flag ? false : true,
+        can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
+        can_curtail::Bool = true
         )
         
         #=
@@ -182,8 +203,11 @@ mutable struct WaterPower <: AbstractTech
         end
 
         new(
-            existing_kw_per_turbine,
             number_of_turbines,
+            turbine_cost_per_kw,
+            max_kw_turbine,
+            min_kw_turbine,
+            existing_kw_per_turbine,
             computation_type,
             average_cubic_meters_per_second_per_kw,
             coefficient_a_efficiency,
@@ -194,22 +218,29 @@ mutable struct WaterPower <: AbstractTech
             coefficient_f_reservoir_head,
             number_of_efficiency_bins,
             fixed_turbine_efficiency,
-            water_inflow_cubic_meter_per_second,
-            cubic_meter_maximum,
-            cubic_meter_minimum,
-            initial_reservoir_volume,
+            
             minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
             minimum_water_output_cubic_meter_per_second_per_turbine,
             maximum_water_output_cubic_meter_per_second_per_turbine,
             minimum_operating_time_steps_individual_turbine,
             minimum_operating_time_steps_at_local_maximum_turbine_output,
             minimum_turbine_off_time_steps,
-            spillway_maximum_cubic_meter_per_second,
-            hydro_production_factor_series,
-            can_net_meter,
-            can_wholesale,
-            can_export_beyond_nem_limit,
-            can_curtail,
+
+            number_of_pumps,
+            max_kw_pump,
+            min_kw_pump,
+            pump_cost_per_kw,
+            water_pump_average_cubic_meters_per_second_per_kw,
+            existing_kw_per_pump,
+            are_pumps_reversible,
+            pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
+            minimum_water_flow_cubic_meter_per_second_per_pump,
+            maximum_water_flow_cubic_meter_per_second_per_pump,
+
+            water_inflow_cubic_meter_per_second,
+            cubic_meter_maximum,
+            cubic_meter_minimum,
+            initial_reservoir_volume,
 
             model_downstream_reservoir,
             initial_downstream_reservoir_water_volume,
@@ -218,9 +249,13 @@ mutable struct WaterPower <: AbstractTech
             minimum_downstream_reservoir_volume_cubic_meters,
             maximum_downstream_reservoir_volume_cubic_meters,
 
-            number_of_pumps,
-            water_pump_average_cubic_meters_per_second_per_kw,
-            existing_kw_per_pump
+            spillway_maximum_cubic_meter_per_second,
+            hydro_production_factor_series,
+            can_net_meter,
+            can_wholesale,
+            can_export_beyond_nem_limit,
+            can_curtail
+
         )
     end
 end

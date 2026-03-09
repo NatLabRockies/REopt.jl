@@ -63,8 +63,25 @@ function Techs(p::REoptInputs, s::BAUScenario)
 
     if !isnothing(s.water_power)
         if p.s.water_power.existing_kw_per_turbine > 0
-            push!(all_techs, "WaterPower")
-            push!(elec, "WaterPower")
+            # Add a tech for each turbine separately
+            for i in 1:s.water_power.number_of_turbines
+                water_power_name_turbine = "WaterPower_Turbine"*string(i)
+                push!(all_techs, water_power_name_turbine)
+                push!(elec, water_power_name_turbine)
+                push!(water_power, water_power_name_turbine)
+                push!(water_power_turbines, water_power_name_turbine)
+            end
+        end
+
+        if p.s.water_power.existing_kw_per_pump > 0
+            # Add a tech for each pump separately
+            for i in 1:s.water_power.number_of_pumps
+                water_power_name_pump = "WaterPower_Pump"*string(i)
+                push!(all_techs, water_power_name_pump)
+                push!(elec, water_power_name_pump)
+                push!(water_power, water_power_name_pump)
+                push!(water_power_pumps, water_power_name_pump)
+            end
         end
     end
 
@@ -240,7 +257,6 @@ function Techs(s::Scenario)
     end
     
     if !isnothing(s.water_power)
-        if s.water_power.existing_kw_per_turbine > 0
             # Add a tech for each turbine separately
             for i in 1:s.water_power.number_of_turbines
                 water_power_name_turbine = "WaterPower_Turbine"*string(i)
@@ -257,7 +273,6 @@ function Techs(s::Scenario)
                 push!(water_power, water_power_name_pump)
                 push!(water_power_pumps, water_power_name_pump)
             end
-        end
     end
     
     if !isnothing(s.existing_chiller)
@@ -431,7 +446,9 @@ function Techs(s::Scenario)
         techs_can_serve_dhw,
         techs_can_serve_process_heat,
         ghp_techs,
-        water_power
+        water_power,
+        water_power_turbines,  
+        water_power_pumps, 
         ashp_techs,
         ashp_wh_techs
     )

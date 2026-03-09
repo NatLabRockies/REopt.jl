@@ -123,12 +123,11 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		r["number_of_pumps_active"] = round.(value.(NumberOfPumpsActive).data, digits=3)
 		
 		r["individual_pump_results"] = Dict([])
-		for i in p.techs.water_power
-			print("\n Debug 11")
-			print("\n Saving results for pump "*string(i))
-			
+		for i in p.techs.water_power_pumps		
 			r["individual_pump_results"][string(i)*"_results"] = Dict([])
 			
+			r["individual_pump_results"][string(i)*"_results"]["pump_power_rating"] = value.(m[:pump_power_rating][i])
+
 			IndividualPumpedWaterFlow = @expression(m, [ts in p.time_steps], m[:dvPumpedWaterFlow][i, ts])
 			r["individual_pump_results"][string(i)*"_results"]["pump_water_flow"] = round.(value.(IndividualPumpedWaterFlow).data, digits=3)
 			
@@ -141,11 +140,12 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	# Save results for the individual turbines
 	r["individual_turbine_results"] = Dict([])
 
-	for i in p.techs.water_power
-		print("\n Saving results for turbine "*string(i))
-	    
+	for i in p.techs.water_power_turbines
+			    
 		r["individual_turbine_results"][string(i)*"_results"] = Dict([])
 		
+		r["individual_turbine_results"][string(i)*"_results"]["turbine_power_rating"] = value.(m[:turbine_power_rating][i])
+
 		water_outflow_individual = @expression(m, [ts in p.time_steps], m[:dvWaterOutFlow][i, ts])
 		r["individual_turbine_results"][string(i)*"_results"]["water_outflow"] = round.(value.(water_outflow_individual).data, digits=3)
 		individual_turbine_power_curtailment = @expression(m, [ts in p.time_steps], m[Symbol("dvCurtail")][i, ts])

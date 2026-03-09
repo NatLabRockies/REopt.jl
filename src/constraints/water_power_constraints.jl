@@ -222,7 +222,7 @@ function add_water_power_constraints(m,p)
 		@variable(m, pump_power_rating[t in p.techs.water_power_pumps] >= 0)
 		
 		# Pump size constraints
-		if are_pumps_reversible && (p.s.water_power.existing_kw_per_pump == nothing)
+		if p.s.water_power.are_pumps_reversible && (p.s.water_power.existing_kw_per_pump == nothing)
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] == p.s.water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps *  m[:turbine_power_rating][t])
 		elseif p.s.water_power.existing_kw_per_pump != nothing
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] == p.s.water_power.existing_kw_per_pump)

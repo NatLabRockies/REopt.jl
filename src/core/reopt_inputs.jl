@@ -176,7 +176,7 @@ function REoptInputs(s::AbstractScenario)
         tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, 
         tech_emissions_factors_PM25, techs_operating_reserve_req_fraction, thermal_cop, fuel_cost_per_kwh, 
         heating_cop, cooling_cop, heating_cf, cooling_cf, avoided_capex_by_ashp_present_value, 
-        pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh = setup_tech_inputs(s,time_steps)
+        pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh, water_power_inputs = setup_tech_inputs(s,time_steps)
 
     months = 1:12
 
@@ -328,7 +328,7 @@ function REoptInputs(s::AbstractScenario)
         heating_loads_served_by_tes,
         unavailability,
         absorption_chillers_using_heating_load,
-        water_power_inputs
+        water_power_inputs,
         avoided_capex_by_ashp_present_value
     )
 end
@@ -487,10 +487,10 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     end
     
     if "WaterPower_Turbine1" in techs.all   # Note: the setup_water_power_inputs function adds inputs for the other turbine numbers
-        print("\n Setting up Existing WaterPower in the reopt inputs file")
-        setup_water_power_inputs(s, water_power_inputs, techs_by_exportbin, production_factor, techs)
+        print("\n Setting up WaterPower in the reopt inputs file")
+        setup_water_power_inputs(s, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction)
     else
-        print("\n Existing WaterPower is not in the techs")
+        print("\n WaterPower is not in the techs")
         #water_power["existing_kw_per_turbine"] = 0
     end
 
@@ -728,7 +728,7 @@ function setup_wind_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_s
     return nothing
 end
 
-function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs)
+function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction)
     #water_power_inputs["existing_kw_per_turbine"] = s.water_power.existing_kw_per_turbine
     for i in 1:s.water_power.number_of_turbines
         turbine_tech_name = "WaterPower_Turbine"*string(i)
@@ -739,6 +739,7 @@ function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs
             push!(techs.no_curtail, "WaterPower_Turbine"*string(i))
         end
         cap_cost_slope[turbine_tech_name] = s.water_power.turbine_cost_per_kw
+        tech_renewable_energy_fraction[turbine_tech_name] = 1.0
     end
 
     for i in 1:s.water_power.number_of_pumps
@@ -749,7 +750,7 @@ function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs
         push!(techs.no_curtail, "WaterPower_Pump"*string(i)) # Pumps cannot curtail
         
         cap_cost_slope[pump_tech_name] = s.water_power.pump_cost_per_kw
-
+        tech_renewable_energy_fraction[pump_tech_name] = 0.0 # set to zero because the pumps only consume power
     end
 
     return nothing 
