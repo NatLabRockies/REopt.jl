@@ -256,6 +256,10 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
 
         water_power = WaterPower(; 
                 existing_kw_per_turbine = d["water_power"]["existing_kw_per_turbine"],
+                turbine_cost_per_kw = d["water_power"]["turbine_cost_per_kw"],
+                min_kw_turbine = d["water_power"]["min_kw_turbine"],
+                max_kw_turbine = d["water_power"]["max_kw_turbine"],
+                
                 number_of_turbines = d["water_power"]["number_of_turbines"],
                 computation_type = d["water_power"]["computation_type"],
                 average_cubic_meters_per_second_per_kw = d["water_power"]["average_cubic_meters_per_second_per_kw"],
@@ -291,8 +295,15 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 maximum_downstream_reservoir_volume_cubic_meters=d["water_power"]["maximum_downstream_reservoir_volume_cubic_meters"],
                 number_of_pumps=d["water_power"]["number_of_pumps"],
                 water_pump_average_cubic_meters_per_second_per_kw=d["water_power"]["water_pump_average_cubic_meters_per_second_per_kw"],
-                existing_kw_per_pump=d["water_power"]["existing_kw_per_pump"]
-    ) 
+                existing_kw_per_pump=d["water_power"]["existing_kw_per_pump"],
+                min_kw_pump = d["water_power"]["min_kw_pump"],
+                max_kw_pump = d["water_power"]["max_kw_pump"],
+                pump_cost_per_kw = d["water_power"]["pump_cost_per_kw"],
+                are_pumps_reversible = d["water_power"]["are_pumps_reversible"],
+                pump_kw_to_turbine_kw_ratio_for_reversible_pumps = d["water_power"]["pump_kw_to_turbine_kw_ratio_for_reversible_pumps"],
+                minimum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["minimum_water_flow_cubic_meter_per_second_per_pump"],
+                maximum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["maximum_water_flow_cubic_meter_per_second_per_pump"]
+                ) 
 
     else
         water_power = WaterPower(; existing_kw_per_turbine = 0)

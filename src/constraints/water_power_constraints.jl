@@ -157,16 +157,27 @@ function add_water_power_constraints(m,p)
 	@variable(m, turbine_power_rating[t in p.techs.water_power_turbines] >= 0)
 
 	# If the existing power ratings are defined, limit the power rating to the existing kw
-	if p.s.water_power.existing_kw_per_turbine != nothing
+	if (p.s.water_power.existing_kw_per_turbine != nothing) && (p.s.water_power.existing_kw_per_turbine != 0)
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] == p.s.water_power.existing_kw_per_turbine)
 	else
+		print("\n ***** Adding the min and max turbine kw ratings")
+		print(", p.s.water_power.max_kw_turbine is $(p.s.water_power.max_kw_turbine)")
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] >= p.s.water_power.min_kw_turbine)
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] <= p.s.water_power.max_kw_turbine)
 	end
 	
+	# Define the TurbinePowerGeneration variable
+	@variable(m, TurbinePowerGenerationMaximum[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0)
+
 	# Limit power output from the water_power turbines:
-	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:dvRatedProduction][t,ts] <= m[:binTurbineActive][t,ts]* m[:turbine_power_rating][t])
+	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:dvRatedProduction][t,ts] <= m[:TurbinePowerGenerationMaximum][t,ts]) 
 	
+	# Method for linearizing the product of a binary variable and a continuous variable:
+	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:TurbinePowerGenerationMaximum][t,ts] <= m[:binTurbineActive][t,ts] * 1000000)
+	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:TurbinePowerGenerationMaximum][t,ts] <= m[:turbine_power_rating][t])
+	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:TurbinePowerGenerationMaximum][t,ts] >= m[:turbine_power_rating][t] - (1000000*(1-m[:binTurbineActive][t,ts])))
+	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:TurbinePowerGenerationMaximum][t,ts] >= 0)
+
 	# Limit the water flow through the spillway, if a value was input
 	if !isnothing(p.s.water_power.spillway_maximum_cubic_meter_per_second)
 		@constraint(m, [ts in p.time_steps], m[:dvSpillwayWaterFlow][ts] <= p.s.water_power.spillway_maximum_cubic_meter_per_second)
@@ -227,20 +238,27 @@ function add_water_power_constraints(m,p)
 		@variable(m, pump_power_rating[t in p.techs.water_power_pumps] >= 0)
 		
 		# Pump size constraints
-		if p.s.water_power.are_pumps_reversible && (p.s.water_power.existing_kw_per_pump == nothing)
+		if p.s.water_power.are_pumps_reversible && ((p.s.water_power.existing_kw_per_pump == nothing) || (p.s.water_power.existing_kw_per_pump != 0))
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] == p.s.water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps *  m[:turbine_power_rating][t])
-		elseif p.s.water_power.existing_kw_per_pump != nothing
+		elseif (p.s.water_power.existing_kw_per_pump != nothing) && (p.s.water_power.existing_kw_per_pump != 0)
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] == p.s.water_power.existing_kw_per_pump)
 		else
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] >= p.s.water_power.min_kw_pump)
 			@constraint(m, [t in p.techs.water_power_pumps], m[:pump_power_rating][t] <= p.s.water_power.max_kw_pump)
 		end
 
+		# Define the PumpPowerInput variable
+		@variable(m, PumpPowerInputMaximum[t in p.techs.water_power_pumps, ts in p.time_steps] >= 0)
+
 		# The electric power input into each pump must be below the pump's electric power rating
-		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[:dvPumpPowerInput][t, ts] <= m[:binPumpingWaterActive][t,ts] * m[:pump_power_rating][t]
-					)
-					
+		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], m[:dvPumpPowerInput][t, ts] <= m[:PumpPowerInputMaximum][t, ts])
+				
+		# Method for linearizing the product of a binary variable and a continuous variable (PumpPowerInputMaximum * binPumpingWaterActive)
+		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[:PumpPowerInputMaximum][t,ts] <= m[:binPumpingWaterActive][t,ts] * 1000000)
+		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[:PumpPowerInputMaximum][t,ts] <= m[:pump_power_rating][t])
+		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[:PumpPowerInputMaximum][t,ts] >= m[:pump_power_rating][t] - (1000000*(1-m[:binPumpingWaterActive][t,ts])))
+		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[:PumpPowerInputMaximum][t,ts] >= 0)
+
 		if p.s.water_power.computation_type == "average_power_conversion"
 			
 			# Conversion between pumped water flow rate and power input into the pump
