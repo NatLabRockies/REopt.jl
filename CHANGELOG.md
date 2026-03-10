@@ -25,7 +25,7 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## v0.57.0 
+## v0.57.0
 ### Fixed
 - Include boiler emissions in emissions calculations
 - Update links that broke with NLR domain change and update other references to NREL
