@@ -177,9 +177,14 @@ REopt.SteamTurbine
 REopt.ElectricHeater
 ```
 
-## ASHP
+## ASHPSpaceHeater
 ```@docs
-REopt.ASHP
+REopt.ASHPSpaceHeater
+```
+
+## ASHPWaterHeater
+```@docs
+REopt.ASHPWaterHeater
 ```
 
 ## CST
