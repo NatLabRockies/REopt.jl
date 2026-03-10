@@ -308,9 +308,16 @@ function add_water_power_constraints(m,p)
 		dvs = ["binTurbineActive"]
 	end
 
+	solvers_incompatible_with_indicator_constraints = ["HiGHS", "Cbc"]
 
 	# Define the minimum operating time (in time steps) for the water_power turbine
 	if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1
+		@warn "Setting minimum_operating_time_steps_individual_turbine to greater than 1 requires an optimization solver that can handle indicator constraints."
+		
+		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
+			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+		end
+
 		print("\n Adding minimum operating time constraint \n")
 		@variable(m, indicator_min_operating_time[t in p.techs.water_power, ts in p.time_steps, dv in dvs], Bin)
 		for dv in dvs
@@ -332,6 +339,12 @@ function add_water_power_constraints(m,p)
 	
 	# Define the minimum operating time for the maximum water flow (in time steps) for a water_power turbine
 	if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
+		@warn "Setting minimum_operating_time_steps_at_local_maximum_turbine_output to greater than 1 requires an optimization solver that can handle indicator constraints."
+		
+		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
+			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+		end
+
 		print("\n Adding a constraint for the minimum operating time at a local maximum water flow \n")
 		@variable(m, indicator_turn_down[t in p.techs.water_power_turbines, ts in p.time_steps, dv in dvs], Bin)	
 		for dv in dvs
@@ -354,6 +367,12 @@ function add_water_power_constraints(m,p)
 	end
 
 	if p.s.water_power.minimum_turbine_off_time_steps > 1
+		@warn "Setting minimum_turbine_off_time_steps to greater than 1 requires an optimization solver that can handle indicator constraints."
+		
+		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
+			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+		end
+	
 		print("\n Adding minimum off duration for the turbines \n")
 		@variable(m, indicator_turbine_turn_off[t in p.techs.water_power_turbines, ts in p.time_steps], Bin)
 		for t in p.techs.water_power_turbines, ts in 1:Int(length(p.time_steps)- p.s.water_power.minimum_turbine_off_time_steps - 1 )

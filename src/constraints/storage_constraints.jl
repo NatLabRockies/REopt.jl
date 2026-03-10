@@ -83,7 +83,7 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
             #+  (p.s.storage.attr[b].charge_efficiency * m[Symbol("dvHydroToStorage")][ts])
             - ((m[Symbol("dvDischargeFromStorage"*_n)][b,ts]+m[Symbol("dvStorageToGrid")][ts])  / p.s.storage.attr[b].discharge_efficiency)
         )
-        - (p.s.storage.attr[b].per_timestep_self_discharge_fraction * m[Symbol("dvStoredEnergy"*_n)][b, ts])
+        #- (p.s.storage.attr[b].per_timestep_self_discharge_fraction * m[Symbol("dvStoredEnergy"*_n)][b, ts])
 	)
 
     # Note: Hydro to storage not added for off-grid scenarios

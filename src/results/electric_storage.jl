@@ -37,8 +37,9 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
             r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
             p.s.storage.attr[b].installed_cost_constant
 
-        StoragePerUnitOMCosts = p.third_party_factor * p.pwf_om * (p.s.storage.attr[b].om_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b] +
-                                                                 p.s.storage.attr[b].om_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b])
+        # TODO: correct the StoragePerUnitOMCosts
+        StoragePerUnitOMCosts = -9999999 #p.third_party_factor * p.pwf_om * (p.s.storage.attr[b].om_cost_per_kw * m[Symbol("dvStoragePower"*_n)][b] +
+                                          #                       p.s.storage.attr[b].om_cost_per_kwh * m[Symbol("dvStorageEnergy"*_n)][b])
 
         r["lifecycle_om_cost_after_tax"] = round(value(StoragePerUnitOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
         r["year_one_om_cost_before_tax"] = round(value(StoragePerUnitOMCosts) / (p.pwf_om * p.third_party_factor), digits=0)
@@ -71,7 +72,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
 
         BattExport = (m[Symbol("dvStorageToGrid")][ts] for ts in p.time_steps)
         r["storage_to_grid_series_kw"] = round.(value.(BattExport), digits = 3)
-            r["residual_value"] = value(m[:residual_value])
+           # r["residual_value"] = value(m[:residual_value])
         
     else
         r["soc_series_fraction"] = []
