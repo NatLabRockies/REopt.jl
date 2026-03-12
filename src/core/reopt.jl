@@ -442,11 +442,11 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	end
 
 	if "downstream_reservoir" in p.s.water_storage
-		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.water_power.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity] )
+		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity] )
 	end
 	
 	if "upper_reservoir" in p.s.water_storage
-		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.water_power.cost_per_cubic_meter_upper_reservoir * m[:dvUpperReservoirCapacity] )
+		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[:dvUpperReservoirCapacity] )
 	end
 
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
@@ -714,8 +714,9 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		@variable(m, binNoGridPurchases[p.time_steps], Bin)
 	end
 
-	#print("\n p.s.water_power is:")
-	#print(p.s.water_power)
+	print("\n p.s.water_power is: $(p.s.water_power)")
+	print("\n p.s.water_storage is: $(p.s.water_storage)")
+
 	if !isempty(p.techs.water_power)
 		print("\n Creating variables for existing water_power")
 		@variables m begin
@@ -728,7 +729,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			dvPumpedWaterFlow[p.techs.water_power_pumps, p.time_steps] >= 0
 			# Note: the power flow from the water_power are part of: dvRatedProduction, dvProductionToGrid, and dvProductionToStorage
 		end
-		if p.s.water_power.model_downstream_reservoir
+		if "downstream_reservoir" in p.s.water_storage
 			@variables m begin
 				dvDownstreamReservoirWaterVolume[p.time_steps] >= 0
 				dvDownstreamReservoirWaterOutflow[p.time_steps] >= 0

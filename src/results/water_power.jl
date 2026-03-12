@@ -77,7 +77,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 
 	# Water flow into upstream reservoir (input into the model)
-	r["input_to_model_tributary_water_flow"] = p.s.water_power.water_inflow_cubic_meter_per_second
+	r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.water_inflow_cubic_meter_per_second
 	# Water outflow from the turbines
 	water_outflow_total = @expression(m, [ts in p.time_steps],
 		sum(m[:dvWaterOutFlow][t, ts] for t in p.techs.water_power_turbines) 
@@ -89,7 +89,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	r["spillway_water_outflow_cubic_meters_per_second"] = round.(value.(spillway_water_flow).data, digits = 3)
 
 	# Water flow out of downstream reservoir
-	if p.s.water_power.model_downstream_reservoir
+	if "downstream_reservoir" in p.s.water_storage
 		downstream_reservoir_water_outflow = @expression(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterOutflow][ts])
 		r["downstream_reservoir_water_outflow_cubic_meters_per_second"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
 	end
@@ -101,7 +101,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	)
 	r["annual_energy_produced_kwh"] = round(value(AnnualWaterPowerProd), digits=0) # includes curtailment
     	
-	if p.s.water_power.model_downstream_reservoir
+	if "downstream_reservoir" in p.s.water_storage
 		# Downstream reservoir volume
 		downstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts])
 		r["downstream_reservoir_water_volume_cubic_meters"] = round.(value.(downstream_reservoir_volume).data, digits=3) 
@@ -109,7 +109,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 	end
 	# Compile results for the pumps
-	if (p.s.water_power.model_downstream_reservoir == true) && (p.s.water_power.number_of_pumps > 0)
+	if ("downstream_reservoir" in p.s.water_storage) && (p.s.water_power.number_of_pumps > 0)
 		# Save combined results for all of the pumps
 		totalPumpedWaterFlow = @expression(m, [ts in p.time_steps],
 		sum(m[:dvPumpedWaterFlow][t, ts] for t in p.techs.water_power_pumps))

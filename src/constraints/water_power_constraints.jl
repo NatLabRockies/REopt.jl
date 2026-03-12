@@ -112,27 +112,25 @@ function add_water_power_constraints(m,p)
 		throw(@error("Invalid input for the computation_type field"))
 	end
 
-	print("*********The p.techs.elec are: $(p.techs.elec)")
-
 	# Create variable for the upper reservoir capacity
-	@variable(m, p.s.water_power.minimum_capacity_cubic_meters_upper_reservoir <= dvUpperReservoirCapacity <= p.s.water_power.maximum_capacity_cubic_meters_upper_reservoir)
+	@variable(m, p.s.upper_reservoir.minimum_capacity_cubic_meters_upper_reservoir <= dvUpperReservoirCapacity <= p.s.upper_reservoir.maximum_capacity_cubic_meters_upper_reservoir)
 	
 	# The upper reservoir water volume must be between the max and min levels
 	@constraint(m, [ts in p.time_steps],
-		m[:dvWaterVolume][ts] <= p.s.water_power.maximum_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity]
+		m[:dvWaterVolume][ts] <= p.s.upper_reservoir.maximum_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity]
 				)
 	@constraint(m, [ts in p.time_steps],
-		m[:dvWaterVolume][ts] >= p.s.water_power.minimum_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity] 
+		m[:dvWaterVolume][ts] >= p.s.upper_reservoir.minimum_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity] 
 				)
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
-	@constraint(m, [ts in p.time_steps], # t in p.techs.water_power_turbines],
-		 sum(m[:dvWaterOutFlow][t, ts] for t in p.techs.water_power_turbines) + m[:dvSpillwayWaterFlow][ts] >= p.s.water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines   # m[:dvWaterOutFlow][t, ts]
+	@constraint(m, [ts in p.time_steps],
+		 sum(m[:dvWaterOutFlow][t, ts] for t in p.techs.water_power_turbines) + m[:dvSpillwayWaterFlow][ts] >= p.s.water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines   
 				)
 	
 	# Each turbine must meet the minimum water flow requirement of an individual turbine, if it is on
 	@constraint(m, [t in p.techs.water_power_turbines, ts in p.time_steps], 
-			m[:dvWaterOutFlow][t, ts] >=  m[:binTurbineActive][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine    #p.s.water_power.existing_kw_per_turbine / (p.s.water_power.efficiency_kwh_per_cubicmeter * p.hours_per_time_step)
+			m[:dvWaterOutFlow][t, ts] >=  m[:binTurbineActive][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine  
 				)
 	
 	# Upstream Reservoir: The total water volume changes based on the water flow rates
@@ -142,7 +140,7 @@ function add_water_power_constraints(m,p)
 	@variable(m, dvWaterVolumeChange[ts in time_steps_without_first_time_step] >= -100000 )
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 
-					m[:dvWaterVolumeChange][ts] == p.s.water_power.water_inflow_cubic_meter_per_second[ts] - m[:dvSpillwayWaterFlow][ts] - sum(m[:dvWaterOutFlow][t,ts] for t in p.techs.water_power_turbines) + sum(m[:dvPumpedWaterFlow][t,ts] for t in p.techs.water_power_pumps)
+					m[:dvWaterVolumeChange][ts] == p.s.upper_reservoir.water_inflow_cubic_meter_per_second[ts] - m[:dvSpillwayWaterFlow][ts] - sum(m[:dvWaterOutFlow][t,ts] for t in p.techs.water_power_turbines) + sum(m[:dvPumpedWaterFlow][t,ts] for t in p.techs.water_power_pumps)
 				)
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 
@@ -151,7 +149,7 @@ function add_water_power_constraints(m,p)
 					+ ((3600/p.s.settings.time_steps_per_hour) * m[:dvWaterVolumeChange][ts])   # The (3600/p.s.settings.time_steps_per_hour) converts from m^3 per second, to m^3 per timestep
 				)
 	
-	@constraint(m, m[:dvWaterVolume][1] == p.s.water_power.initial_reservoir_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity]) 
+	@constraint(m, m[:dvWaterVolume][1] == p.s.upper_reservoir.initial_reservoir_volume_fraction_upper_reservoir * m[:dvUpperReservoirCapacity]) 
 		
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[:dvWaterVolume][1] == m[:dvWaterVolume][maximum(p.time_steps)])
@@ -163,8 +161,6 @@ function add_water_power_constraints(m,p)
 	if (p.s.water_power.existing_kw_per_turbine != nothing) && (p.s.water_power.existing_kw_per_turbine != 0)
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] == p.s.water_power.existing_kw_per_turbine)
 	else
-		print("\n ***** Adding the min and max turbine kw ratings")
-		print(", p.s.water_power.max_kw_turbine is $(p.s.water_power.max_kw_turbine)")
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] >= p.s.water_power.min_kw_turbine)
 		@constraint(m, [t in p.techs.water_power_turbines], m[:turbine_power_rating][t] <= p.s.water_power.max_kw_turbine)
 	end
@@ -192,7 +188,7 @@ function add_water_power_constraints(m,p)
 	)
 
 	# Model a downstream reservoir
-	if p.s.water_power.model_downstream_reservoir == true
+	if "downstream_reservoir" in p.s.water_storage
 		print("\n Adding downstream reservoir variables and constraints")
 		
 		final_time_step = Int(p.s.settings.time_steps_per_hour * 8760)
@@ -212,22 +208,22 @@ function add_water_power_constraints(m,p)
 		@constraint(m, m[:dvDownstreamReservoirWaterVolume][1] == m[:dvDownstreamReservoirWaterVolume][maximum(p.time_steps)])
 
 		# Create variable for the downstream reservoir capacity
-		@variable(m, p.s.water_power.minimum_capacity_cubic_meters_downstream_reservoir <= dvDownstreamReservoirCapacity <= p.s.water_power.maximum_capacity_cubic_meters_downstream_reservoir)
+		@variable(m, p.s.downstream_reservoir.minimum_capacity_cubic_meters_downstream_reservoir <= dvDownstreamReservoirCapacity <= p.s.downstream_reservoir.maximum_capacity_cubic_meters_downstream_reservoir)
 	
 		# Downstream Reservoir: Minimum and maximum water volumes
-		@constraint(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts] >= p.s.water_power.minimum_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity])
-		@constraint(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts] <= p.s.water_power.maximum_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity])
+		@constraint(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts] >= p.s.downstream_reservoir.minimum_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity])
+		@constraint(m, [ts in p.time_steps], m[:dvDownstreamReservoirWaterVolume][ts] <= p.s.downstream_reservoir.maximum_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity])
 
 		# Downstream Reservoir: define the initial water volume
-		@constraint(m, m[:dvDownstreamReservoirWaterVolume][1] == p.s.water_power.initial_reservoir_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity]) 
+		@constraint(m, m[:dvDownstreamReservoirWaterVolume][1] == p.s.downstream_reservoir.initial_reservoir_volume_fraction_downstream_reservoir * m[:dvDownstreamReservoirCapacity]) 
 
 		# Downstream Reservoir outflow: minimum and maximum flow rates
 		@constraint(m, [ts in p.time_steps], 
-						m[:dvDownstreamReservoirWaterOutflow][ts] >= p.s.water_power.minimum_outflow_from_downstream_reservoir_cubic_meter_per_second 
+						m[:dvDownstreamReservoirWaterOutflow][ts] >= p.s.downstream_reservoir.minimum_outflow_from_downstream_reservoir_cubic_meter_per_second 
 			   		)
 					
 		@constraint(m, [ts in p.time_steps], 
-					   m[:dvDownstreamReservoirWaterOutflow][ts] <= p.s.water_power.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
+					   m[:dvDownstreamReservoirWaterOutflow][ts] <= p.s.downstream_reservoir.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
 					)
 		
 		# The pumps cannot act as power generators
@@ -235,15 +231,14 @@ function add_water_power_constraints(m,p)
 			@constraint(m, [ts in p.time_steps], m[:dvRatedProduction][pump,ts] == 0)
 		end
 
-		# Ensure that the turbines aren't on when the pumping is happening
-			# binTurbineOrPump is 1 when the turbines are on; binTurbineOrPump is 0 when the pumps are operating
+		# Ensure that the turbines aren't on when the pumping is happening; binTurbineOrPump is 1 when the turbines are on; binTurbineOrPump is 0 when the pumps are operating
 		@constraint(m, [ts in p.time_steps], sum(m[:binTurbineActive][t,ts] for t in p.techs.water_power_turbines) <= p.s.water_power.number_of_turbines * m[:binTurbineOrPump][ts] )
 		
 		@constraint(m, [ts in p.time_steps], sum(m[:binPumpingWaterActive][t,ts] for t in p.techs.water_power_pumps) <= p.s.water_power.number_of_pumps * (1 - m[:binTurbineOrPump][ts]))
 		
 		# Each pump must meet the minimum water flow requirement, if it is on
 		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[:dvPumpedWaterFlow][t, ts] >= m[:binPumpingWaterActive][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine    # TODO: change input value to "minimum water flow cubic meter per second per turbine"
+						m[:dvPumpedWaterFlow][t, ts] >= m[:binPumpingWaterActive][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine
 							)
 		
 		# Define the power rating for each pump
@@ -277,7 +272,6 @@ function add_water_power_constraints(m,p)
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[:PumpPowerInputMaximum][t,ts] >= 0)
 
 		if p.s.water_power.computation_type == "average_power_conversion"
-			
 			# Conversion between pumped water flow rate and power input into the pump
 			@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
 						m[:dvPumpedWaterFlow][t, ts] == m[:dvPumpPowerInput][t, ts] * p.s.water_power.water_pump_average_cubic_meters_per_second_per_kw )
@@ -285,12 +279,7 @@ function add_water_power_constraints(m,p)
 		else
 			throw(@error("A downstream reservoir is only compatible with average_power_conversion at the moment"))
 		end
-		
-	else
-		# If pumped water is not allowed, then binAnyTurbineActive is always 1 (meaning that the turbines can always operate)
-			# This constraint shouldn't be needed
-		#@constraint(m, [ts in p.time_steps], binAnyTurbineActive[ts] == 1)
-		
+	else	
 		@info("Preventing use of the water pump variables because there is no downstream reservoir")
 		for t in p.techs.water_power_pumps
 			for ts in p.time_steps
@@ -302,7 +291,7 @@ function add_water_power_constraints(m,p)
 
 	# Create an array of binary variable names for turbine or turbine and pumps
 	dvs = []
-	if p.s.water_power.model_downstream_reservoir
+	if !isempty(p.techs.water_power_pumps)
 		dvs = ["binTurbineActive","binPumpingWaterActive"]
 	else
 		dvs = ["binTurbineActive"]
@@ -383,9 +372,6 @@ function add_water_power_constraints(m,p)
 	
 	# TODO: remove this constraint, which prevents a spike in the spillway use during the first time step
 	@constraint(m, [ts in p.time_steps], m[:dvSpillwayWaterFlow][1] == 0)
-
-	print("\n *** The levelization factor for WaterPower_Turbine1 is: $(p.levelization_factor["WaterPower_Turbine1"])")
-	
 
 end
 
