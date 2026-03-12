@@ -104,7 +104,8 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 
 	for b in p.s.storage.types.all
 		if b in p.s.storage.types.hydrogen
-			if p.s.storage.attr[b].max_kg == 0
+			if p.s.storage.attr[b].size_kg == 0
+				@constraint(m, [ts in p.time_steps], m[:dvStoredEnergy][b, ts] == 0)
 				@constraint(m, [ts in p.time_steps], m[:dvDischargeFromStorage][b, ts] == 0)
 				@constraint(m, [ts in p.time_steps], m[:dvGridToStorage][b, ts] == 0)
 				@constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
