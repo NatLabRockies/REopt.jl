@@ -27,6 +27,8 @@ struct Scenario <: AbstractScenario
     electric_heater::Union{ElectricHeater, Nothing}
     water_power::WaterPower
     water_storage::Array{}
+    upper_reservoir::UpperReservoirStorage
+    downstream_reservoir::DownstreamReservoirStorage
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
@@ -61,6 +63,9 @@ A Scenario struct can contain the following keys:
 - [SteamTurbine](@ref) (optional)
 - [ElectricHeater](@ref) (optional)
 - [WaterPower](@ref) (optional)
+- [water_storage](@ref) (optional)
+- [upper_reservoir](@ref) (optional)
+- [downstream_reservoir](@ref) (optional)
 - absorption_chillers_using_heating_load
 - [CST](@ref) (optional)
 - [ASHPSpaceHeater](@ref) (optional)
@@ -235,98 +240,29 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
     storage = Storage(storage_structs)
     
-    if haskey(d, "water_power")
-        # TODO: change the method for creating the WaterPower input (mirror the other methods which don't require every input to be provided in the inputs dictionary into REopt)
-                
-        tribuary_flow = d["water_power"]["water_inflow_cubic_meter_per_second"]
-        tributary_flow_length = length(d["water_power"]["water_inflow_cubic_meter_per_second"])
-
-        if (tributary_flow_length != 8760) && (tributary_flow_length != 17520) && (tributary_flow_length != 35040)
-            throw(@error("Invalid length of the tributary flow vector"))
-        elseif (settings.time_steps_per_hour == 2) && (tributary_flow_length == 8760)
-            @warn("Upscaling the tributary flow rate to match the time steps per hour")
-            tribuary_flow = repeat(tribuary_flow, inner=settings.time_steps_per_hour)
-        elseif (settings.time_steps_per_hour == 4) && (tributary_flow_length == 8760)
-            @warn("Upscaling the tributary flow rate to match the time steps per hour")
-            tribuary_flow = repeat(tribuary_flow, inner=settings.time_steps_per_hour)
-        #elseif
-            # TODO: add more options for setting the tributary_flow variable to the correct length
-        else
-            print("\n No changes made to the tributary flow input vector \n")
-        end
-
-        water_storage = []
-        if d["water_power"]["maximum_capacity_cubic_meters_upper_reservoir"] > 0
-            push!(water_storage, "upper_reservoir")
-        end
-
-        if d["water_power"]["maximum_capacity_cubic_meters_downstream_reservoir"] > 0
-            push!(water_storage, "downstream_reservoir")
-        end
-
-        water_power = WaterPower(; 
-                existing_kw_per_turbine = d["water_power"]["existing_kw_per_turbine"],
-                turbine_cost_per_kw = d["water_power"]["turbine_cost_per_kw"],
-                min_kw_turbine = d["water_power"]["min_kw_turbine"],
-                max_kw_turbine = d["water_power"]["max_kw_turbine"],
-                
-                number_of_turbines = d["water_power"]["number_of_turbines"],
-                computation_type = d["water_power"]["computation_type"],
-                average_cubic_meters_per_second_per_kw = d["water_power"]["average_cubic_meters_per_second_per_kw"],
-                coefficient_a_efficiency=d["water_power"]["coefficient_a_efficiency"],
-                coefficient_b_efficiency=d["water_power"]["coefficient_b_efficiency"],
-                coefficient_c_efficiency=d["water_power"]["coefficient_c_efficiency"],
-                number_of_efficiency_bins= d["water_power"]["number_of_efficiency_bins"],
-                coefficient_d_reservoir_head=d["water_power"]["coefficient_d_reservoir_head"],
-                coefficient_e_reservoir_head=d["water_power"]["coefficient_e_reservoir_head"],
-                coefficient_f_reservoir_head=d["water_power"]["coefficient_f_reservoir_head"],
-                fixed_turbine_efficiency = d["water_power"]["fixed_turbine_efficiency"],
-                water_inflow_cubic_meter_per_second=d["water_power"]["water_inflow_cubic_meter_per_second"],  
-                maximum_volume_fraction_upper_reservoir=d["water_power"]["maximum_volume_fraction_upper_reservoir"], 
-                minimum_volume_fraction_upper_reservoir=d["water_power"]["minimum_volume_fraction_upper_reservoir"],   
-                initial_reservoir_volume_fraction_upper_reservoir = d["water_power"]["initial_reservoir_volume_fraction_upper_reservoir"],
-                minimum_water_output_cubic_meter_per_second_per_turbine = d["water_power"]["minimum_water_output_cubic_meter_per_second_per_turbine"],
-                maximum_water_output_cubic_meter_per_second_per_turbine = d["water_power"]["maximum_water_output_cubic_meter_per_second_per_turbine"],
-                minimum_water_output_cubic_meter_per_second_total_of_all_turbines=d["water_power"]["minimum_water_output_cubic_meter_per_second_total_of_all_turbines"],
-                minimum_operating_time_steps_individual_turbine = d["water_power"]["minimum_operating_time_steps_individual_turbine"],
-                minimum_operating_time_steps_at_local_maximum_turbine_output = d["water_power"]["minimum_operating_time_steps_at_local_maximum_turbine_output"],
-                minimum_turbine_off_time_steps= d["water_power"]["minimum_turbine_off_time_steps"],
-                spillway_maximum_cubic_meter_per_second = d["water_power"]["spillway_maximum_cubic_meter_per_second"],
-                can_net_meter=d["water_power"]["can_net_meter"], 
-                can_wholesale=d["water_power"]["can_wholesale"], 
-                can_export_beyond_nem_limit=d["water_power"]["can_export_beyond_nem_limit"], 
-                can_curtail=d["water_power"]["can_curtail"],
-
-                model_downstream_reservoir=d["water_power"]["model_downstream_reservoir"],
-                initial_reservoir_volume_fraction_downstream_reservoir=d["water_power"]["initial_reservoir_volume_fraction_downstream_reservoir"],
-                minimum_outflow_from_downstream_reservoir_cubic_meter_per_second=d["water_power"]["minimum_outflow_from_downstream_reservoir_cubic_meter_per_second"],
-                maximum_outflow_from_downstream_reservoir_cubic_meter_per_second=d["water_power"]["maximum_outflow_from_downstream_reservoir_cubic_meter_per_second"],
-                minimum_volume_fraction_downstream_reservoir=d["water_power"]["minimum_volume_fraction_downstream_reservoir"],
-                maximum_volume_fraction_downstream_reservoir=d["water_power"]["maximum_volume_fraction_downstream_reservoir"],
-                number_of_pumps=d["water_power"]["number_of_pumps"],
-                water_pump_average_cubic_meters_per_second_per_kw=d["water_power"]["water_pump_average_cubic_meters_per_second_per_kw"],
-                existing_kw_per_pump=d["water_power"]["existing_kw_per_pump"],
-                min_kw_pump = d["water_power"]["min_kw_pump"],
-                max_kw_pump = d["water_power"]["max_kw_pump"],
-                pump_cost_per_kw = d["water_power"]["pump_cost_per_kw"],
-                are_pumps_reversible = d["water_power"]["are_pumps_reversible"],
-                pump_kw_to_turbine_kw_ratio_for_reversible_pumps = d["water_power"]["pump_kw_to_turbine_kw_ratio_for_reversible_pumps"],
-                minimum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["minimum_water_flow_cubic_meter_per_second_per_pump"],
-                maximum_water_flow_cubic_meter_per_second_per_pump = d["water_power"]["maximum_water_flow_cubic_meter_per_second_per_pump"],
-
-                minimum_capacity_cubic_meters_upper_reservoir = d["water_power"]["minimum_capacity_cubic_meters_upper_reservoir"],
-                maximum_capacity_cubic_meters_upper_reservoir = d["water_power"]["maximum_capacity_cubic_meters_upper_reservoir"],
-                cost_per_cubic_meter_upper_reservoir = d["water_power"]["cost_per_cubic_meter_upper_reservoir"],
-                minimum_capacity_cubic_meters_downstream_reservoir = d["water_power"]["minimum_capacity_cubic_meters_downstream_reservoir"],
-                maximum_capacity_cubic_meters_downstream_reservoir = d["water_power"]["maximum_capacity_cubic_meters_downstream_reservoir"],
-                cost_per_cubic_meter_downstream_reservoir = d["water_power"]["cost_per_cubic_meter_downstream_reservoir"]
-
-                ) 
-
-    else
-        water_power = WaterPower(; existing_kw_per_turbine = 0)
+    if haskey(d, "WaterPower")
+        water_power = WaterPower(
+                        dictkeys_tosymbols(d["WaterPower"]), 
+                        financial, site, settings.time_steps_per_hour
+                      )
     end 
-    
+
+    water_storage = []  
+    if haskey(d, "UpperReservoirWaterStorage")
+        push!(water_storage, "upper_reservoir")
+        upper_reservoir = UpperReservoirStorage(
+                                dictkeys_tosymbols(d["UpperReservoirWaterStorage"]), 
+                                financial, site, settings.time_steps_per_hour
+                            )
+    end
+    if haskey(d, "DownstreamReservoirWaterStorage")
+        push!(water_storage, "downstream_reservoir")
+        downstream_reservoir = DownstreamReservoirStorage(
+                                    dictkeys_tosymbols(d["DownstreamReservoirWaterStorage"]), 
+                                    financial, site, settings.time_steps_per_hour
+                                )
+    end
+
     if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            
         electric_tariff = ElectricTariff(; dictkeys_tosymbols(d["ElectricTariff"])..., 
                                         year=electric_load.year,
@@ -1155,6 +1091,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         electric_heater,
         water_power,
         water_storage,
+        upper_reservoir,
+        downstream_reservoir,
         cst,
         ashp,
         ashp_wh

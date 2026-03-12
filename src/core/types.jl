@@ -12,7 +12,10 @@ abstract type AbstractElectricStorage <: AbstractStorage end
 abstract type AbstractThermalStorageDefaults end
 abstract type AbstractGHP <: AbstractTech end
 abstract type AbstractSteamTurbine <: AbstractTech end
-
+abstract type AbstractWaterStorage end
+abstract type AbstractWaterStorageDefaults end
+abstract type AbstractWaterPower <: AbstractTech end
+abstract type AbstractWaterPowerDefaults end
 
 """
     Techs
