@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 using Test
 using JuMP
 using HiGHS
@@ -40,7 +40,11 @@ else  # run HiGHS tests
             input_data["Site"]["sector"] = "commercial/industrial"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
+            @test s.financial.offtaker_tax_rate_fraction == 0.26
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0348
             @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
+            @test s.financial.om_cost_escalation_rate_fraction == 0.025
+            @test s.financial.offtaker_discount_rate_fraction == 0.0624
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
@@ -61,7 +65,11 @@ else  # run HiGHS tests
             input_data["Site"]["federal_procurement_type"] = "privateowned_thirdparty"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
-            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.00581 #national avg
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.024 #national avg
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0074 #national avg
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
@@ -82,7 +90,11 @@ else  # run HiGHS tests
             input_data["Site"]["federal_sector_state"] = "CA"
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.0
-            @test s.financial.elec_cost_escalation_rate_fraction == -0.00088
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0079
+            @test s.financial.elec_cost_escalation_rate_fraction == -0.0062
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
             for tech_struct in (s.pvs[1], s.wind, s.chp, s.ghp_option_list[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :federal_itc_fraction)
                     default = 0
@@ -153,14 +165,14 @@ else  # run HiGHS tests
             latitude, longitude = 65.0102196310875, 25.465387094897675
             radius = 0
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "intl"
+            @test dataset == "nsrdb"
 
             # 4. Fairbanks, AK 
             site = "Fairbanks"
             latitude, longitude = 64.84112047064114, -147.71570239058084 
             radius = 20
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "tmy3"  
+            @test dataset == "nsrdb"
         end
 
         @testset "ASHP min allowable size and COP, CF Profiles" begin
@@ -253,7 +265,8 @@ else  # run HiGHS tests
 
         @testset "Solar and Storage" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-            r = run_reopt(model, "./scenarios/pv_storage.json")
+            inputs = REoptInputs("./scenarios/pv_storage.json")
+            r = run_reopt(model, inputs)
 
             @test r["PV"]["size_kw"] ≈ 216.6667 atol=0.01
             @test r["Financial"]["lcc"] ≈ 1.2391786e7 rtol=1e-5
@@ -273,55 +286,55 @@ else  # run HiGHS tests
             GC.gc()            
         end
     
-    @testset "Solar and ElectricStorage with cost constants" begin
-        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        d = JSON.parsefile("./scenarios/pv_storage.json");
+        @testset "Solar and ElectricStorage with cost constants" begin
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            d = JSON.parsefile("./scenarios/pv_storage.json");
+            
+            d["ElectricStorage"]["installed_cost_constant"] = 7500
+            d["ElectricStorage"]["replace_cost_constant"] = 5025
+            d["ElectricStorage"]["cost_constant_replacement_year"] = 10
         
-        d["ElectricStorage"]["installed_cost_constant"] = 7500
-        d["ElectricStorage"]["replace_cost_constant"] = 5025
-        d["ElectricStorage"]["cost_constant_replacement_year"] = 10
-    
-        s = Scenario(d)
-        inputs = REoptInputs(s)
-        results = run_reopt([m1,m2], inputs)
-        
-        UpfrontCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["installed_cost_per_kw"] ) +
-                                   (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["installed_cost_per_kwh"]) + 
-                                   d["ElectricStorage"]["installed_cost_constant"] +
-                                   (results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"])
-        
-        ReplacementCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["replace_cost_per_kw"] ) +
-                                   (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["replace_cost_per_kwh"]) + 
-                                   d["ElectricStorage"]["replace_cost_constant"] 
+            s = Scenario(d)
+            inputs = REoptInputs(s)
+            results = run_reopt([m1,m2], inputs)
+            
+            UpfrontCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["installed_cost_per_kw"] ) +
+                                    (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["installed_cost_per_kwh"]) + 
+                                    d["ElectricStorage"]["installed_cost_constant"] +
+                                    (results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"])
+            
+            ReplacementCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["replace_cost_per_kw"] ) +
+                                    (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["replace_cost_per_kwh"]) + 
+                                    d["ElectricStorage"]["replace_cost_constant"] 
 
-        @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
-        @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
-    
-    end 
-
-    @testset "Solar and ElectricStorage with cost constants but zero-out ElectricStorage" begin
-        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        d = JSON.parsefile("./scenarios/pv_storage.json");
+            @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
+            @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
         
-        d["ElectricStorage"]["installed_cost_constant"] = 7500
-        d["ElectricStorage"]["replace_cost_constant"] = 5025
-        d["ElectricStorage"]["cost_constant_replacement_year"] = 10
-        d["ElectricStorage"]["max_kw"] = 0
+        end 
 
-        s = Scenario(d)
-        inputs = REoptInputs(s)
-        results = run_reopt([m1,m2], inputs)
-        
-        UpfrontCosts_NoIncentive = results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"]
-        
-        ReplacementCosts_NoIncentive = 0
+        @testset "Solar and ElectricStorage with cost constants but zero-out ElectricStorage" begin
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            d = JSON.parsefile("./scenarios/pv_storage.json");
+            
+            d["ElectricStorage"]["installed_cost_constant"] = 7500
+            d["ElectricStorage"]["replace_cost_constant"] = 5025
+            d["ElectricStorage"]["cost_constant_replacement_year"] = 10
+            d["ElectricStorage"]["max_kw"] = 0
 
-        @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
-        @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
-    
-    end 
+            s = Scenario(d)
+            inputs = REoptInputs(s)
+            results = run_reopt([m1,m2], inputs)
+            
+            UpfrontCosts_NoIncentive = results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"]
+            
+            ReplacementCosts_NoIncentive = 0
+
+            @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
+            @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
+        
+        end 
 
         # TODO test MPC with outages
         @testset "MPC" begin
@@ -833,6 +846,7 @@ else  # run HiGHS tests
                 d["ElectricHeater"]["installed_cost_per_mmbtu_per_hour"] = 1.0
                 d["ElectricTariff"]["monthly_energy_rates"] = [0,0,0,0,0,0,0,0,0,0,0,0]
                 d["HotThermalStorage"]["max_gal"] = 0.0
+                d["HotThermalStorage"]["min_gal"] = 0.0
                 s = Scenario(d)
                 inputs = REoptInputs(s)
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
@@ -2183,6 +2197,7 @@ else  # run HiGHS tests
             input_data["DomesticHotWaterLoad"]["annual_mmbtu"] = 0.5 * 8760
             s = Scenario(input_data)
             inputs = REoptInputs(s)
+            @test inputs.tech_emissions_factors_CO2["ExistingBoiler"] ≈ inputs.tech_emissions_factors_CO2["Boiler"] atol=1.0e-6 
             m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt([m1,m2], inputs)
@@ -3083,17 +3098,17 @@ else  # run HiGHS tests
             p = REoptInputs(s)
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt(m, p)
-
-            annual_thermal_prod = 0.8 * 8760  #80% efficient boiler --> 0.8 MMBTU of heat load per hour
+            annual_thermal_prod = 0.64 * 8760  #80% efficient boiler --> 0.64 MMBTU of heat load per hour for electric heater
             annual_electric_heater_consumption = annual_thermal_prod * REopt.KWH_PER_MMBTU  #1.0 COP
             annual_energy_supplied = 87600 + annual_electric_heater_consumption
 
-            #Second run: ElectricHeater produces the required heat with free electricity
-            @test results["ElectricHeater"]["size_mmbtu_per_hour"] ≈ 0.8 atol=0.1
+            #Second run: ElectricHeater produces the required heat with free electricity for two of three heat sources
+            @test results["ElectricHeater"]["size_mmbtu_per_hour"] ≈ 0.64 atol=0.1
             @test results["ElectricHeater"]["annual_thermal_production_mmbtu"] ≈ annual_thermal_prod rtol=1e-4
             @test results["ElectricHeater"]["annual_electric_consumption_kwh"] ≈ annual_electric_heater_consumption rtol=1e-4
             @test results["ElectricUtility"]["annual_energy_supplied_kwh"] ≈ annual_energy_supplied rtol=1e-4
-
+            #no bypass of Electric Heater through Hot TES to process heat
+            @test sum(results["HotThermalStorage"]["storage_to_process_heat_load_series_mmbtu_per_hour"]) ≈ 0.0 atol=0.1
             finalize(backend(m))
             empty!(m)
             GC.gc()

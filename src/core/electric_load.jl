@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricLoad` is a required REopt input with the following keys and default values:
 ```julia
@@ -271,8 +271,8 @@ end
 
 """
     scale_load_to_monthly_peaks(
-        initial_loads_kw::Vector{Float64}, 
-        target_monthly_peaks_kw::Vector{Float64}, 
+        initial_loads_kw::Vector{<:Real}, 
+        target_monthly_peaks_kw::Vector{<:Real}, 
         time_steps_per_hour::Int, 
         year::Int
     ) -> Vector{Float64}
@@ -280,8 +280,8 @@ end
 Scales an electric load profile to match specified monthly peak demands while preserving the overall shape of the load profile.
 
 # Arguments
-- `initial_loads_kw::Vector{Float64}`: The original load profile (kW) for the entire year, with a length of `8760 * time_steps_per_hour`.
-- `target_monthly_peaks_kw::Vector{Float64}`: A vector of 12 values representing the desired peak demand (kW) for each month.
+- `initial_loads_kw::Vector{<:Real}`: The original load profile (kW) for the entire year, with a length of `8760 * time_steps_per_hour`.
+- `target_monthly_peaks_kw::Vector{<:Real}`: A vector of 12 values representing the desired peak demand (kW) for each month.
 - `time_steps_per_hour::Int`: The number of time steps per hour (e.g., 1 for hourly data, 4 for 15-minute intervals).
 - `year::Int`: The year of the load profile, used to determine the number of days in each month (e.g., leap years).
 
@@ -289,8 +289,8 @@ Scales an electric load profile to match specified monthly peak demands while pr
 - `Vector{Float64}`: A scaled load profile (kW) with the same length as `initial_loads_kw`, adjusted to meet the specified monthly peak demands.
 """
 function scale_load_to_monthly_peaks(
-    initial_loads_kw::Vector{Float64}, 
-    target_monthly_peaks_kw::Vector{Float64}, 
+    initial_loads_kw::Vector{<:Real}, 
+    target_monthly_peaks_kw::Vector{<:Real}, 
     time_steps_per_hour::Int, 
     year::Int
     )
@@ -340,7 +340,7 @@ Args:
 Returns:
     Profile for given month, scaled to peak
 """
-function apply_linear_flattening(initial_load_series_kw::Vector{Float64}, target_peak_kw::Float64)
+function apply_linear_flattening(initial_load_series_kw::Vector{<:Real}, target_peak_kw::Real)
 
     # The flat load is the average power (kW) that sums to the same total energy over the time period
     flat_load_kw = sum(initial_load_series_kw) / length(initial_load_series_kw)
@@ -367,7 +367,7 @@ Args:
 Returns:
     Profile for given month, scaled to peak
 """
-function apply_exponential_stretching(initial_load_series_kw::Vector{Float64}, target_peak_kw::Float64, time_steps_per_hour::Int)
+function apply_exponential_stretching(initial_load_series_kw::Vector{<:Real}, target_peak_kw::Real, time_steps_per_hour::Int)
     initial_peak_kw = maximum(initial_load_series_kw)
     transformed_load_series_kw = initial_load_series_kw .* (target_peak_kw / initial_peak_kw)
     target_total_energy_kwh = sum(initial_load_series_kw) / time_steps_per_hour

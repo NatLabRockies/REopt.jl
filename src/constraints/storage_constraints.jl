@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function add_storage_size_constraints(m, p, b; _n="")
     # TODO add formal types for storage (i.e. "b")
 
@@ -315,4 +315,63 @@ function add_storage_sum_grid_constraints(m, p; _n="")
       sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) >= 
       sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec)
     )
+end
+
+"""
+	add_hot_tes_flow_restrictions!(m, p, b)
+
+Add flow restrictions from individual heating technologies to charge via dvHeatToStorage and 
+discharge via dvHeatFromStorage depending on the compatible loads served.
+"""
+function add_hot_tes_flow_restrictions!(m, p, b)
+    # If there are incompatible heating techs for the storage (i.e., TES fills load the tech cannot), all charge to storage from that tech is zero
+    for t in union(p.techs.heating, p.techs.chp)
+        incompatible_loads_served = []
+        if ("DomesticHotWater" in p.heating_loads_served_by_tes[b] && !(t in p.techs.can_serve_dhw)) 
+            push!(incompatible_loads_served, "DomesticHotWater")
+        end
+        if ("SpaceHeating" in p.heating_loads_served_by_tes[b] && !(t in p.techs.can_serve_space_heating))
+            push!(incompatible_loads_served, "SpaceHeating")
+        end
+        if ("ProcessHeat" in p.heating_loads_served_by_tes[b] && !(t in p.techs.can_serve_process_heat)) 
+            push!(incompatible_loads_served, "ProcessHeat")
+        end
+        if !isempty(incompatible_loads_served)
+            @warn "Technology "*t*" is ineligible to serve storage system "*b*" due to the following incompatible loads served "*string(incompatible_loads_served) 
+            for q in p.heating_loads_served_by_tes[b]
+                for ts in p.time_steps
+                    fix(m[:dvHeatToStorage][b,t,q,ts], 0.0, force=true)
+                end
+            end
+        end
+    end
+
+    #If load isn't served by storage, all charge or discharge flows of that quality heat are zero 
+    if !isempty(setdiff(p.heating_loads, p.heating_loads_served_by_tes[b]))
+        @constraint(m, [t in union(p.techs.heating, p.techs.chp), 
+            q in setdiff(p.heating_loads, p.heating_loads_served_by_tes[b]), 
+            ts in p.time_steps], 
+             m[:dvHeatToStorage][b,t,q,ts] == 0
+        )
+        @constraint(m, [q in setdiff(p.heating_loads, p.heating_loads_served_by_tes[b]), 
+            ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0
+        )
+    end
+
+    # If a heating load is served by a storage vehicle, only allow charge from compatible techs. otherwise, allow no charge for that heat quality.
+    if "DomesticHotWater" in p.heating_loads_served_by_tes[b] && !isempty(setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_dhw))
+        @constraint(m, [t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_dhw), ts in p.time_steps], 
+            m[:dvHeatToStorage][b,t,"DomesticHotWater",ts] == 0
+        )
+    end
+    if "SpaceHeating" in p.heating_loads_served_by_tes[b] && !isempty(setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_space_heating))
+        @constraint(m, [t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_space_heating), ts in p.time_steps], 
+            m[:dvHeatToStorage][b,t,"SpaceHeating",ts] == 0
+        )
+    end
+    if "ProcessHeat" in p.heating_loads_served_by_tes[b] && !isempty(setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_process_heat))
+        @constraint(m, [t in setdiff(union(p.techs.heating, p.techs.chp), p.techs.can_serve_process_heat), ts in p.time_steps], 
+            m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0
+        )
+    end
 end

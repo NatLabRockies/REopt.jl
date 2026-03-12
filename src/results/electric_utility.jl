@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricUtility` results keys:
 - `annual_energy_supplied_kwh` # Total energy supplied from the grid in an average year.
@@ -15,7 +15,7 @@
 - `lifecycle_emissions_tonnes_PM25` # Total tons of PM2.5 emissions associated with the site's grid-purchased electricity over the analysis period. If include_exported_elec_emissions_in_total is False, this value only reflects grid purchaes. Otherwise, it accounts for emissions offset from any export to the grid.
 - `avert_emissions_region` # EPA AVERT region of the site. Used for health-related emissions from grid electricity (populated if default emissions values are used) and climate emissions if "co2_from_avert" is set to true. 
 - `distance_to_avert_emissions_region_meters` # Distance in meters from the site to the nearest AVERT emissions region.
-- `cambium_region` # NREL Cambium region of the site. Used for climate-related emissions from grid electricity (populated only if default (Cambium) climate emissions values are used)
+- `cambium_region` # NLR Cambium region of the site. Used for climate-related emissions from grid electricity (populated only if default (Cambium) climate emissions values are used)
 
 !!! note "'Series' and 'Annual' energy and emissions outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 

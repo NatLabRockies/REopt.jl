@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 prime_movers = ["recip_engine", "micro_turbine", "combustion_turbine", "fuel_cell"]
 conflict_res_min_allowable_fraction_of_max = 0.25
@@ -162,10 +162,11 @@ function CHP(d::Dict;
         throw(@error("CHP must have the required fuel_cost_per_mmbtu input"))
     end
 
+    d = dictkeys_tosymbols(d)
     set_sector_defaults!(d; struct_name="CHP", sector=sector, federal_procurement_type=federal_procurement_type)
 
     # Create CHP struct from inputs, to be mutated as needed
-    chp = CHP(; dictkeys_tosymbols(d)...)
+    chp = CHP(; d...)
 
     @assert chp.fuel_type in FUEL_TYPES
 

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `SteamTurbine` is an optional REopt input with the following keys and default values:
@@ -79,9 +79,10 @@ end
 
 
 function SteamTurbine(d::Dict; avg_boiler_fuel_load_mmbtu_per_hour::Union{Float64, Nothing}=nothing, sector::String, federal_procurement_type::String)
+    d = dictkeys_tosymbols(d)
     set_sector_defaults!(d; struct_name="SteamTurbine", sector=sector, federal_procurement_type=federal_procurement_type)
-    pop!(d, "federal_itc_fraction", nothing)  #gets added in set_sector_defaults but not an input option for SteamTurbine
-    st = SteamTurbine(; dictkeys_tosymbols(d)...)
+    pop!(d, :federal_itc_fraction, nothing)  #gets added in set_sector_defaults but not an input option for SteamTurbine
+    st = SteamTurbine(; d...)
 
     # Must provide prime_mover or all of custom_chp_inputs
     custom_st_inputs = Dict{Symbol, Any}(
