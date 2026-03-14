@@ -48,6 +48,20 @@ function add_wind_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	end
 	r["electric_to_grid_series_kw"] = round.(value.(WindToGrid), digits=3)
 	
+	if !isempty(p.techs.electrolyzer)
+		WindtoElectrolyzer = (m[Symbol("dvProductionToElectrolyzer"*_n)][t, ts] for ts in p.time_steps)
+		r["electric_to_electrolyzer_series_kw"] = round.(value.(WindtoElectrolyzer), digits=3)
+	else
+		r["electric_to_electrolyzer_series_kw"] = zeros(length(p.time_steps))
+	end
+
+	if !isempty(p.techs.compressor)
+		WindtoCompressor = (m[Symbol("dvProductionToCompressor"*_n)][t, ts] for ts in p.time_steps)
+		r["electric_to_compressor_series_kw"] = round.(value.(WindtoCompressor), digits=3)
+	else
+		r["electric_to_compressor_series_kw"] = zeros(length(p.time_steps))
+	end
+
 	WindToCUR = (m[Symbol("dvCurtail"*_n)][t, ts] for ts in p.time_steps)
     r["electric_curtailed_series_kw"] = round.(value.(WindToCUR), digits=3)
 	
@@ -56,7 +70,9 @@ function add_wind_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	WindToLoad =(TotalHourlyWindProd[ts] 
 			- r["electric_to_storage_series_kw"][ts] 
 			- r["electric_to_grid_series_kw"][ts] 
-			- r["electric_curtailed_series_kw"][ts] for ts in p.time_steps
+			- r["electric_curtailed_series_kw"][ts]
+			- r["electric_to_electrolyzer_series_kw"][ts]
+			- r["electric_to_compressor_series_kw"][ts] for ts in p.time_steps
 	)
 	r["electric_to_load_series_kw"] = round.(value.(WindToLoad), digits=3)
 
@@ -114,7 +130,7 @@ function add_wind_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
 	
 	WindtoCUR = (m[Symbol("dvCurtail"*_n)][t, ts] for ts in p.time_steps)
 	r["electric_curtailed_series_kw"] = round.(value.(WindtoCUR), digits=3)
-	WindtoLoad = (m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
+	WindtoLoad = (m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts]
 				- r["electric_curtailed_series_kw"][ts]
 				- r["electric_to_grid_series_kw"][ts]
 				- r["electric_to_storage_series_kw"][ts]

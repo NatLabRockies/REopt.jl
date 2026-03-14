@@ -27,7 +27,7 @@ function add_electrolyzer_constraints(m, p; _n="")
             + sum(m[Symbol("dvStorageToElectrolyzer"*_n)][b, ts] for b in p.s.storage.types.elec) 
         )
 
-        #Constraint: Electricity required for production of hydrogen - no grid
+        #Constraint: Electricity required for production of hydrogen - grid
         @constraint(m, [ts in p.time_steps_with_grid], 
             (p.hours_per_time_step * sum(p.production_factor[t, ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t,ts] for t in p.techs.electrolyzer)) 
             >=

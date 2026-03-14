@@ -1,0 +1,53 @@
+{
+    "Settings": {
+        "off_grid_flag": false,
+        "include_climate_in_objective": false,
+        "include_health_in_objective": false
+    },
+    "Site": {
+        "latitude": 21.310,
+        "longitude":  -157.853
+    },
+    "ElectricLoad": {
+        "year": 2025
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.25,
+        "blended_annual_demand_rate": 25
+    },
+    "HydrogenLoad": {
+    },
+    "Electrolyzer": {
+        "efficiency_kwh_per_kg": 55.8,
+        "installed_cost_per_kw": 1413,
+        "om_cost_per_kw": 66.16,
+        "om_cost_per_kwh": 0.0005,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "federal_itc_fraction": 0.0,
+        "min_turn_down_fraction": 0.0,
+        "require_compression": true
+    },
+    "Compressor": {
+        "efficiency_kwh_per_kg": 3.3,
+        "installed_cost_per_kw": 2612,
+        "om_cost_per_kw": 5.0,
+        "om_cost_per_kwh": 0.03,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "federal_itc_fraction": 0.0,
+        "min_turn_down_fraction": 0.0
+    },
+    "HydrogenStorage": {
+        "soc_min_fraction": 0.0,
+        "soc_init_fraction": 0.0,
+        "require_start_and_end_charge_to_be_equal": false,
+        "capacity_based_per_ts_self_discharge_fraction": 0.0,
+        "soc_based_per_ts_self_discharge_fraction": 0.0,
+        "installed_cost_per_kg": 500.0,
+        "replace_cost_per_kg": 0.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "total_itc_fraction": 0.0
+    }
+}

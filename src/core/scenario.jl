@@ -283,7 +283,9 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                       om_cost_per_kwh = 0.0,
                                       efficiency_kwh_per_kg = 0.0
             )
-            @warn("`Compressor` will be ignored when `Electrolyzer` input `require_compression` is false.")
+            if haskey(d, "Compressor")
+                @warn("`Compressor` will be ignored when `Electrolyzer` input `require_compression` is false.")
+            end
         else
             if haskey(d, "Compressor")
                 compressor = Compressor(; dictkeys_tosymbols(d["Compressor"])...)

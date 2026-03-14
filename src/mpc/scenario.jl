@@ -115,6 +115,8 @@ function MPCScenario(d::Dict)
     end
 
     if settings.off_grid_flag
+        throw(@error("Off-grid scenarios are not currently supported in MPC."))
+        # Leave following for future when implemented
         if !(haskey(d["ElectricLoad"], "critical_loads_kw"))
             @warn "ElectricLoad critical_loads_kw is overridden by loads_kw in off-grid scenarios. If you wish to alter the load profile or load met, adjust the loads_kw or min_load_met_annual_fraction."
             d["ElectricLoad"]["critical_loads_kw"] = d["ElectricLoad"]["loads_kw"]
@@ -139,6 +141,9 @@ function MPCScenario(d::Dict)
                                         ) 
     else
         if haskey(d, "ElectricUtility")
+            if haskey(d["ElectricUtility"], "net_metering_limit")
+                @warn "ElectricUtility net_metering_limit is not yet implemented for MPC."
+            end
             electric_utility = ElectricUtility(; dictkeys_tosymbols(d["ElectricUtility"])...,
                                                 time_steps_per_hour=settings.time_steps_per_hour,
                                                 off_grid_flag=settings.off_grid_flag,
@@ -207,14 +212,20 @@ function MPCScenario(d::Dict)
                                       om_cost_per_kwh = 0.0,
                                       efficiency_kwh_per_kg = 0.0
             )
+            if haskey(d, "Compressor")
+                @warn("`Compressor` will be ignored when `Electrolyzer` input `require_compression` is false.")
+            end
         else
             if haskey(d, "Compressor")
                 compressor = MPCCompressor(; dictkeys_tosymbols(d["Compressor"])...)
             else
-                throw(@error("Must include Compressor size or set require_compression in Electrolyzer as true"))
+                throw(@error("Must include Compressor size or set require_compression in Electrolyzer as false"))
             end
         end
     else
+        if (haskey(d, "Compressor") || haskey(d, "FuelCell") || haskey(d, "HydrogenStorage") || haskey(d, "HydrogenLoad"))
+            throw(@error("Must include `Electrolyzer` if `Compressor`, `FuelCell`, `HydrogenStorage`, and/or `HydrogenLoad` is included"))
+        end
         electrolyzer = MPCElectrolyzer(; size_kw = 0)
         compressor = MPCCompressor(; size_kw = 0)
     end
@@ -231,6 +242,11 @@ function MPCScenario(d::Dict)
         hydrogen_load = MPCHydrogenLoad(; loads_kg = zeros(length(electric_load.loads_kw)))
     end
 
+    for tech_name in ["MPCCoolingLoad", "MPCDomesticHotWaterLoad", "MPCSpaceHeatingLoad", "FlexibleHVAC"]
+        if haskey(d, tech_name)
+            @warn "$tech_name is not yet implemented for MPC and will be ignored."
+        end
+    end
     # Placeholder/dummy cooling load set to zeros
     cooling_load = MPCCoolingLoad(; loads_kw_thermal = zeros(length(electric_load.loads_kw)), cop=1.0)
     dhw_load = MPCDomesticHotWaterLoad(; loads_kw_thermal = zeros(length(electric_load.loads_kw)))
