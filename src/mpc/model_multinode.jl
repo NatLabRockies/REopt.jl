@@ -8,6 +8,7 @@ Solve the model predictive control problem using multiple `MPCInputs`.
 Returns a Dict of results with keys matching those in the `MPCScenario`.
 """
 function run_mpc(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
+	@warn "Multi-node MPC is under development and has not yet been thoroughly tested."
     build_mpc!(m, ps)
 
     @objective(m, Min, sum(m[Symbol(string("Costs_", p.s.node))] for p in ps))

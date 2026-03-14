@@ -10,6 +10,7 @@ MPC Scenarios will return a results Dict with the following keys:
 - `Generator`
 - `Electrolyzer`
 - `FuelCell`
+- `ElectricHeater`
 """
 function mpc_results(m::JuMP.AbstractModel, p::MPCInputs; _n="")
 	tstart = time()

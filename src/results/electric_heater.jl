@@ -170,7 +170,7 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dic
     end
     r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(value.(ElectricHeaterToSpaceHeatingKW ./ KWH_PER_MMBTU), digits=5)
     
-    if "ProcessHeat" in p.heating_loads && p.s.electric_heater.can_serve_space_heating
+    if "ProcessHeat" in p.heating_loads && p.s.electric_heater.can_serve_process_heat
         @expression(m, ElectricHeaterToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["ElectricHeater","ProcessHeat",ts] - ElectricHeaterToHotTESByQualityKW["ProcessHeat",ts]
         )

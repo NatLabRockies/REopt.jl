@@ -434,14 +434,14 @@ end
 `MPCProcessHeatLoad` is an optional REopt MPC input with the following keys and default values:
 
 ```julia
-    heat_loads_mmbtu_per_hour::Array{<:Real,1} = Real[], # Process heat loads in MMBTU per hour; must be equal to the length of loads_kw
+    heat_loads_mmbtu_per_hour::Array{<:Real,1} = Real[] # Process heat loads in MMBTU per hour; must be equal to the length of loads_kw
 ```
 """
 struct MPCProcessHeatLoad
     loads_kw#::Union{Nothing, Array{Real,1}} = nothing
     # production_factor_series::Union{Nothing, Array{Real,1}} = nothing
     function MPCProcessHeatLoad(;
-        heat_loads_mmbtu_per_hour::Array{<:Real,1} = Real[],
+        heat_loads_mmbtu_per_hour::Array{<:Real,1} = Real[]
     )
         loads_kw = heat_loads_mmbtu_per_hour * KWH_PER_MMBTU 
         new(loads_kw)
