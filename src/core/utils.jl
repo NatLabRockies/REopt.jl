@@ -178,7 +178,8 @@ function dictkeys_tosymbols(d::Dict)
             #for ERP
             "pv_production_factor_series", "wind_production_factor_series",
             "battery_starting_soc_series_fraction", "H2_starting_soc_series_fraction",
-            "monthly_mmbtu", "monthly_tonhour"
+            "monthly_mmbtu", "monthly_tonhour",
+            "fixed_dispatch_series"
         ] && !isnothing(v)
             try
                 v = convert(Array{Real, 1}, v)

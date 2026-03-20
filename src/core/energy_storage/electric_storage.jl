@@ -319,6 +319,14 @@ struct ElectricStorage <: AbstractElectricStorage
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
 
+        # Copy SOC input in case we need to change them
+        optimize_soc_init_fraction = s.optimize_soc_init_fraction
+        if !isnothing(s.fixed_dispatch_series) 
+            @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_dispatch_series. Other SOC inputs will be ignored."
+            optimize_soc_init_fraction = false
+            error_if_series_vals_not_0_to_1(s.fixed_dispatch_series, "ElectricStorage", "fixed_dispatch_series")
+        end
+
         macrs_schedule = [0.0]
         if s.macrs_option_years == 5 || s.macrs_option_years == 7
             macrs_schedule = s.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
@@ -438,7 +446,7 @@ struct ElectricStorage <: AbstractElectricStorage
             s.capacity_self_discharge_rate_fraction,
             s.fixed_dispatch_series,
             s.require_start_and_end_charge_to_be_equal,
-            s.optimize_soc_init_fraction,
+            optimize_soc_init_fraction,
             s.min_duration_hours,
             s.max_duration_hours
         )
