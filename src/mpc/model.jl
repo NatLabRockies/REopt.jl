@@ -38,7 +38,7 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
 
     if !(isempty(p.s.storage.types.elec)) && p.s.settings.add_soc_incentive
 		m[:ObjectivePenalties] += -1 * sum(m[:dvStoredEnergy]["ElectricStorage", ts] for ts in p.time_steps) /
-									   (8760. / p.hours_per_time_step)
+									   (500. / p.hours_per_time_step)
 	end
 
 	if !(isempty(p.s.storage.types.hydrogen)) && p.s.settings.add_soc_incentive
