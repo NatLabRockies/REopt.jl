@@ -12,9 +12,10 @@ GHP results:
 - `avoided_capex_by_ghp_present_value` Present value of avoided capital cost by choosing GHP
 - `space_heating_thermal_load_reduction_with_ghp_mmbtu_per_hour`
 - `cooling_thermal_load_reduction_with_ghp_ton`
+- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr] (superset of "to_space_heating_load" and "to_dhw_load")
 - `thermal_to_space_heating_load_series_mmbtu_per_hour`
 - `thermal_to_dhw_load_series_mmbtu_per_hour`
-- `thermal_to_load_series_ton`
+- `thermal_to_load_series_ton` # Thermal production to cooling load
 - `annual_thermal_production_mmbtu`  # GHP's heating thermal power production in a year [MMBtu]
 - `annual_thermal_production_tonhour`  # GHP's cooling thermal power production in a year [ton]
 
@@ -76,6 +77,7 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         else
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
+        r["thermal_to_load_series_mmbtu_per_hour"] = r["thermal_to_space_heating_load_series_mmbtu_per_hour"] + r["thermal_to_dhw_load_series_mmbtu_per_hour"]
     else
         r["ghpghx_chosen_outputs"] = Dict()
         r["space_heating_thermal_load_reduction_with_ghp_mmbtu_per_hour"] = zeros(length(p.time_steps))
@@ -84,6 +86,7 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         r["thermal_to_load_series_ton"] = zeros(length(p.time_steps))
         r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
+        r["thermal_to_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         r["annual_thermal_production_mmbtu"] = 0.0
         r["annual_thermal_production_tonhour"] = 0.0
     end
