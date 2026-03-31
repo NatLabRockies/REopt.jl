@@ -35,7 +35,14 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
         
         PMD_number_of_timesteps = length(Multinode_Inputs.PMD_time_steps)
 
-        REopt_Results, PMD_Results, DataFrame_PMD_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, DataDictionaryForEachNode, LineInfo_PMD, REoptInputs_Combined, data_eng, data_math_mn, pm, line_upgrade_options_each_line, line_upgrade_results, load_phase_dictionary, gen_ind_e_to_REopt_node, REopt_gen_ind_e, connections, connections_upstream, connections_downstream = build_run_and_process_results(Multinode_Inputs, REopt_inputs_combined, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades = true)
+        REopt_Results, PMD_Results, DataFrame_PMD_LineFlow_Summary, 
+            PMD_Dictionary_LineFlow_Power_Series, DataDictionaryForEachNode, 
+            LineInfo_PMD, REoptInputs_Combined, data_eng, data_math_mn, pm, 
+            line_upgrade_options_each_line, line_upgrade_results, load_phase_dictionary, 
+            gen_ind_e_to_REopt_node, REopt_gen_ind_e, connections, connections_upstream, 
+            connections_downstream = 
+            build_run_and_process_results(Multinode_Inputs, REopt_inputs_combined, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades = true)
+
         time_results["Step $(length(keys(time_results))+1): model_solve_time_minutes"] = round(JuMP.solve_time(pm.model)/60, digits = 2)  
         GC.gc()
         print("\n Completed running the build_run_and_process_results function")
@@ -59,7 +66,13 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
             
             Outage_Results_No_Techs = Dict(["NoOutagesTested" => Dict(["Not evaluated" => "Not evaluated"])])
             
-            REopt_Results_BAU, PMD_Results_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, PMD_Dictionary_LineFlow_Power_Series_No_Techs, DataDictionaryForEachNode_No_Techs, LineInfo_PMD_No_Techs, REoptInputs_Combined_No_Techs, data_eng_No_Techs, data_math_mn_No_Techs, pm_No_Techs, line_upgrade_options_each_line_NoTechs, line_upgrade_results_NoTechs, load_phase_dictionary_NoTechs, gen_ind_e_to_REopt_node_noTechs, REopt_gen_ind_e_noTechs, connections_noTechs, connections_upstream_noTechs, connections_downstream_noTechs = build_run_and_process_results(Multinode_Inputs_No_Techs, REopt_inputs_combined, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades=false, BAU_case=true)
+            REopt_Results_BAU, PMD_Results_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, 
+                PMD_Dictionary_LineFlow_Power_Series_No_Techs, DataDictionaryForEachNode_No_Techs, 
+                LineInfo_PMD_No_Techs, REoptInputs_Combined_No_Techs, data_eng_No_Techs, 
+                data_math_mn_No_Techs, pm_No_Techs, line_upgrade_options_each_line_NoTechs, 
+                line_upgrade_results_NoTechs, load_phase_dictionary_NoTechs, gen_ind_e_to_REopt_node_noTechs, 
+                REopt_gen_ind_e_noTechs, connections_noTechs, connections_upstream_noTechs, 
+                connections_downstream_noTechs = build_run_and_process_results(Multinode_Inputs_No_Techs, REopt_inputs_combined, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades=false, BAU_case=true)
             
             GC.gc()
 
@@ -244,7 +257,10 @@ function build_run_and_process_results(Multinode_Inputs, REopt_inputs_combined, 
     
     pm, data_math_mn, data_eng = Create_PMD_Model_For_REopt_Integration(Multinode_Inputs, PMD_number_of_timesteps, time_results; combined_REopt_inputs = combined_REopt_inputs, BAU_case = BAU_case)
         
-    LineInfo_PMD, data_math_mn, REoptInputs_Combined, pm, load_phase_dictionary, gen_ind_e_to_REopt_node, REopt_gen_ind_e, line_upgrade_options_each_line, connections, connections_upstream, connections_downstream = Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined, data_math_mn, data_eng; allow_upgrades=allow_upgrades)
+    LineInfo_PMD, data_math_mn, REoptInputs_Combined, 
+        pm, load_phase_dictionary, gen_ind_e_to_REopt_node, 
+        REopt_gen_ind_e, line_upgrade_options_each_line, 
+        connections, connections_upstream, connections_downstream = Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined, data_math_mn, data_eng; allow_upgrades=allow_upgrades)
     
     GC.gc()
 

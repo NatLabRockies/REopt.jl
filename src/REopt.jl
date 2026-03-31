@@ -54,8 +54,8 @@ using HiGHS
 
 function __init__()
     @require GhpGhx="7ce85f02-24a8-4d69-a3f0-14b5daa7d30c" println("using GhpGhx module in REopt")
-    @require PowerModelsDistribution="d7431456-977f-11e9-2de3-97ff7677985e" println("using the PowerModelsDistribution package")
-    @require Xpress="9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054" println("Using the Xpress package")
+    @require PowerModelsDistribution="d7431456-977f-11e9-2de3-97ff7677985e" println("using the PowerModelsDistribution package") # This will load whichever feature branch you have installed in the coding environment
+    @require Xpress="9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054" println("using the Xpress package")
 end
 
 const EXISTING_BOILER_EFFICIENCY = 0.8
