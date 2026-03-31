@@ -37,6 +37,7 @@
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
     maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000,
+    minimum_operating_time_steps_individual_pump::Real=1,
  
     # Additional inputs
     spillway_maximum_cubic_meter_per_second::Real=nothing, # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
@@ -93,7 +94,8 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0
     maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000
- 
+    minimum_operating_time_steps_individual_pump::Real=1,
+
     # Additional inputs
     spillway_maximum_cubic_meter_per_second::Real=nothing
     hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing
@@ -152,6 +154,7 @@ mutable struct WaterPower <: AbstractWaterPower
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps
     minimum_water_flow_cubic_meter_per_second_per_pump
     maximum_water_flow_cubic_meter_per_second_per_pump
+    minimum_operating_time_steps_individual_pump
     spillway_maximum_cubic_meter_per_second
     hydro_production_factor_series 
     can_net_meter  
@@ -270,6 +273,7 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
             stor.minimum_water_flow_cubic_meter_per_second_per_pump,
             stor.maximum_water_flow_cubic_meter_per_second_per_pump,
+            stor.minimum_operating_time_steps_individual_pump,
             stor.spillway_maximum_cubic_meter_per_second,
             stor.hydro_production_factor_series,
             stor.can_net_meter,
