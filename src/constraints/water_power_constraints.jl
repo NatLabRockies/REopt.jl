@@ -3,91 +3,7 @@
 function add_water_power_constraints(m,p)
 	@info "Adding constraints for water_power"
 	
-	if p.s.water_power.computation_type == "quadratic_partially_discretized"	
-		@info "Adding quadratic_partially_discretized constraint type for the water_power power output: model with with a discretized water_power efficiency"
-		
-		@variable(m, reservoir_head[ts in p.time_steps] >= 0)
-		@variable(m, turbine_efficiency[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0)
-		@variable(m, efficiency_reservoir_head_product[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0)
-
-		Hydro_techs = p.techs.water_power_turbines
-		
-		for t in 1:Int(length(Hydro_techs))
-			@constraint(m, [ts in p.time_steps],
-				m[:dvRatedProduction][Hydro_techs[t],ts] == 9810*0.001 * m[:dvWaterOutFlow][Hydro_techs[t],ts] * (m[:efficiency_reservoir_head_product][Hydro_techs[t],ts] - (t/1000) ) # the (t/1000) term establishes priority of turbine usage by having a slight efficiency difference for each turbine
-						)
-		end
-
-		@constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] >= 0)
-		@constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] <= 1000) # TODO: enter the maximum reservoir head as an input into the model
-		@constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] == (p.s.water_power.coefficient_e_reservoir_head* m[:dvWaterVolume][ts]) + p.s.water_power.coefficient_f_reservoir_head )
-		
-		# represent the product of the reservoir head and turbine efficiency as a separate variable (Gurobi can only multiply two variables together)
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:efficiency_reservoir_head_product][t, ts] <= 500) # TODO, switch this to a more intentional value
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:efficiency_reservoir_head_product][t, ts] ==  m[:reservoir_head][ts] * m[:turbine_efficiency][t, ts])
-		
-		# Descritization of the efficiency, based on the water flow range
-		efficiency_bins = collect(1:p.s.water_power.number_of_efficiency_bins) 
-		waterflow_increments = (p.s.water_power.maximum_water_output_cubic_meter_per_second_per_turbine - p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine) / p.s.water_power.number_of_efficiency_bins #[0, 15, 30, 75]
-		
-		# Generate a vector of the water flow bin limits
-		water_flow_bin_limits = zeros(1 + p.s.water_power.number_of_efficiency_bins)
-		water_flow_bin_limits[1] = p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine
-		for i in efficiency_bins
-			water_flow_bin_limits[1+i] = round(p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine + (i * waterflow_increments), digits=3)
-		end
-		
-		#redefine the last bin limit as the max water flow through a turbine
-		water_flow_bin_limits[1 + p.s.water_power.number_of_efficiency_bins] = p.s.water_power.maximum_water_output_cubic_meter_per_second_per_turbine
-		
-		# Print some data to double check the computations:
-		print("\n Efficiency bins are:")
-		print(efficiency_bins)
-		print("\n The waterflow bin limits are:")
-		print(water_flow_bin_limits)
-		print("\n The hydro techs are: ")
-		print(Hydro_techs)
-
-		# Compute the average turbine efficiency for each water flow bin:
-		descritized_efficiency = zeros(p.s.water_power.number_of_efficiency_bins)
-		for i in efficiency_bins
-			# compute the efficiency at the beginning and end of the bin 
-			x1 = (p.s.water_power.coefficient_a_efficiency * water_flow_bin_limits[i] * water_flow_bin_limits[i]) + (p.s.water_power.coefficient_b_efficiency * water_flow_bin_limits[i]) + p.s.water_power.coefficient_c_efficiency
-			x2 = (p.s.water_power.coefficient_a_efficiency * water_flow_bin_limits[i+1] * water_flow_bin_limits[i+1]) + (p.s.water_power.coefficient_b_efficiency * water_flow_bin_limits[i+1]) + p.s.water_power.coefficient_c_efficiency
-			# compute the average and store it in the discretized_efficiency vector
-			descritized_efficiency[i] = (x1 + x2)/2
-		end
-		
-		# define a binary variable for the turbine efficiencies
-		@variable(m, waterflow_range_binary[ts in p.time_steps, t in p.techs.water_power_turbines, i in efficiency_bins], Bin)
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:turbine_efficiency][t, ts] <= 1.0) # the maximum efficiency fraction is 100%
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:turbine_efficiency][t, ts] == sum(m[:waterflow_range_binary][ts,t,i]*descritized_efficiency[i] for i in efficiency_bins))                  #(p.s.water_power.coefficient_a_efficiency* m[:dvWaterOutFlow][t,ts]) + p.s.water_power.coefficient_b_efficiency )
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:dvWaterOutFlow][t,ts] <= sum(m[:waterflow_range_binary][ts,t,i] * water_flow_bin_limits[i+1] for i in efficiency_bins) )
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[:dvWaterOutFlow][t,ts] >= sum(m[:waterflow_range_binary][ts,t,i] * water_flow_bin_limits[i] for i in efficiency_bins) )
-		
-		# only have one binary active at a time
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], sum(m[:waterflow_range_binary][ts,t,i] for i in efficiency_bins) <= 1)
-
-	elseif p.s.water_power.computation_type == "fixed_efficiency_linearized_reservoir_head"
-		@info "Adding water_power power output constraint using a fixed efficiency and linearized reservoir head"
-		# TODO: make an option that is like this, but linearized using discretization
-
-        @variable(m, reservoir_head[ts in p.time_steps] >= 0)
-
-		Hydro_techs = p.techs.water_power_turbines
-		for t in 1:Int(length(Hydro_techs))
-        @constraint(m, [ts in p.time_steps],
-            m[:dvRatedProduction][Hydro_techs[t],ts] == 9810*0.001 * m[:dvWaterOutFlow][Hydro_techs[t],ts] * m[:reservoir_head][ts] * (p.s.water_power.fixed_turbine_efficiency- (t/1000) )
-        )
-		end
-
-        @constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] >= 0)
-        @constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] <= 1000) # TODO: enter the maximum reservoir head as an input into the model
-        @constraint(m, [ts in p.time_steps], m[:reservoir_head][ts] == (p.s.water_power.coefficient_e_reservoir_head* m[:dvWaterVolume][ts]) + p.s.water_power.coefficient_f_reservoir_head )
-
-
-	elseif p.s.water_power.computation_type == "average_power_conversion"
-		# This is a simplified constraint that uses an average conversion for water flow and kW output
+	if p.s.water_power.computation_type == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
 		@info "Adding water_power power output constraint using the average power conversion"
 
 		Hydro_techs = p.techs.water_power_turbines
@@ -96,18 +12,12 @@ function add_water_power_constraints(m,p)
 					m[:dvRatedProduction][Hydro_techs[t],ts] == m[:dvWaterOutFlow][Hydro_techs[t],ts] * (1/p.s.water_power.average_cubic_meters_per_second_per_kw)* (1- (t/1000))  # convert to kW/time step, for instance: m3/15min  * kwh/m3 * (0.25 hrs/1hr); the "1 - (t/1000)" is for turbine prioritization
 						)
 		end
-	
-	elseif p.s.water_power.computation_type == "quadratic_unsimplified" # This equation has not been tested directly
-		@info "Adding quadratic1 constraint for the water_power power output"
-		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines],
-		m[:dvRatedProduction][t,ts] == 9810*0.001 * m[:dvWaterOutFlow][t,ts] *
-											(p.s.water_power.coefficient_a_efficiency*((m[:dvWaterOutFlow][t,ts]*m[:dvWaterOutFlow][t,ts])) + (p.s.water_power.coefficient_b_efficiency* m[:dvWaterOutFlow][t,ts]) + p.s.water_power.coefficient_c_efficiency ) *
-											(p.s.water_power.coefficient_d_reservoir_head*((m[:dvWaterVolume][ts]*m[:dvWaterVolume][ts])) + (p.s.water_power.coefficient_e_reservoir_head* m[:dvWaterVolume][ts]) + p.s.water_power.coefficient_f_reservoir_head )
-					)
-	
-	#elseif p.s.water_power.computation_type == "linearized_constraints"
-		#TODO: add version with completely linearized constraints
 
+	#TODO: add other formuations
+	#elseif p.s.water_power.computation_type == "" 
+			
+	#elseif p.s.water_power.computation_type == ""
+		
 	else 
 		throw(@error("Invalid input for the computation_type field"))
 	end
