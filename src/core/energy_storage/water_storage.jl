@@ -13,6 +13,7 @@ Upper reservoir water storage sytem
     initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
     minimum_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
     maximum_capacity_cubic_meters_upper_reservoir::Float64 = 10000000.0
+    #existing_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
     cost_per_cubic_meter_upper_reservoir::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 # Yearly fixed O&M cost dependent on storage energy size
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -29,6 +30,7 @@ Base.@kwdef struct UpperReservoirStorageDefaults <: AbstractWaterStorageDefaults
     initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
     minimum_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
     maximum_capacity_cubic_meters_upper_reservoir::Float64 = 10000000.0
+    #existing_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
     cost_per_cubic_meter_upper_reservoir::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 
     macrs_option_years::Int = 5
@@ -49,6 +51,7 @@ end
     maximum_volume_fraction_downstream_reservoir::Float64 = 1.0
     minimum_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
     maximum_capacity_cubic_meters_downstream_reservoir::Float64 = 10000000.0
+    #existing_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
     cost_per_cubic_meter_downstream_reservoir::Float64 = 25.0
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 0.0
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 10000.0
@@ -68,6 +71,7 @@ Base.@kwdef struct DownstreamReservoirStorageDefaults <: AbstractWaterStorageDef
     maximum_volume_fraction_downstream_reservoir::Float64 = 1.0
     minimum_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
     maximum_capacity_cubic_meters_downstream_reservoir::Float64 = 10000000.0
+    #existing_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
     cost_per_cubic_meter_downstream_reservoir::Float64 = 25.0
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 0.0
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 10000.0
@@ -93,6 +97,7 @@ struct UpperReservoirStorage <: AbstractWaterStorage
     initial_reservoir_volume_fraction_upper_reservoir::Float64
     minimum_capacity_cubic_meters_upper_reservoir::Float64
     maximum_capacity_cubic_meters_upper_reservoir::Float64
+    #existing_capacity_cubic_meters_upper_reservoir::Float64
     cost_per_cubic_meter_upper_reservoir::Float64
     om_cost_per_cubic_meter::Float64
     macrs_option_years::Int
@@ -156,6 +161,7 @@ struct UpperReservoirStorage <: AbstractWaterStorage
             stor.initial_reservoir_volume_fraction_upper_reservoir,
             stor.minimum_capacity_cubic_meters_upper_reservoir,
             stor.maximum_capacity_cubic_meters_upper_reservoir,
+            #stor.existing_capacity_cubic_meters_upper_reservoir,
             stor.cost_per_cubic_meter_upper_reservoir,
             stor.om_cost_per_cubic_meter,
             stor.macrs_option_years,
@@ -182,6 +188,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
     maximum_volume_fraction_downstream_reservoir::Float64
     minimum_capacity_cubic_meters_downstream_reservoir::Float64
     maximum_capacity_cubic_meters_downstream_reservoir::Float64
+    #existing_capacity_cubic_meters_downstream_reservoir::Float64
     cost_per_cubic_meter_downstream_reservoir::Float64
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
@@ -223,6 +230,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             stor.maximum_volume_fraction_downstream_reservoir,
             stor.minimum_capacity_cubic_meters_downstream_reservoir,
             stor.maximum_capacity_cubic_meters_downstream_reservoir,
+            #stor.existing_capacity_cubic_meters_downstream_reservoir,
             stor.cost_per_cubic_meter_downstream_reservoir,
             stor.minimum_outflow_from_downstream_reservoir_cubic_meter_per_second,
             stor.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second,
