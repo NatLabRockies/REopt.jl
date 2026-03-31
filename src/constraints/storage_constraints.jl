@@ -32,8 +32,6 @@ function add_storage_size_constraints(m, p, b; _n="")
             m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvStoragePower"*_n)][b] * p.s.storage.attr[b].min_duration_hours
         )
     end    
-
-
 end
 
 
@@ -48,10 +46,6 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
         @constraint(m,
             m[Symbol("dvStoredEnergy"*_n)][b, 0] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
         )
-        # TODO: constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
-        # @constraint(m,
-        #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
-        # )
     end
 
     #Constraint (4n): State of charge upper bound is storage system size
@@ -67,7 +61,6 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
     #Constraint (4j): Dispatch from storage is no greater than power capacity
 	@constraint(m, [ts in p.time_steps],
         m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
-        + m[Symbol("dvStorageToGrid")][ts] # TODO: add "b" index to this decision variable
     )
 
 end
@@ -80,10 +73,8 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
         m[Symbol("dvStoredEnergy"*_n)][b, ts] == m[Symbol("dvStoredEnergy"*_n)][b, ts-1] + p.hours_per_time_step * (  
             sum(p.s.storage.attr[b].charge_efficiency * m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) 
             + p.s.storage.attr[b].grid_charge_efficiency * m[Symbol("dvGridToStorage"*_n)][b, ts]
-            #+  (p.s.storage.attr[b].charge_efficiency * m[Symbol("dvHydroToStorage")][ts])
-            - ((m[Symbol("dvDischargeFromStorage"*_n)][b,ts]+m[Symbol("dvStorageToGrid")][ts])  / p.s.storage.attr[b].discharge_efficiency)
+            - (m[Symbol("dvDischargeFromStorage"*_n)][b,ts]  / p.s.storage.attr[b].discharge_efficiency)
         )
-        #- (p.s.storage.attr[b].per_timestep_self_discharge_fraction * m[Symbol("dvStoredEnergy"*_n)][b, ts])
 	)
 
     # Note: Hydro to storage not added for off-grid scenarios
@@ -94,7 +85,7 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
             sum(p.s.storage.attr[b].charge_efficiency * m[Symbol("dvProductionToStorage"*_n)][b,t,ts] for t in p.techs.elec) 
             - m[Symbol("dvDischargeFromStorage"*_n)][b, ts] / p.s.storage.attr[b].discharge_efficiency
         )
-        #- (p.s.storage.attr[b].per_timestep_self_discharge_fraction * m[Symbol("dvStoredEnergy"*_n)][b, ts])
+        
     )	
 
 	# Constraint (4h): prevent simultaneous charge and discharge by limitting charging alone to not make the SOC exceed 100%
@@ -122,7 +113,6 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
 	@constraint(m, [ts in p.time_steps_with_grid],
         m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts] + 
             sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) + m[Symbol("dvGridToStorage"*_n)][b, ts]
-            + m[Symbol("dvStorageToGrid")][ts]
     )
 
 	#Constraint (4l)-alt: Dispatch from electrical storage is no greater than power capacity (no grid connection)
@@ -146,11 +136,6 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
         )
     end
 
-    # TODO: re-activate these constraint for LDES and battery export: ********************
-#    if p.s.storage.attr[b].is_ldes
-#        @constraint(m, m[Symbol("dvStoragePower"*_n)][b] == m[Symbol("dvStorageEnergy"*_n)][b] / p.s.storage.attr[b].duration)
-#    end
-    
     # Prevent charging and discharging of the battery at the same time
     @constraint(m, [ts in p.time_steps], m[Symbol("dvBattCharge_binary")][ts] + m[Symbol("dvBattDischarge_binary")][ts] <= 1 )
     @constraint(m, [ts in p.time_steps],
@@ -158,17 +143,12 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
                    sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) <=
                    p.s.storage.attr[b].max_kw * m[Symbol("dvBattCharge_binary")][ts])
     @constraint(m, [ts in p.time_steps], 
-                   m[Symbol("dvStorageToGrid")][ts] +
                    m[Symbol("dvDischargeFromStorage"*_n)][b, ts] <= 
                    p.s.storage.attr[b].max_kw * m[Symbol("dvBattDischarge_binary")][ts])
     
     # Constraint requiring the battery initial and final state of charge to be the same
     @constraint(m, m[:dvStoredEnergy]["ElectricStorage",maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b] )
 
-    # Temporary constraint added for 100 hr LDES duration:
-    if p.s.storage.attr[b].max_kwh >= 1
-        #@constraint(m, m[Symbol("dvStoragePower"*_n)][b] == m[Symbol("dvStorageEnergy"*_n)][b]/100)
-    end
 end
 
 function add_elec_storage_cost_constant_constraints(m, p, b; _n="")

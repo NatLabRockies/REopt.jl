@@ -144,12 +144,8 @@ function add_export_constraints(m, p; _n="")
         if typeof(binNEM) <: Real  # no need for wholesale binary
             binWHL = 1
             WHL_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
-                #sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                #        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
-                ((sum(m[Symbol("dvStorageToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) + 
-                   sum(sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
-                        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps) #for t in ["PV"]) for ts in p.time_steps) <- tested that line temporarily
-                )
+                sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
+                        for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
             )
         else
             binWHL = @variable(m, binary = true)
@@ -162,25 +158,17 @@ function add_export_constraints(m, p; _n="")
             if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
                 @constraint(m,
                     binWHL => {WHL_benefit >= p.pwf_e * p.hours_per_time_step *
-                        ((sum(m[Symbol("dvStorageToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
-                        # WaterPower is part of dvProductionToGrid
-                        #(sum(m[Symbol("dvHydroToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
                         sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
                                 for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
-                        )
                     }
                 )
                 @constraint(m, !binWHL => {WHL_benefit >= 0})
             else
                 @constraint(m,
                     WHL_benefit >= p.pwf_e * p.hours_per_time_step *
-                    ((sum(m[Symbol("dvStorageToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
-                    # WaterPower is part of dvProductionToGrid
-                    #(sum(m[Symbol("dvHydroToGrid")][ts]*p.s.electric_tariff.export_rates[:WHL][ts] for ts in p.time_steps)) +
-                        sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
+                                sum( sum(p.s.electric_tariff.export_rates[:WHL][ts] * m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] 
                                 for t in p.techs_by_exportbin[:WHL]) for ts in p.time_steps)
                     )
-                )
                 @constraint(m, WHL_benefit >= max_bene * binWHL)
             end
         end
@@ -302,8 +290,7 @@ function add_simultaneous_export_import_constraint(m, p; _n="")
         )
         @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
             !m[Symbol("binNoGridPurchases"*_n)][ts] => {
-                sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) +
-                (m[Symbol("dvStorageToGrid")][ts]) <= 0
+                sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) <= 0
             }
         )
     else
@@ -313,8 +300,8 @@ function add_simultaneous_export_import_constraint(m, p; _n="")
             sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
         )
         @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
-            sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) +
-            (m[Symbol("dvStorageToGrid")][ts]) <= bigM_hourly_load * m[Symbol("binNoGridPurchases"*_n)][ts]
+            sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) 
+              <= bigM_hourly_load * m[Symbol("binNoGridPurchases"*_n)][ts]
         )
     end
 end
