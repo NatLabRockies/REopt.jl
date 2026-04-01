@@ -1,13 +1,7 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
-ASHPSpaceHeater
-
-If a user provides the `ASHPSpaceHeater` key then the optimal scenario has the option to purchase 
-this new `ASHP` to meet the heating load in addition to using the `ExistingBoiler`
-to meet the heating load. 
-
-ASHPSpaceHeater has the following attributes: 
+ASHP has the following attributes: 
 ```julia
     min_kw::Real # Minimum thermal power size
     max_kw::Real # Maximum thermal power size
@@ -21,13 +15,23 @@ ASHPSpaceHeater has the following attributes:
     cooling_cop::Array{<:Real,1} # COP of the cooling (i.e., thermal produced / electricity consumed)
     heating_cf::Array{<:Real,1} # ASHP's heating capacity factor curves
     cooling_cf::Array{<:Real,1} # ASHP's cooling capacity factor curves
+    can_serve_dhw::Bool # If ASHP can supply heat to the domestic hot water load
+    can_serve_space_heating::Bool # If ASHP can supply heat to the space heating load
+    can_serve_process_heat::Bool # If ASHP can supply heat to the process heat load
     can_serve_cooling::Bool # If ASHP can supply heat to the cooling load
     force_into_system::Bool # force into system to serve all space heating loads if true
     force_dispatch::Bool # force ASHP to meet load or maximize output if true
     back_up_temp_threshold_degF::Real # Degree in F that system switches from ASHP to resistive heater 
     avoided_capex_by_ashp_present_value::Real # avoided capital expenditure due to presence of ASHP system vs. defaults heating and cooling techs
     max_ton::Real # maximum allowable thermal power (tons) 
-
+    installed_cost_per_ton::Real
+    om_cost_per_ton::Real
+    heating_cop_reference::Array{<:Real,1}
+    heating_cf_reference::Array{<:Real,1}
+    heating_reference_temps_degF::Array{<:Real,1}
+    cooling_cop_reference::Array{<:Real,1}
+    cooling_cf_reference::Array{<:Real,1}
+    cooling_reference_temps_degF::Array{<:Real,1}
 ```
 """
 struct ASHP <: AbstractThermalTech
@@ -68,7 +72,7 @@ end
 ASHPSpaceHeater
 
 If a user provides the `ASHPSpaceHeater` key then the optimal scenario has the option to purchase 
-this new `ASHP` to meet the heating load in addition to using the `ExistingBoiler`
+this new `ASHPSpaceHeater` to meet the heating load in addition to using the `ExistingBoiler`
 to meet the heating load. 
 
 ```julia
@@ -277,7 +281,7 @@ end
 
 
 """
-ASHP Water_Heater
+ASHPWaterHeater
 
 If a user provides the `ASHPWaterHeater` key then the optimal scenario has the option to purchase 
 this new `ASHPWaterHeater` to meet the domestic hot water load in addition to using the `ExistingBoiler`
