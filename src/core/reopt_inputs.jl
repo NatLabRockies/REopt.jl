@@ -765,7 +765,6 @@ end
 Update tech-indexed data arrays necessary to build the JuMP model with the values for existing boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
-
 function setup_existing_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
     heating_cf)

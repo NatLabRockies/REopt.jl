@@ -25,7 +25,7 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## chp-load-following
+## v0.58.0
 ### Added
 - New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
 - New result **thermal_to_absorption_chiller_series_mmbtu_per_hour** added to heating technologies and new result **storage_to_absorption_chiller_series_mmbtu_per_hour** for hot thermal storage technologies.  This result is included as a part of the thermal site loads served, i.e., the adding this result does not change the existing results.
@@ -41,7 +41,7 @@ Classify the change according to the following categories:
 ### Changed
 - **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
 
-## v0.57.0 
+## v0.57.0
 ### Fixed
 - Include boiler emissions in emissions calculations
 - Update links that broke with NLR domain change and update other references to NREL

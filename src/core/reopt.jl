@@ -5,7 +5,6 @@
 
 Return REoptInputs(s) where s in `Scenario` defined in dict `d`.
 """
-
 function REoptInputs(d::Dict)
 
 	# Keep try catch to support API v3 call to `REoptInputs`
@@ -135,7 +134,6 @@ end
 
 Solve the `Scenario` and `BAUScenario` in parallel using the first two (empty) models in `ms` and inputs from `p`.
 """
-
 function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.AbstractModel
 
 	try

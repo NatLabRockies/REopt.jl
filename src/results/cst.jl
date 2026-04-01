@@ -23,7 +23,6 @@
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
 
 """
-
 function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_kw"] = round(value(m[Symbol("dvSize"*_n)]["CST"]), digits=3)

@@ -20,7 +20,6 @@ GHP results:
 - `annual_thermal_production_tonhour`  # GHP's cooling thermal power production in a year [ton]
 
 """
-
 function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r = Dict{String, Any}()
     @expression(m, GHPOptionChosen, sum(g * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options))

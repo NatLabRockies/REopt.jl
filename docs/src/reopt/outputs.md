@@ -1,4 +1,4 @@
-# Outputs
+# [Outputs](@id reopt-outputs)
 
 ## Financial outputs
 ```@docs
