@@ -345,6 +345,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_thermal_load_constraints(m, p)  # split into heating and cooling constraints?
         end
 
+		print("p.techs.water_power is $(p.techs.water_power)")
 		if !isempty(p.techs.water_power)
 			print("\n Adding existing water_power constraints")
 			add_water_power_constraints(m,p)
@@ -724,9 +725,9 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binTurbineActive[p.techs.water_power_turbines, p.time_steps], Bin
 			ReservoirHead[p.time_steps] >= 0
 			dvSpillwayWaterFlow[p.time_steps] >= 0
-			dvWaterVolumeChange[ts in time_steps_without_first_time_step] >= -100000
-			TurbinePowerGenerationMaximum[t in p.techs.water_power_turbines, ts in p.time_steps] >= 0
-			turbine_power_rating[t in p.techs.water_power_turbines] >= 0
+			dvWaterVolumeChange[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000
+			TurbinePowerGenerationMaximum[p.techs.water_power_turbines, p.time_steps] >= 0
+			turbine_power_rating[p.techs.water_power_turbines] >= 0
 		end
 		if "downstream_reservoir" in p.s.water_storage
 			@variables m begin
@@ -737,21 +738,21 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 				binPumpingWaterActive[p.techs.water_power_pumps, p.time_steps], Bin
 				binTurbineOrPump[p.time_steps], Bin
 				dvPumpEfficiency[p.techs.water_power, p.time_steps] >= 0
-				PumpPowerInputMaximum[t in p.techs.water_power_pumps, ts in p.time_steps] >= 0
-				pump_power_rating[t in p.techs.water_power_pumps] >= 0
+				PumpPowerInputMaximum[p.techs.water_power_pumps, p.time_steps] >= 0
+				pump_power_rating[p.techs.water_power_pumps] >= 0
 				dvDownstreamReservoirCapacity >= 0  
-				dvDownstreamReservoirNetWaterFlow[ts in time_steps_without_first_time_step] >= -100000 
+				dvDownstreamReservoirNetWaterFlow[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000 
 			end	
 		end
 
 		if p.s.water_power.minimum_turbine_off_time_steps > 1
-			@variable(m, indicator_turbine_turn_off[t in p.techs.water_power_turbines, ts in p.time_steps], Bin)
+			@variable(m, indicator_turbine_turn_off[p.techs.water_power_turbines, p.time_steps], Bin)
 		end
 		if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
-			@variable(m, indicator_turn_down[t in p.techs.water_power_turbines, ts in p.time_steps, dv in dvs], Bin)
+			@variable(m, indicator_turn_down[p.techs.water_power_turbines, p.time_steps, dv in dvs], Bin)
 		end
 		if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1	
-			@variable(m, indicator_min_operating_time[t in p.techs.water_power, ts in p.time_steps, dv in dvs], Bin)
+			@variable(m, indicator_min_operating_time[p.techs.water_power, p.time_steps, dv in dvs], Bin)
 		end
 	end
 

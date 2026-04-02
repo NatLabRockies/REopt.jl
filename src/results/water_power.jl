@@ -64,7 +64,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		# Water flow into upstream reservoir (input into the model)
 		r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.water_inflow_cubic_meter_per_second
 		
-		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upstream_reservoir.om_cost_per_cubic_meter * m[upstream_reservoir_capacity])
+		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upper_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpperReservoirCapacity"*_n)])
 		r["upstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(UpstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 		r["upper_reservior_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)]
 	end
@@ -92,7 +92,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		downstream_reservoir_water_outflow = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts])
 		r["downstream_reservoir_water_outflow_cubic_meters_per_second"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
 		
-		DownstreamReservoirPerUnitSizeOMCosts = @expression(m,p.third_party_factor * p.pwf_om * p.s.downstream_reservoir.om_cost_per_cubic_meter * m[downstream_reservoir_capacity])
+		DownstreamReservoirPerUnitSizeOMCosts = @expression(m,p.third_party_factor * p.pwf_om * p.s.downstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
 		r["downstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(DownstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 		r["downstream_reservior_initial_capital_costs"] = p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)]
 		
@@ -101,9 +101,9 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	# Compile results for the pumps
 	if ("downstream_reservoir" in p.s.water_storage) && (p.s.water_power.number_of_pumps > 0)
 		
-		PumpsPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.pumps))
+		PumpsPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_pumps))
 		r["lifecycle_fixed_om_cost_after_tax_pumps"] = round(value(PumpsPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		r["combined_pumps_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.turbines)
+		r["combined_pumps_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_turbines)
 	
 		totalPumpedWaterFlow = @expression(m, [ts in p.time_steps],
 		sum(m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] for t in p.techs.water_power_pumps))
@@ -142,18 +142,10 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	r["combined_turbine_size_kw"] = round(sum(value.(m[Symbol("dvSize"*_n)][i]) for i in p.techs.water_power_turbines), digits=3)  
 
 	if r["combined_turbine_size_kw"] > 0
-
-		if p.s.water_power.existing_kw_per_turbine > 0
-			r["fixed_size_kw_per_turbine"] = p.s.water_power.existing_kw_per_turbine 
-		else
-			r["fixed_size_kw_per_turbine"] = "N/A"
-		end
-
-
-		TurbinesPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.turbines))
+		TurbinesPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_turbines))
 		r["lifecycle_fixed_om_cost_after_tax_turbines"] = round(value(TurbinesPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 		
-		r["combined_turbines_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.pumps)
+		r["combined_turbines_initial_capital_costs"] = p.s.water_power.turbine_cost_per_kw * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_turbines)
 		
 		r["individual_turbine_results"] = Dict([])
 

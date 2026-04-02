@@ -8,7 +8,6 @@
     turbine_cost_per_kw::Real=5000.0,
     max_kw_turbine::Real=10000000,
     min_kw_turbine::Real=0,
-    #existing_kw_per_turbine::Real=nothing,
     computation_type::String="average_power_conversion", # "average_power_conversion", "quadratic_partially_discretized", "fixed_efficiency_linearized_reservoir_head", or "quadratic_unsimplified"
     average_cubic_meters_per_second_per_kw::Real=0, # only applied when the computation_type = "average_power_conversion"
     coefficient_a_efficiency::Real=0.0, 
@@ -32,7 +31,7 @@
     min_kw_pump::Real=0,
     pump_cost_per_kw::Real=5000.0,
     water_pump_average_cubic_meters_per_second_per_kw::Real=0,
-    #existing_kw_per_pump::Real=0,
+   
     are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
@@ -65,7 +64,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     turbine_cost_per_kw::Real=5000.0
     max_kw_turbine::Real=10000000
     min_kw_turbine::Real=0
-    #existing_kw_per_turbine::Real=nothing
+    
     computation_type::String="average_power_conversion"
     average_cubic_meters_per_second_per_kw::Real=0
     coefficient_a_efficiency::Real=0.0
@@ -89,7 +88,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     min_kw_pump::Real=0
     pump_cost_per_kw::Real=5000.0
     water_pump_average_cubic_meters_per_second_per_kw::Real=0
-    #existing_kw_per_pump::Real=0
+    
     are_pumps_reversible::Bool=false
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0
@@ -127,7 +126,7 @@ mutable struct WaterPower <: AbstractWaterPower
     turbine_cost_per_kw
     max_kw_turbine
     min_kw_turbine
-    #existing_kw_per_turbine
+    
     computation_type
     average_cubic_meters_per_second_per_kw
     coefficient_a_efficiency 
@@ -149,7 +148,7 @@ mutable struct WaterPower <: AbstractWaterPower
     min_kw_pump
     pump_cost_per_kw
     water_pump_average_cubic_meters_per_second_per_kw
-    #existing_kw_per_pump
+    
     are_pumps_reversible
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps
     minimum_water_flow_cubic_meter_per_second_per_pump
@@ -227,15 +226,7 @@ mutable struct WaterPower <: AbstractWaterPower
         if stor.are_pumps_reversible && (stor.number_of_pumps != stor.number_of_turbines)
             throw(@error("If the pumps are reversible, then the number_of_pumps must be equal to the number_of_turbines"))
         end
-        #=
-        if stor.are_pumps_reversible 
-            if (stor.existing_kw_per_turbine != nothing) && (stor.existing_kw_per_pump == nothing)
-                throw(@error("If the pumps are reversible, then existing_kw_per_pump and existing_kw_per_turbine should both be nothing or both be defined"))
-            elseif (stor.existing_kw_per_turbine != nothing) && (stor.existing_kw_per_pump == nothing)
-                throw(@error("If the pumps are reversible, then existing_kw_per_pump and existing_kw_per_turbine should both be nothing or both be defined"))
-            end
-        end
-        =#
+       
         if stor.number_of_efficiency_bins > 10
             @warn("Setting the 'number_of_efficiency_bins' to a high value can increase complexity of the optimization problem and reduce solve times")
         end
@@ -248,7 +239,6 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.turbine_cost_per_kw,
             stor.max_kw_turbine,
             stor.min_kw_turbine,
-            #stor.existing_kw_per_turbine,
             stor.computation_type,
             stor.average_cubic_meters_per_second_per_kw,
             stor.coefficient_a_efficiency,
@@ -270,7 +260,6 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.min_kw_pump,
             stor.pump_cost_per_kw,
             stor.water_pump_average_cubic_meters_per_second_per_kw,
-            #stor.existing_kw_per_pump,
             stor.are_pumps_reversible,
             stor.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
             stor.minimum_water_flow_cubic_meter_per_second_per_pump,

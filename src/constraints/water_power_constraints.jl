@@ -26,7 +26,7 @@ function add_water_power_constraints(m,p; _n="")
 
 	dv = "dvUpperReservoirCapacity"*_n
 	m[Symbol(dv)] = @variable(m, base_name=dv)
-	@variable(m, p.s.upper_reservoir.minimum_capacity_cubic_meters_upper_reservoir <= m[Symbol(dv)] <= p.s.upper_reservoir.maximum_capacity_cubic_meters_upper_reservoir)
+	@constraint(m, p.s.upper_reservoir.minimum_capacity_cubic_meters_upper_reservoir <= m[Symbol(dv)] <= p.s.upper_reservoir.maximum_capacity_cubic_meters_upper_reservoir)
 	
 	# The upper reservoir water volume must be between the max and min levels
 	@constraint(m, [ts in p.time_steps],
@@ -64,15 +64,7 @@ function add_water_power_constraints(m,p; _n="")
 		
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == m[Symbol("dvWaterVolume"*_n)][maximum(p.time_steps)])
-	
-	# If the existing power ratings are defined, limit the power rating to the existing kw
-	if (p.s.water_power.existing_kw_per_turbine != nothing) && (p.s.water_power.existing_kw_per_turbine != 0)
-		@constraint(m, [t in p.techs.water_power_turbines], m[Symbol("turbine_power_rating"*_n)][t] == p.s.water_power.existing_kw_per_turbine)
-	else
-		@constraint(m, [t in p.techs.water_power_turbines], m[Symbol("turbine_power_rating"*_n)][t] >= p.s.water_power.min_kw_turbine)
-		@constraint(m, [t in p.techs.water_power_turbines], m[Symbol("turbine_power_rating"*_n)][t] <= p.s.water_power.max_kw_turbine)
-	end
-	
+		
 	# Limit power output from the water_power turbines:
 	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[Symbol("dvRatedProduction"*_n)][t,ts] <= m[Symbol("TurbinePowerGenerationMaximum"*_n)][t,ts]) 
 	
@@ -151,10 +143,8 @@ function add_water_power_constraints(m,p; _n="")
 		)
 
 		# Pump size constraints
-		if p.s.water_power.are_pumps_reversible && ((p.s.water_power.existing_kw_per_pump == nothing) || (p.s.water_power.existing_kw_per_pump != 0))
+		if p.s.water_power.are_pumps_reversible 
 			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] == p.s.water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps *  m[Symbol("turbine_power_rating"*_n)][t])
-		elseif (p.s.water_power.existing_kw_per_pump != nothing) && (p.s.water_power.existing_kw_per_pump != 0)
-			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] == p.s.water_power.existing_kw_per_pump)
 		else
 			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] >= p.s.water_power.min_kw_pump)
 			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] <= p.s.water_power.max_kw_pump)

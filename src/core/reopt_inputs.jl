@@ -737,7 +737,6 @@ function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs
         
         max_sizes[turbine_tech_name] = s.water_power.max_kw_turbine
         min_sizes[turbine_tech_name] = s.water_power.min_kw_turbine
-        existing_sizes[turbine_tech_name] = s.water_power.existing_kw_per_turbine
         om_cost_per_kw[turbine_tech_name] = s.water_power.om_cost_per_kw_turbine
 
         if !(s.water_power.can_curtail)
@@ -756,7 +755,6 @@ function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs
         
         max_sizes[pump_tech_name] = s.water_power.max_kw_pump
         min_sizes[pump_tech_name] = s.water_power.min_kw_pump
-        existing_sizes[pump_tech_name] = s.water_power.existing_kw_per_pump
         om_cost_per_kw[pump_tech_name] = s.water_power.om_cost_per_kw_pump
 
         cap_cost_slope[pump_tech_name] = s.water_power.pump_cost_per_kw
