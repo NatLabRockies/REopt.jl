@@ -94,7 +94,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0
     maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000
-    minimum_operating_time_steps_individual_pump::Real=1,
+    minimum_operating_time_steps_individual_pump::Real=1
 
     # Additional inputs
     spillway_maximum_cubic_meter_per_second::Real=nothing
