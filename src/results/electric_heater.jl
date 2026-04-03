@@ -10,7 +10,7 @@
 - `thermal_to_storage_series_mmbtu_per_hour`  # Thermal power production to TES (HotThermalStorage) series [MMBtu/hr]
 - `thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour`  # Thermal power production to high temp TES series [MMBtu/hr]
 - `thermal_to_steamturbine_series_mmbtu_per_hour`  # Thermal power production to SteamTurbine series [MMBtu/hr]
-- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr] (superset of "to_absorption_chiller", "to_space_heating_load", "to_dhw_load", and "to_process_heat_load")
+- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series \\[MMBtu/hr\\] (superset of "to_absorption_chiller", "to_space_heating_load", "to_dhw_load", and "to_process_heat_load")
 - `thermal_to_absorption_chiller_series_mmbtu_per_hour`  # Thermal power production to serve absorption chiller load series [MMBtu/hr]
 - `thermal_to_dhw_load_series_mmbtu_per_hour`  # Thermal power production to serve domestic hot water load series [MMBtu/hr]
 - `thermal_to_space_heating_load_series_mmbtu_per_hour`  # Thermal power production to serve space heating load series [MMBtu/hr]
