@@ -28,18 +28,18 @@ function add_heating_tech_constraints(m, p; _n="")
     if !isempty(p.techs.steam_turbine)
         if !isempty(p.s.storage.types.hot)
             @constraint(m, [t in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps],
-                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
             if !isempty(setdiff(union(p.techs.heating, p.techs.chp),p.techs.can_supply_steam_turbine))
                 @constraint(m, [t in setdiff(union(p.techs.heating,p.techs.chp),p.techs.can_supply_steam_turbine), q in p.heating_loads, ts in p.time_steps],
-                    sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=  
+                    sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=  
                     m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
                 )
             end
         else
             @constraint(m, [t in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps],
-                m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
             if !isempty(setdiff(union(p.techs.heating, p.techs.chp),p.techs.can_supply_steam_turbine))
@@ -51,7 +51,7 @@ function add_heating_tech_constraints(m, p; _n="")
     else
         if !isempty(p.s.storage.types.hot)
             @constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps],
-                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
         else
