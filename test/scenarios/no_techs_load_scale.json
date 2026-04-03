@@ -1,0 +1,20 @@
+{
+    "Site": {
+        "latitude": 37.7749295,
+        "longitude": -122.4194155
+    },
+    "ElectricLoad": {
+        "annual_kwh": 5.0e6,
+        "doe_reference_name": "LargeOffice"
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 10.0
+    },
+    "Financial": {
+        "analysis_years": 1,
+        "offtaker_discount_rate_fraction": 0.0,
+        "offtaker_tax_rate_fraction": 0.0,
+        "elec_cost_escalation_rate_fraction": 0.0
+    }
+}

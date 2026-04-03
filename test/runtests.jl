@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 using Test
 using JuMP
 using HiGHS
@@ -15,8 +15,8 @@ Random.seed!(42)
 
 if "Xpress" in ARGS
     @testset "test_with_xpress" begin
-        @test true  #skipping Xpress while import to HiGHS takes place
-        # include("test_with_xpress.jl")
+        # @test true  #skipping Xpress while import to HiGHS takes place
+        include("test_with_xpress.jl")
     end
 
 elseif "CPLEX" in ARGS
@@ -25,6 +25,92 @@ elseif "CPLEX" in ARGS
     end
 else  # run HiGHS tests
     @testset verbose=true "REopt test set using HiGHS solver" begin
+        @testset "Sector defaults" begin
+            input_data = JSON.parsefile("scenarios/sector_defaults.json")
+            
+            # Fill in GHP so don't have to call GHPGHX.jl
+            ghp_response = JSON.parsefile("scenarios/ghpghx_response.json")
+            input_data["GHP"]["ghpghx_responses"] = [ghp_response]
+
+            #Commercial
+            input_data["Site"]["sector"] = "commercial/industrial"
+            s = Scenario(input_data)
+            @test s.financial.owner_tax_rate_fraction == 0.26
+            @test s.financial.offtaker_tax_rate_fraction == 0.26
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0348
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
+            @test s.financial.om_cost_escalation_rate_fraction == 0.025
+            @test s.financial.offtaker_discount_rate_fraction == 0.0624
+            for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
+                    @test getfield(tech_struct, incentive_input_name) != 0 
+                end
+            end
+            for tech_struct in (s.pvs[1], s.wind, s.ghp_option_list[1])
+                @test getfield(tech_struct, :federal_itc_fraction) != 0
+            end
+            for stor_name in ("ElectricStorage", "ColdThermalStorage", "HotThermalStorage", "HighTempThermalStorage")
+                stor_struct = s.storage.attr[stor_name]
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :total_itc_fraction)
+                    @test getfield(stor_struct, incentive_input_name) != 0
+                end
+            end
+
+            # Federal sector, third party private owned
+            input_data["Site"]["sector"] = "federal"
+            input_data["Site"]["federal_procurement_type"] = "privateowned_thirdparty"
+            s = Scenario(input_data)
+            @test s.financial.owner_tax_rate_fraction == 0.26
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.024 #national avg
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0074 #national avg
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
+            for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
+                    @test getfield(tech_struct, incentive_input_name) != 0 
+                end
+            end
+            for tech_struct in (s.pvs[1], s.wind, s.ghp_option_list[1])
+                @test getfield(tech_struct, :federal_itc_fraction) != 0
+            end
+            for stor_name in ("ElectricStorage", "ColdThermalStorage", "HotThermalStorage", "HighTempThermalStorage")
+                stor_struct = s.storage.attr[stor_name]
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :total_itc_fraction)
+                    @test getfield(stor_struct, incentive_input_name) != 0
+                end
+            end
+
+            # Federal direct purchase
+            input_data["Site"]["federal_procurement_type"] = "fedowned_dirpurch"
+            input_data["Site"]["federal_sector_state"] = "CA"
+            s = Scenario(input_data)
+            @test s.financial.owner_tax_rate_fraction == 0.0
+            @test s.financial.offtaker_tax_rate_fraction == 0.0
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0079
+            @test s.financial.elec_cost_escalation_rate_fraction == -0.0062
+            @test s.financial.om_cost_escalation_rate_fraction == 0.015
+            @test s.financial.offtaker_discount_rate_fraction == 0.045
+            for tech_struct in (s.pvs[1], s.wind, s.chp, s.ghp_option_list[1], s.steam_turbine)
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :federal_itc_fraction)
+                    default = 0
+                    try
+                        #need try catch b/c SteamTurbine does not have federal_itc_fraction input
+                        default = getfield(tech_struct, incentive_input_name)
+                    catch
+                        continue
+                    end
+                    @test default == 0 
+                end
+            end
+            for stor_name in ("ElectricStorage", "ColdThermalStorage", "HotThermalStorage", "HighTempThermalStorage")
+                stor_struct = s.storage.attr[stor_name]
+                for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :total_itc_fraction)
+                    @test getfield(stor_struct, incentive_input_name) == 0
+                end
+            end
+        end
+
         @testset "Prevent simultaneous charge and discharge" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt(model, "./scenarios/simultaneous_charge_discharge.json")
@@ -75,14 +161,14 @@ else  # run HiGHS tests
             latitude, longitude = 65.0102196310875, 25.465387094897675
             radius = 0
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "intl"
+            @test dataset == "nsrdb"
 
             # 4. Fairbanks, AK 
             site = "Fairbanks"
             latitude, longitude = 64.84112047064114, -147.71570239058084 
             radius = 20
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
-            @test dataset == "tmy3"  
+            @test dataset == "nsrdb"
         end
 
         @testset "ASHP min allowable size and COP, CF Profiles" begin
@@ -125,6 +211,136 @@ else  # run HiGHS tests
             @test wh_min_allowable_size ≈ 5.0 atol=1e-8
         end
 
+        @testset "CHP Sizing Heuristic" begin
+            hot_water_or_steam = "hot_water"
+            avg_boiler_fuel_load_mmbtu_per_hour = nothing
+            prime_mover = "recip_engine"
+            size_class = 0
+            max_kw = NaN
+            boiler_efficiency = 0.8
+            avg_electric_load_kw = 100.0
+            max_electric_load_kw = 200.0
+            is_electric_only = true
+            thermal_efficiency = NaN
+            avg_cooling_load_kw = nothing
+            absorption_chiller_cop = nothing
+            include_cooling_in_size = nothing
+            #Case 1: electric only
+            response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
+                                            avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
+                                            prime_mover=prime_mover,
+                                            size_class=size_class,
+                                            max_kw=max_kw,
+                                            boiler_efficiency=boiler_efficiency,
+                                            avg_electric_load_kw=avg_electric_load_kw,
+                                            max_electric_load_kw=max_electric_load_kw,
+                                            is_electric_only=is_electric_only,
+                                            thermal_efficiency=thermal_efficiency,
+                                            avg_cooling_load_kw=avg_cooling_load_kw,
+                                            absorption_chiller_cop=absorption_chiller_cop,
+                                            include_cooling_in_size=include_cooling_in_size
+                                            )
+            @test response["chp_elec_size_heuristic_kw"] ≈ 100.0 atol=1e-3
+            @test response["chp_max_size_kw"] ≈ 200.0 atol=1e-3
+
+            #Case 2: heating only (low electric load)
+            avg_boiler_fuel_load_mmbtu_per_hour = 100.0 / REopt.KWH_PER_MMBTU
+            is_electric_only = false
+            avg_electric_load_kw = 10.0
+            max_electric_load_kw = 20.0
+            response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
+                                            avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
+                                            prime_mover=prime_mover,
+                                            size_class=size_class,
+                                            max_kw=max_kw,
+                                            boiler_efficiency=boiler_efficiency,
+                                            avg_electric_load_kw=avg_electric_load_kw,
+                                            max_electric_load_kw=max_electric_load_kw,
+                                            is_electric_only=is_electric_only,
+                                            thermal_efficiency=thermal_efficiency,
+                                            avg_cooling_load_kw=avg_cooling_load_kw,
+                                            absorption_chiller_cop=absorption_chiller_cop,
+                                            include_cooling_in_size=include_cooling_in_size
+                                            )
+            @test response["chp_elec_size_heuristic_kw"] ≈ 65.0 atol=0.1
+            @test response["chp_max_size_kw"] ≈ 130.0 atol=0.2
+
+            #Case 3: heating + cooling via absorption chiller only (low electric load)
+            avg_cooling_load_kw = 100.0
+            absorption_chiller_cop = 1.0
+            include_cooling_in_size = true
+
+            response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
+                                            avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
+                                            prime_mover=prime_mover,
+                                            size_class=size_class,
+                                            max_kw=max_kw,
+                                            boiler_efficiency=boiler_efficiency,
+                                            avg_electric_load_kw=avg_electric_load_kw,
+                                            max_electric_load_kw=max_electric_load_kw,
+                                            is_electric_only=is_electric_only,
+                                            thermal_efficiency=thermal_efficiency,
+                                            avg_cooling_load_kw=avg_cooling_load_kw,
+                                            absorption_chiller_cop=absorption_chiller_cop,
+                                            include_cooling_in_size=include_cooling_in_size
+                                            )
+            @test response["chp_elec_size_heuristic_kw"] ≈ 146.2 atol=0.1
+            @test response["chp_max_size_kw"] ≈ 146.2*2 atol=0.2
+            case3_max_size_kw = response["chp_max_size_kw"]
+
+            #Case 4: Verify Case 3 results match when creating full Scenario with CHP + AbsorptionChiller
+            d = Dict{String, Any}(
+                "Site" => Dict("latitude" => 35.0, "longitude" => -100.0),
+                "ElectricLoad" => Dict("loads_kw" => repeat([1000.0], 8760), "year" => 2025),
+                "ElectricTariff" => Dict("urdb_label" => "5ed6c1a15457a3367add15ae"),
+                "SpaceHeatingLoad" => Dict(
+                    "annual_mmbtu" => 100.0 * 8760 / REopt.KWH_PER_MMBTU,
+                    "doe_reference_name" => "FlatLoad"
+                ),
+                "DomesticHotWaterLoad" => Dict(
+                    "annual_mmbtu" => 0.0,
+                    "doe_reference_name" => "FlatLoad"
+                ),
+                "CoolingLoad" => Dict("thermal_loads_ton" => repeat([100.0 / REopt.KWH_THERMAL_PER_TONHOUR], 8760)),
+                "ExistingChiller" => Dict("cop" => 1.0),
+                "ExistingBoiler" => Dict(
+                    "fuel_cost_per_mmbtu" => 10.0,
+                    "efficiency" => 0.8
+                ),
+                "AbsorptionChiller" => Dict(
+                    "cop_thermal" => 1.0
+                ),
+                "CHP" => Dict(
+                    "fuel_cost_per_mmbtu" => 10.0,
+                    "prime_mover" => "recip_engine",
+                    "size_class" => 0
+                )
+            )
+            s = Scenario(d)
+            @test s.chp.max_kw ≈ case3_max_size_kw atol=1e-3
+
+            #Case 5: with higher electric load, still sized according to thermal input
+            avg_electric_load_kw = 2000.0
+            max_electric_load_kw = 3000.0
+
+            response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
+                                            avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
+                                            prime_mover=prime_mover,
+                                            size_class=size_class,
+                                            max_kw=max_kw,
+                                            boiler_efficiency=boiler_efficiency,
+                                            avg_electric_load_kw=avg_electric_load_kw,
+                                            max_electric_load_kw=max_electric_load_kw,
+                                            is_electric_only=is_electric_only,
+                                            thermal_efficiency=thermal_efficiency,
+                                            avg_cooling_load_kw=avg_cooling_load_kw,
+                                            absorption_chiller_cop=absorption_chiller_cop,
+                                            include_cooling_in_size=include_cooling_in_size
+                                            )
+            @test response["chp_elec_size_heuristic_kw"] ≈ case3_max_size_kw / 2 atol=0.1
+            @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
+        end
+
         @testset "January Export Rates" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             data = JSON.parsefile("./scenarios/monthly_rate.json")
@@ -159,7 +375,8 @@ else  # run HiGHS tests
 
         @testset "Solar and Storage" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-            r = run_reopt(model, "./scenarios/pv_storage.json")
+            inputs = REoptInputs("./scenarios/pv_storage.json")
+            r = run_reopt(model, inputs)
 
             @test r["PV"]["size_kw"] ≈ 216.6667 atol=0.01
             @test r["Financial"]["lcc"] ≈ 1.2391786e7 rtol=1e-5
@@ -179,55 +396,55 @@ else  # run HiGHS tests
             GC.gc()            
         end
     
-    @testset "Solar and ElectricStorage with cost constants" begin
-        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        d = JSON.parsefile("./scenarios/pv_storage.json");
+        @testset "Solar and ElectricStorage with cost constants" begin
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            d = JSON.parsefile("./scenarios/pv_storage.json");
+            
+            d["ElectricStorage"]["installed_cost_constant"] = 7500
+            d["ElectricStorage"]["replace_cost_constant"] = 5025
+            d["ElectricStorage"]["cost_constant_replacement_year"] = 10
         
-        d["ElectricStorage"]["installed_cost_constant"] = 7500
-        d["ElectricStorage"]["replace_cost_constant"] = 5025
-        d["ElectricStorage"]["cost_constant_replacement_year"] = 10
-    
-        s = Scenario(d)
-        inputs = REoptInputs(s)
-        results = run_reopt([m1,m2], inputs)
-        
-        UpfrontCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["installed_cost_per_kw"] ) +
-                                   (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["installed_cost_per_kwh"]) + 
-                                   d["ElectricStorage"]["installed_cost_constant"] +
-                                   (results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"])
-        
-        ReplacementCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["replace_cost_per_kw"] ) +
-                                   (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["replace_cost_per_kwh"]) + 
-                                   d["ElectricStorage"]["replace_cost_constant"] 
+            s = Scenario(d)
+            inputs = REoptInputs(s)
+            results = run_reopt([m1,m2], inputs)
+            
+            UpfrontCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["installed_cost_per_kw"] ) +
+                                    (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["installed_cost_per_kwh"]) + 
+                                    d["ElectricStorage"]["installed_cost_constant"] +
+                                    (results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"])
+            
+            ReplacementCosts_NoIncentive = (results["ElectricStorage"]["size_kw"]*d["ElectricStorage"]["replace_cost_per_kw"] ) +
+                                    (results["ElectricStorage"]["size_kwh"]*d["ElectricStorage"]["replace_cost_per_kwh"]) + 
+                                    d["ElectricStorage"]["replace_cost_constant"] 
 
-        @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
-        @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
-    
-    end 
-
-    @testset "Solar and ElectricStorage with cost constants but zero-out ElectricStorage" begin
-        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-        d = JSON.parsefile("./scenarios/pv_storage.json");
+            @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
+            @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
         
-        d["ElectricStorage"]["installed_cost_constant"] = 7500
-        d["ElectricStorage"]["replace_cost_constant"] = 5025
-        d["ElectricStorage"]["cost_constant_replacement_year"] = 10
-        d["ElectricStorage"]["max_kw"] = 0
+        end 
 
-        s = Scenario(d)
-        inputs = REoptInputs(s)
-        results = run_reopt([m1,m2], inputs)
-        
-        UpfrontCosts_NoIncentive = results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"]
-        
-        ReplacementCosts_NoIncentive = 0
+        @testset "Solar and ElectricStorage with cost constants but zero-out ElectricStorage" begin
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            d = JSON.parsefile("./scenarios/pv_storage.json");
+            
+            d["ElectricStorage"]["installed_cost_constant"] = 7500
+            d["ElectricStorage"]["replace_cost_constant"] = 5025
+            d["ElectricStorage"]["cost_constant_replacement_year"] = 10
+            d["ElectricStorage"]["max_kw"] = 0
 
-        @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
-        @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
-    
-    end 
+            s = Scenario(d)
+            inputs = REoptInputs(s)
+            results = run_reopt([m1,m2], inputs)
+            
+            UpfrontCosts_NoIncentive = results["PV"]["size_kw"]*d["PV"]["installed_cost_per_kw"]
+            
+            ReplacementCosts_NoIncentive = 0
+
+            @test results["Financial"]["initial_capital_costs"] ≈ UpfrontCosts_NoIncentive rtol=1e-5
+            @test results["Financial"]["replacements_future_cost_after_tax"] ≈ ReplacementCosts_NoIncentive  rtol=1e-5
+        
+        end 
 
         # TODO test MPC with outages
         @testset "MPC" begin
@@ -739,6 +956,7 @@ else  # run HiGHS tests
                 d["ElectricHeater"]["installed_cost_per_mmbtu_per_hour"] = 1.0
                 d["ElectricTariff"]["monthly_energy_rates"] = [0,0,0,0,0,0,0,0,0,0,0,0]
                 d["HotThermalStorage"]["max_gal"] = 0.0
+                d["HotThermalStorage"]["min_gal"] = 0.0
                 s = Scenario(d)
                 inputs = REoptInputs(s)
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
@@ -1042,11 +1260,120 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
-            @testset "CHP to Waste Heat" begin
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
+            @testset "CHP Waste Heat, Absorption Chiller, Load Following Policies" begin
+                # part 1: test nonzero waste heat, with all dispatch to either waste or absorption chiller when enabled 
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 results = run_reopt(m, d)
-                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 4174.455 atol=1e-3
+                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) > 1000.0
+                @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ results["CHP"]["annual_thermal_production_mmbtu"] atol=1e-3
+                @test occursin("CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced.", string(results["Messages"]["warnings"]))
+                @test occursin("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to SpaceHeating.", string(results["Messages"]["warnings"]))
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02, "presolve" => "on"))
+                d = JSON.parsefile("./scenarios/chp_waste.json")
+                d["CHP"]["serve_absorption_chiller_only"] = false
+                d["CHP"]["follow_electrical_load"] = true
+                s = Scenario(d)
+                p = REoptInputs(s)
+                p.s.electric_tariff.energy_rates[2,:] .= 0.0
+                results = run_reopt(m, p)
+                @test results["CHP"]["electric_to_load_series_kw"][2] ≈ min(results["CHP"]["size_kw"], p.s.electric_load.loads_kw[2]) atol=0.01
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+                
+                # part 3: CHP + PV + HTES - PV is curtailed/exported even though it's free and available, 
+                #   HTES is sized because CHP is dispatching to electric when not enough thermal to fully use
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_load_following_base.json")
+                d["PV"] = Dict(
+                    "min_kw" => 100.0,
+                    "max_kw" => 100.0,
+                    "installed_cost_per_kw" => 1500.0
+                )
+                d["HotThermalStorage"] = Dict(
+                    "min_gal" => 0.0,
+                    "max_gal" => 20000.0,
+                    "installed_cost_per_gal" => 1.5
+                )
+                results = run_reopt(m, d)
+                s = Scenario(d)
+                p = REoptInputs(s)
+                elec_load = p.s.electric_load.loads_kw
+                chp_elec_output = results["CHP"]["electric_production_series_kw"]
+                pv_to_load = results["PV"]["electric_to_load_series_kw"]
+                pv_to_grid = results["PV"]["electric_to_grid_series_kw"]
+                pv_curtailed = results["PV"]["electric_curtailed_series_kw"]
+
+                pv_production = pv_to_load .+ pv_to_grid .+ pv_curtailed
+                total_actual_unused_onsite = sum(pv_curtailed) + sum(pv_to_grid)
+                total_expected_unused_onsite = sum(
+                    max(0.0, pv_production[ts] - (elec_load[ts] - chp_elec_output[ts]))
+                    for ts in 1:length(chp_elec_output)
+                )
+                @test isapprox(total_actual_unused_onsite, total_expected_unused_onsite; rtol=1e-3)
+                println("Hot TES size = ", results["HotThermalStorage"]["size_gal"], " gallons")
+                @test results["HotThermalStorage"]["size_gal"] > 10000.0
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # Test error throw when load following with min_kw and min_turn_down_fraction causes infeasibility
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_load_following_base.json")
+                d["CHP"]["min_kw"] = 500.0
+                d["CHP"]["min_turn_down_fraction"] = 0.5
+                # Pass dict directly to run_reopt to catch error gracefully
+                results = run_reopt(m, d)
+                @test occursin("CHP load-following will cause infeasibility", string(results["Messages"]["errors"]))
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # part 4: CHP + Absorption Chiller with May-September restriction to only send CHP thermal to Absorption Chiller
+                # Helper function for month calculation
+                function get_month_from_timestep(ts, time_steps_per_hour=1)
+                    hour = (ts - 1) / time_steps_per_hour
+                    day = floor(Int, hour / 24) + 1
+                    month_starts = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+                    for m in 12:-1:1
+                        if day > month_starts[m]
+                            return m
+                        end
+                    end
+                    return 1
+                end
+
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+                d = JSON.parsefile("./scenarios/chp_absorption_chiller.json")
+                results = run_reopt(m, d)
+
+                chp_thermal_to_space = results["CHP"]["thermal_to_space_heating_load_series_mmbtu_per_hour"]
+                chp_thermal_to_dhw = results["CHP"]["thermal_to_dhw_load_series_mmbtu_per_hour"]
+
+                # Validate monthly restriction: In May-Sep, thermal should ONLY go to absorption chiller or waste
+                restricted_months = [5, 6, 7, 8, 9]
+                violations = count(1:8760) do ts
+                    month = get_month_from_timestep(ts)
+                    if month in restricted_months
+                        thermal_to_heating = chp_thermal_to_space[ts] + chp_thermal_to_dhw[ts]
+                        return thermal_to_heating > 0.01
+                    end
+                    return false
+                end
+                @test violations == 0
+
+                # Verify CHP can serve heating loads in other months (October-April)
+                non_restricted_heating = sum(chp_thermal_to_space[ts] + chp_thermal_to_dhw[ts] 
+                                                for ts in 1:8760 
+                                                if !(get_month_from_timestep(ts) in restricted_months))
+                @test non_restricted_heating > 1.0
+
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
@@ -1062,7 +1389,7 @@ else  # run HiGHS tests
                 m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
                 m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
                 results = run_reopt([m1,m2], inputs)
-                @test abs(results["Financial"]["simple_payback_years"] - 8.12) <= 0.02
+                @test abs(results["Financial"]["simple_payback_years"] - 8.31) <= 0.02
                 finalize(backend(m1))
                 empty!(m1)
                 finalize(backend(m2))
@@ -1634,6 +1961,18 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
+            @testset "Demand and Energy Tier Limits Big-M Setup" begin
+                d = JSON.parsefile("./scenarios/tiered_energy_demand.json")
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => true, "log_to_console" => true, "mip_rel_gap" => 1e-5))
+                results = run_reopt(m1, p)
+                # demand tier 1 limit = flat load = 100, so no demand charge should be present in Tier 2
+                @test sum(value.(m1[Symbol(:dvPeakDemandTOU)][:,2])) ≈ 0.0 atol=1e-6
+                @test sum(value.(m1[Symbol(:dvGridPurchase)][:,2])) ≈ 0.0 atol=1e-6
+                @test (results["Financial"]["lcc"]) ≈ 1.092312443e6 rtol=1e-6
+            end
+
         end
 
         @testset "EASIUR" begin
@@ -1842,21 +2181,26 @@ else  # run HiGHS tests
             boiler_fuel_consumption_calculated = results["ExistingBoiler"]["annual_fuel_consumption_mmbtu"]
             boiler_thermal_series = results["ExistingBoiler"]["thermal_production_series_mmbtu_per_hour"]
             boiler_to_load_series = results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]
+            boiler_to_chiller_series = results["ExistingBoiler"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]
             boiler_thermal_to_tes_series = results["ExistingBoiler"]["thermal_to_storage_series_mmbtu_per_hour"]
             chp_thermal_to_load_series = results["CHP"]["thermal_to_load_series_mmbtu_per_hour"]
             chp_thermal_to_tes_series = results["CHP"]["thermal_to_storage_series_mmbtu_per_hour"]
             chp_thermal_to_waste_series = results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]
+            chp_thermal_to_chiller_series = results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]
             absorpchl_thermal_series = results["AbsorptionChiller"]["thermal_consumption_series_mmbtu_per_hour"]
             hot_tes_mmbtu_per_hour_to_load_series = results["HotThermalStorage"]["storage_to_load_series_mmbtu_per_hour"]
+            hot_tes_mmbtu_per_hour_to_chiller_series = results["HotThermalStorage"]["storage_to_absorption_chiller_series_mmbtu_per_hour"]
             tes_inflows = sum(chp_thermal_to_tes_series) + sum(boiler_thermal_to_tes_series)
-            total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series)
-            tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series)
+            total_chp_production = sum(chp_thermal_to_load_series) + sum(chp_thermal_to_waste_series) + sum(chp_thermal_to_tes_series) + sum(chp_thermal_to_chiller_series)
+            tes_outflows = sum(hot_tes_mmbtu_per_hour_to_load_series) + sum(hot_tes_mmbtu_per_hour_to_chiller_series)
             total_thermal_expected = boiler_thermal_load_mmbtu_total + sum(chp_thermal_to_waste_series) + tes_inflows + sum(absorpchl_thermal_series)
             boiler_fuel_expected = (total_thermal_expected - total_chp_production - tes_outflows) / inputs.s.existing_boiler.efficiency
             total_thermal_mmbtu_calculated = sum(boiler_thermal_series) + total_chp_production + tes_outflows
+            total_absorption_chiller_input = sum(chp_thermal_to_chiller_series) + sum(boiler_to_chiller_series)
 
             @test round(boiler_fuel_consumption_calculated, digits=0) ≈ boiler_fuel_expected atol=8.0
             @test round(total_thermal_mmbtu_calculated, digits=0) ≈ total_thermal_expected atol=8.0  
+            @test round(sum(absorpchl_thermal_series), digits=0) ≈ total_absorption_chiller_input atol=8.0  
 
             # Test CHP["cooling_thermal_factor"] = 0.8, AbsorptionChiller["cop_thermal"] = 0.7 (from inputs .json)
             absorpchl_heat_in_kwh = results["AbsorptionChiller"]["annual_thermal_consumption_mmbtu"] * REopt.KWH_PER_MMBTU
@@ -2099,6 +2443,7 @@ else  # run HiGHS tests
             input_data["DomesticHotWaterLoad"]["annual_mmbtu"] = 0.5 * 8760
             s = Scenario(input_data)
             inputs = REoptInputs(s)
+            @test inputs.tech_emissions_factors_CO2["ExistingBoiler"] ≈ inputs.tech_emissions_factors_CO2["Boiler"] atol=1.0e-6 
             m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt([m1,m2], inputs)
@@ -2296,7 +2641,7 @@ else  # run HiGHS tests
             # Boiler serves all of the DHW load, no DHW thermal reduction due to GHP retrofit
             boiler_served_mmbtu = sum(results["ExistingBoiler"]["thermal_production_series_mmbtu_per_hour"])
             expected_boiler_served_mmbtu = 3000 * 0.8 # (fuel_mmbtu * boiler_effic)
-            @test round(boiler_served_mmbtu, digits=1) ≈ expected_boiler_served_mmbtu atol=1.0
+            @test round(boiler_served_mmbtu, digits=1) ≈ expected_boiler_served_mmbtu atol=1.5
             
             # LoadProfileChillerThermal cooling thermal is 1/cooling_efficiency_thermal_factor of GHP cooling thermal production
             bau_chiller_thermal_tonhour = sum(s.cooling_load.loads_kw_thermal / REopt.KWH_THERMAL_PER_TONHOUR)
@@ -2315,6 +2660,35 @@ else  # run HiGHS tests
             finalize(backend(m2))
             empty!(m2)
             GC.gc()
+
+            # Test hybrid GHP functionality
+            input_data_hybrid = JSON.parsefile("scenarios/ghp_inputs_hybrid.json")
+
+            hybrid_inputs = REoptInputs(input_data_hybrid)
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+            hybrid_results = run_reopt(m1, hybrid_inputs)
+
+            pop!(input_data_hybrid["GHP"], "ghpghx_inputs", nothing)
+            non_hybrid_inputs = REoptInputs(input_data_hybrid)
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+            non_hybrid_results = run_reopt(m2, non_hybrid_inputs)
+
+            hybrid_GHP_size = hybrid_results["GHP"]["size_heat_pump_ton"]
+            hybrid_GHX_size = hybrid_results["GHP"]["ghpghx_chosen_outputs"]["number_of_boreholes"] 
+            hybrid_solution_nonhybrid_GHX_size = hybrid_results["GHP"]["number_of_boreholes_nonhybrid"]
+            non_hybrid_GHP_size = non_hybrid_results["GHP"]["size_heat_pump_ton"]
+            non_hybrid_GHX_size = non_hybrid_results["GHP"]["ghpghx_chosen_outputs"]["number_of_boreholes"] 
+
+            @test hybrid_GHX_size < non_hybrid_GHX_size
+            @test hybrid_GHX_size ≈ 5.0 atol=1.0
+            @test hybrid_GHP_size ≈ non_hybrid_GHP_size atol=0.5
+            @test hybrid_solution_nonhybrid_GHX_size ≈ non_hybrid_GHX_size atol=2.0
+
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+            GC.gc()     
 
             # Check GHP LCC calculation for URBANopt
             ghp_data = JSON.parsefile("scenarios/ghp_urbanopt.json")
@@ -2456,7 +2830,7 @@ else  # run HiGHS tests
 
             pop!(input_data["GHP"], "ghpghx_inputs", nothing)
             pop!(input_data["GHP"], "ghpghx_responses", nothing)
-            ghp_obj = REopt.GHP(JSON.parsefile("scenarios/ghpghx_hybrid_results.json"), input_data["GHP"])
+            ghp_obj = REopt.GHP(JSON.parsefile("scenarios/ghpghx_hybrid_results.json"), input_data["GHP"]; sector="commercial/industrial", federal_procurement_type="")
 
             calculated_ghx_residual_value = ghp_obj.ghx_only_capital_cost*
             (
@@ -2895,7 +3269,7 @@ else  # run HiGHS tests
             results = run_reopt(m, inputs)
             
             thermal_techs = ["ExistingBoiler", "CHP", "SteamTurbine"]
-            thermal_loads = ["load", "storage", "steamturbine", "waste"]  # We don't track AbsorptionChiller thermal consumption by tech
+            thermal_loads = ["load", "steamturbine", "storage", "waste","absorption_chiller"]  
             tech_to_thermal_load = Dict{Any, Any}()
             for tech in thermal_techs
                 tech_to_thermal_load[tech] = Dict{Any, Any}()
@@ -2913,9 +3287,11 @@ else  # run HiGHS tests
             end
             # Hot TES is the other thermal supply
             hottes_to_load = results["HotThermalStorage"]["storage_to_load_series_mmbtu_per_hour"]
+            hottes_to_turbine = results["HotThermalStorage"]["storage_to_steamturbine_series_mmbtu_per_hour"]
+            hottes_to_chiller = results["HotThermalStorage"]["storage_to_absorption_chiller_series_mmbtu_per_hour"]
             
             # BAU boiler loads
-            load_boiler_fuel = s.space_heating_load.loads_kw / input_data["ExistingBoiler"]["efficiency"] ./ REopt.KWH_PER_MMBTU
+            load_boiler_fuel = s.space_heating_load.loads_kw ./ input_data["ExistingBoiler"]["efficiency"] ./ REopt.KWH_PER_MMBTU
             load_boiler_thermal = load_boiler_fuel .* input_data["ExistingBoiler"]["efficiency"]
             
             # Fuel/thermal **consumption**
@@ -2926,12 +3302,15 @@ else  # run HiGHS tests
             
             # Check that all thermal supply to load meets the BAU load plus AbsorptionChiller load which is not explicitly tracked
             alltechs_thermal_to_load_total = sum([sum(tech_to_thermal_load[tech]["load"]) for tech in thermal_techs]) + sum(hottes_to_load)
-            thermal_load_total = sum(load_boiler_thermal) + sum(absorptionchiller_thermal_in)
+            thermal_load_total = sum(load_boiler_thermal)
             @test alltechs_thermal_to_load_total ≈ thermal_load_total rtol=1e-5
             
             # Check that all thermal to steam turbine is equal to steam turbine thermal consumption
-            alltechs_thermal_to_steamturbine_total = sum([sum(tech_to_thermal_load[tech]["steamturbine"]) for tech in ["ExistingBoiler", "CHP"]])
+            alltechs_thermal_to_steamturbine_total = sum([sum(tech_to_thermal_load[tech]["steamturbine"]) for tech in ["ExistingBoiler", "CHP"]]) + sum(hottes_to_turbine)
             @test alltechs_thermal_to_steamturbine_total ≈ sum(steamturbine_thermal_in) atol=3
+
+            alltechs_thermal_to_absorption_chiller_total = sum([sum(tech_to_thermal_load[tech]["absorption_chiller"]) for tech in thermal_techs]) + sum(hottes_to_chiller)
+            @test alltechs_thermal_to_absorption_chiller_total ≈ sum(absorptionchiller_thermal_in) atol=3
             
             # Check that "thermal_to_steamturbine" is zero for each tech which has input of can_supply_steam_turbine as False
             for tech in ["ExistingBoiler", "CHP"]
@@ -2970,17 +3349,17 @@ else  # run HiGHS tests
             p = REoptInputs(s)
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt(m, p)
-
-            annual_thermal_prod = 0.8 * 8760  #80% efficient boiler --> 0.8 MMBTU of heat load per hour
+            annual_thermal_prod = 0.64 * 8760  #80% efficient boiler --> 0.64 MMBTU of heat load per hour for electric heater
             annual_electric_heater_consumption = annual_thermal_prod * REopt.KWH_PER_MMBTU  #1.0 COP
             annual_energy_supplied = 87600 + annual_electric_heater_consumption
 
-            #Second run: ElectricHeater produces the required heat with free electricity
-            @test results["ElectricHeater"]["size_mmbtu_per_hour"] ≈ 0.8 atol=0.1
+            #Second run: ElectricHeater produces the required heat with free electricity for two of three heat sources
+            @test results["ElectricHeater"]["size_mmbtu_per_hour"] ≈ 0.64 atol=0.1
             @test results["ElectricHeater"]["annual_thermal_production_mmbtu"] ≈ annual_thermal_prod rtol=1e-4
             @test results["ElectricHeater"]["annual_electric_consumption_kwh"] ≈ annual_electric_heater_consumption rtol=1e-4
             @test results["ElectricUtility"]["annual_energy_supplied_kwh"] ≈ annual_energy_supplied rtol=1e-4
-
+            #no bypass of Electric Heater through Hot TES to process heat
+            @test sum(results["HotThermalStorage"]["storage_to_process_heat_load_series_mmbtu_per_hour"]) ≈ 0.0 atol=0.1
             finalize(backend(m))
             empty!(m)
             GC.gc()
@@ -3356,6 +3735,31 @@ else  # run HiGHS tests
             finalize(backend(m2))
             empty!(m2)
             GC.gc()             
+        end
+
+        @testset "CST + High-temperature TES" begin
+            # TODO add a test that pairs with a steam turbine for a CSP system
+            d = JSON.parsefile("./scenarios/cst.json")
+            s = Scenario(d)
+            p = REoptInputs(s)
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+            results = run_reopt(m1, p)
+            @test results["CST"]["annual_thermal_production_mmbtu"] ≈ 26175.2 rtol=1.0e-4
+            @test sum(results["CST"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 19548.3 rtol=1.0e-4
+            @test results["CST"]["size_kw"] ≈ 10000.0 atol=0.001
+            @test results["CST"]["size_mmbtu_per_hour"] ≈ 10000.0 / REopt.KWH_PER_MMBTU atol=1.0e-3
+            @test results["ExistingBoiler"]["annual_thermal_production_mmbtu"] ≈ 386.9 rtol=1.0e-4
+            @test results["HighTempThermalStorage"]["size_kwh"] ≈ 10000.0 atol=0.1
+            @test results["HotThermalStorage"]["size_gal"] ≈ 1000.0 atol=0.1
+
+            # Test that CST and HighTempThermalStorage capital costs are included in initial_capital_costs
+            expected_cst_cost = results["CST"]["size_kw"] * 2200.0  # CST installed_cost_per_kw from defaults
+            expected_httes_cost = results["HighTempThermalStorage"]["size_kwh"] * 86.0  # HighTempThermalStorage installed_cost_per_kwh from scenario
+            @test results["Financial"]["initial_capital_costs"] ≈ expected_cst_cost + expected_httes_cost rtol=1.0e-3
+            
+            finalize(backend(m1))
+            empty!(m1)
+            GC.gc()
         end
 
         @testset "Custom REopt logger" begin
@@ -4011,6 +4415,305 @@ else  # run HiGHS tests
             init_capital_costs =  results["Financial"]["initial_capital_costs"]
             year_one_om = results["Financial"]["year_one_om_costs_before_tax"]
             @test isapprox(year_one_om / init_capital_costs, 0.025; atol=0.0005)
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+            GC.gc()
         end
+
+        @testset "Peak load scaling" begin
+            # With reference building
+            input_data = JSON.parsefile("./scenarios/no_techs_load_scale.json")
+            input_data["ElectricLoad"] = Dict()
+            input_data["ElectricLoad"]["year"] = 2024
+            input_data["ElectricLoad"]["doe_reference_name"] = "MediumOffice"
+            input_data["ElectricLoad"]["monthly_totals_kwh"] = ones(12) .* 7.0e6/12
+            monthly_peak_kw = 1700.0
+            input_data["ElectricLoad"]["monthly_peaks_kw"] = ones(12) .* monthly_peak_kw
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, inputs)
+            @test results["ElectricLoad"]["annual_calculated_kwh"] ≈ sum(input_data["ElectricLoad"]["monthly_totals_kwh"]) rtol=1.0e-4
+            demand_charge = input_data["ElectricTariff"]["blended_annual_demand_rate"]
+            @test results["ElectricTariff"]["year_one_demand_cost_before_tax"] ≈ 12.0 * monthly_peak_kw * demand_charge rtol=5.0e-4
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+
+            # With custom load profile
+            input_data = JSON.parsefile("./scenarios/no_techs_load_scale.json")
+            input_data["ElectricLoad"] = Dict()
+            input_data["ElectricLoad"]["loads_kw"] = readdlm("./data/loads_kw_largeoffice_sanfran.csv", ',')[:,1]
+            input_data["ElectricLoad"]["year"] = 2023
+            input_data["ElectricLoad"]["normalize_and_scale_load_profile_input"] = true
+            input_data["ElectricLoad"]["monthly_totals_kwh"] = ones(12) .* 7.0e6/12
+            monthly_peak_kw = 1700.0
+            input_data["ElectricLoad"]["monthly_peaks_kw"] = ones(12) .* monthly_peak_kw
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, inputs)
+            @test results["ElectricLoad"]["annual_calculated_kwh"] ≈ sum(input_data["ElectricLoad"]["monthly_totals_kwh"]) rtol=1.0e-4
+            demand_charge = input_data["ElectricTariff"]["blended_annual_demand_rate"]
+            @test results["ElectricTariff"]["year_one_demand_cost_before_tax"] ≈ 12.0 * monthly_peak_kw * demand_charge rtol=1.0e-4
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+        end
+
+        @testset "Peak load scaling in simulated_load" begin
+            # CRB (hourly) with monthly energy and peak load scaling
+            monthly_peak_kw = 1700.0
+            annual_kwh = 7.0e6
+            sim_input = Dict(
+                "load_type" => "electric",
+                "doe_reference_name" => "LargeOffice",
+                "latitude" => 39.7391536,
+                "longitude" => -104.9847034,
+                "year" => 2017,
+                "monthly_peaks_kw" => ones(12) .* monthly_peak_kw,
+                "monthly_totals_kwh" => ones(12) .* annual_kwh / 12.0
+            )
+
+            # Run simulated_load() to check energy and peaks of scaled load
+            sim_result = simulated_load(sim_input)
+            
+            # Test array consistency
+            @test sim_result["monthly_totals_kwh"] ≈ sim_input["monthly_totals_kwh"] rtol=1.0e-3
+            @test sim_result["monthly_peaks_kw"] ≈ sim_input["monthly_peaks_kw"] rtol=0.01
+
+            # Custom load profile scaled to monthly energy and peak load
+            hourly = readdlm("./data/loads_kw_largeoffice_sanfran.csv", ',')[:,1]
+            # The data below is from an external spreadsheet and is used to validate REopt.jl implementation consistency with that
+            hourly_peak_scaled = readdlm("./data/loads_kw_largeoffice_sanfran_peak_scaled.csv", ',')[:,1]
+            monthly_peak_kw = 1700.0
+            annual_kwh = 7.0e6
+            sim_input = Dict(
+                "load_type" => "electric",
+                "load_profile" => hourly,
+                "normalize_and_scale_load_profile_input" => true,
+                "latitude" => 39.7391536,
+                "longitude" => -104.9847034,
+                "year" => 2023,
+                "monthly_peaks_kw" => ones(12) .* monthly_peak_kw,
+                "monthly_totals_kwh" => ones(12) .* annual_kwh / 12.0
+            )
+
+            # Run simulated_load() to check energy and peaks of scaled load
+            sim_result = simulated_load(sim_input)
+            
+            # Test array consistency
+            @test sim_result["loads_kw"] ≈ hourly_peak_scaled rtol=1.0e-3
+            @test sim_result["monthly_totals_kwh"] ≈ sim_input["monthly_totals_kwh"] rtol=1.0e-3
+            @test sim_result["monthly_peaks_kw"] ≈ sim_input["monthly_peaks_kw"] rtol=0.01
+
+            # 15-min load profile scaled to monthly energy and peak load
+            fifteen = repeat(hourly, inner=4)
+            monthly_peak_kw = 1000.0
+            sim_input["monthly_peaks_kw"] = ones(12) .* monthly_peak_kw
+            sim_input["load_profile"] = fifteen
+            sim_input["time_steps_per_hour"] = 4
+
+            # Run simulated_load() to check energy and peaks of scaled load
+            sim_result = simulated_load(sim_input)
+
+            # Test array consistency
+            @test sim_result["monthly_totals_kwh"] ≈ sim_input["monthly_totals_kwh"] rtol=1.0e-3
+            @test sim_result["monthly_peaks_kw"] ≈ sim_input["monthly_peaks_kw"] rtol=0.01
+            @test sum(sim_result["loads_kw"])/sim_input["time_steps_per_hour"] ≈ sum(sim_input["monthly_totals_kwh"]) rtol=1.0e-2
+        end   
+
+        @testset "Monthly ElectricTariff Results" begin
+            # Test URDB rate outputs for monthly energy and demand costs
+            input_data = JSON.parsefile("./scenarios/urdb_rate.json")
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, inputs)
+
+            @test length(results["ElectricTariff"]["monthly_energy_cost_series_before_tax"]) == 12
+            @test sum(results["ElectricTariff"]["monthly_energy_cost_series_before_tax"]) > 100.0
+            @test length(results["ElectricTariff"]["monthly_demand_cost_series_before_tax"]) == 12
+            @test sum(results["ElectricTariff"]["monthly_demand_cost_series_before_tax"]) > 100.0
+
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()            
+            
+            # Test blended rates (not URDB rate) alignment with monthly costs
+            input_data = JSON.parsefile("./scenarios/urdb_rate.json")
+            blended_energy_rate = 0.12  # $/kWh
+            blended_demand_rate = 20.0  # $/kW/month
+            
+            input_data["ElectricTariff"] = Dict(
+                "blended_annual_demand_rate" => blended_demand_rate,
+                "blended_annual_energy_rate" => blended_energy_rate
+            )
+            
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, inputs)
+
+            # Calculate expected costs manually and compare with REopt results
+            monthly_energy_kwh = results["ElectricLoad"]["monthly_calculated_kwh"]
+            monthly_peaks_kw = results["ElectricLoad"]["monthly_peaks_kw"]
+            
+            # Expected energy costs: monthly energy * energy rate
+            expected_energy_costs = monthly_energy_kwh .* blended_energy_rate
+            actual_energy_costs = results["ElectricTariff"]["monthly_energy_cost_series_before_tax"]
+            
+            # Expected demand costs: monthly peak * demand rate
+            expected_demand_costs = monthly_peaks_kw .* blended_demand_rate
+            actual_demand_costs = results["ElectricTariff"]["monthly_demand_cost_series_before_tax"]
+
+            # Test energy cost alignment (within 1% tolerance)
+            for month in 1:12
+                @test actual_energy_costs[month] ≈ expected_energy_costs[month] rtol=0.01
+            end
+            
+            # Test demand cost alignment (within 1% tolerance)
+            for month in 1:12
+                @test actual_demand_costs[month] ≈ expected_demand_costs[month] rtol=0.01
+            end
+            
+            energy_rate_series = results["ElectricTariff"]["energy_rate_series"]["Tier_1"]
+            @test all(rate -> rate ≈ blended_energy_rate, energy_rate_series)
+            
+            monthly_demand_rates = results["ElectricTariff"]["facility_demand_monthly_rate_series"]["Tier_1"]
+            @test all(rate -> rate ≈ blended_demand_rate, monthly_demand_rates)
+
+            # Load metrics consistency - verify annual = sum of monthly
+            annual_calc_load = results["ElectricLoad"]["annual_calculated_kwh"]
+            sum_monthly_load = sum(results["ElectricLoad"]["monthly_calculated_kwh"])
+            annual_peak = results["ElectricLoad"]["annual_peak_kw"]
+            max_monthly_peak = maximum(results["ElectricLoad"]["monthly_peaks_kw"])
+            
+            @test annual_calc_load ≈ sum_monthly_load rtol=0.01
+            @test annual_peak ≈ max_monthly_peak rtol=0.01
+            
+            # Monthly bill calculation accuracy
+            # Total monthly bill should equal energy cost + demand cost for each month
+            for month in 1:12
+                total_monthly_cost = results["ElectricTariff"]["monthly_energy_cost_series_before_tax"][month] + 
+                                    results["ElectricTariff"]["monthly_demand_cost_series_before_tax"][month]
+                expected_monthly_cost = (monthly_energy_kwh[month] * blended_energy_rate) + 
+                                        (monthly_peaks_kw[month] * blended_demand_rate)
+                @test total_monthly_cost ≈ expected_monthly_cost rtol=0.01
+            end
+            
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+        end
+
+        @testset "ElectricTariff 15-minute Interval Tests" begin
+            # Test ElectricTariff rate and cost outputs for 15-minute interval load profiles
+            # This test validates that sub-hourly billing calculations work correctly with
+            # time_steps_per_hour = 4 and verifies proper aggregation to monthly costs
+            input_data = JSON.parsefile("./scenarios/urdb_rate.json")
+            # These blended rates will overwrite the urdb_rate input from the loaded file
+            blended_energy_rate = 0.10  # $/kWh
+            blended_demand_rate = 15.0  # $/kW/month
+            input_data["ElectricTariff"] = Dict(
+                    "blended_annual_demand_rate" => blended_demand_rate,
+                    "blended_annual_energy_rate" => blended_energy_rate
+                )            
+
+            # Create a base hourly load profile (with reference building)
+            s_hourly = Scenario(input_data)
+            base_hourly_loads = s_hourly.electric_load.loads_kw
+
+            # Create 15-minute load profile with sine wave sub-hourly variations
+            fifteen_min_loads = Float64[]
+
+            for (hour_idx, hourly_load) in enumerate(base_hourly_loads)
+                # Create 4 sub-hourly values per hour with sine wave variation
+                # Base load with ±10% sine wave variation within each hour
+                for quarter_hour in 1:4
+                    # Intra-hour phase angle for this quarter hour (0, π/2, π, 3π/2)
+                    intra_hour_phase = (quarter_hour - 1) * π / 2
+                    # Sine wave variation: ±10% of hourly load
+                    variation = 0.1 * sin(intra_hour_phase + 2π * hour_idx / 24)  # Daily cycle component
+                    sub_hourly_load = hourly_load * (1.0 + variation)
+                    push!(fifteen_min_loads, max(0.0, sub_hourly_load))  # Ensure non-negative
+                end
+            end
+
+            # Update input data for 15-minute intervals
+            input_data["Settings"] = Dict("time_steps_per_hour" => 4)
+            input_data["ElectricLoad"] = Dict("loads_kw" => fifteen_min_loads, "year" => 2023)
+
+            # Run REopt with 15-minute data
+            s_fifteen = Scenario(input_data)
+            inputs_fifteen = REoptInputs(s_fifteen)
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            results_fifteen = run_reopt(m, inputs_fifteen)
+
+            # Verify correct time resolution setup
+            @test length(results_fifteen["ElectricLoad"]["load_series_kw"]) == length(fifteen_min_loads)
+            @test results_fifteen["ElectricLoad"]["load_series_kw"] ≈ fifteen_min_loads rtol=1e-6
+
+            # Verify energy rate series has correct length for 15-minute data
+            energy_rate_series_15min = results_fifteen["ElectricTariff"]["energy_rate_series"]["Tier_1"]
+            @test length(energy_rate_series_15min) == 8760 * 4  # 15-minute intervals
+            @test all(rate -> rate ≈ blended_energy_rate, energy_rate_series_15min)
+
+            # Calculate expected costs manually for 15-minute data
+            monthly_energy_kwh_15min = results_fifteen["ElectricLoad"]["monthly_calculated_kwh"]
+            monthly_peaks_kw_15min = results_fifteen["ElectricLoad"]["monthly_peaks_kw"]
+
+            expected_energy_costs_15min = monthly_energy_kwh_15min .* blended_energy_rate
+            actual_energy_costs_15min = results_fifteen["ElectricTariff"]["monthly_energy_cost_series_before_tax"]
+
+            expected_demand_costs_15min = monthly_peaks_kw_15min .* blended_demand_rate
+            actual_demand_costs_15min = results_fifteen["ElectricTariff"]["monthly_demand_cost_series_before_tax"]
+
+            # Test 15-minute energy cost alignment
+            for month in 1:12
+                @test actual_energy_costs_15min[month] ≈ expected_energy_costs_15min[month] rtol=0.01
+            end
+
+            # Test 15-minute demand cost alignment  
+            for month in 1:12
+                @test actual_demand_costs_15min[month] ≈ expected_demand_costs_15min[month] rtol=0.01
+            end
+
+            # Verify annual totals consistency
+            annual_energy_cost_15min = sum(actual_energy_costs_15min)
+            annual_demand_cost_15min = sum(actual_demand_costs_15min)
+
+            @test results_fifteen["ElectricTariff"]["year_one_energy_cost_before_tax"] ≈ annual_energy_cost_15min rtol=0.01
+            @test results_fifteen["ElectricTariff"]["year_one_demand_cost_before_tax"] ≈ annual_demand_cost_15min rtol=0.01
+
+            # Verify load metrics consistency for 15-minute data
+            annual_calc_load_15min = results_fifteen["ElectricLoad"]["annual_calculated_kwh"]
+            sum_monthly_load_15min = sum(results_fifteen["ElectricLoad"]["monthly_calculated_kwh"])
+            annual_peak_15min = results_fifteen["ElectricLoad"]["annual_peak_kw"]
+            max_monthly_peak_15min = maximum(results_fifteen["ElectricLoad"]["monthly_peaks_kw"])
+
+            @test annual_calc_load_15min ≈ sum_monthly_load_15min rtol=0.01
+            @test annual_peak_15min ≈ max_monthly_peak_15min rtol=0.01
+
+            # Test monthly bill accuracy for 15-minute data
+            for month in 1:12
+                total_monthly_cost_15min = actual_energy_costs_15min[month] + actual_demand_costs_15min[month]
+                expected_monthly_cost_15min = (monthly_energy_kwh_15min[month] * blended_energy_rate) + 
+                                                (monthly_peaks_kw_15min[month] * blended_demand_rate)
+                @test total_monthly_cost_15min ≈ expected_monthly_cost_15min rtol=0.01
+            end
+            
+            # Validate that 15-minute energy totals approximately match hourly totals
+            # (accounting for sine wave variations that should average out over time)
+            hourly_annual_energy = sum(base_hourly_loads)  # Already in kWh for hourly data
+            fifteen_min_annual_energy = annual_calc_load_15min
+            @test fifteen_min_annual_energy ≈ hourly_annual_energy rtol=0.05  # 5% tolerance for sine variations
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+        end
+
     end
 end

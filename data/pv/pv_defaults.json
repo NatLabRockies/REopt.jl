@@ -29,7 +29,7 @@
       "mount_premiums": {
         "ground": {
           "cost_premium": 1.3,
-          "om_premium": 0.95
+          "om_premium": 1.0
         }
       },
       "notes": "Based on ATB 2024 averaging 11 kW and 100 kW cost estimates"

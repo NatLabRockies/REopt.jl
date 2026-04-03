@@ -1,4 +1,4 @@
-# Outputs
+# [Outputs](@id reopt-outputs)
 
 ## Financial outputs
 ```@docs
@@ -45,6 +45,11 @@ REopt.add_electric_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, 
 REopt.add_hot_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::String)
 ```
 
+## HighTempThermalStorage outputs
+```@docs
+REopt.add_high_temp_thermal_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::String)
+```
+
 ## ColdThermalStorage outputs
 ```@docs
 REopt.add_cold_storage_results(::JuMP.AbstractModel, ::REoptInputs, ::Dict, ::String)
@@ -80,7 +85,7 @@ REopt.add_heating_load_results
 REopt.add_cooling_load_results
 ```
 
-## Uncertain Outages outputs
+## Outages outputs
 ```@docs
 REopt.add_outage_results
 ```
@@ -98,4 +103,9 @@ REopt.add_flexible_hvac_results
 ## SteamTurbine outputs
 ```@docs
 REopt.add_steam_turbine_results
+```
+
+## CST outputs
+```@docs
+REopt.add_concentrating_solar_results
 ```

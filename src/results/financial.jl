@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Financial` results keys:
 - `lcc` Optimal lifecycle cost
@@ -338,7 +338,6 @@ function get_depreciation_schedule(p::REoptInputs, tech::Union{AbstractTech,Abst
 
     federal_itc_fraction = 0.0
     try 
-        # TODO add Hot/ColdThermalStorage.total_itc_fraction to struct; currently only in ElectricStorage
         if typeof(tech) <: AbstractStorage
             federal_itc_fraction = tech.total_itc_fraction
         else
@@ -347,8 +346,8 @@ function get_depreciation_schedule(p::REoptInputs, tech::Union{AbstractTech,Abst
     catch
         @warn "Did not find $(tech).federal_itc_fraction so using 0.0 in calculation of depreciation_schedule."
     end
-    
-    macrs_bonus_basis = federal_itc_basis - federal_itc_basis * federal_itc_fraction * tech.macrs_itc_reduction
+    macrs_itc_reduction = federal_itc_fraction == 0.0 ? 0 : tech.macrs_itc_reduction # Catch for techs that don't have ITC nor a macrs_itc_reduction input 
+    macrs_bonus_basis = federal_itc_basis - federal_itc_basis * federal_itc_fraction * macrs_itc_reduction
     macrs_basis = macrs_bonus_basis * (1 - tech.macrs_bonus_fraction)
 
     depreciation_schedule = zeros(p.s.financial.analysis_years)

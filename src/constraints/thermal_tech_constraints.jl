@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 function add_boiler_tech_constraints(m, p; _n="")
     
@@ -28,18 +28,18 @@ function add_heating_tech_constraints(m, p; _n="")
     if !isempty(p.techs.steam_turbine)
         if !isempty(p.s.storage.types.hot)
             @constraint(m, [t in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps],
-                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
             if !isempty(setdiff(union(p.techs.heating, p.techs.chp),p.techs.can_supply_steam_turbine))
                 @constraint(m, [t in setdiff(union(p.techs.heating,p.techs.chp),p.techs.can_supply_steam_turbine), q in p.heating_loads, ts in p.time_steps],
-                    sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=  
+                    sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=  
                     m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
                 )
             end
         else
             @constraint(m, [t in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps],
-                m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                m[Symbol("dvThermalToSteamTurbine"*_n)][t,q,ts] + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
             if !isempty(setdiff(union(p.techs.heating, p.techs.chp),p.techs.can_supply_steam_turbine))
@@ -51,7 +51,7 @@ function add_heating_tech_constraints(m, p; _n="")
     else
         if !isempty(p.s.storage.types.hot)
             @constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps],
-                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts]  <=
+                sum(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] for b in p.s.storage.types.hot) + m[Symbol("dvProductionToWaste"*_n)][t,q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)][t,q,ts]  <=
                 m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
             )
         else
@@ -64,7 +64,7 @@ function add_heating_tech_constraints(m, p; _n="")
     # Constraint (7_heating_prod_size): Production limit based on size for non-electricity-producing heating techs
     if !isempty(setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp)))
         @constraint(m, [t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp)), ts in p.time_steps],
-            sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads)  <= m[Symbol("dvSize"*_n)][t] * p.heating_cf[t][ts]
+            sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads)  <= p.heating_cf[t][ts] * m[Symbol("dvSize"*_n)][t]
         )
     end
     # Constraint (7_heating_load_compatability): Set production variables for incompatible heat loads to zero
@@ -88,9 +88,55 @@ function add_heating_tech_constraints(m, p; _n="")
             end
         end
     end
+
+    # If the electric heater can only provide heat to the storage system (as in PTES), then production to storage must equal total production
+    if "ElectricHeater" in p.techs.electric_heater
+        if p.s.electric_heater.charge_storage_only
+            #assume sensible TES first, and hot water otherwise.
+            if "HighTempThermalStorage" in p.s.storage.types.hot
+                @constraint(m, ElectricHeaterToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["ElectricHeater",q,ts] == m[Symbol("dvHeatToStorage"*_n)]["HighTempThermalStorage","ElectricHeater",q,ts]
+                )
+            elseif "HotThermalStorage" in p.s.storage.types.hot
+                @constraint(m, ElectricHeaterToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["ElectricHeater",q,ts] == m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage","ElectricHeater",q,ts]
+                )
+            else
+                @warn "ElectricHeater.charge_storage_only is set to True, but no hot storage technologies exist."
+            end
+        end
+    end
+
+    if "CST" in p.techs.electric_heater
+        @constraint(m, CSTHeatProduction[ts in p.time_steps],
+            sum(m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] for q in p.heating_loads) == p.heating_cf["CST"][ts] * m[Symbol("dvSize"*_n)]["CST"]
+        )
+        if p.s.cst.charge_storage_only
+            #assume sensible TES first, and hot water otherwise.
+            if "HighTempThermalStorage" in p.s.storage.types.hot
+                @constraint(m, CSTToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] == m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts] + m[Symbol("dvHeatToStorage"*_n)]["HighTempThermalStorage","CST",q,ts]
+                )
+            elseif "HotThermalStorage" in p.s.storage.types.hot
+                @constraint(m, CSTToStorageOnly[q in p.heating_loads, ts in p.time_steps],
+                    m[Symbol("dvHeatingProduction"*_n)]["CST",q,ts] == m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts] + m[Symbol("dvHeatToStorage"*_n)]["HotThermalStorage","CST",q,ts]
+                )
+            else
+                @warn "CST.charge_storage_only is set to True, but no hot storage technologies exist."
+            end
+        end
+        if !p.s.cst.can_waste_heat
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvProductionToWaste"*_n)]["CST",q,ts], 0.0, force=true)
+                end
+            end
+        end
+    end
+
     
     # Enforce no waste heat for any technology that isn't both electricity- and heat-producing
-    for t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp))
+    for t in setdiff(p.techs.heating, union(p.techs.elec, p.techs.ghp, ["CST"]))
         for q in p.heating_loads
             for ts in p.time_steps
                 fix(m[Symbol("dvProductionToWaste"*_n)][t,q,ts], 0.0, force=true)

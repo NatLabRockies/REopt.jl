@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     add_cost_curve_vars_and_constraints(m, p; _n="")
 
@@ -239,6 +239,12 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
             p.s.ashp_wh.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["ASHPWaterHeater"]
         )
     end
+
+    if "CST" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.cst.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["CST"]
+        )
+    end    
 
     # ExistingBoiler and ExistingChiller costs are never discounted by incentives or tax deductions
     if "ExistingBoiler" in p.techs.all

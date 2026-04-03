@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
-- Use `code` markup for  REopt-specific file names, classes and endpoints (e.g. `src/REopt.jl`)
+- Use `code` markup for  REopt-specific file names, functions, and endpoints (e.g. `src/REopt.jl`)
 - Use _italic_ for code terms (i.e. _list_)
 - Prepend change with tag(s) directing where it is in the repository:  
 `src`,`constraints`,`*.jl`
@@ -29,16 +29,131 @@ Classify the change according to the following categories:
 ### Added
 - Add **ElectricStorage** input field `fixed_soc_series_fraction` to allow users to fix the SOC timeseries
  
-## test-runners
 ## Develop
+## v0.58.0
+### Added
+- New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
+- New result **thermal_to_absorption_chiller_series_mmbtu_per_hour** added to heating technologies and new result **storage_to_absorption_chiller_series_mmbtu_per_hour** for hot thermal storage technologies.  This result is included as a part of the thermal site loads served, i.e., the adding this result does not change the existing results.
+- Added results fields to **HighTempThermalStorage** to match those of **HotThermalStorage**.
+
+### Changed
+- Updated heating dispatch results by separating heat flows to absorption chiller from heating load served (formerly, these were aggregated).
+
+### Fixed
+- Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
+- Fixed a bug in which the storage to steam turbine flow was included in the thermal heating load served.
+
+### Changed
+- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
+
+## v0.57.0
+### Fixed
+- Include boiler emissions in emissions calculations
+- Update links that broke with NLR domain change and update other references to NREL
+### Changed
+- Updated defaults for **Financial** inputs **elec_cost_escalation_rate_fraction**, **boiler_fuel_cost_escalation_rate_fraction**, **existing_boiler_fuel_cost_escalation_rate_fraction**, **chp_fuel_cost_escalation_rate_fraction**, **generator_fuel_cost_escalation_rate_fraction**, **om_cost_escalation_rate_fraction**, and **offtaker_discount_rate_fraction** when **sector** is "federal" (based on the 2025 NIST Handbook and Annual Supplement)
+- Changed expected best dataset determined from Solar Dataset Query API in response to addition of Polar data to NSRDB
+### Added
+- Created a default PR template
+
+## v0.56.4
+### Fixed
+- Bug where storage input with only _Int_ values restricted _Dict_ subtype passed into `set_sector_defaults!` and caused _InexactError_
+- Bug where **ElectricStorage** input with only _Real_ values restricted _Dict_ subtype, causing **off_grid_flag** to be added as an _Int_ instead of _Bool_, leading to a conversion error in **ElectricStorageDefaults**
+- Fixed a bug in the type handling of **emissions_factor_series_lb_XXX_per_kwh** in which `xxx` is in the group **[CO2, SO2, NOx, PM25]**.
+- Handle "HIMS" region incorrectly named "HI" in avert_102008.shp
+
+## v0.56.3
+### Fixed
+- Correctly escape the \$ symbol in docstring for `REopt.add_electric_tariff_results` in `results/electric_tariff.jl`
+
+## v0.56.2
+### Fixed
+- Robust fix for type error with `ElectricLoad.monthly_peaks_kw` so that it now converts Vector{Any} to Vector{Float64} in scenario.jl before constructing `ElectricLoad`. Also converted `ElectricLoad.monthly_totals_kwh` to Vector{Float64} for good measure even though we weren't getting errors with that.
+
+## v0.56.1
+### Fixed
+- `CST` bypassing constraints for not serving (`can_serve_.. = false`) heating load types by going through the `HighTempThermalStorage`
+- Type error with `ElectricLoad.monthly_peaks_kw` so that it now converts Vector{Any} to Vector{<:Real}
+- `ElectricTariff.urdb_metadata.rate_effective_date` with the right URDB parameter
+
+## v0.56.0
+### Added
+- **ElectricLoad** input **monthly_peaks_kw**. Can be used to scale loads_kw or doe_reference loads to monthly peaks while maintaining monthly energy.
+- Ability to use monthly energy and peak scaling with timesteps_per_hour > 1
+- `ElectricTariff` and `ElectricLoad` inputs and outputs; mostly outputs related to monthly and per-timestep series rates and costs, and `urdb_metadata` which contains additional information about the URDB rate.
+- New function in **utils.jl** called get_load_metrics() which gets the annual and monthly energy and peak load values (units depends on the input `load_profile`, so that it can be used with any load type).
+
+## v0.55.2
+### Fixed 
+- fixed a bug in which demand and energy charges are applied to incorrect tiers in instances where tiered rates decrease as consumption increases, and the limits on the last tier are very large.
+
+## v0.55.1
+### Fixed
+- Updated from the deprecated NSRDB API call to the suggested new URL which uses the GOES dataset
+- Added `CST` to `Financial.initial_capital_costs` output
+### Changed
+- The solar resource data for CST changed with the new API call for the GOES dataset
+
+## v0.55.0
+### Added
+- Added **Site** inputs **sector**, **federal_sector_state**, and **federal_procurement_type**
+- Alternative defaults used when **sector** is "federal"
+- **GHPOutputs** fields **hybrid_solution_type**, **solve_time_min**, **number_of_boreholes_nonhybrid**, **number_of_boreholes_auto_guess**,
+**number_of_boreholes_flipped_guess**, **iterations_nonhybrid**, **iterations_auto_guess**, **iterations_flipped_guess**
+### Changed
+- Change hybrid GHP workflow from (1) running a 2-year simulation to guess if an auxiliary heating or cooling unit is required and outputting results to (2) running non-hybrid first in all hybrid runs and comparing to hybrid outputs to guarantee an actual hybrid solution where possible
+
+## v0.54.1
+### Added 
+- Added attribute `can_waste_heat` to CST module, allowing for CST to curtail heat.
+### Changed
+- Use ARM version of SAM library file if processor architecture is ARM
+- Fixed some docstrings in the CST source code.
+### Fixed
+- Fix `CHP` and `Boiler` results when there is HighTempThermalStorage
+
+## v0.54.0
+### Changed
+Update the following inputs from the previous --> new values:
+- `Financial.offtaker_discount_rate_fraction`: 0.0638 --> 0.0624
+- `Financial.owner_discount_rate_fraction`: 0.0638 --> 0.0624
+- `Financial.elec_cost_escalation_rate_fraction`: 0.017 --> 0.0166
+- `Financial.existing_boiler_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.boiler_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.chp_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.generator_fuel_cost_escalation_rate_fraction `: 0.012 --> 0.0197
+- `Generator.fuel_cost_per_gallon`: 3.61 --> 2.25
+- `ColdThermalStorage`, `HotThermalStorage`, `ElectricStorage` `macrs_option_years`: 7 --> 5
+-  `CHP`, `ColdThermalStorage`, `HotThermalStorage`, `ElectricStorage`, `PV`, `Wind` `macrs_bonus_fraction` 0.6 --> 1.0
+- `GHP.macrs_bonus_fraction`: 0.4 --> 0.0
+- `GHP.macrs_option_years`: 5 --> 0
+- `SteamTurbine.macrs_bonus_fraction`: 0 --> 1.0 
+- `SteamTurbine.macrs_option_years`: 0 --> 5 (in order for 100% bonus depr to apply)
+- `CHP.federal_itc_fraction`: 0.3 --> 0.0
+- `Wind.om_cost_per_kw`: 36.0 --> 42.0 
+- `Wind.size_class_to_installed_cost` = Dict(
+        "residential"=> 6339.0, --> 7692.0
+        "commercial"=> 4760.0, --> 5776.0
+        "medium"=> 3137.0, --> 3807.0
+        "large"=> 2386.0 --> 2896.0)
+- Changed **cycle_fade_coefficient** input to be a vector and accept vector of inputs.
+- Changed default inputs for degradation module to match parameters for NMC-Gr Kokam 75Ah cell.
+- Changed residual battery fraction calculation to calculate useful healthy capacity for residual value and capacity calculations.
+- Require NREL Developer API email set as ENV["NREL_DEVELOPER_EMAIL"] = 'your contact email' for CST runs (also requires ENV["NREL_DEVELOPER_API_KEY"])
 ### Added
 - Added constraints in `src/constraints/battery_degradation.jl` to allow use of segmented cycle fade coefficients in the model.
 - Added **cycle_fade_fraction** as an input for portion of BESS that is tied to each cycle fade coefficient.
 - Added **total_residual_kwh** output which captures healthy residual battery capacity due to degradation and the replacement strategy
-### Changed
-- Changed **cycle_fade_coefficient** input to be a vector and accept vector of inputs.
-- Changed default inputs for degradation module to match parameters for NMC-Gr Kokam 75Ah cell.
-- Changed residual battery fraction calculation to calculate useful healthy capacity for residual value and capacity calculations.
+- Added ARM version of SAM library file `src/sam/libssc_arm.dylib`, which can be renamed to `libssc.dylib` for running REopt.jl locally on an ARM Mac.
+- Added new file `src/core/cst.jl` with new technology **CST**, which provides heating as output; technology-specific sets and results have been updated and added accordingly.
+- Added new file `src/core/cst_ssc.jl` to interface with SAM when populating inputs (i.e., performance profile) with new technology **CST**.
+- Added to file `src/core/energy_storage/thermal_storage.jl` with new technology **HighTempThermalStorage**, which stores heat for industrial processes primarily; technology-specific sets have been updated and added accordingly.
+- Added new file `src/results/cst.jl` to provide results from new technology **CST**.
+- Added to file `src/results/thermal_storage.jl` to provide results from new storage technology **HighTempThermalStorage**.
+- Added new file `test/scenarios/cst.json` with new test for technologies **CST**.
+### Fixed
+- Corrected pv_defaults.jl "Small Commercial" "om_premium" from 0.95 to 1.0 
 
 ## v0.53.2
 ### Fixed

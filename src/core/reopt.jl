@@ -1,11 +1,10 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     REoptInputs(d::Dict)
 
 Return REoptInputs(s) where s in `Scenario` defined in dict `d`.
 """
-
 function REoptInputs(d::Dict)
 
 	# Keep try catch to support API v3 call to `REoptInputs`
@@ -135,7 +134,6 @@ end
 
 Solve the `Scenario` and `BAUScenario` in parallel using the first two (empty) models in `ms` and inputs from `p`.
 """
-
 function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.AbstractModel
 
 	try
@@ -204,7 +202,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             end
         end
 	end
-
 	for b in p.s.storage.types.all
 		if p.s.storage.attr[b].max_kw == 0 || p.s.storage.attr[b].max_kwh == 0
 			@constraint(m, [ts in p.time_steps], m[:dvStoredEnergy][b, ts] == 0)
@@ -216,22 +213,8 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				@constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
 						m[:dvProductionToStorage][b, t, ts] == 0)
 			elseif b in p.s.storage.types.hot
-				@constraint(m, [q in q in setdiff(p.heating_loads, p.heating_loads_served_by_tes[b]), ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0)
-				if "DomesticHotWater" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_dhw), ts in p.time_steps], m[:dvHeatToStorage][b,t,"DomesticHotWater",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"DomesticHotWater",ts] == 0)
-				end
-				if "SpaceHeating" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_space_heating), ts in p.time_steps], m[:dvHeatToStorage][b,t,"SpaceHeating",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"SpaceHeating",ts] == 0)
-				end
-				if "ProcessHeat" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_process_heat), ts in p.time_steps], m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0)
-				end
+				@constraint(m, [q in p.heating_loads, ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0)
+				@constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps], m[:dvHeatToStorage][b,t,q,ts] == 0)
 			end
 		else
 			add_storage_size_constraints(m, p, b)
@@ -244,6 +227,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				end
 			elseif b in p.s.storage.types.hot
 				add_hot_thermal_storage_dispatch_constraints(m, p, b)
+				add_hot_tes_flow_restrictions!(m, p, b)
 			elseif b in p.s.storage.types.cold
 				add_cold_thermal_storage_dispatch_constraints(m, p, b)
 			else
@@ -359,10 +343,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         if !isempty(p.techs.steam_turbine)
             add_steam_turbine_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalSteamTurbinePerUnitProdOMCosts]
-			#TODO: review this constraint and see if it's intended.  This matches the legacy implementation and tests pass but should the turbine be allowed to send heat to waste in order to generate electricity?
-			@constraint(m, steamTurbineNoWaste[t in p.techs.steam_turbine, q in p.heating_loads, ts in p.time_steps],
-				m[:dvProductionToWaste][t,q,ts] == 0.0
-			)
         end
 
         if !isempty(p.techs.pbi)
@@ -711,6 +691,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(union(p.techs.heating, p.techs.chp))
         @variable(m, dvHeatingProduction[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
 		@variable(m, dvProductionToWaste[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
+		@variable(m, dvHeatToAbsorptionChiller[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
         if !isempty(p.techs.chp)
 			@variables m begin
 				dvSupplementaryThermalProduction[p.techs.chp, p.time_steps] >= 0
@@ -718,20 +699,34 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			end
         end
 		if !isempty(p.s.storage.types.hot)
+			# TODO introduce these as sparse variables, add a set of techs charging storage?
 			@variable(m, dvHeatToStorage[p.s.storage.types.hot, union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0) # Power charged to hot storage b at quality q [kW]
 			@variable(m, dvHeatFromStorage[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0) # Power discharged from hot storage system b for load q [kW]
+			if !isempty(p.techs.steam_turbine)
+				@variable(m, dvHeatFromStorageToTurbine[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
+			end
+			@variable(m, dvHeatFromStorageToAbsorptionChiller[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
     	end
 	end
 
 	if !isempty(p.techs.cooling)
 		@variable(m, dvCoolingProduction[p.techs.cooling, p.time_steps] >= 0)
+		add_absorption_chiller_load_constraints(m, p)
+	else
+		for t in union(p.techs.heating, p.techs.chp)
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[:dvHeatToAbsorptionChiller][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
 	end
 
     if !isempty(p.techs.steam_turbine)
 		if !isempty(p.techs.can_supply_steam_turbine)
 	        @variable(m, dvThermalToSteamTurbine[p.techs.can_supply_steam_turbine, p.heating_loads, p.time_steps] >= 0)
-		else
-			throw(@error("Steam turbine is present, but set p.techs.can_supply_steam_turbine is empty."))
+		elseif !any(p.s.storage.attr[b].can_supply_steam_turbine for b in p.s.storage.types.hot)
+			throw(@error("Steam turbine is present, but set p.techs.can_supply_steam_turbine is empty and no storage is compatible with steam turbine."))
 		end
     end
 

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 module REopt
 
 export
@@ -27,7 +27,9 @@ export
     get_existing_chiller_default_cop,
     get_electric_heater_defaults,
     get_ashp_defaults,
-    get_pv_cost_params
+    get_pv_cost_params,
+    get_sector_defaults,
+    get_load_metrics
 
 import HTTP
 import JSON
@@ -69,6 +71,7 @@ const FUEL_TYPES = ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
 const BIG_NUMBER = 1.0e10  #used for max size.  TODO use this number elsewhere.
 const PRIME_MOVERS = ["recip_engine", "micro_turbine", "combustion_turbine", "fuel_cell"]  #TODO replace `prime_movers` references in CHP code
 const HOT_WATER_OR_STEAM = ["steam", "hot_water"]  #TODO replace references to this list in chp, boiler
+const CST_TYPES = ["ptc", "lf", "mst", "swh_evactube", "swh_flatplate"]
 const FUEL_DEFAULTS = Dict(
     "fuel_renewable_energy_fraction" => Dict(
         "natural_gas"=>0.0,
@@ -139,6 +142,8 @@ include("core/chp.jl")
 include("core/ghp.jl")
 include("core/steam_turbine.jl")
 include("core/electric_heater.jl")
+include("core/cst_ssc.jl")
+include("core/cst.jl")
 include("core/ashp.jl")
 include("core/scenario.jl")
 include("core/bau_scenario.jl")
@@ -194,6 +199,7 @@ include("results/flexible_hvac.jl")
 include("results/ghp.jl")
 include("results/steam_turbine.jl")
 include("results/electric_heater.jl")
+include("results/cst.jl")
 include("results/ashp.jl")
 
 include("core/reopt.jl")

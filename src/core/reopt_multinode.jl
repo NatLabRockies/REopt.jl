@@ -182,6 +182,10 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
 					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				elseif b in p.s.storage.types.cold
 					add_cold_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
+				elseif b in p.s.storage.types.hot
+					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
+				else
+					throw(@error("Invalid storage does not fall in a thermal or electrical set"))
 				end
             end
         end

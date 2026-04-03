@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 
@@ -12,24 +12,35 @@ GHP results:
 - `avoided_capex_by_ghp_present_value` Present value of avoided capital cost by choosing GHP
 - `space_heating_thermal_load_reduction_with_ghp_mmbtu_per_hour`
 - `cooling_thermal_load_reduction_with_ghp_ton`
+- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr] (superset of "to_space_heating_load" and "to_dhw_load")
 - `thermal_to_space_heating_load_series_mmbtu_per_hour`
 - `thermal_to_dhw_load_series_mmbtu_per_hour`
-- `thermal_to_load_series_ton`
+- `thermal_to_load_series_ton` # Thermal production to cooling load
 - `annual_thermal_production_mmbtu`  # GHP's heating thermal power production in a year [MMBtu]
 - `annual_thermal_production_tonhour`  # GHP's cooling thermal power production in a year [ton]
 
 """
-
 function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	r = Dict{String, Any}()
     @expression(m, GHPOptionChosen, sum(g * m[Symbol("binGHP"*_n)][g] for g in p.ghp_options))
-	ghp_option_chosen = convert(Int64, value(GHPOptionChosen))
+	ghp_option_chosen = round(Int64, value(GHPOptionChosen)) # Use integer rounding to avoid precision issues
     r["ghp_option_chosen"] = ghp_option_chosen
     # r["size_heat_pump_ton"] = 0.0
     # r["size_wwhp_heating_pump_ton"] = 0.0
     # r["size_wwhp_cooling_pump_ton"] = 0.0
 
     if ghp_option_chosen >= 1
+        
+        r["hybrid_solution_type"] = p.s.ghp_option_list[ghp_option_chosen].hybrid_solution_type
+        r["solve_time_min"] = p.s.ghp_option_list[ghp_option_chosen].solve_time_min
+        r["number_of_boreholes_nonhybrid"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_nonhybrid
+        r["number_of_boreholes_auto_guess"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_auto_guess
+        r["number_of_boreholes_flipped_guess"] = p.s.ghp_option_list[ghp_option_chosen].number_of_boreholes_flipped_guess
+
+        r["iterations_nonhybrid"] = p.s.ghp_option_list[ghp_option_chosen].iterations_nonhybrid
+        r["iterations_auto_guess"] = p.s.ghp_option_list[ghp_option_chosen].iterations_auto_guess
+        r["iterations_flipped_guess"] = p.s.ghp_option_list[ghp_option_chosen].iterations_flipped_guess
+
         r["ghpghx_chosen_outputs"] = p.s.ghp_option_list[ghp_option_chosen].ghpghx_response["outputs"]
 
         if r["ghpghx_chosen_outputs"]["heat_pump_configuration"] == "WSHP"
@@ -65,6 +76,7 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         else
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
+        r["thermal_to_load_series_mmbtu_per_hour"] = r["thermal_to_space_heating_load_series_mmbtu_per_hour"] + r["thermal_to_dhw_load_series_mmbtu_per_hour"]
     else
         r["ghpghx_chosen_outputs"] = Dict()
         r["space_heating_thermal_load_reduction_with_ghp_mmbtu_per_hour"] = zeros(length(p.time_steps))
@@ -73,6 +85,7 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         r["thermal_to_load_series_ton"] = zeros(length(p.time_steps))
         r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
+        r["thermal_to_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         r["annual_thermal_production_mmbtu"] = 0.0
         r["annual_thermal_production_tonhour"] = 0.0
     end

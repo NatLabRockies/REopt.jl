@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 
@@ -17,7 +17,11 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 
     for b in p.s.storage.types.hot
         if p.s.storage.attr[b].max_kwh > 0
-            add_hot_storage_results(m, p, d, b; _n)
+            if b == "HighTempThermalStorage"
+                add_high_temp_thermal_storage_results(m, p, d, b; _n)
+            else
+                add_hot_storage_results(m, p, d, b; _n)
+            end
         end
     end
 
@@ -104,6 +108,10 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
         add_electric_heater_results(m, p, d; _n)
     end
 
+    if "CST" in p.techs.electric_heater
+        add_concentrating_solar_results(m, p, d; _n)
+    end
+
     if "ASHPSpaceHeater" in p.techs.ashp
         add_ashp_results(m, p, d; _n)
     end
@@ -175,7 +183,13 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("ElectricTariff", "year_one_export_benefit_after_tax"),
         ("ElectricTariff", "year_one_coincident_peak_cost_before_tax"),
         ("ElectricTariff", "lifecycle_coincident_peak_cost_after_tax"),
-        ("ElectricUtility", "electric_to_load_series_kw"),  
+        ("ElectricTariff", "monthly_fixed_cost_series_before_tax"),
+        ("ElectricTariff", "energy_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_energy_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_facility_demand_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_tou_demand_cost_series_before_tax"),
+        ("ElectricTariff", "monthly_demand_cost_series_before_tax"),
+        ("ElectricUtility", "electric_to_load_series_kw"),
         ("ElectricUtility", "annual_energy_supplied_kwh"),
         ("ElectricUtility","annual_renewable_electricity_supplied_kwh"),
         ("ElectricUtility", "annual_emissions_tonnes_CO2"),

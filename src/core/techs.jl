@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     Techs(p::REoptInputs, s::BAUScenario)
 
@@ -268,6 +268,24 @@ function Techs(s::Scenario)
             push!(techs_can_serve_process_heat, "ElectricHeater")
         end
     end
+    
+    if !isnothing(s.cst)
+        push!(all_techs, "CST")
+        push!(heating_techs, "CST")
+        push!(electric_heaters, "CST")
+        if s.cst.can_supply_steam_turbine
+            push!(techs_can_supply_steam_turbine, "CST")
+        end
+        if s.cst.can_serve_space_heating
+            push!(techs_can_serve_space_heating, "CST")
+        end
+        if s.cst.can_serve_dhw
+            push!(techs_can_serve_dhw, "CST")
+        end
+        if s.cst.can_serve_process_heat
+            push!(techs_can_serve_process_heat, "CST")
+        end
+    end
 
     if !isnothing(s.ashp)
         push!(all_techs, "ASHPSpaceHeater")
@@ -317,6 +335,16 @@ function Techs(s::Scenario)
     if s.settings.off_grid_flag
         append!(requiring_oper_res, pvtechs)
         append!(providing_oper_res, pvtechs)
+    end
+
+    if sum(s.dhw_load.loads_kw) == 0.0
+        techs_can_serve_dhw = String[]
+    end
+    if sum(s.space_heating_load.loads_kw) == 0.0
+        techs_can_serve_space_heating = String[]
+    end
+    if sum(s.process_heat_load.loads_kw) == 0.0
+        techs_can_serve_process_heat = String[]
     end
 
     thermal_techs = union(heating_techs, boiler_techs, chp_techs, cooling_techs)
