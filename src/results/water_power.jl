@@ -1,11 +1,26 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 """
 `WaterPower` results keys:
-- `size_kw` the turbine input into the model capacity
-- `electric_to_storage_series_kw` Vector of power sent to battery in an average year
-- `electric_to_grid_series_kw` Vector of power sent to grid in an average year
-- `electric_to_load_series_kw` Vector of power sent to load in an average year
-- `annual_energy_produced_kwh` Average annual energy produced over analysis period
+- `electric_to_storage_series_kw_all_turbines_combined`
+- `electric_curtailed_series_kw_all_turbines_combined`
+- `electric_to_grid_series_kw_all_turbines_combined`
+- `electric_to_load_series_kw_all_turbines_combined`
+- `spillway_water_outflow_cubic_meters_per_second`
+- `annual_energy_produced_kwh`
+- `lifecycle_fixed_om_cost_after_tax_pumps`
+- `combined_pumps_initial_capital_costs`
+- `pump_water_flow_all_pumps_combined`
+- `combined_pump_power_rating`
+- `pump_power_input_kw_all_pumps_combined`
+- `turbine_or_pump_active`
+- `number_of_pumps_active`
+- `individual_pump_results` subdictionary with the following results for each pump: `pump_power_rating`, `pump_water_flow`, `pump_power_input_kw`, `pump_on_or_off`
+- `combined_turbine_size_kw`
+- `lifecycle_fixed_om_cost_after_tax_turbines`
+- `combined_turbines_initial_capital_costs`
+- `water_outflow_for_all_turbines_combined`
+- `total_power_output_series_kw_all_turbines_combined`
+- `individual_turbine_results` subdictionary with the following results for each turbine: `turbine_power_rating`, `water_outflow`, `electric_curtailed_series_kw`, `power_output_kw`, `turbine_on_or_off`, `power_to_load_kw`, `power_to_battery_kw`, `power_to_grid_kw` 
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -47,29 +62,11 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	)
 	r["electric_to_load_series_kw_all_turbines_combined"] = round.(value.(water_powerToLoad).data, digits=3)
 	
-	r["combined_upstream_and_downstream_resevoir_costs"] = m[Symbol("WaterStorageCapCosts"*_n)]
-	
 	# Total water_power power output
 	TotalWaterPowerPowerOutput = @expression(m, [ts in p.time_steps],
 		sum(m[Symbol("dvRatedProduction"*_n)][t, ts] * p.production_factor[t, ts] * p.levelization_factor[t]
 			for t in p.techs.water_power) - HydroCurtailment[ts])
-	
-	# Upstream reservoir volume
-	r["upstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[Symbol("dvUpperReservoirCapacity"*_n)]), digits=3)
-	
-	if r["upstream_reservoir_water_capacity_cubic_meters"] > 0
-		upstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[Symbol("dvWaterVolume"*_n)][ts])
-		r["upstream_reservoir_water_volume_cubic_meters"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
-
-		# Water flow into upstream reservoir (input into the model)
-		r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.water_inflow_cubic_meter_per_second
 		
-		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upper_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpperReservoirCapacity"*_n)])
-		r["upstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(UpstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		r["upper_reservior_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)]
-	end
-
-	
 	# Spillway water flow
 	spillway_water_flow = @expression(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][ts])
 	r["spillway_water_outflow_cubic_meters_per_second"] = round.(value.(spillway_water_flow).data, digits = 3)
@@ -82,22 +79,6 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	)
 	r["annual_energy_produced_kwh"] = round(value(AnnualWaterPowerProd), digits=0) # includes curtailment
     	
-	if "downstream_reservoir" in p.s.water_storage
-		# Downstream reservoir volume
-		downstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts])
-		r["downstream_reservoir_water_volume_cubic_meters"] = round.(value.(downstream_reservoir_volume).data, digits=3) 
-		r["downstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[Symbol("dvDownstreamReservoirCapacity"*_n)]), digits=3)
-		
-		# Water flow out of downstream reservoir
-		downstream_reservoir_water_outflow = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts])
-		r["downstream_reservoir_water_outflow_cubic_meters_per_second"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
-		
-		DownstreamReservoirPerUnitSizeOMCosts = @expression(m,p.third_party_factor * p.pwf_om * p.s.downstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
-		r["downstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(DownstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		r["downstream_reservior_initial_capital_costs"] = p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)]
-		
-	end
-
 	# Compile results for the pumps
 	if ("downstream_reservoir" in p.s.water_storage) && (p.s.water_power.number_of_pumps > 0)
 		
@@ -147,8 +128,6 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		
 		r["combined_turbines_initial_capital_costs"] = p.s.water_power.turbine_cost_per_kw * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_turbines)
 		
-		r["individual_turbine_results"] = Dict([])
-
 		# Water outflow from the turbines
 		water_outflow_total = @expression(m, [ts in p.time_steps],
 			sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) 
@@ -157,7 +136,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 		r["total_power_output_series_kw_all_turbines_combined"] = round.(value.(TotalWaterPowerPowerOutput).data, digits=3)
 	
-
+		r["individual_turbine_results"] = Dict([])
 
 		for i in p.techs.water_power_turbines
 					
