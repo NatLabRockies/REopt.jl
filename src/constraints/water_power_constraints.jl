@@ -51,7 +51,7 @@ function add_water_power_constraints(m,p; _n="")
 	time_steps_without_first_time_step = p.time_steps[2:final_time_step]
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 
-					m[Symbol("dvWaterVolumeChange"*_n)][ts] == p.s.upper_reservoir.water_inflow_cubic_meter_per_second[ts] - m[Symbol("dvSpillwayWaterFlow"*_n)][ts] - sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) + sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps)
+					m[Symbol("dvWaterVolumeChange"*_n)][ts] == p.s.upper_reservoir.tributary_water_inflow_cubic_meter_per_second[ts] - m[Symbol("dvSpillwayWaterFlow"*_n)][ts] - sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) + sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps)
 				)
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 

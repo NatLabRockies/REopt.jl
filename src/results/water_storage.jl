@@ -30,7 +30,7 @@ function add_upper_reservoir_water_storage_results(m::JuMP.AbstractModel, p::REo
 		r["upstream_reservoir_water_volume_cubic_meters"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
 
 		# Water flow into upstream reservoir (input into the model)
-		r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.water_inflow_cubic_meter_per_second
+		r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.tributary_water_inflow_cubic_meter_per_second
 		
 		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upper_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpperReservoirCapacity"*_n)])
 		r["upstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(UpstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
@@ -71,6 +71,9 @@ function add_downstream_reservoir_water_storage_results(m::JuMP.AbstractModel, p
 	# Water flow out of downstream reservoir
 	downstream_reservoir_water_outflow = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts])
 	r["downstream_reservoir_water_outflow_cubic_meters_per_second"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
+	
+	# Water flow into upstream reservoir (input into the model)
+	r["input_to_model_tributary_water_flow"] = p.s.downstream_reservoir.tributary_water_inflow_cubic_meter_per_second
 	
 	# Downstream reservoir costs
 	DownstreamReservoirPerUnitSizeOMCosts = @expression(m,p.third_party_factor * p.pwf_om * p.s.downstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)])

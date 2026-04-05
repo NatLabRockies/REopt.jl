@@ -7,7 +7,7 @@ Upper reservoir water storage sytem
 `UpperReservoirStorage` is an optional REopt input with the following keys and default values:
 
 ```julia
-    water_inflow_cubic_meter_per_second::Array=[]
+    tributary_water_inflow_cubic_meter_per_second::Array=[]
     minimum_volume_fraction_upper_reservoir::Float64 = 0.1
     maximum_volume_fraction_upper_reservoir::Float64 = 1.0
     initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
@@ -23,7 +23,7 @@ Upper reservoir water storage sytem
 ```
 """
 Base.@kwdef struct UpperReservoirStorageDefaults <: AbstractWaterStorageDefaults
-    water_inflow_cubic_meter_per_second::Array=[]
+    tributary_water_inflow_cubic_meter_per_second::Array=[]
     minimum_volume_fraction_upper_reservoir::Float64 = 0.1
     maximum_volume_fraction_upper_reservoir::Float64 = 1.0
     initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
@@ -87,7 +87,7 @@ Construct UpperReservoirStorage struct from Dict with keys-val pairs from the
 REopt UpperReservoirStorage and Financial inputs. 
 """
 struct UpperReservoirStorage <: AbstractWaterStorage
-    water_inflow_cubic_meter_per_second::Array
+    tributary_water_inflow_cubic_meter_per_second::Array
     minimum_volume_fraction_upper_reservoir::Float64
     maximum_volume_fraction_upper_reservoir::Float64
     initial_reservoir_volume_fraction_upper_reservoir::Float64
@@ -125,7 +125,7 @@ struct UpperReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        stor.water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
         if stor.maximum_volume_fraction_upper_reservoir < stor.minimum_volume_fraction_upper_reservoir
             throw(@error("The 'maximum_volume_fraction_upper_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upper_reservoir"))
@@ -135,7 +135,7 @@ struct UpperReservoirStorage <: AbstractWaterStorage
         end
 
         return new(
-            stor.water_inflow_cubic_meter_per_second,
+            stor.tributary_water_inflow_cubic_meter_per_second,
             stor.minimum_volume_fraction_upper_reservoir,
             stor.maximum_volume_fraction_upper_reservoir,
             stor.initial_reservoir_volume_fraction_upper_reservoir,
