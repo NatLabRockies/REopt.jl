@@ -27,7 +27,7 @@ struct Scenario <: AbstractScenario
     electric_heater::Union{ElectricHeater, Nothing}
     water_power::WaterPower
     water_storage::Array{}
-    upper_reservoir::UpperReservoirStorage
+    upstream_reservoir::UpstreamReservoirStorage
     downstream_reservoir::DownstreamReservoirStorage
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
@@ -64,7 +64,7 @@ A Scenario struct can contain the following keys:
 - [ElectricHeater](@ref) (optional)
 - [WaterPower](@ref) (optional)
 - [water_storage](@ref) (optional)
-- [upper_reservoir](@ref) (optional)
+- [upstream_reservoir](@ref) (optional)
 - [downstream_reservoir](@ref) (optional)
 - absorption_chillers_using_heating_load
 - [CST](@ref) (optional)
@@ -248,10 +248,10 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end 
 
     water_storage = []  
-    if haskey(d, "UpperReservoirWaterStorage")
-        push!(water_storage, "upper_reservoir")
-        upper_reservoir = UpperReservoirStorage(
-                                dictkeys_tosymbols(d["UpperReservoirWaterStorage"]), 
+    if haskey(d, "UpstreamReservoirWaterStorage")
+        push!(water_storage, "upstream_reservoir")
+        upstream_reservoir = UpstreamReservoirStorage(
+                                dictkeys_tosymbols(d["UpstreamReservoirWaterStorage"]), 
                                 financial, site, settings.time_steps_per_hour
                             )
     end
@@ -1091,7 +1091,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         electric_heater,
         water_power,
         water_storage,
-        upper_reservoir,
+        upstream_reservoir,
         downstream_reservoir,
         cst,
         ashp,

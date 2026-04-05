@@ -1,6 +1,6 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 """
-`UpperReservoir` results keys:
+`UpstreamReservoir` results keys:
 - `combined_upstream_and_downstream_resevoir_costs` the turbine input into the model capacity
 - `upstream_reservoir_water_capacity_cubic_meters`
 - `upstream_reservoir_water_volume_cubic_meters`
@@ -14,7 +14,7 @@
 
 """
 
-function add_upper_reservoir_water_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
+function add_upstream_reservoir_water_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 	# Adds the `WaterPower` results to the dictionary passed back from `run_reopt` using the solved model `m` and the `REoptInputs` for node `_n`.
 	# Note: the node number is an empty string if evaluating a single `Site`.
 
@@ -23,21 +23,21 @@ function add_upper_reservoir_water_storage_results(m::JuMP.AbstractModel, p::REo
 	r["combined_upstream_and_downstream_resevoir_costs"] = m[Symbol("WaterStorageCapCosts"*_n)]
 
 	# Upstream reservoir volume
-	r["upstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[Symbol("dvUpperReservoirCapacity"*_n)]), digits=3)
+	r["upstream_reservoir_water_capacity_cubic_meters"] = round.(value.(m[Symbol("dvUpstreamReservoirCapacity"*_n)]), digits=3)
 	
 	if r["upstream_reservoir_water_capacity_cubic_meters"] > 0
 		upstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[Symbol("dvWaterVolume"*_n)][ts])
 		r["upstream_reservoir_water_volume_cubic_meters"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
 
 		# Water flow into upstream reservoir (input into the model)
-		r["input_to_model_tributary_water_flow"] = p.s.upper_reservoir.tributary_water_inflow_cubic_meter_per_second
+		r["input_to_model_tributary_water_flow"] = p.s.upstream_reservoir.tributary_water_inflow_cubic_meter_per_second
 		
-		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upper_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpperReservoirCapacity"*_n)])
+		UpstreamReservoirPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.s.upstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpstreamReservoirCapacity"*_n)])
 		r["upstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(UpstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		r["upper_reservior_initial_capital_costs"] = p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)]
+		r["upper_reservior_initial_capital_costs"] = p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
 	end
 
-	d["UpperReservoir"] = r
+	d["UpstreamReservoir"] = r
     nothing
 end
 

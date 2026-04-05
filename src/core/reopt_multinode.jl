@@ -136,7 +136,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		print("\n p.s.water_storage is: $(p.s.water_storage)")
 
 		if !isempty(p.techs.water_power)
-			print("\n Creating variables for turbines and an upper reservoir")
+			print("\n Creating variables for turbines and an upstream reservoir")
 			
 			dv = "dvWaterVolume"*_n
 			m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
@@ -297,11 +297,11 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
 			m[Symbol(ex_name)] = @expression(m, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)] )
 		end
 		
-		if "upper_reservoir" in p.s.water_storage
-			add_to_expression!(m[Symbol("WaterStorageCapCosts"*_n)], p.third_party_factor * p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)])
+		if "upstream_reservoir" in p.s.water_storage
+			add_to_expression!(m[Symbol("WaterStorageCapCosts"*_n)], p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)])
 		end
 
-		if "upper_reservoir" in p.s.water_storage
+		if "upstream_reservoir" in p.s.water_storage
 			print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
 			add_to_expression!(m[Symbol("Costs"*_n)], sum(m[Symbol("dvSpillwayWaterFlow"*_n)][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 		end

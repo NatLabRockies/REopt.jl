@@ -445,8 +445,8 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity] )
 	end
 	
-	if "upper_reservoir" in p.s.water_storage
-		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[:dvUpperReservoirCapacity] )
+	if "upstream_reservoir" in p.s.water_storage
+		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[:dvUpstreamReservoirCapacity] )
 	end
 
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
@@ -570,7 +570,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
 	end
 
-	if "upper_reservoir" in p.s.water_storage
+	if "upstream_reservoir" in p.s.water_storage
 		print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
 		add_to_expression!(Costs, sum(m[:dvSpillwayWaterFlow][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 	end

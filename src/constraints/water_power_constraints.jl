@@ -22,18 +22,18 @@ function add_water_power_constraints(m,p; _n="")
 		throw(@error("Invalid input for the computation_type field"))
 	end
 
-	# Create variable for the upper reservoir capacity
+	# Create variable for the upstream reservoir capacity
 
-	dv = "dvUpperReservoirCapacity"*_n
+	dv = "dvUpstreamReservoirCapacity"*_n
 	m[Symbol(dv)] = @variable(m, base_name=dv)
-	@constraint(m, p.s.upper_reservoir.minimum_capacity_cubic_meters_upper_reservoir <= m[Symbol(dv)] <= p.s.upper_reservoir.maximum_capacity_cubic_meters_upper_reservoir)
+	@constraint(m, p.s.upstream_reservoir.minimum_capacity_cubic_meters_upstream_reservoir <= m[Symbol(dv)] <= p.s.upstream_reservoir.maximum_capacity_cubic_meters_upstream_reservoir)
 	
-	# The upper reservoir water volume must be between the max and min levels
+	# The upstream reservoir water volume must be between the max and min levels
 	@constraint(m, [ts in p.time_steps],
-		m[Symbol("dvWaterVolume"*_n)][ts] <= p.s.upper_reservoir.maximum_volume_fraction_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)]
+		m[Symbol("dvWaterVolume"*_n)][ts] <= p.s.upstream_reservoir.maximum_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
 				)
 	@constraint(m, [ts in p.time_steps],
-		m[Symbol("dvWaterVolume"*_n)][ts] >= p.s.upper_reservoir.minimum_volume_fraction_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)] 
+		m[Symbol("dvWaterVolume"*_n)][ts] >= p.s.upstream_reservoir.minimum_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)] 
 				)
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
@@ -51,7 +51,7 @@ function add_water_power_constraints(m,p; _n="")
 	time_steps_without_first_time_step = p.time_steps[2:final_time_step]
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 
-					m[Symbol("dvWaterVolumeChange"*_n)][ts] == p.s.upper_reservoir.tributary_water_inflow_cubic_meter_per_second[ts] - m[Symbol("dvSpillwayWaterFlow"*_n)][ts] - sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) + sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps)
+					m[Symbol("dvWaterVolumeChange"*_n)][ts] == p.s.upstream_reservoir.tributary_water_inflow_cubic_meter_per_second[ts] - m[Symbol("dvSpillwayWaterFlow"*_n)][ts] - sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) + sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps)
 				)
 	
 	@constraint(m, [ts in time_steps_without_first_time_step], 
@@ -60,7 +60,7 @@ function add_water_power_constraints(m,p; _n="")
 					+ ((3600/p.s.settings.time_steps_per_hour) * m[Symbol("dvWaterVolumeChange"*_n)][ts])   # The (3600/p.s.settings.time_steps_per_hour) converts from m^3 per second, to m^3 per timestep
 				)
 	
-	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == p.s.upper_reservoir.initial_reservoir_volume_fraction_upper_reservoir * m[Symbol("dvUpperReservoirCapacity"*_n)]) 
+	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == p.s.upstream_reservoir.initial_reservoir_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)]) 
 		
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == m[Symbol("dvWaterVolume"*_n)][maximum(p.time_steps)])

@@ -2,18 +2,18 @@
 
 
 """
-Upper reservoir water storage sytem
+Upstream reservoir water storage sytem
 
-`UpperReservoirStorage` is an optional REopt input with the following keys and default values:
+`UpstreamReservoirStorage` is an optional REopt input with the following keys and default values:
 
 ```julia
     tributary_water_inflow_cubic_meter_per_second::Array=[]
-    minimum_volume_fraction_upper_reservoir::Float64 = 0.1
-    maximum_volume_fraction_upper_reservoir::Float64 = 1.0
-    initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
-    minimum_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_upper_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_upper_reservoir::Float64 = 25.0
+    minimum_volume_fraction_upstream_reservoir::Float64 = 0.1
+    maximum_volume_fraction_upstream_reservoir::Float64 = 1.0
+    initial_reservoir_volume_fraction_upstream_reservoir::Float64 = 0.0
+    minimum_capacity_cubic_meters_upstream_reservoir::Float64 = 0.0
+    maximum_capacity_cubic_meters_upstream_reservoir::Float64 = 10000000.0
+    cost_per_cubic_meter_upstream_reservoir::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 # Yearly fixed O&M cost dependent on storage energy size
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -22,14 +22,14 @@ Upper reservoir water storage sytem
     total_rebate_per_cubic_meter::Float64 = 0.0
 ```
 """
-Base.@kwdef struct UpperReservoirStorageDefaults <: AbstractWaterStorageDefaults
+Base.@kwdef struct UpstreamReservoirStorageDefaults <: AbstractWaterStorageDefaults
     tributary_water_inflow_cubic_meter_per_second::Array=[]
-    minimum_volume_fraction_upper_reservoir::Float64 = 0.1
-    maximum_volume_fraction_upper_reservoir::Float64 = 1.0
-    initial_reservoir_volume_fraction_upper_reservoir::Float64 = 0.0
-    minimum_capacity_cubic_meters_upper_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_upper_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_upper_reservoir::Float64 = 25.0
+    minimum_volume_fraction_upstream_reservoir::Float64 = 0.1
+    maximum_volume_fraction_upstream_reservoir::Float64 = 1.0
+    initial_reservoir_volume_fraction_upstream_reservoir::Float64 = 0.0
+    minimum_capacity_cubic_meters_upstream_reservoir::Float64 = 0.0
+    maximum_capacity_cubic_meters_upstream_reservoir::Float64 = 10000000.0
+    cost_per_cubic_meter_upstream_reservoir::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0 
@@ -81,19 +81,19 @@ end
 
 
 """
-function UpperReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
+function UpstreamReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
 
-Construct UpperReservoirStorage struct from Dict with keys-val pairs from the 
-REopt UpperReservoirStorage and Financial inputs. 
+Construct UpstreamReservoirStorage struct from Dict with keys-val pairs from the 
+REopt UpstreamReservoirStorage and Financial inputs. 
 """
-struct UpperReservoirStorage <: AbstractWaterStorage
+struct UpstreamReservoirStorage <: AbstractWaterStorage
     tributary_water_inflow_cubic_meter_per_second::Array
-    minimum_volume_fraction_upper_reservoir::Float64
-    maximum_volume_fraction_upper_reservoir::Float64
-    initial_reservoir_volume_fraction_upper_reservoir::Float64
-    minimum_capacity_cubic_meters_upper_reservoir::Float64
-    maximum_capacity_cubic_meters_upper_reservoir::Float64
-    cost_per_cubic_meter_upper_reservoir::Float64
+    minimum_volume_fraction_upstream_reservoir::Float64
+    maximum_volume_fraction_upstream_reservoir::Float64
+    initial_reservoir_volume_fraction_upstream_reservoir::Float64
+    minimum_capacity_cubic_meters_upstream_reservoir::Float64
+    maximum_capacity_cubic_meters_upstream_reservoir::Float64
+    cost_per_cubic_meter_upstream_reservoir::Float64
     om_cost_per_cubic_meter::Float64
     macrs_option_years::Int
     macrs_bonus_fraction::Float64
@@ -102,19 +102,19 @@ struct UpperReservoirStorage <: AbstractWaterStorage
     total_rebate_per_cubic_meter::Float64
     net_present_cost_per_cubic_meter::Float64
 
-    function UpperReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
+    function UpstreamReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
-        stor = UpperReservoirStorageDefaults(; d...)
+        stor = UpstreamReservoirStorageDefaults(; d...)
 
         macrs_schedule = [0.0]
         if stor.macrs_option_years == 5 || stor.macrs_option_years == 7
             macrs_schedule = stor.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
         elseif !(stor.macrs_option_years == 0)
-            throw(@error("UpperReservoirStorage macrs_option_years must be 0, 5, or 7."))
+            throw(@error("UpstreamReservoirStorage macrs_option_years must be 0, 5, or 7."))
         end
       
         net_present_cost_per_cubic_meter = effective_cost(;
-            itc_basis = stor.cost_per_cubic_meter_upper_reservoir,
+            itc_basis = stor.cost_per_cubic_meter_upstream_reservoir,
             replacement_cost = 0.0,
             replacement_year = 100,
             discount_rate = f.owner_discount_rate_fraction,
@@ -127,21 +127,21 @@ struct UpperReservoirStorage <: AbstractWaterStorage
         
         stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
-        if stor.maximum_volume_fraction_upper_reservoir < stor.minimum_volume_fraction_upper_reservoir
-            throw(@error("The 'maximum_volume_fraction_upper_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upper_reservoir"))
+        if stor.maximum_volume_fraction_upstream_reservoir < stor.minimum_volume_fraction_upstream_reservoir
+            throw(@error("The 'maximum_volume_fraction_upstream_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upstream_reservoir"))
         end
-        if (stor.initial_reservoir_volume_fraction_upper_reservoir < stor.minimum_volume_fraction_upper_reservoir) || (stor.initial_reservoir_volume_fraction_upper_reservoir > stor.maximum_volume_fraction_upper_reservoir)
-            throw(@error("The 'initial_reservoir_volume_fraction_upper_reservoir' must be between the 'minimum_volume_fraction_upper_reservoir' and 'maximum_volume_fraction_upper_reservoir' "))
+        if (stor.initial_reservoir_volume_fraction_upstream_reservoir < stor.minimum_volume_fraction_upstream_reservoir) || (stor.initial_reservoir_volume_fraction_upstream_reservoir > stor.maximum_volume_fraction_upstream_reservoir)
+            throw(@error("The 'initial_reservoir_volume_fraction_upstream_reservoir' must be between the 'minimum_volume_fraction_upstream_reservoir' and 'maximum_volume_fraction_upstream_reservoir' "))
         end
 
         return new(
             stor.tributary_water_inflow_cubic_meter_per_second,
-            stor.minimum_volume_fraction_upper_reservoir,
-            stor.maximum_volume_fraction_upper_reservoir,
-            stor.initial_reservoir_volume_fraction_upper_reservoir,
-            stor.minimum_capacity_cubic_meters_upper_reservoir,
-            stor.maximum_capacity_cubic_meters_upper_reservoir,
-            stor.cost_per_cubic_meter_upper_reservoir,
+            stor.minimum_volume_fraction_upstream_reservoir,
+            stor.maximum_volume_fraction_upstream_reservoir,
+            stor.initial_reservoir_volume_fraction_upstream_reservoir,
+            stor.minimum_capacity_cubic_meters_upstream_reservoir,
+            stor.maximum_capacity_cubic_meters_upstream_reservoir,
+            stor.cost_per_cubic_meter_upstream_reservoir,
             stor.om_cost_per_cubic_meter,
             stor.macrs_option_years,
             stor.macrs_bonus_fraction,

@@ -277,9 +277,9 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
             p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity]
         )
     end
-    if "upper_reservoir" in p.s.water_storage
+    if "upstream_reservoir" in p.s.water_storage
         add_to_expression!(m[:InitialCapexNoIncentives], 
-            p.s.upper_reservoir.cost_per_cubic_meter_upper_reservoir * m[:dvUpperReservoirCapacity]
+            p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[:dvUpstreamReservoirCapacity]
         )
     end
 
