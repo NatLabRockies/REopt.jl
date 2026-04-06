@@ -8,16 +8,8 @@
     turbine_cost_per_kw::Real=5000.0,
     max_kw_turbine::Real=10000000,
     min_kw_turbine::Real=0,
-    computation_type::String="average_power_conversion", # "average_power_conversion", "quadratic_partially_discretized", "fixed_efficiency_linearized_reservoir_head", or "quadratic_unsimplified"
-    average_cubic_meters_per_second_per_kw::Real=0, # only applied when the computation_type = "average_power_conversion"
-    coefficient_a_efficiency::Real=0.0, 
-    coefficient_b_efficiency::Real=0.0,
-    coefficient_c_efficiency::Real=0.0,
-    coefficient_d_reservoir_head::Real=0.0, # coefficient for a quadratic term for the reservoir head equation, which is only applied when the computation_type = "quadratic_unsimplified"
-    coefficient_e_reservoir_head::Real=0.0,
-    coefficient_f_reservoir_head::Real=0.0, 
-    number_of_efficiency_bins::Real=3, # only applied when the computation_type = "quadratic_partially_discretized"
-    fixed_turbine_efficiency::Real=0.9, # only applied when the computation_type = "fixed_efficiency_linearized_reservoir_head"
+    computation_type::String="average_power_conversion", 
+    water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0, # only applied when the computation_type = "average_power_conversion"   
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0,
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
@@ -30,7 +22,7 @@
     max_kw_pump::Real=10000000,
     min_kw_pump::Real=0,
     pump_cost_per_kw::Real=5000.0,
-    water_pump_average_cubic_meters_per_second_per_kw::Real=0,
+    water_pump_average_cubic_meters_per_second_conversion_efficiency::Real=0,
    
     are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
@@ -53,7 +45,12 @@
     macrs_option_years::Real=0,
     macrs_bonus_fraction::Real=0,
     macrs_itc_reduction::Real=0,
-    total_itc_fraction::Real=0
+    total_itc_fraction::Real=0,
+
+    head_pump_meters::Real=500,
+    head_turbine_meters::Real=500,
+    head_loss_pump_meters::Real=20,
+    head_loss_turbine_meters::Real=20
 
 ```
 """
@@ -66,15 +63,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     min_kw_turbine::Real=0
     
     computation_type::String="average_power_conversion"
-    average_cubic_meters_per_second_per_kw::Real=0
-    coefficient_a_efficiency::Real=0.0
-    coefficient_b_efficiency::Real=0.0
-    coefficient_c_efficiency::Real=0.0
-    coefficient_d_reservoir_head::Real=0.0
-    coefficient_e_reservoir_head::Real=0.0
-    coefficient_f_reservoir_head::Real=0.0
-    number_of_efficiency_bins::Real=3
-    fixed_turbine_efficiency::Real=0.9
+    water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
@@ -87,7 +76,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     max_kw_pump::Real=10000000
     min_kw_pump::Real=0
     pump_cost_per_kw::Real=5000.0
-    water_pump_average_cubic_meters_per_second_per_kw::Real=0
+    water_pump_average_cubic_meters_per_second_conversion_efficiency::Real=0
     
     are_pumps_reversible::Bool=false
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0
@@ -112,6 +101,10 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     macrs_itc_reduction::Real=0
     total_itc_fraction::Real=0
     
+    head_pump_meters::Real=500
+    head_turbine_meters::Real=500
+    head_loss_pump_meters::Real=20
+    head_loss_turbine_meters::Real=20
 end
 
 """
@@ -128,15 +121,7 @@ mutable struct WaterPower <: AbstractWaterPower
     min_kw_turbine
     
     computation_type
-    average_cubic_meters_per_second_per_kw
-    coefficient_a_efficiency 
-    coefficient_b_efficiency
-    coefficient_c_efficiency
-    coefficient_d_reservoir_head
-    coefficient_e_reservoir_head
-    coefficient_f_reservoir_head
-    number_of_efficiency_bins
-    fixed_turbine_efficiency
+    water_turbine_average_cubic_meters_per_second_conversion_efficiency
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines
     minimum_water_output_cubic_meter_per_second_per_turbine
     maximum_water_output_cubic_meter_per_second_per_turbine
@@ -147,7 +132,7 @@ mutable struct WaterPower <: AbstractWaterPower
     max_kw_pump
     min_kw_pump
     pump_cost_per_kw
-    water_pump_average_cubic_meters_per_second_per_kw
+    water_pump_average_cubic_meters_per_second_conversion_efficiency
     
     are_pumps_reversible
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps
@@ -170,6 +155,10 @@ mutable struct WaterPower <: AbstractWaterPower
     total_itc_fraction
     net_present_cost_per_kw_turbine
     net_present_cost_per_kw_pump
+    head_pump_meters
+    head_turbine_meters
+    head_loss_pump_meters
+    head_loss_turbine_meters
 
     function WaterPower(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
         # TODO: update the struct_name for the sector-specific defaults
@@ -217,9 +206,7 @@ mutable struct WaterPower <: AbstractWaterPower
         ) - stor.total_rebate_per_kw_turbine
 
         # Check the inputs for errors:
-        if stor.fixed_turbine_efficiency > 1.0
-            throw(@error("The 'fixed_turbine_efficiency' must be less than or equal to 1.0"))
-        end
+       
         if stor.minimum_operating_time_steps_individual_turbine < 1
             throw(@error("The 'minimum_operating_time_steps_individual_turbine' must be greater than or equal to 1"))
         end
@@ -227,9 +214,6 @@ mutable struct WaterPower <: AbstractWaterPower
             throw(@error("If the pumps are reversible, then the number_of_pumps must be equal to the number_of_turbines"))
         end
        
-        if stor.number_of_efficiency_bins > 10
-            @warn("Setting the 'number_of_efficiency_bins' to a high value can increase complexity of the optimization problem and reduce solve times")
-        end
         if stor.number_of_turbines > 8
             @warn("Setting the 'number_of_turbines' to a high value can increase complexity of the optimization problem and reduce solve times")
         end
@@ -240,15 +224,7 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.max_kw_turbine,
             stor.min_kw_turbine,
             stor.computation_type,
-            stor.average_cubic_meters_per_second_per_kw,
-            stor.coefficient_a_efficiency,
-            stor.coefficient_b_efficiency,
-            stor.coefficient_c_efficiency,
-            stor.coefficient_d_reservoir_head,
-            stor.coefficient_e_reservoir_head,
-            stor.coefficient_f_reservoir_head,
-            stor.number_of_efficiency_bins,
-            stor.fixed_turbine_efficiency,
+            stor.water_turbine_average_cubic_meters_per_second_conversion_efficiency,
             stor.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
             stor.minimum_water_output_cubic_meter_per_second_per_turbine,
             stor.maximum_water_output_cubic_meter_per_second_per_turbine,
@@ -259,7 +235,7 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.max_kw_pump,
             stor.min_kw_pump,
             stor.pump_cost_per_kw,
-            stor.water_pump_average_cubic_meters_per_second_per_kw,
+            stor.water_pump_average_cubic_meters_per_second_conversion_efficiency,
             stor.are_pumps_reversible,
             stor.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
             stor.minimum_water_flow_cubic_meter_per_second_per_pump,
@@ -280,7 +256,11 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.macrs_itc_reduction,
             stor.total_itc_fraction,
             net_present_cost_per_kw_turbine,
-            net_present_cost_per_kw_pump
+            net_present_cost_per_kw_pump,
+            stor.head_pump_meters,
+            stor.head_turbine_meters,
+            stor.head_loss_pump_meters,
+            stor.head_loss_turbine_meters
         )
     end
 end

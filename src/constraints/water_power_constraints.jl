@@ -1,15 +1,20 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
+const WATER_DENSITY = 998
+const GRAVITATIONAL_CONSTANT = 9.81
+
 function add_water_power_constraints(m,p; _n="")
 	@info "Adding constraints for water_power"
 	
 	if p.s.water_power.computation_type == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
 		@info "Adding water_power power output constraint using the average power conversion"
 
-		Hydro_techs = p.techs.water_power_turbines
-		for t in 1:Int(length(Hydro_techs))
+		for t in 1:Int(length(p.techs.water_power_turbines))
 			@constraint(m, [ts in p.time_steps],
-					m[Symbol("dvRatedProduction"*_n)][Hydro_techs[t],ts] == m[Symbol("dvWaterOutFlow"*_n)][Hydro_techs[t],ts] * (1/p.s.water_power.average_cubic_meters_per_second_per_kw)* (1- (t/1000))  # convert to kW/time step, for instance: m3/15min  * kwh/m3 * (0.25 hrs/1hr); the "1 - (t/1000)" is for turbine prioritization
+					m[Symbol("dvRatedProduction"*_n)][p.techs.water_power_turbines[t],ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
+																			m[Symbol("dvWaterOutFlow"*_n)][p.techs.water_power_turbines[t],ts] * 
+																			(1/p.s.water_power.water_turbine_average_cubic_meters_per_second_conversion_efficiency) * 
+																			(p.s.water_power.head_turbine_meters - p.s.water_power.head_loss_turbine_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for turbine prioritization
 						)
 		end
 
@@ -161,11 +166,16 @@ function add_water_power_constraints(m,p; _n="")
 
 		if p.s.water_power.computation_type == "average_power_conversion"
 			# Conversion between pumped water flow rate and power input into the pump
-			@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] == m[Symbol("dvPumpPowerInput"*_n)][t, ts] * p.s.water_power.water_pump_average_cubic_meters_per_second_per_kw )
-
+			for t in 1:Int(length(p.techs.water_power_pumps))
+				@constraint(m, [ts in p.time_steps], 
+										m[Symbol("dvPumpPowerInput"*_n)][p.techs.water_power_pumps[t], ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
+																				m[Symbol("dvPumpedWaterFlow"*_n)][p.techs.water_power_pumps[t], ts] * 
+																				(1/p.s.water_power.water_pump_average_cubic_meters_per_second_conversion_efficiency) * 
+																				(p.s.water_power.head_pump_meters + p.s.water_power.head_loss_pump_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
+							)
+			end
 		else
-			throw(@error("A downstream reservoir is only compatible with average_power_conversion at the moment"))
+			throw(@error("An invalid computation type was provided"))
 		end
 	else	
 		@info("Preventing use of the water pump variables because there is no downstream reservoir")

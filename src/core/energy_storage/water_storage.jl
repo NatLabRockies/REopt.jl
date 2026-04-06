@@ -125,7 +125,8 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        # TODO: implement the conversion to the correct timesteps for the tributary inflow
+        #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
         if stor.maximum_volume_fraction_upstream_reservoir < stor.minimum_volume_fraction_upstream_reservoir
             throw(@error("The 'maximum_volume_fraction_upstream_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upstream_reservoir"))
@@ -170,7 +171,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
     minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
     maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
     om_cost_per_cubic_meter::Float64
-    tributary_water_inflow_cubic_meter_per_second::Array=[]
+    tributary_water_inflow_cubic_meter_per_second::Array
     macrs_option_years::Int
     macrs_bonus_fraction::Float64
     macrs_itc_reduction::Float64
@@ -201,7 +202,8 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        # TODO: implement the conversion to the correct timesteps for the tributary inflow
+        #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
         return new(
             stor.initial_reservoir_volume_fraction_downstream_reservoir,
@@ -225,7 +227,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
 end
 
 
-function convert_tributary_flow_to_correct_time_steps_per_hour(tribuary_flow, time_steps_per_hour)
+function convert_tributary_flow_to_correct_time_steps_per_hour(tributary_flow, time_steps_per_hour)
     
     tributary_flow_length = length(tributary_flow)
 
@@ -233,17 +235,17 @@ function convert_tributary_flow_to_correct_time_steps_per_hour(tribuary_flow, ti
         throw(@error("Invalid length of the tributary flow vector"))
     elseif (time_steps_per_hour == 2) && (tributary_flow_length == 8760)
         @warn("Upscaling the tributary flow rate to match the time steps per hour")
-        tribuary_flow = repeat(tribuary_flow, inner=time_steps_per_hour)
+        tributary_flow = repeat(tributary_flow, inner=time_steps_per_hour)
     elseif (time_steps_per_hour == 4) && (tributary_flow_length == 8760)
         @warn("Upscaling the tributary flow rate to match the time steps per hour")
-        tribuary_flow = repeat(tribuary_flow, inner=time_steps_per_hour)
+        tributary_flow = repeat(tributary_flow, inner=time_steps_per_hour)
     #elseif
         # TODO: add more options for setting the tributary_flow variable to the correct length
     else
         print("\n No changes made to the tributary flow input vector \n")
     end
 
-    return tribuary_flow
+    return tributary_flow
 
 end
 

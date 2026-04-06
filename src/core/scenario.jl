@@ -254,6 +254,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                 dictkeys_tosymbols(d["UpstreamReservoirWaterStorage"]), 
                                 financial, site, settings.time_steps_per_hour
                             )
+    else
+        upstream_reservoir = "none"
     end
     if haskey(d, "DownstreamReservoirWaterStorage")
         push!(water_storage, "downstream_reservoir")
@@ -261,6 +263,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                     dictkeys_tosymbols(d["DownstreamReservoirWaterStorage"]), 
                                     financial, site, settings.time_steps_per_hour
                                 )
+    else
+        downstream_reservoir = "none"              
     end
 
     if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            
