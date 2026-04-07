@@ -2248,7 +2248,7 @@ else  # run HiGHS tests
 
             #Test CHP defaults use average fuel load, size class 2 for recip_engine 
             @test inputs.s.chp.min_allowable_kw ≈ 50.0 atol=0.01
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.0235 atol=0.0001
+            @test inputs.s.chp.om_cost_per_kwh ≈ 0.027 atol=0.0001
 
             delete!(input_data, "SpaceHeatingLoad")
             delete!(input_data, "DomesticHotWaterLoad")
@@ -2275,7 +2275,7 @@ else  # run HiGHS tests
 
             #Test CHP defaults use average fuel load, size class changes to 3
             @test inputs.s.chp.min_allowable_kw ≈ 125.0 atol=0.1
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.021 atol=0.0001
+            @test inputs.s.chp.om_cost_per_kwh ≈ 0.023 atol=0.0001
             #Update CHP prime_mover and test new defaults
             input_data["CHP"]["prime_mover"] = "combustion_turbine"
             input_data["CHP"]["size_class"] = 1
@@ -2286,7 +2286,7 @@ else  # run HiGHS tests
             inputs = REoptInputs(s)
 
             @test inputs.s.chp.min_allowable_kw ≈ 2000.0 atol=0.1
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.014499999999999999 atol=0.0001
+            @test inputs.s.chp.om_cost_per_kwh ≈ 0.014999999999999999 atol=0.0001
 
             total_heating_fuel_load_mmbtu = (sum(inputs.s.space_heating_load.loads_kw) + 
                                             sum(inputs.s.dhw_load.loads_kw)) / input_data["ExistingBoiler"]["efficiency"] / REopt.KWH_PER_MMBTU
@@ -2336,7 +2336,7 @@ else  # run HiGHS tests
             inputs = REoptInputs(s)
             # Costs are 75% of CHP
             @test inputs.s.chp.installed_cost_per_kw ≈ (0.75*installed_cost_chp) atol=1.0
-            @test inputs.s.chp.om_cost_per_kwh ≈ (0.75*0.0145) atol=0.0001
+            @test inputs.s.chp.om_cost_per_kwh ≈ (0.75*0.015) atol=0.0001
             @test inputs.s.chp.federal_itc_fraction ≈ 0.0 atol=0.0001
             # Thermal efficiency set to zero
             @test inputs.s.chp.thermal_efficiency_full_load == 0
