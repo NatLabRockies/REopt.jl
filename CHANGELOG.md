@@ -27,6 +27,15 @@ Classify the change according to the following categories:
 
 ## v0.58.0
 ### Added
+- Added two new size classes for **SteamTurbine** tech with new tech size ranges.
+
+### Changed
+- Updated **CHP.installed_cost_per_kw** and **CHP.installed_cost_per_kwh** default values for size classes for recip_engine, combustion turbine, and microturbine prime mover types.
+- Updated default values for **SteamTurbine** size classes.
+- Reduced the number of size classes in **AbsorptionChiller** technology to five for single effect and four for double effect and updated installed and O&M costs accordingly.
+
+## v0.58.0
+### Added
 - New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
 - New result **thermal_to_absorption_chiller_series_mmbtu_per_hour** added to heating technologies and new result **storage_to_absorption_chiller_series_mmbtu_per_hour** for hot thermal storage technologies.  This result is included as a part of the thermal site loads served, i.e., the adding this result does not change the existing results.
 - Added results fields to **HighTempThermalStorage** to match those of **HotThermalStorage**.
