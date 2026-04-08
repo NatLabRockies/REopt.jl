@@ -25,7 +25,7 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## v0.58.0
+## chp-defaults-update
 ### Added
 - Added two new size classes for **SteamTurbine** tech with new tech size ranges.
 
