@@ -25,6 +25,11 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## develop 
+### Fixed
+- Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
+
+
 ## v0.58.0
 ### Added
 - New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
