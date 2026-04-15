@@ -261,6 +261,7 @@ function MPCGenerator(;
     only_runs_during_grid_outage::Bool = true,
     sells_energy_back_to_grid::Bool = false,
     om_cost_per_kwh::Real=0.0,
+    om_cost_per_hr_per_kw_rated::Real=0.0,
     )
 ```
 """
@@ -276,6 +277,7 @@ struct MPCGenerator <: AbstractGenerator
     only_runs_during_grid_outage
     sells_energy_back_to_grid
     om_cost_per_kwh
+    om_cost_per_hr_per_kw_rated
 
     function MPCGenerator(;
         size_kw::Real,
@@ -288,6 +290,7 @@ struct MPCGenerator <: AbstractGenerator
         only_runs_during_grid_outage::Bool = true,
         sells_energy_back_to_grid::Bool = false,
         om_cost_per_kwh::Real=0.0,
+        om_cost_per_hr_per_kw_rated::Real=0.0,
         )
 
         max_kw = size_kw
@@ -304,6 +307,7 @@ struct MPCGenerator <: AbstractGenerator
             only_runs_during_grid_outage,
             sells_energy_back_to_grid,
             om_cost_per_kwh,
+            om_cost_per_hr_per_kw_rated
         )
     end
 end
