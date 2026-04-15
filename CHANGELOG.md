@@ -25,10 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## develop 
+## v0.58.1 
 ### Fixed
 - Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
-
+- Switched to use maximum value of **dvCoolingProduction** for **ExistingChiller**'s size instead of **dvSize**. This fixed the issue with **ExistingChiller**'s size being applied **max_thermal_factor_on_peak_load** twice in some cases.
 
 ## v0.58.0
 ### Added
@@ -42,7 +42,6 @@ Classify the change according to the following categories:
 ### Fixed
 - Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
 - Fixed a bug in which the storage to steam turbine flow was included in the thermal heating load served.
-- Switched to use maximum value of **dvCoolingProduction** for **ExistingChiller**'s size instead of **dvSize**. This fixed the issue with **ExistingChiller**'s size being applied **max_thermal_factor_on_peak_load** twice in some cases.
 
 ### Changed
 - **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
