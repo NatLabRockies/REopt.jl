@@ -67,8 +67,6 @@ function add_generator_hourly_om_charges(m, p)
     dv = "dvOMByHourBySizeGen"
     m[Symbol(dv)] = @variable(m, [p.techs.gen, p.time_steps], base_name=dv, lower_bound=0)
 
-	println(p.s.generator.max_kw)
-
     #Constraint Generator-hourly-om-a: om per hour, per time step >= per_unit_size_cost * size for when on, >= zero when off
 	@constraint(m, GeneratorHourlyOMBySizeA[t in p.techs.gen, ts in p.time_steps],
         p.s.generator.om_cost_per_hr_per_kw_rated * m[Symbol("dvSize")][t] -
