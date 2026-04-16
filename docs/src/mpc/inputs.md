@@ -1,5 +1,5 @@
-# MPC Inputs
-The input structure for MPC models is very similar to the structure for [REopt Inputs](@ref). The primary differences are 
+# [Inputs](@id mpc-inputs)
+The input structure for MPC models is very similar to the structure for [REopt Inputs](@ref reopt-inputs). The primary differences are 
 
 1. The [MPCElectricTariff](@ref) requires specifying individual rate components (and does not parse URDB rates like [ElectricTariff](@ref)).
 
@@ -7,7 +7,7 @@ The input structure for MPC models is very similar to the structure for [REopt I
 
 3. The load profile for each time step must be provided
 
-Just like [REopt Inputs](@ref), inputs to `run_mpc` can be provided in one of three formats:
+Just like [REopt Inputs](@ref reopt-inputs), inputs to `run_mpc` can be provided in one of three formats:
 1. a file path (string) to a JSON file,
 2. a `Dict`, or
 3. using the `MPCInputs` struct
@@ -37,7 +37,7 @@ The simplest scenario does not have any dispatch optimization and is essentially
 !!! note
     The `ElectricLoad.loads_kw` can have an arbitrary length, but its length must be the same lengths as many other inputs such as the `MPCElectricTariff.energy_rates` and the `PV.production_factor_series`.
 
-Here is a more complex `MPCScenario`, which is used in [MPC Examples](@ref):
+Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examples):
 ```javascript
 {
     "PV": {
