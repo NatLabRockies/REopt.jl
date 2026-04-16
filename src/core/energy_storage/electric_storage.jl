@@ -199,11 +199,11 @@ end
     degradation::Dict = Dict()
     minimum_avg_soc_fraction::Float64 = 0.0
     optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
-    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance (this buffer is to avoid infeasible solutions)
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
-
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance (this buffer is to avoid infeasible solutions)
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
+    
 ```
 """
 Base.@kwdef struct ElectricStorageDefaults
@@ -245,7 +245,7 @@ Base.@kwdef struct ElectricStorageDefaults
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing
 end
 
 
@@ -296,7 +296,7 @@ struct ElectricStorage <: AbstractElectricStorage
     min_duration_hours::Real
     max_duration_hours::Real
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}}
-    fixed_soc_series_fraction_tolerance::Real
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
     function ElectricStorage(d::Dict, f::Financial, s::Site)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
