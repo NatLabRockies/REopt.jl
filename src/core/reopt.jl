@@ -244,7 +244,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
     m[:TotalTechCapCosts] = 0.0
     m[:TotalPerUnitProdOMCosts] = 0.0
-	m[:TotalRuntimeOMCosts] = 0.0
     m[:TotalPerUnitHourOMCosts] = 0.0
     m[:TotalFuelCosts] = 0.0
     m[:TotalProductionIncentive] = 0
