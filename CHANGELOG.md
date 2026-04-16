@@ -27,7 +27,7 @@ Classify the change according to the following categories:
 
 ## fixed-bess-soc
 ### Added
-- Add **ElectricStorage** input field `fixed_soc_series_fraction` to allow users to fix the SOC timeseries
+- Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
  
 ## v0.58.1 
 ### Fixed

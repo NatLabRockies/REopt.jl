@@ -3,13 +3,13 @@
 `HotThermalStorage` results keys:
 - `size_kwh` Optimal TES capacity, by energy [kWh]
 - `size_gal` Optimal TES capacity, by volume [gal]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
-- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
-- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
-- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
-- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
-- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over an average year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over an average year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over an average year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over an average year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over an average year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over an average year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -119,8 +119,8 @@ end
 """
 `ColdThermalStorage` results:
 - `size_gal` Optimal TES capacity, by volume [gal]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_load_series_ton` Vector of power used to meet load over the first year [ton]
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_load_series_ton` Vector of power used to meet load over an average year [ton]
 """
 function add_cold_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict, b::String; _n="")
     #=
@@ -171,13 +171,13 @@ end
 """
 `HighTempThermalStorage` results keys:
 - `size_kwh` Optimal TES capacity, by energy [kWh]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
-- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
-- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
-- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
-- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
-- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over an average year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over an average year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over an average year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over an average year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over an average year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over an average year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
