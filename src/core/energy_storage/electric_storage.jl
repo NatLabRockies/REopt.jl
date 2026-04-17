@@ -460,40 +460,29 @@ struct ElectricStorage <: AbstractElectricStorage
 end
 
 """
-    get_pv_cost_params(; installed_cost_per_kw, size_class, tech_sizes_for_cost_curve, 
-                                use_detailed_cost_curve, electric_load_annual_kwh, site_land_acres, 
-                                site_roof_squarefeet, min_kw, max_kw, existing_kw, kw_per_square_foot, 
-                                acres_per_kw, array_type, location)
+    get_electric_storage_cost_params(; installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant,
+                                size_class, min_kw, max_kw, electric_load_annual_peak, electric_load_average)
 
-Processes and determines the cost scaling parameters for a PV system, including installed cost per kW, 
-O&M cost per kW, size class, and technology sizes for cost curves.
+Processes and determines the cost scaling parameters for a Battery system, including installed cost per kW, 
+installed cost per kWh, installed cost constant and size class.
 
 # Arguments
-- `installed_cost_per_kw::Union{Real, AbstractVector{<:Real}} = Float64[]`: User-provided installed cost per kW or cost curve.
-- `size_class::Union{Int, Nothing} = nothing`: User-specified size class or `nothing` to auto-determine.
-- `tech_sizes_for_cost_curve::AbstractVector = Float64[]`: Technology sizes for detailed cost curve.
-- `use_detailed_cost_curve::Bool = false`: Whether to use a detailed cost curve instead of average cost.
-- `electric_load_annual_kwh::Real = 0.0`: Annual electric load in kWh for size class determination.
-- `site_land_acres::Union{Real, Nothing} = nothing`: Available land area in acres for ground-mounted systems.
-- `site_roof_squarefeet::Union{Real, Nothing} = nothing`: Available roof area in square feet for rooftop systems.
-- `min_kw::Real = 0.0`: Minimum allowable system size in kW.
-- `max_kw::Real = 1.0e9`: Maximum allowable system size in kW.
-- `existing_kw::Real = 0.0`: Existing system size in kW.
-- `kw_per_square_foot::Real = 0.01`: Conversion factor for roof area to kW capacity.
-- `acres_per_kw::Real = 6e-3`: Conversion factor for land area to kW capacity.
-- `array_type::Int = 1`: PV array type (e.g., ground-mounted, rooftop).
-- `location::String = "both"`: Location type (`"roof"`, `"ground"`, or `"both"`).
-- `capacity_factor_estimate::Real = 0.2`: Estimated capacity factor for the PV system.
-- `fraction_of_annual_kwh_to_size_pv::Real = 0.5`: Fraction of annual kWh to size the PV system.
+- `installed_cost_per_kw`::Union{Real, Nothing} = Nothing,
+- `installed_cost_per_kwh`::Union{Real, Nothing} = Nothing,
+- `installed_cost_constant`::Union{Real, Nothing} = Nothing,
+- `size_class`::Union{Int, Nothing} = Nothing,
+- `min_kw`::Real = 0.0,
+- `max_kw`::Real = 1.0e9,
+- `electric_load_annual_peak`::Real = 0.0,
+- `electric_load_average`::Real = 0.0
 
 # Returns
-A tuple containing:
-1. `installed_cost_per_kw`: Final installed cost per kW or cost curve.
-3. `size_class`: Determined size class.
-4. `size_class_kw_bounds`: Final technology sizes for the cost curve.
-5. `kwh_tech_sizes_for_cost_curve`: Final technology sizes for the cost curve.
-6. `size_kw_for_size_class`: Maximum kW for determining the size class.
-7. `size_kwh_for_size_class`: Maximum kW for determining the size class.
+Values:
+1. `installed_cost_per_kw`: Final installed cost per kW.
+2. `installed_cost_per_kwh`: Final installed cost per kWh.
+3. `installed_cost_constant`: Final installed cost constant.
+4. `size_class`: Determined size class.
+5. `size_kw_for_size_class`: Calculated size_kw used to determine size class.
 
 # Notes
 - If `size_class` is not provided, it is determined based on (peak demand - average demand) or user-provided cost data.
@@ -535,7 +524,7 @@ function get_electric_storage_cost_params(;
         size_class
     else
         # Default case: no costs or size_class information provided.
-        kw_tech_sizes = [c["size_class_kw_bounds"] for c in defaults]
+        kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
         size_class, size_kw_for_size_class = get_electric_storage_size_class(
                 electric_load_annual_peak,
                 electric_load_average,
@@ -589,7 +578,7 @@ end
 function get_electric_storage_size_class(
     electric_load_annual_peak::Real,
     electric_load_average::Real,
-    size_class_kw_bounds::AbstractVector;
+    size_class_bounds_kw::AbstractVector;
     min_kw::Real=0.0,
     max_kw::Real=1.0e9
     )
@@ -613,7 +602,7 @@ function get_electric_storage_size_class(
     end
     @info size_kw
     # Find the appropriate kw size class for the effective size
-    for (i, size_range) in enumerate(size_class_kw_bounds)
+    for (i, size_range) in enumerate(size_class_bounds_kw)
         min_size = convert(Float64, size_range[1])
         max_size = convert(Float64, size_range[2])
         
@@ -623,8 +612,8 @@ function get_electric_storage_size_class(
     end
     if isnothing(size_class_kw)
         # Handle edge cases -> highest size class returned.
-        if size_kw > convert(Float64, size_class_kw_bounds[end][2])
-            size_class_kw = length(size_class_kw_bounds)
+        if size_kw > convert(Float64, size_class_bounds_kw[end][2])
+            size_class_kw = length(size_class_bounds_kw)
         else
             size_class_kw = 1  # Default to smallest size class
         end
