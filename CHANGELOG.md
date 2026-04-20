@@ -25,6 +25,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fix-tes-results-fields
+### Changed
+- Refactored some results expressions so that `value.` isn't called within them.
+
+### Fixed
+- Fixed an error creating results for flows from hot TES to the steam turbine.
+- Fixed an bug preventing `include_cooling_in_chp_size` from being included in CHP inputs.
+
 ## v0.58.1 
 ### Fixed
 - Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
