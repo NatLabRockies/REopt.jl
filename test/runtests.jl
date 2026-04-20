@@ -4220,8 +4220,8 @@ else  # run HiGHS tests
             lcc2 = results["Financial"]["lcc"]
             
             @test lcc1 ≈ lcc2 rtol=0.001
-            @test maximum(abs.(soc_series - results["ElectricStorage"]["soc_series_fraction"])) <= 0.05 atol=1e-10
-        end 
+            @test maximum(abs.(soc_series - results["ElectricStorage"]["soc_series_fraction"])) <= 0.0500001
+        end
 
         @testset "Existing HVAC (Boiler and Chiller) Costs for BAU" begin
             """
