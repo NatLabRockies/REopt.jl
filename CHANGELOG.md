@@ -28,7 +28,9 @@ Classify the change according to the following categories:
 ## fixed-bess-soc
 ### Added
 - Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
- 
+### Changed
+- **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+
 ## v0.58.1 
 ### Fixed
 - Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
