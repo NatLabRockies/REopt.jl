@@ -352,11 +352,11 @@ struct ElectricStorage <: AbstractElectricStorage
         # Call SAM for peak_shaving and self_consumption dispatch strategies
         if s.dispatch_strategy == "peak_shaving"
             @info "Using SAM Peak Shaving dispatch strategy for ElectricStorage."
-            # Call SAM here?
+            # TODO: Call SAM here?
             # fixed_soc_series_fraction = SAM output
         elseif s.dispatch_strategy == "self_consumption"
             @info "Using SAM Self Consumption dispatch strategy for ElectricStorage."
-            # Call SAM here?
+            # TODO: Call SAM here?
             # fixed_soc_series_fraction = SAM output
         end
 
