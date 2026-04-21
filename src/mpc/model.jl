@@ -153,6 +153,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	
     m[:TotalFuelCosts] = 0.0
     m[:TotalPerUnitProdOMCosts] = 0.0
+	m[:TotalPerUnitHourOMCosts] = 0.0
 
     if !isempty(p.techs.gen)
         add_gen_constraints(m, p)
@@ -164,6 +165,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
             sum(m[:dvFuelUsage][t,ts] * p.s.generator.fuel_cost_per_gallon for t in p.techs.gen, ts in p.time_steps)
         )
         m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+		m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
 	end
 
 	add_elec_utility_expressions(m, p)
@@ -203,7 +205,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	@expression(m, Costs,
 
 		# Variable O&M
-		m[:TotalPerUnitProdOMCosts] +
+		m[:TotalPerUnitProdOMCosts] + m[:TotalPerUnitHourOMCosts] +
 
 		# Total Generator Fuel Costs
         m[:TotalFuelCosts] +

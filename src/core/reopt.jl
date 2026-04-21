@@ -274,6 +274,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_gen_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalGenPerUnitProdOMCosts]
             m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+			m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
         end
 
         if !isempty(p.techs.chp)
