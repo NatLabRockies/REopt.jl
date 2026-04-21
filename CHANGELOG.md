@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## hrly-gen-costs
+### Added
+- **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
+
 ## v0.58.1 
 ### Fixed
 - Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
