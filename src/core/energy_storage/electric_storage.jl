@@ -172,10 +172,7 @@ end
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    soc_min_fraction::Float64 = 0.2
-    soc_min_applies_during_outages::Bool = false
-    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
-    can_grid_charge::Bool = off_grid_flag ? false : true
+    can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
     installed_cost_per_kw::Real = 968.0 # Cost of power components (e.g., inverter and BOS) 
     installed_cost_per_kwh::Real = 253.0 # Cost of energy components (e.g., battery pack)
     installed_cost_constant::Real = 222115.0 # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
@@ -196,15 +193,33 @@ end
     discharge_efficiency::Float64 = inverter_efficiency_fraction * internal_efficiency_fraction^0.5
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     model_degradation::Bool = false
-    degradation::Dict = Dict()
-    minimum_avg_soc_fraction::Float64 = 0.0
-    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
+    degradation::Dict = Dict() 
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
+    
+    # Dispatch-related inputs
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+    # SOC inputs relevant if dispatch_strategy = "optimized", "peak_shaving", "self_consumption", or "backup" #TODO: confirm this. 
+    soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
+    soc_min_applies_during_outages::Bool = false
+    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
+    minimum_avg_soc_fraction::Float64 = 0.0
+    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC.
+    # SOC inputs relevant if dispatch_strategy = "custom_soc"
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance (this buffer is to avoid infeasible solutions)
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
+
     
-```
+    
+!!! note "Dispatch Strategy Options"
+	The following dispatch strategies are available via the `dispatch_strategy` input:
+    - `optimized`: Storage dispatch is optimized to minimize the total lifecycle cost of energy for the site. The model has perfect foresight into loads and modeled variable generation potential over the entire year. 
+    - `peak_shaving`: Uses SAM's Peak Shaving dispatch heuristic. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) # TODO: Xiang to update
+    - `self_consumption`: To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) # TODO: Xiang to update
+    - `backup`: Storage is reserved to meet load during grid outages by changing the default soc_min_fraction to 0.8.
+    - `daily_foresight_optimized`: This option is only available via the REopt API (not available in REopt.jl)
+    - `custom_soc`: User must provide a fixed_soc_series_fraction and can optionally tailor the fixed_soc_series_fraction_tolerance. 
+
 """
 Base.@kwdef struct ElectricStorageDefaults
     off_grid_flag::Bool = false
@@ -215,10 +230,7 @@ Base.@kwdef struct ElectricStorageDefaults
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    soc_min_fraction::Float64 = 0.2
-    soc_min_applies_during_outages::Bool = false
-    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
-    can_grid_charge::Bool = off_grid_flag ? false : true
+    can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
     installed_cost_per_kw::Real = 968.0
     installed_cost_per_kwh::Real = 253.0
     installed_cost_constant::Real = 222115.0
@@ -240,12 +252,16 @@ Base.@kwdef struct ElectricStorageDefaults
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     model_degradation::Bool = false
     degradation::Dict = Dict()
-    minimum_avg_soc_fraction::Float64 = 0.0
-    optimize_soc_init_fraction::Bool = false
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
-    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"]
+    soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
+    soc_min_applies_during_outages::Bool = false
+    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
+    minimum_avg_soc_fraction::Float64 = 0.0
+    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC.
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance (this buffer is to avoid infeasible solutions)
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
 end
 
 
@@ -263,9 +279,6 @@ struct ElectricStorage <: AbstractElectricStorage
     internal_efficiency_fraction::Float64
     inverter_efficiency_fraction::Float64
     rectifier_efficiency_fraction::Float64
-    soc_min_fraction::Float64
-    soc_min_applies_during_outages::Bool
-    soc_init_fraction::Float64
     can_grid_charge::Bool
     installed_cost_per_kw::Real
     installed_cost_per_kwh::Real
@@ -291,12 +304,17 @@ struct ElectricStorage <: AbstractElectricStorage
     net_present_cost_cost_constant::Real
     model_degradation::Bool
     degradation::Degradation
-    minimum_avg_soc_fraction::Float64
-    optimize_soc_init_fraction::Bool
     min_duration_hours::Real
     max_duration_hours::Real
+    dispatch_strategy::String
+    soc_min_fraction::Float64
+    soc_min_applies_during_outages::Bool
+    soc_init_fraction::Float64
+    minimum_avg_soc_fraction::Float64
+    optimize_soc_init_fraction::Bool
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}}
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
+    
     
     function ElectricStorage(d::Dict, f::Financial, s::Site)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
@@ -312,6 +330,34 @@ struct ElectricStorage <: AbstractElectricStorage
 
         if s.min_duration_hours > s.max_duration_hours
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
+        end
+
+        # Dispatch validation
+        valid_dispatch_strategies = ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"]
+        if !(s.dispatch_strategy in valid_dispatch_strategies)
+            throw(@error("ElectricStorage dispatch_strategy must be one of the following: $(valid_dispatch_strategies)"))
+        end
+        if s.dispatch_strategy == "custom_soc" && isnothing(s.fixed_soc_series_fraction)
+            throw(@error("ElectricStorage fixed_soc_series_fraction must be provided when dispatch_strategy is custom_soc."))
+        end
+        if s.dispatch_strategy != "custom_soc" && !isnothing(s.fixed_soc_series_fraction)
+            @warn "Updating ElectricStorage dispatch_strategy to custom_soc since fixed_soc_series_fraction is provided."
+            s.dispatch_strategy = "custom_soc"
+        end
+        requires_fixed_sizing = ["peak_shaving", "self_consumption"]
+        if s.dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
+            throw(@error("ElectricStorage dispatch_strategy $(s.dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
+        end
+
+        # Call SAM for peak_shaving and self_consumption dispatch strategies
+        if s.dispatch_strategy == "peak_shaving"
+            @info "Using SAM Peak Shaving dispatch strategy for ElectricStorage."
+            # Call SAM here?
+            # fixed_soc_series_fraction = SAM output
+        elseif s.dispatch_strategy == "self_consumption"
+            @info "Using SAM Self Consumption dispatch strategy for ElectricStorage."
+            # Call SAM here?
+            # fixed_soc_series_fraction = SAM output
         end
 
         # Copy SOC input in case we need to change them
@@ -414,9 +460,6 @@ struct ElectricStorage <: AbstractElectricStorage
             s.internal_efficiency_fraction,
             s.inverter_efficiency_fraction,
             s.rectifier_efficiency_fraction,
-            soc_min_fraction,
-            s.soc_min_applies_during_outages,
-            soc_init_fraction,
             s.can_grid_charge,
             s.installed_cost_per_kw,
             s.installed_cost_per_kwh,
@@ -442,10 +485,14 @@ struct ElectricStorage <: AbstractElectricStorage
             net_present_cost_cost_constant,
             s.model_degradation,
             degr,
-            minimum_avg_soc_fraction,
-            optimize_soc_init_fraction,
             s.min_duration_hours,
             s.max_duration_hours,
+            s.dispatch_strategy,
+            soc_min_fraction,
+            s.soc_min_applies_during_outages,
+            soc_init_fraction,
+            minimum_avg_soc_fraction,
+            optimize_soc_init_fraction,
             s.fixed_soc_series_fraction,
             s.fixed_soc_series_fraction_tolerance
         )
