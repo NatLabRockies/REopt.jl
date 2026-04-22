@@ -343,9 +343,11 @@ struct ElectricStorage <: AbstractElectricStorage
             s.dispatch_strategy = "custom_soc"
         end
         requires_fixed_sizing = ["peak_shaving", "self_consumption"]
+        # TODO: Add checks on PV sizing
         if s.dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
             throw(@error("ElectricStorage dispatch_strategy $(s.dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
+        
 
         # Call SAM for peak_shaving and self_consumption dispatch strategies
         if s.dispatch_strategy == "peak_shaving"
