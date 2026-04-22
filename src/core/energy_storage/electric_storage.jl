@@ -208,8 +208,6 @@ end
     # SOC inputs relevant if dispatch_strategy = "custom_soc"
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance (this buffer is to avoid infeasible solutions)
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
-
-    
     
 !!! note "Dispatch Strategy Options"
 	The following dispatch strategies are available via the `dispatch_strategy` input:
@@ -316,7 +314,7 @@ struct ElectricStorage <: AbstractElectricStorage
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
     
-    function ElectricStorage(d::Dict, f::Financial, s::Site)  
+    function ElectricStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         s = ElectricStorageDefaults(;d...)
 
@@ -365,13 +363,18 @@ struct ElectricStorage <: AbstractElectricStorage
         soc_min_fraction = s.soc_min_fraction
         optimize_soc_init_fraction = s.optimize_soc_init_fraction
         minimum_avg_soc_fraction = s.minimum_avg_soc_fraction
-        if !isnothing(s.fixed_soc_series_fraction) 
+        fixed_soc_series_fraction = s.fixed_soc_series_fraction
+        if !isnothing(fixed_soc_series_fraction)
+            fixed_soc_series_fraction = check_and_adjust_load_length(fixed_soc_series_fraction, time_steps_per_hour, "ElectricStorage.fixed_soc_series_fraction") # using load function to clean this series.
             @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_soc_series_fraction. Other SOC inputs will be ignored."
-            soc_init_fraction = s.fixed_soc_series_fraction[1]
+            error_if_series_vals_not_0_to_1(fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
+            if s.fixed_soc_series_fraction_tolerance < 0
+                throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
+            end
+            soc_init_fraction = fixed_soc_series_fraction[1]
             soc_min_fraction = 0.0
             optimize_soc_init_fraction = false
             minimum_avg_soc_fraction = 0.0
-            error_if_series_vals_not_0_to_1(s.fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
         end
         
         macrs_schedule = [0.0]
@@ -408,7 +411,6 @@ struct ElectricStorage <: AbstractElectricStorage
         net_present_cost_per_kwh -= s.total_rebate_per_kwh
 
 	    if (s.installed_cost_constant != 0) || (s.replace_cost_constant != 0)
-
             net_present_cost_cost_constant = effective_cost(;
                 itc_basis = s.installed_cost_constant,
                 replacement_cost = s.cost_constant_replacement_year >= f.analysis_years ? 0.0 : s.replace_cost_constant,
@@ -419,7 +421,6 @@ struct ElectricStorage <: AbstractElectricStorage
                 macrs_schedule = macrs_schedule,
                 macrs_bonus_fraction = s.macrs_bonus_fraction,
                 macrs_itc_reduction = s.macrs_itc_reduction
-
             )
         else
             net_present_cost_cost_constant = 0
@@ -493,7 +494,7 @@ struct ElectricStorage <: AbstractElectricStorage
             soc_init_fraction,
             minimum_avg_soc_fraction,
             optimize_soc_init_fraction,
-            s.fixed_soc_series_fraction,
+            fixed_soc_series_fraction,
             s.fixed_soc_series_fraction_tolerance
         )
     end
