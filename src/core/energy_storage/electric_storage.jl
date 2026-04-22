@@ -325,6 +325,9 @@ struct ElectricStorage <: AbstractElectricStorage
             fixed_soc_series_fraction = check_and_adjust_load_length(fixed_soc_series_fraction, time_steps_per_hour, "ElectricStorage.fixed_soc_series_fraction") # using load function to clean this series.
             @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_soc_series_fraction. Other SOC inputs will be ignored."
             error_if_series_vals_not_0_to_1(fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
+            if s.fixed_soc_series_fraction_tolerance < 0
+                throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
+            end
             soc_init_fraction = fixed_soc_series_fraction[1]
             soc_min_fraction = 0.0
             optimize_soc_init_fraction = false
