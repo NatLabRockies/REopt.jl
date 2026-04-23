@@ -453,3 +453,16 @@ function run_ssc(case_data::Dict)
     end
     return R
 end
+
+
+using JSON
+data = JSON.parsefile("cst_novel_test.json")
+
+# This will now return true and pass your length check
+if length(data["CST"]["SSC_Inputs"]["thermal_production_series"]) == 8760
+    println("Validation Passed: 8760 hours detected.")
+end
+
+# Running your specific function logic
+result = run_ssc(data)
+println("Thermal production: ", result["thermal_production_series"][1:48])
