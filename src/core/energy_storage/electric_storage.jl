@@ -332,29 +332,30 @@ struct ElectricStorage <: AbstractElectricStorage
 
         # Dispatch validation
         valid_dispatch_strategies = ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"]
-        if !(s.dispatch_strategy in valid_dispatch_strategies)
+        dispatch_strategy = s.dispatch_strategy
+        if !(dispatch_strategy in valid_dispatch_strategies)
             throw(@error("ElectricStorage dispatch_strategy must be one of the following: $(valid_dispatch_strategies)"))
         end
-        if s.dispatch_strategy == "custom_soc" && isnothing(s.fixed_soc_series_fraction)
+        if dispatch_strategy == "custom_soc" && isnothing(s.fixed_soc_series_fraction)
             throw(@error("ElectricStorage fixed_soc_series_fraction must be provided when dispatch_strategy is custom_soc."))
         end
-        if s.dispatch_strategy != "custom_soc" && !isnothing(s.fixed_soc_series_fraction)
+        if dispatch_strategy != "custom_soc" && !isnothing(s.fixed_soc_series_fraction)
             @warn "Updating ElectricStorage dispatch_strategy to custom_soc since fixed_soc_series_fraction is provided."
-            s.dispatch_strategy = "custom_soc"
+            dispatch_strategy = "custom_soc"
         end
         requires_fixed_sizing = ["peak_shaving", "self_consumption"]
         # TODO: Add checks on PV sizing
-        if s.dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
-            throw(@error("ElectricStorage dispatch_strategy $(s.dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
+        if dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
+            throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
         
 
         # Call SAM for peak_shaving and self_consumption dispatch strategies
-        if s.dispatch_strategy == "peak_shaving"
+        if dispatch_strategy == "peak_shaving"
             @info "Using SAM Peak Shaving dispatch strategy for ElectricStorage."
             # TODO: Call SAM here?
             # fixed_soc_series_fraction = SAM output
-        elseif s.dispatch_strategy == "self_consumption"
+        elseif dispatch_strategy == "self_consumption"
             @info "Using SAM Self Consumption dispatch strategy for ElectricStorage."
             # TODO: Call SAM here?
             # fixed_soc_series_fraction = SAM output
@@ -490,7 +491,7 @@ struct ElectricStorage <: AbstractElectricStorage
             degr,
             s.min_duration_hours,
             s.max_duration_hours,
-            s.dispatch_strategy,
+            dispatch_strategy,
             soc_min_fraction,
             s.soc_min_applies_during_outages,
             soc_init_fraction,
