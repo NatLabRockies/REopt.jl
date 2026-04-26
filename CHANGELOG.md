@@ -25,6 +25,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fix-tes-results-fields
+### Changed
+- Refactored some results expressions so that `value.` isn't called within them.
+
+### Fixed
+- Fixed an error creating results for flows from hot TES to the steam turbine.
+- Fixed an bug preventing `include_cooling_in_chp_size` from being included in CHP inputs.
+
 ## hrly-gen-costs
 ### Added
 - **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)

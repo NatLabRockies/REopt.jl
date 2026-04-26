@@ -86,6 +86,7 @@
         "macrs_option_years": 5,
         "macrs_bonus_fraction": 0.6,
         "can_wholesale": false,
+        "include_cooling_in_chp_size": false,
         "fuel_cost_per_mmbtu": [
             6.26,
             8.36,
