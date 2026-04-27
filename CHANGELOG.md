@@ -329,7 +329,7 @@ Update the following inputs from the previous --> new values:
 - Warning to user if data is not from NSRDB or if data is more than 200 miles away
 - In `results/heating_cooling_load.jl`, added new fields **process_heat_thermal_load_series_mmbtu_per_hour**, **process_heat_boiler_fuel_load_series_mmbtu_per_hour**, **annual_calculated_process_heat_thermal_load_mmbtu**, and **annual_calculated_process_heat_boiler_fuel_load_mmbtu** to HeatingLoad results, with sum heating loads now including process heat 
 ### Changed
-- Change the way we determine which dataset to utilize in the PVWatts API call. Previously, we utilized defined lat-long bounds to determine if "nsrdb" or "intl" data should be used in PVWatts call. Now, we call the Solar Dataset Query API (v2) (https://developer.nrel.gov/docs/solar/data-query/v2/) to determine the dataset to use, and include "tmy3" as an option, as this is currently the best-available data for many locations in Alaska. 
+- Change the way we determine which dataset to utilize in the PVWatts API call. Previously, we utilized defined lat-long bounds to determine if "nsrdb" or "intl" data should be used in PVWatts call. Now, we call the Solar Dataset Query API (v2) (https://developer.nlr.gov/docs/solar/data-query/v2/) to determine the dataset to use, and include "tmy3" as an option, as this is currently the best-available data for many locations in Alaska. 
 - Refactored **dvThermalProduction** to be separated in **dvCoolingProduction** and **dvHeatingProduction** with **dvHeatingProduction** now indexed on `p.heating_loads`
 - Refactored heating load balance constraints so that a separate flow balance is reconciled for each heating load in `p.heating_loads`
 - Renamed **dvThermalProductionYIntercept** to **dvHeatingProductionYIntercept**
@@ -562,7 +562,7 @@ Update the following inputs from the previous --> new values:
 ### Changed
 - Consolidated PVWatts API calls to 1 call (previously 3 separate calls existed). API call occurs in `src/core/utils.jl/call_pvwatts_api()`. This function is called for PV in `src/core/production_factor.jl/get_production_factor(PV)` and for GHP in `src/core/scenario.jl`. If GHP and PV are evaluated together, the GHP PVWatts call for ambient temperature is also used to assign the pv.production_factor_series in Scenario.jl so that the PVWatts API does not get called again downstream in `get_production_factor(PV)`.  
 - In `src/core/utils.jl/call_pvwatts_api()`, updated NSRDB bounds used in PVWatts query (now includes southern New Zealand)
-- Updated PV Watts version from v6 to v8. PVWatts V8 updates the weather data to 2020 TMY data from the NREL NSRDB for locations covered by the database. (The NSRDB weather data used in PVWatts V6 is from around 2015.) See other differences at https://developer.nrel.gov/docs/solar/pvwatts/.
+- Updated PV Watts version from v6 to v8. PVWatts V8 updates the weather data to 2020 TMY data from the NREL NSRDB for locations covered by the database. (The NSRDB weather data used in PVWatts V6 is from around 2015.) See other differences at https://developer.nlr.gov/docs/solar/pvwatts/.
 - Made PV struct mutable: This allows for assigning pv.production_factor_series when calling PVWatts for GHP, to avoid a extra PVWatts calls later.
 - Changed unit test expected values due to update to PVWatts v8, which slightly changed expected PV production factors.
 - Changed **fuel_avail_gal** default to 1e9 for on-grid scenarios (same as off-grid)
