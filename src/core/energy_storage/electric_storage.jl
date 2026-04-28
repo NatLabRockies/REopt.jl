@@ -198,8 +198,8 @@ end
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
     
     # Dispatch-related inputs
-    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
-    # SOC inputs relevant if dispatch_strategy = "optimized", "peak_shaving", "self_consumption", or "backup" #TODO: confirm this. 
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+    # SOC inputs relevant if dispatch_strategy = "optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", or "backup" #TODO: confirm this. 
     soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
     soc_min_applies_during_outages::Bool = false
     soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
@@ -212,8 +212,9 @@ end
 !!! note "Dispatch Strategy Options"
 	The following dispatch strategies are available via the `dispatch_strategy` input:
     - `optimized`: Storage dispatch is optimized to minimize the total lifecycle cost of energy for the site. The model has perfect foresight into loads and modeled variable generation potential over the entire year. 
-    - `peak_shaving`: Uses SAM's Peak Shaving dispatch heuristic. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) # TODO: Xiang to update
-    - `self_consumption`: To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) # TODO: Xiang to update
+    - `peak_shaving_look_ahead`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look-ahead (perfect prediction) of load and solar resource. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `peak_shaving_look_behind`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look behind for the load and solar resource to introduce forecast uncertainty. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `self_consumption`: Uses SAM's Self-Consumption dispatch heuristic to maximize the onsite use of PV generation. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values)
     - `backup`: Storage is reserved to meet load during grid outages by changing the default soc_min_fraction to 0.8.
     - `daily_foresight_optimized`: This option is only available via the REopt API (not available in REopt.jl)
     - `custom_soc`: User must provide a fixed_soc_series_fraction and can optionally tailor the fixed_soc_series_fraction_tolerance. 
@@ -252,7 +253,7 @@ Base.@kwdef struct ElectricStorageDefaults
     degradation::Dict = Dict()
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
-    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"]
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"]
     soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
     soc_min_applies_during_outages::Bool = false
     soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
@@ -314,7 +315,7 @@ struct ElectricStorage <: AbstractElectricStorage
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
     
-    function ElectricStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)  
+    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         s = ElectricStorageDefaults(;d...)
 
@@ -331,7 +332,7 @@ struct ElectricStorage <: AbstractElectricStorage
         end
 
         # Dispatch validation
-        valid_dispatch_strategies = ["optimized", "peak_shaving", "self_consumption", "backup", "custom_soc"]
+        valid_dispatch_strategies = ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"]
         dispatch_strategy = s.dispatch_strategy
         if !(dispatch_strategy in valid_dispatch_strategies)
             throw(@error("ElectricStorage dispatch_strategy must be one of the following: $(valid_dispatch_strategies)"))
@@ -343,20 +344,16 @@ struct ElectricStorage <: AbstractElectricStorage
             @warn "Updating ElectricStorage dispatch_strategy to custom_soc since fixed_soc_series_fraction is provided."
             dispatch_strategy = "custom_soc"
         end
-        requires_fixed_sizing = ["peak_shaving", "self_consumption"]
+        requires_fixed_sizing = ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
         # TODO: Add checks on PV sizing
         if dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
             throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
         
 
-        # Call SAM for peak_shaving and self_consumption dispatch strategies
-        if dispatch_strategy == "peak_shaving"
-            @info "Using SAM Peak Shaving dispatch strategy for ElectricStorage."
-            # TODO: Call SAM here?
-            # fixed_soc_series_fraction = SAM output
-        elseif dispatch_strategy == "self_consumption"
-            @info "Using SAM Self Consumption dispatch strategy for ElectricStorage."
+        # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
+        if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
+            @info "Using a SAM dispatch strategy for ElectricStorage: $(dispatch_strategy)"
             # TODO: Call SAM here?
             # fixed_soc_series_fraction = SAM output
         end
