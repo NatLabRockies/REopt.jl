@@ -55,8 +55,8 @@ function add_boiler_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(NewBoilerToSteamTurbine), digits=3)
 
     if "AbsorptionChiller" in p.techs.cooling
-		@expression(m, NewBoilertoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["Boiler",q,ts] for q in p.heating_loads)))
-		@expression(m, NewBoilertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller]["Boiler",q,ts])))
+		@expression(m, NewBoilertoAbsorptionChillerKW[ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller]["Boiler",q,ts] for q in p.heating_loads))
+		@expression(m, NewBoilertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller]["Boiler",q,ts]))
 	else
 		@expression(m, NewBoilertoAbsorptionChillerKW[ts in p.time_steps], 0.0)
 		@expression(m, NewBoilertoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
