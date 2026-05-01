@@ -85,10 +85,10 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
         m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
     )
 
-    #Constraint (4j): Dispatch from storage is no greater than hydrogen capacity
-	@constraint(m, [ts in p.time_steps],
-        m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
-    )
+    # #Constraint (4j): Dispatch from storage is no greater than hydrogen capacity
+	# @constraint(m, [ts in p.time_steps],
+    #     m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
+    # )
 
 end
 
