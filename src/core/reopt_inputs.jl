@@ -491,7 +491,6 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
         setup_water_power_inputs(s, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
     else
         print("\n WaterPower is not in the techs")
-        #water_power["existing_kw_per_turbine"] = 0
     end
 
     # filling export_bins_by_tech MUST be done after techs_by_exportbin has been filled in
@@ -729,7 +728,7 @@ function setup_wind_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_s
 end
 
 function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
-    #water_power_inputs["existing_kw_per_turbine"] = s.water_power.existing_kw_per_turbine
+   
     for i in 1:s.water_power.number_of_turbines
         turbine_tech_name = "WaterPower_Turbine"*string(i)
         production_factor[turbine_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)

@@ -91,47 +91,6 @@ function BAUInputs(p::REoptInputs)
         end
         fuel_cost_per_kwh["Generator"] = p.fuel_cost_per_kwh["Generator"]        
     end
-
-    #=
-    if "WaterPower" in techs.all
-        for t in p.techs.water_power_turbines
-            min_sizes[t] = p.s.water_power.existing_kw_per_turbine
-            max_sizes[t] = p.s.water_power.existing_kw_per_turbine
-            existing_sizes[t] = p.s.water_power.existing_kw_per_turbine
-            cap_cost_slope[t] = 0.0
-            om_cost_per_kw[t] = p.s.water_power.om_cost_per_kw_turbine
-            fillin_techs_by_exportbin(techs_by_exportbin, p.s.water_power, t)
-        end
-
-        for t in p.techs.water_power_pumps
-            min_sizes[t] = p.s.water_power.existing_kw_per_pump
-            max_sizes[t] = p.s.water_power.existing_kw_per_pump
-            existing_sizes[t] = p.s.water_power.existing_kw_per_pump
-            cap_cost_slope[t] = 0.0
-            om_cost_per_kw[t] = p.s.water_power.om_cost_per_kw_pump
-        end
-    end
-
-    if "upper_reservoir" in p.s.water_storage
-        if p.s.upper_reservoir.existing_capacity_cubic_meters_upper_reservoir
-            p.s.upper_reservoir.minimum_capacity_cubic_meters_upper_reservoir
-            p.s.upper_reservoir.maximum_capacity_cubic_meters_upper_reservoir
-            p.s.downstream_reservoir.om_cost_per_cubic_meter
-            p.s.downstream_reservoir.cost_per_cubic_meter_upper_reservoir
-        end
-        
-    end
-
-    if "downstream_reservoir" in p.s.water_storage
-        if p.s.downstream_reservoir.existing_capacity_cubic_meters_downstream_reservoir
-            p.s.downstream_reservoir.minimum_capacity_cubic_meters_downstream_reservoir
-            p.s.downstream_reservoir.maximum_capacity_cubic_meters_downstream_reservoir
-            p.s.downstream_reservoir.om_cost_per_cubic_meter
-            p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir
-        end
-        
-    end
-    =#
     
     if "ExistingBoiler" in techs.all
         setup_existing_boiler_inputs(bau_scenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
