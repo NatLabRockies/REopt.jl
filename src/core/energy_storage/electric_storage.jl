@@ -309,6 +309,14 @@ struct ElectricStorage <: AbstractElectricStorage
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
 
+        optimize_soc_init_fraction = s.optimize_soc_init_fraction
+        if !isnothing(s.fixed_dispatch_series) 
+            @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_dispatch_series. Other SOC inputs will be ignored."
+            optimize_soc_init_fraction = false
+            require_start_and_end_charge_to_be_equal = false
+            error_if_series_vals_not_0_to_1(s.fixed_dispatch_series, "ElectricStorage", "fixed_dispatch_series")
+        end
+
         net_present_cost_per_kw = effective_cost(;
             itc_basis = s.installed_cost_per_kw,
             replacement_cost = s.inverter_replacement_year >= f.analysis_years ? 0.0 : replace_cost_per_kw,
@@ -377,7 +385,7 @@ struct ElectricStorage <: AbstractElectricStorage
             s.soc_based_per_ts_self_discharge_fraction,
             s.fixed_dispatch_series,
             s.require_start_and_end_charge_to_be_equal,
-            s.optimize_soc_init_fraction,
+            optimize_soc_init_fraction,
             s.min_duration_hours,
             s.max_duration_hours
         )
