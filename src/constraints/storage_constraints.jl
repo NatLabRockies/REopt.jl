@@ -52,19 +52,22 @@ end
 
 function add_general_storage_dispatch_constraints(m, p, b; _n="")
     # Constraint (4a): initial and final state of charge
-    if (hasproperty(p.s.storage.attr[b], :optimize_soc_init_fraction) && p.s.storage.attr[b].optimize_soc_init_fraction) || (p.s.storage.attr[b] isa HydrogenStorage && p.s.storage.attr[b].require_start_and_end_charge_to_be_equal)
-        print("\nOptimizing "*b*" inital SOC and constraining initial SOC = final SOC. soc_init_fraction will not apply.\n")  #TODO make info
-        @constraint(m,
-            m[Symbol("dvStoredEnergy"*_n)][b, 0] == m[:dvStoredEnergy][b, maximum(p.time_steps)]
-        )
-    else
-        @constraint(m,
-            m[Symbol("dvStoredEnergy"*_n)][b, 0] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
-        )
-        # TODO: constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
-        # @constraint(m,
-        #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
-        # )
+    if !hasproperty(p.s.storage.attr[b], :fixed_dispatch_series) || isnothing(p.s.storage.attr[b].fixed_dispatch_series)
+        if (hasproperty(p.s.storage.attr[b], :optimize_soc_init_fraction) && p.s.storage.attr[b].optimize_soc_init_fraction) || p.s.storage.attr[b].require_start_and_end_charge_to_be_equal
+            @info "\nOptimizing "*b*" inital SOC and constraining initial SOC = final SOC. soc_init_fraction will not apply.\n"
+            @constraint(m,
+                m[Symbol("dvStoredEnergy"*_n)][b, 0] == m[:dvStoredEnergy][b, maximum(p.time_steps)]
+            )
+            # TODO: always constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
+            # @constraint(m,
+            #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
+            # )
+        end
+        if !(hasproperty(p.s.storage.attr[b], :optimize_soc_init_fraction) && p.s.storage.attr[b].optimize_soc_init_fraction)
+            @constraint(m,
+                m[Symbol("dvStoredEnergy"*_n)][b, 0] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
+            )
+        end
     end
 
     #Constraint (4n): State of charge upper bound is storage system size
