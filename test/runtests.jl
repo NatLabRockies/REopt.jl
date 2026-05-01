@@ -2500,6 +2500,7 @@ else  # run HiGHS tests
             post["PV"]["max_kw"] = 0.0
             post["ElectricStorage"]["max_kw"] = 0.0
             post["Generator"]["min_turn_down_fraction"] = 0.0
+            post["Generator"]["om_cost_per_hr_per_kw_rated"] = 2.0
             finalize(backend(m))
             empty!(m)
             GC.gc()
@@ -2519,6 +2520,8 @@ else  # run HiGHS tests
             @test r["Financial"]["initial_capital_costs_after_incentives"] ≈ 700 * 100 + other_offgrid_capex_after_tax atol = 0.1
             @test r["Financial"]["replacements_future_cost_after_tax"] ≈ 700 * 100
             @test r["Financial"]["replacements_present_cost_after_tax"] ≈ 100 * (324.235442 * (1 - 0.26)) atol = 0.1
+            generator_hours_runtime = sum(x -> x > 0, r["Generator"]["electric_to_load_series_kw"]) + sum(x -> x > 0, r["Generator"]["electric_to_storage_series_kw"])
+            @test r["Generator"]["year_one_variable_om_cost_before_tax"] ≈ generator_hours_runtime * r["Generator"]["size_kw"] * post["Generator"]["om_cost_per_hr_per_kw_rated"] atol=0.1            
 
             ## Scenario 3: Fixed Generator that can meet load, but cannot meet load operating reserve requirement
             ## This test ensures the load operating reserve requirement is being enforced
