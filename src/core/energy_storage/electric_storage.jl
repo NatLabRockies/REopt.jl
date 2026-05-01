@@ -310,10 +310,11 @@ struct ElectricStorage <: AbstractElectricStorage
         end
 
         optimize_soc_init_fraction = s.optimize_soc_init_fraction
+        minimum_avg_soc_fraction = s.minimum_avg_soc_fraction
         if !isnothing(s.fixed_dispatch_series) 
             @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_dispatch_series. Other SOC inputs will be ignored."
             optimize_soc_init_fraction = false
-            require_start_and_end_charge_to_be_equal = false
+            minimum_avg_soc_fraction = 0.0
             error_if_series_vals_not_0_to_1(s.fixed_dispatch_series, "ElectricStorage", "fixed_dispatch_series")
         end
 
@@ -380,7 +381,7 @@ struct ElectricStorage <: AbstractElectricStorage
             net_present_cost_per_kwh,
             s.model_degradation,
             degr,
-            s.minimum_avg_soc_fraction,
+            minimum_avg_soc_fraction,
             s.capacity_based_per_ts_self_discharge_fraction,
             s.soc_based_per_ts_self_discharge_fraction,
             s.fixed_dispatch_series,
