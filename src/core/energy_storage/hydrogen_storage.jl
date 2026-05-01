@@ -38,6 +38,7 @@ Base.@kwdef struct HydrogenStorageDefaults
     soc_min_applies_during_outages::Bool = false
     capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0
     soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 
+    fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
     require_start_and_end_charge_to_be_equal::Bool = true
 end
 
@@ -66,6 +67,7 @@ struct HydrogenStorage <: AbstractHydrogenStorage
     soc_min_applies_during_outages::Bool
     capacity_based_per_ts_self_discharge_fraction::Float64
     soc_based_per_ts_self_discharge_fraction::Float64
+    fixed_dispatch_series::Union{Nothing, Array{Real,1}}
     require_start_and_end_charge_to_be_equal::Bool
 
     function HydrogenStorage(d::Dict, f::Financial)  
@@ -107,6 +109,7 @@ struct HydrogenStorage <: AbstractHydrogenStorage
             s.soc_min_applies_during_outages,
             s.capacity_based_per_ts_self_discharge_fraction,
             s.soc_based_per_ts_self_discharge_fraction,
+            s.fixed_dispatch_series,
             s.require_start_and_end_charge_to_be_equal
         )
     end
