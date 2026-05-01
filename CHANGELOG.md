@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## dict-type
+### Fixed
+- Added dicttype arg to _JSON.parsefile_ (solves _MethodError_ when the parsed JSON file is passed to the next function (e.g. `Scenario`) as a _JSON.Object_ but expecting _Dict_)
+
 ## v0.58.2
 ### Added
 - **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
