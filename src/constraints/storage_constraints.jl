@@ -90,6 +90,17 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
     #     m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
     # )
 
+    # Constrain to fixed_dispatch_series
+    if hasproperty(p.s.storage.attr[b], :fixed_dispatch_series) && !isnothing(p.s.storage.attr[b].fixed_dispatch_series)      
+        @constraint(m, [ts in p.time_steps],
+        # Allow for a 1 pct point buffer on user-provided fixed_dispatch_series
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] <= (0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] >= (-0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+    end
+
 end
 
 
@@ -178,17 +189,6 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
                    (8760. / p.hours_per_time_step)
         @constraint(m, avg_soc >= p.s.storage.attr[b].minimum_avg_soc_fraction * 
             sum(m[Symbol("dvStorageEnergy"*_n)][b])
-        )
-    end
-
-    # Constrain to fixed_dispatch_series
-    if hasproperty(p.s.storage.attr[b], :fixed_dispatch_series) && !isnothing(p.s.storage.attr[b].fixed_dispatch_series)      
-        @constraint(m, [ts in p.time_steps],
-        # Allow for a 1 pct point buffer on user-provided fixed_dispatch_series
-            m[Symbol("dvStoredEnergy"*_n)][b, ts] <= (0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("dvStoredEnergy"*_n)][b, ts] >= (-0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
         )
     end
 end
