@@ -27,7 +27,7 @@ Solve the model using the `Scenario` defined in JSON file stored at the file pat
 function run_reopt(m::JuMP.AbstractModel, fp::String)
 
 	try
-		s = Scenario(JSON.parsefile(fp))
+		s = Scenario(JSON.parsefile(fp, dicttype = Dict{String, Any}))
 		run_reopt(m, REoptInputs(s))
 	catch e
 		if isnothing(e) # Error thrown by REopt
@@ -99,7 +99,7 @@ Solve the `Scenario` and `BAUScenario` in parallel using the first two (empty) m
 JSON file at the filepath `fp`.
 """
 function run_reopt(ms::AbstractArray{T, 1}, fp::String) where T <: JuMP.AbstractModel
-	d = JSON.parsefile(fp)
+	d = JSON.parsefile(fp, dicttype = Dict{String, Any})
     run_reopt(ms, d)
 end
 
@@ -172,7 +172,7 @@ Add variables and constraints for REopt model.
 `fp` is used to load in JSON file to construct REoptInputs.
 """
 function build_reopt!(m::JuMP.AbstractModel, fp::String)
-	s = Scenario(JSON.parsefile(fp))
+	s = Scenario(JSON.parsefile(fp, dicttype = Dict{String, Any}))
 	build_reopt!(m, REoptInputs(s))
 	nothing
 end

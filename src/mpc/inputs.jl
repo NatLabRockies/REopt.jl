@@ -29,7 +29,7 @@ end
 
 
 function MPCInputs(fp::String)
-    s = MPCScenario(JSON.parsefile(fp))
+    s = MPCScenario(JSON.parsefile(fp, dicttype = Dict{String, Any}))
     MPCInputs(s)
 end
 

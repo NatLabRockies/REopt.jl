@@ -7,7 +7,7 @@ Solve the model predictive control problem using the `MPCScenario` defined in th
 Returns a Dict of results with keys matching those in the `MPCScenario`.
 """
 function run_mpc(m::JuMP.AbstractModel, fp::String)
-	s = MPCScenario(JSON.parsefile(fp))
+	s = MPCScenario(JSON.parsefile(fp, dicttype = Dict{String, Any}))
 	run_mpc(m, MPCInputs(s))
 end
 

@@ -78,7 +78,6 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     else
         settings = Settings()
     end
-    
     site = Site(;dictkeys_tosymbols(d["Site"])...)
 
     # Check that only PV, electric storage, and generator are modeled for off-grid
@@ -1078,7 +1077,7 @@ end
 Consruct Scenario from filepath `fp` to JSON with keys aligned with the `Scenario(d::Dict)` method.
 """
 function Scenario(fp::String)
-    Scenario(JSON.parsefile(fp); flex_hvac_from_json=true)
+    Scenario(JSON.parsefile(fp, dicttype = Dict{String, Any}); flex_hvac_from_json=true)
 end
 
 
