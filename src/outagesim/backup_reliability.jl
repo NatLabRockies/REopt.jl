@@ -1173,7 +1173,6 @@ Return an array of backup reliability calculations, accounting for operational a
 -kwargs::Dict                                       Dictionary of additional inputs.  
 ```
 """
-
 function return_backup_reliability(;
     critical_loads_kw::Vector, 
     battery_operational_availability::Real = 0.97,

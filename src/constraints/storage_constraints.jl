@@ -152,7 +152,7 @@ function add_hot_thermal_storage_dispatch_constraints(m, p, b; _n="")
 			m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] <=  m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
 			)
         @constraint(m, [q in p.heating_loads, ts in p.time_steps],
-            m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
+            m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] + m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
         )
         if !p.s.storage.attr[b].can_supply_steam_turbine
             for q in p.heating_loads
@@ -167,6 +167,23 @@ function add_hot_thermal_storage_dispatch_constraints(m, p, b; _n="")
             for t in p.techs.steam_turbine
                 for ts in p.time_steps, q in p.heating_loads
                     fix(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts], 0.0, force=true)
+                end
+            end
+        end
+    else
+        if !isempty(p.techs.absorption_chiller)
+            @constraint(m, [q in [p.s.absorption_chiller.heating_load_input], ts in p.time_steps],
+                m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
+            )
+            for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts], 0.0, force=true)
+                end
+            end
+        else
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts], 0.0, force=true)
                 end
             end
         end

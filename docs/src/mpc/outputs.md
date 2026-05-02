@@ -1,4 +1,4 @@
-# MPC Outputs
+# [Outputs](@id mpc-outputs)
 ```@docs
 REopt.mpc_results
 ```

@@ -1,4 +1,4 @@
-# Methods
+# [Methods](@id mpc-methods)
 
 ```@docs
 run_mpc
