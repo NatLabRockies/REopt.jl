@@ -408,45 +408,6 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
 
-    chps = CHP[]
-    chp_prime_mover = nothing
-    if haskey(d, "CHP")
-        chp_array = isa(d["CHP"], AbstractArray) ? d["CHP"] : [d["CHP"]]
-        for (i, chp_dict) in enumerate(chp_array)
-            electric_only = get(chp_dict, "is_electric_only", false) || get(chp_dict, "thermal_efficiency_full_load", 0.5) == 0.0
-            
-            # Set default name if not provided
-            if !haskey(chp_dict, "name")
-                chp_dict["name"] = length(chp_array) > 1 ? "CHP$i" : "CHP"
-            end
-            
-            if !isnothing(existing_boiler) && !electric_only
-                total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
-                avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
-                chp = CHP(chp_dict; 
-                        avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
-                        existing_boiler = existing_boiler,
-                        electric_load_series_kw = electric_load.loads_kw,
-                        year = electric_load.year,
-                        sector = site.sector,
-                        federal_procurement_type = site.federal_procurement_type,
-                        off_grid_flag = settings.off_grid_flag)
-            else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
-                chp = CHP(chp_dict;
-                        electric_load_series_kw = electric_load.loads_kw,
-                        year = electric_load.year,
-                        sector = site.sector,
-                        federal_procurement_type = site.federal_procurement_type,
-                        off_grid_flag = settings.off_grid_flag)
-            end
-            push!(chps, chp)
-        end
-        # Store first CHP's prime mover for backward compatibility if needed
-        if !isempty(chps)
-            chp_prime_mover = chps[1].prime_mover
-        end
-    end
-
     max_cooling_demand_kw = 0
     if haskey(d, "CoolingLoad") && !haskey(d, "FlexibleHVAC")
         d["CoolingLoad"] = convert(Dict{String, Any}, d["CoolingLoad"])
@@ -504,51 +465,65 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
 
-    chp = nothing
+    chps = CHP[]
+    chp_prime_mover = nothing
     if haskey(d, "CHP")
-        electric_only = get(d["CHP"], "is_electric_only", false) || get(d["CHP"], "thermal_efficiency_full_load", 0.5) == 0.0
-        
-        # If AbsorptionChiller is evaluated, need cooling load -> absorption chiller heating consumption estimate for CHP sizing heuristic
-        avg_cooling_load_kw = nothing
-        absorption_chiller_cop = nothing
-        # User can override by explicitly setting include_cooling_in_chp_size = false
-        if "include_cooling_in_chp_size" in keys(d["CHP"])
-            include_cooling_in_size = pop!(d["CHP"], "include_cooling_in_chp_size")
-        else
-            include_cooling_in_size = haskey(d, "AbsorptionChiller")
-        end
-        
-        if max_cooling_demand_kw > 0 && include_cooling_in_size
-            # Use already-processed cooling_load object
-            avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
-            # Get absorption chiller COP if specified, otherwise will use default
-            if haskey(d, "AbsorptionChiller") && haskey(d["AbsorptionChiller"], "cop_thermal")
-                absorption_chiller_cop = d["AbsorptionChiller"]["cop_thermal"]
+        chp_array = isa(d["CHP"], AbstractArray) ? d["CHP"] : [d["CHP"]]
+        for (i, chp_dict) in enumerate(chp_array)
+            electric_only = get(chp_dict, "is_electric_only", false) || get(chp_dict, "thermal_efficiency_full_load", 0.5) == 0.0
+
+            # Set default name if not provided
+            if !haskey(chp_dict, "name")
+                chp_dict["name"] = length(chp_array) > 1 ? "CHP$i" : "CHP"
             end
+
+            # If AbsorptionChiller is evaluated, include cooling load in CHP sizing heuristic
+            # User can override by explicitly setting include_cooling_in_chp_size = false in the CHP dict
+            avg_cooling_load_kw = nothing
+            absorption_chiller_cop = nothing
+            if "include_cooling_in_chp_size" in keys(chp_dict)
+                include_cooling_in_size = pop!(chp_dict, "include_cooling_in_chp_size")
+            else
+                include_cooling_in_size = haskey(d, "AbsorptionChiller")
+            end
+
+            if max_cooling_demand_kw > 0 && include_cooling_in_size
+                avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
+                if haskey(d, "AbsorptionChiller") && haskey(d["AbsorptionChiller"], "cop_thermal")
+                    absorption_chiller_cop = d["AbsorptionChiller"]["cop_thermal"]
+                end
+            end
+
+            if !isnothing(existing_boiler) && !electric_only
+                total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
+                avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
+                chp = CHP(chp_dict;
+                        avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
+                        existing_boiler = existing_boiler,
+                        electric_load_series_kw = electric_load.loads_kw,
+                        avg_cooling_load_kw = avg_cooling_load_kw,
+                        absorption_chiller_cop = absorption_chiller_cop,
+                        include_cooling_in_size = include_cooling_in_size,
+                        year = electric_load.year,
+                        sector = site.sector,
+                        federal_procurement_type = site.federal_procurement_type,
+                        off_grid_flag = settings.off_grid_flag)
+            else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
+                chp = CHP(chp_dict;
+                        electric_load_series_kw = electric_load.loads_kw,
+                        avg_cooling_load_kw = avg_cooling_load_kw,
+                        absorption_chiller_cop = absorption_chiller_cop,
+                        include_cooling_in_size = include_cooling_in_size,
+                        year = electric_load.year,
+                        sector = site.sector,
+                        federal_procurement_type = site.federal_procurement_type,
+                        off_grid_flag = settings.off_grid_flag)
+            end
+            push!(chps, chp)
         end
-        
-        if !isnothing(existing_boiler) && !electric_only
-            total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
-            avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
-            chp = CHP(d["CHP"]; 
-                    avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
-                    existing_boiler = existing_boiler,
-                    electric_load_series_kw = electric_load.loads_kw,
-                    avg_cooling_load_kw = avg_cooling_load_kw,
-                    absorption_chiller_cop = absorption_chiller_cop,
-                    include_cooling_in_size = include_cooling_in_size,
-                    year = electric_load.year,
-                    sector = site.sector,
-                    federal_procurement_type = site.federal_procurement_type)
-        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
-            chp = CHP(d["CHP"];
-                    electric_load_series_kw = electric_load.loads_kw,
-                    avg_cooling_load_kw = avg_cooling_load_kw,
-                    absorption_chiller_cop = absorption_chiller_cop,
-                    include_cooling_in_size = include_cooling_in_size,
-                    year = electric_load.year,
-                    sector = site.sector,
-                    federal_procurement_type = site.federal_procurement_type)
+        # Store first CHP's prime mover for AbsorptionChiller construction below
+        if !isempty(chps)
+            chp_prime_mover = chps[1].prime_mover
         end
     end
 
@@ -569,7 +544,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         if haskey(d, "AbsorptionChiller")
             absorption_chiller = AbsorptionChiller(d["AbsorptionChiller"]; 
                                                     existing_boiler = existing_boiler,
-                                                    chp_prime_mover = isnothing(chp) ? nothing : chp.prime_mover,
+                                                    chp_prime_mover = chp_prime_mover,
                                                     cooling_load = cooling_load)
         end
     end

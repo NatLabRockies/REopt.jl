@@ -228,7 +228,9 @@ load or send to waste in dispatch.
 """
 function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
     monthly_timesteps = get_monthly_time_steps(p.s.electric_load.year; time_steps_per_hour=p.s.settings.time_steps_per_hour)
-    for mth in p.s.chp.months_serving_absorption_chiller_only
+    chp_with_ac_only = filter(chp -> chp.serve_absorption_chiller_only, p.s.chps)
+    months_to_restrict = unique(vcat([chp.months_serving_absorption_chiller_only for chp in chp_with_ac_only]...))
+    for mth in months_to_restrict
         @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
             m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
         )
@@ -368,11 +370,11 @@ function add_chp_constraints(m, p; _n="")
         end
     end
 
-    if !isempty(p.techs.absorption_chiller) && p.s.chp.serve_absorption_chiller_only
+    if !isempty(p.techs.absorption_chiller) && any(chp.serve_absorption_chiller_only for chp in p.s.chps)
         add_chp_to_absorption_chiller_only_constraints(m, p; _n=_n)
     end
 
-    if p.s.chp.follow_electrical_load
+    if any(chp.follow_electrical_load for chp in p.s.chps)
         add_chp_electrical_load_following_constraints(m, p; _n=_n)
     end
 end

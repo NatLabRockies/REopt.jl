@@ -317,7 +317,7 @@ else  # run HiGHS tests
                 )
             )
             s = Scenario(d)
-            @test s.chp.max_kw ≈ case3_max_size_kw atol=1e-3
+            @test s.chps[1].max_kw ≈ case3_max_size_kw atol=1e-3
 
             #Case 5: with higher electric load, still sized according to thermal input
             avg_electric_load_kw = 2000.0
