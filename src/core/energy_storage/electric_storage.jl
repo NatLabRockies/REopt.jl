@@ -311,7 +311,7 @@ struct ElectricStorage <: AbstractElectricStorage
             @warn "Battery replacement costs (per_kwh) will not be considered because battery_replacement_year is greater than or equal to analysis_years."
         end
 
-        if stor.min_duration_hours > s.max_duration_hours
+        if stor.min_duration_hours > stor.max_duration_hours
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
 
