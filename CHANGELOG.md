@@ -25,6 +25,12 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fixed-bess-soc
+### Added
+- Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
+### Changed
+- **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+
 ## v0.58.2
 ### Added
 - **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)

@@ -4205,6 +4205,27 @@ else  # run HiGHS tests
             empty!(m2)
             GC.gc()
         end
+        
+        @testset "Fixed ElectricStorage state of charge" begin
+            post_name = "fixed_pv_bess" 
+            post = JSON.parsefile("./scenarios/$post_name.json")
+            
+            # Get optimal SOC
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m1 , post)
+            lcc1 = results["Financial"]["lcc"]
+            soc_series = results["ElectricStorage"]["soc_series_fraction"]
+            
+            # Fix soc_series to optimal from previous run
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false)) 
+            post["ElectricStorage"]["fixed_soc_series_fraction"] =  soc_series
+            post["ElectricStorage"]["fixed_soc_series_fraction_tolerance"] = 0.05
+            results = run_reopt(m1 , post)
+            lcc2 = results["Financial"]["lcc"]
+            
+            @test lcc1 ≈ lcc2 rtol=0.001
+            @test maximum(abs.(soc_series - results["ElectricStorage"]["soc_series_fraction"])) <= post["ElectricStorage"]["fixed_soc_series_fraction_tolerance"]+ 1e-7
+        end
 
         @testset "Existing HVAC (Boiler and Chiller) Costs for BAU" begin
             """
