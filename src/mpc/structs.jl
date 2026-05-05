@@ -230,11 +230,8 @@ Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
     can_wholesale::Bool = false
     can_export_beyond_nem_limit = false
     grid_charge_efficiency::Float64 = 0.96 * 0.975^2
-    max_kw::Float64 = size_kw
-    max_kwh::Float64 = size_kwh
-    minimum_avg_soc_fraction::Float64 = 0.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.1 : 0.0
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
 end
 ```
 """
@@ -254,7 +251,7 @@ Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     max_kwh::Float64 = size_kwh
     minimum_avg_soc_fraction::Float64 = 0.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.1 : 0.0
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
 end
 
 
@@ -274,6 +271,7 @@ function MPCGenerator(;
     only_runs_during_grid_outage::Bool = true,
     sells_energy_back_to_grid::Bool = false,
     om_cost_per_kwh::Real=0.0,
+    om_cost_per_hr_per_kw_rated::Real=0.0,
     )
 ```
 """
@@ -289,6 +287,7 @@ struct MPCGenerator <: AbstractGenerator
     only_runs_during_grid_outage
     sells_energy_back_to_grid
     om_cost_per_kwh
+    om_cost_per_hr_per_kw_rated
 
     function MPCGenerator(;
         size_kw::Real,
@@ -301,6 +300,7 @@ struct MPCGenerator <: AbstractGenerator
         only_runs_during_grid_outage::Bool = true,
         sells_energy_back_to_grid::Bool = false,
         om_cost_per_kwh::Real=0.0,
+        om_cost_per_hr_per_kw_rated::Real=0.0,
         )
 
         max_kw = size_kw
@@ -317,6 +317,7 @@ struct MPCGenerator <: AbstractGenerator
             only_runs_during_grid_outage,
             sells_energy_back_to_grid,
             om_cost_per_kwh,
+            om_cost_per_hr_per_kw_rated
         )
     end
 end

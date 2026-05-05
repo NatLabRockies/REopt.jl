@@ -5,7 +5,7 @@
     loads_kw_thermal::Vector{<:Real},
     cop::Union{Real, Nothing} = nothing,
     max_thermal_factor_on_peak_load::Real=1.25
-    installed_cost_per_kw::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis based on current size; also incurred in Optimal case if still using at all
+    installed_cost_per_ton::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis based on current size; also incurred in Optimal case if still using at all
     installed_cost_dollars::Real = 0.0  # Represents needed CapEx in BAU, assuming net present cost basis; also incurred in Optimal case if still using at all
     retire_in_optimal::Bool = false  # Do NOT use in the optimal case (still used in BAU)
 ```

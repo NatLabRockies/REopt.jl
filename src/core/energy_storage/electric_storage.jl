@@ -202,11 +202,11 @@ end
     degradation::Dict = Dict()
     minimum_avg_soc_fraction::Float64 = 0.0
     optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
-    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- 0.02 (this buffer is to avoid infeasible solutions)
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.1 : 0.0 # +- absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions. 
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
-
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance. Must be an array of values 0-1 with length equal to 8760*time_steps_per_hour.
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
+    
 ```
 """
 Base.@kwdef struct ElectricStorageDefaults
@@ -251,7 +251,7 @@ Base.@kwdef struct ElectricStorageDefaults
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Real = !isnothing(fixed_soc_series_fraction) ? 0.1 : 0.0
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
 end
 
 
@@ -305,94 +305,98 @@ struct ElectricStorage <: AbstractElectricStorage
     min_duration_hours::Real
     max_duration_hours::Real
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}}
-    fixed_soc_series_fraction_tolerance::Real
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
-    function ElectricStorage(d::Dict, f::Financial, s::Site)  
+    
+    function ElectricStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
-        s = ElectricStorageDefaults(;d...)
+        stor = ElectricStorageDefaults(;d...)
 
-        if s.inverter_replacement_year >= f.analysis_years
+        if stor.inverter_replacement_year >= f.analysis_years
             @warn "Battery inverter replacement costs (per_kw) will not be considered because inverter_replacement_year is greater than or equal to analysis_years."
         end
 
-        if s.battery_replacement_year >= f.analysis_years
+        if stor.battery_replacement_year >= f.analysis_years
             @warn "Battery replacement costs (per_kwh) will not be considered because battery_replacement_year is greater than or equal to analysis_years."
         end
 
-        can_net_meter = s.can_net_meter
-        can_wholesale = s.can_wholesale
-        can_export_beyond_nem_limit = s.can_export_beyond_nem_limit  
-        if s.off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
+        can_net_meter = stor.can_net_meter
+        can_wholesale = stor.can_wholesale
+        can_export_beyond_nem_limit = stor.can_export_beyond_nem_limit  
+        if stor.off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
             @warn "Setting ElectricStorage can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
             can_net_meter = false
             can_wholesale = false
             can_export_beyond_nem_limit = false
         end
         
-        if s.min_duration_hours > s.max_duration_hours
+        if stor.min_duration_hours > stor.max_duration_hours
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
 
         # Copy SOC input in case we need to change them
-        soc_init_fraction = s.soc_init_fraction
-        soc_min_fraction = s.soc_min_fraction
-        optimize_soc_init_fraction = s.optimize_soc_init_fraction
-        minimum_avg_soc_fraction = s.minimum_avg_soc_fraction
-        if !isnothing(s.fixed_soc_series_fraction) 
+        soc_init_fraction = stor.soc_init_fraction
+        soc_min_fraction = stor.soc_min_fraction
+        optimize_soc_init_fraction = stor.optimize_soc_init_fraction
+        minimum_avg_soc_fraction = stor.minimum_avg_soc_fraction
+        fixed_soc_series_fraction = stor.fixed_soc_series_fraction
+        if !isnothing(fixed_soc_series_fraction)
+            fixed_soc_series_fraction = check_and_adjust_load_length(fixed_soc_series_fraction, time_steps_per_hour, "ElectricStorage.fixed_soc_series_fraction") # using load function to clean this series.
             @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_soc_series_fraction. Other SOC inputs will be ignored."
-            soc_init_fraction = s.fixed_soc_series_fraction[1]
+            error_if_series_vals_not_0_to_1(fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
+            if stor.fixed_soc_series_fraction_tolerance < 0
+                throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
+            end
+            soc_init_fraction = fixed_soc_series_fraction[1]
             soc_min_fraction = 0.0
             optimize_soc_init_fraction = false
             minimum_avg_soc_fraction = 0.0
-            error_if_series_vals_not_0_to_1(s.fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
         end
         
         macrs_schedule = [0.0]
-        if s.macrs_option_years == 5 || s.macrs_option_years == 7
-            macrs_schedule = s.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
-        elseif !(s.macrs_option_years == 0)
+        if stor.macrs_option_years == 5 || stor.macrs_option_years == 7
+            macrs_schedule = stor.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
+        elseif !(stor.macrs_option_years == 0)
             throw(@error("ElectricStorage macrs_option_years must be 0, 5, or 7."))
         end
 
         net_present_cost_per_kw = effective_cost(;
-            itc_basis = s.installed_cost_per_kw,
-            replacement_cost = s.inverter_replacement_year >= f.analysis_years ? 0.0 : s.replace_cost_per_kw,
-            replacement_year = s.inverter_replacement_year,
+            itc_basis = stor.installed_cost_per_kw,
+            replacement_cost = stor.inverter_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kw,
+            replacement_year = stor.inverter_replacement_year,
             discount_rate = f.owner_discount_rate_fraction,
             tax_rate = f.owner_tax_rate_fraction,
-            itc = s.total_itc_fraction,
+            itc = stor.total_itc_fraction,
             macrs_schedule = macrs_schedule,
-            macrs_bonus_fraction = s.macrs_bonus_fraction,
-            macrs_itc_reduction = s.macrs_itc_reduction,
-            rebate_per_kw = s.total_rebate_per_kw
+            macrs_bonus_fraction = stor.macrs_bonus_fraction,
+            macrs_itc_reduction = stor.macrs_itc_reduction,
+            rebate_per_kw = stor.total_rebate_per_kw
         )
         net_present_cost_per_kwh = effective_cost(;
-            itc_basis = s.installed_cost_per_kwh,
-            replacement_cost = s.battery_replacement_year >= f.analysis_years ? 0.0 : s.replace_cost_per_kwh,
-            replacement_year = s.battery_replacement_year,
+            itc_basis = stor.installed_cost_per_kwh,
+            replacement_cost = stor.battery_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kwh,
+            replacement_year = stor.battery_replacement_year,
             discount_rate = f.owner_discount_rate_fraction,
             tax_rate = f.owner_tax_rate_fraction,
-            itc = s.total_itc_fraction,
+            itc = stor.total_itc_fraction,
             macrs_schedule = macrs_schedule,
-            macrs_bonus_fraction = s.macrs_bonus_fraction,
-            macrs_itc_reduction = s.macrs_itc_reduction
+            macrs_bonus_fraction = stor.macrs_bonus_fraction,
+            macrs_itc_reduction = stor.macrs_itc_reduction
         )
 
-        net_present_cost_per_kwh -= s.total_rebate_per_kwh
+        net_present_cost_per_kwh -= stor.total_rebate_per_kwh
 
-	    if (s.installed_cost_constant != 0) || (s.replace_cost_constant != 0)
-
+	    if (stor.installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
             net_present_cost_cost_constant = effective_cost(;
-                itc_basis = s.installed_cost_constant,
-                replacement_cost = s.cost_constant_replacement_year >= f.analysis_years ? 0.0 : s.replace_cost_constant,
-                replacement_year = s.cost_constant_replacement_year,
+                itc_basis = stor.installed_cost_constant,
+                replacement_cost = stor.cost_constant_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_constant,
+                replacement_year = stor.cost_constant_replacement_year,
                 discount_rate = f.owner_discount_rate_fraction,
                 tax_rate = f.owner_tax_rate_fraction,
-                itc = s.total_itc_fraction,
+                itc = stor.total_itc_fraction,
                 macrs_schedule = macrs_schedule,
-                macrs_bonus_fraction = s.macrs_bonus_fraction,
-                macrs_itc_reduction = s.macrs_itc_reduction
-
+                macrs_bonus_fraction = stor.macrs_bonus_fraction,
+                macrs_itc_reduction = stor.macrs_itc_reduction
             )
         else
             net_present_cost_cost_constant = 0
@@ -411,10 +415,10 @@ struct ElectricStorage <: AbstractElectricStorage
         end
 
         # Handle replacement costs for degradation model.
-        replace_cost_per_kw = s.replace_cost_per_kw 
-        replace_cost_per_kwh = s.replace_cost_per_kwh
-        replace_cost_constant = s.replace_cost_constant
-        if s.model_degradation
+        replace_cost_per_kw = stor.replace_cost_per_kw
+        replace_cost_per_kwh = stor.replace_cost_per_kwh
+        replace_cost_constant = stor.replace_cost_constant
+        if stor.model_degradation
             if haskey(d, :replace_cost_per_kw) && d[:replace_cost_per_kw] != 0.0 || 
                 haskey(d, :replace_cost_per_kwh) && d[:replace_cost_per_kwh] != 0.0 ||
                 haskey(d, :replace_cost_constant) && d[:replace_cost_constant] != 0.0
@@ -426,50 +430,50 @@ struct ElectricStorage <: AbstractElectricStorage
         end
     
         return new(
-            s.min_kw,
-            s.max_kw,
-            s.min_kwh,
-            s.max_kwh,
-            s.internal_efficiency_fraction,
-            s.inverter_efficiency_fraction,
-            s.rectifier_efficiency_fraction,
+            stor.min_kw,
+            stor.max_kw,
+            stor.min_kwh,
+            stor.max_kwh,
+            stor.internal_efficiency_fraction,
+            stor.inverter_efficiency_fraction,
+            stor.rectifier_efficiency_fraction,
             soc_min_fraction,
-            s.soc_min_applies_during_outages,
+            stor.soc_min_applies_during_outages,
             soc_init_fraction,
-            s.can_grid_charge,
+            stor.can_grid_charge,
             can_net_meter,
             can_wholesale,
             can_export_beyond_nem_limit,
-            s.installed_cost_per_kw,
-            s.installed_cost_per_kwh,
-            s.installed_cost_constant,
+            stor.installed_cost_per_kw,
+            stor.installed_cost_per_kwh,
+            stor.installed_cost_constant,
             replace_cost_per_kw,
             replace_cost_per_kwh,
             replace_cost_constant,
-            s.inverter_replacement_year,
-            s.battery_replacement_year,
-            s.cost_constant_replacement_year,
-            s.om_cost_fraction_of_installed_cost,
-            s.macrs_option_years,
-            s.macrs_bonus_fraction,
-            s.macrs_itc_reduction,
-            s.total_itc_fraction,
-            s.total_rebate_per_kw,
-            s.total_rebate_per_kwh,
-            s.charge_efficiency,
-            s.discharge_efficiency,
-            s.grid_charge_efficiency,
+            stor.inverter_replacement_year,
+            stor.battery_replacement_year,
+            stor.cost_constant_replacement_year,
+            stor.om_cost_fraction_of_installed_cost,
+            stor.macrs_option_years,
+            stor.macrs_bonus_fraction,
+            stor.macrs_itc_reduction,
+            stor.total_itc_fraction,
+            stor.total_rebate_per_kw,
+            stor.total_rebate_per_kwh,
+            stor.charge_efficiency,
+            stor.discharge_efficiency,
+            stor.grid_charge_efficiency,
             net_present_cost_per_kw,
             net_present_cost_per_kwh,
             net_present_cost_cost_constant,
-            s.model_degradation,
+            stor.model_degradation,
             degr,
             minimum_avg_soc_fraction,
             optimize_soc_init_fraction,
-            s.min_duration_hours,
-            s.max_duration_hours,
-            s.fixed_soc_series_fraction,
-            s.fixed_soc_series_fraction_tolerance
+            stor.min_duration_hours,
+            stor.max_duration_hours,
+            fixed_soc_series_fraction,
+            stor.fixed_soc_series_fraction_tolerance
         )
     end
 end

@@ -82,8 +82,8 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 
 		fix(m[:dvGridPurchase][ts], 0.0, force=true)
 
-		for t in p.s.storage.types.elec
-			fix(m[:dvGridToStorage][t, ts], 0.0, force=true)
+		for b in p.s.storage.types.elec
+			fix(m[:dvGridToStorage][b, ts], 0.0, force=true)
 		end
 
 		for t in p.techs.elec, u in p.export_bins_by_tech[t]
@@ -158,6 +158,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	
     m[:TotalFuelCosts] = 0.0
     m[:TotalPerUnitProdOMCosts] = 0.0
+	m[:TotalPerUnitHourOMCosts] = 0.0
 
     if !isempty(p.techs.gen)
         add_gen_constraints(m, p)
@@ -169,6 +170,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
             sum(m[:dvFuelUsage][t,ts] * p.s.generator.fuel_cost_per_gallon for t in p.techs.gen, ts in p.time_steps)
         )
         m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+		m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
 	end
 
 	add_elec_utility_expressions(m, p)
@@ -208,7 +210,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 	@expression(m, Costs,
 
 		# Variable O&M
-		m[:TotalPerUnitProdOMCosts] +
+		m[:TotalPerUnitProdOMCosts] + m[:TotalPerUnitHourOMCosts] +
 
 		# Total Generator Fuel Costs
         m[:TotalFuelCosts] +
