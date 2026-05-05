@@ -4704,7 +4704,7 @@ else  # run HiGHS tests
 
         @testset "ElectricStorage Size Class and Installed Costs Tests" begin
 
-            # Get active PV defaults for checking
+            # Get active ElectricStorage defaults for checking
             bess_defaults_path = joinpath(@__DIR__, "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
             bess_defaults_all = JSON.parsefile(bess_defaults_path)
 
@@ -4760,8 +4760,8 @@ else  # run HiGHS tests
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 401
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 3
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 520
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 262
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 527
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 278
             @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
 
             # Size class selection obeys min_kw provided.
@@ -4769,8 +4769,8 @@ else  # run HiGHS tests
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 1
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 3
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 520
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 262
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 527
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 278
             @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
 
             # Size class input, not loads, ultimately drives system costs.
@@ -4782,8 +4782,8 @@ else  # run HiGHS tests
             input_data["ElectricStorage"]["macrs_bonus_fraction"] = 0.0
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 1
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 695
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 580
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 705
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 616
             @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
         end
 
