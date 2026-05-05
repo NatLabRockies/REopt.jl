@@ -140,8 +140,6 @@ struct ElectricUtility
     net_metering_limit_kw::Real 
     interconnection_limit_kw::Real
     transmission_limit_kw::Real
-    utility_grid_cost_per_kw_series::Array{<:Real,1}
-
 
     function ElectricUtility(;
 
@@ -199,12 +197,9 @@ struct ElectricUtility
 
         ### Grid Clean Energy Fraction Inputs ###
         cambium_cef_metric::String = "cef_load", # Options = ["cef_load", "cef_gen"] # cef_load is the fraction of generation that is clean, for the generation that is allocated to a region’s end-use load; cef_gen is the fraction of generation that is clean within a region
-        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[], # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
-
-        # Timeseries grid cost input
-        utility_grid_cost_per_kw_series::Array{<:Real,1} = Float64[] # Timeseries of per kW grid costs (incurred by utility, not the site).
-        )
-
+        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[] # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
+    )
+    
         is_MPC = isnothing(latitude) || isnothing(longitude)
         cambium_region = "NA - Cambium data not used" # will be overwritten if Cambium is used
         
@@ -350,10 +345,6 @@ struct ElectricUtility
             throw(@error("Sum of ElectricUtility inputs outage_probabilities must be equal to 1"))
         end
 
-        if !isempty(utility_grid_cost_per_kw_series) && length(utility_grid_cost_per_kw_series) != 8760*time_steps_per_hour
-            throw(@error("Length of utility_grid_cost_per_kw_series must be $(8760*time_steps_per_hour)."))
-        end
-
         new(
             is_MPC ? "" : avert_emissions_region,
             is_MPC || isnothing(meters_to_region) ? typemax(Int64) : meters_to_region,
@@ -377,8 +368,7 @@ struct ElectricUtility
             scenarios,
             net_metering_limit_kw,
             interconnection_limit_kw,
-            transmission_limit_kw,
-            utility_grid_cost_per_kw_series
+            transmission_limit_kw
         )
     end
 end

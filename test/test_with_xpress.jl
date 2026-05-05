@@ -260,6 +260,7 @@ end
         empty!(m2)
         GC.gc()
     end
+end
 
 @testset "FlexibleHVAC" begin
 
@@ -417,6 +418,7 @@ end
     #     @test Meta.parse(r["FlexibleHVAC"]["purchased"]) === false
     #     @test r["Financial"]["npv"] == 0
     # end
+
 end
 
 #=

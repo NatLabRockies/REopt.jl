@@ -993,7 +993,7 @@ else  # run HiGHS tests
         end
 
         @testset verbose=true "Net Metering Limit and Wholesale" begin
-            #case 1: net metering limit is met by PV
+            # Case 1: net metering limit is met by PV
             d = JSON.parsefile("./scenarios/net_metering.json")
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             results = run_reopt(m, d)
@@ -1002,7 +1002,7 @@ else  # run HiGHS tests
             empty!(m)
             GC.gc() 
     
-            #case 2: wholesale rate is high, big-M is met
+            # Case 2: wholesale rate is high, big-M is met
             d["ElectricTariff"]["wholesale_rate"] = 5.0
             d["PV"]["can_wholesale"] = true
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
@@ -1012,7 +1012,7 @@ else  # run HiGHS tests
             empty!(m)
             GC.gc()  
 
-            #case 3: net metering limit is exceeded, no WHL, and min RE % 
+            # Case 3: net metering limit is exceeded, no WHL, and min RE % 
             d["ElectricTariff"]["wholesale_rate"] = 0
             d["PV"]["min_kw"] = 50
             d["Site"]["renewable_electricity_min_fraction"] = 0.35
@@ -1022,7 +1022,10 @@ else  # run HiGHS tests
             @test results["ElectricTariff"]["lifecycle_export_benefit_after_tax"] ≈ 0.0 atol=1e-3        
             finalize(backend(m))
             empty!(m)
-            GC.gc()    
+            GC.gc()
+            
+            # Case 4: ElectricStorage can net meter
+            #TODO: add
         end
 
         @testset "Heating loads and addressable load fraction" begin
