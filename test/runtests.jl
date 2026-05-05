@@ -2500,6 +2500,7 @@ else  # run HiGHS tests
             post["PV"]["max_kw"] = 0.0
             post["ElectricStorage"]["max_kw"] = 0.0
             post["Generator"]["min_turn_down_fraction"] = 0.0
+            post["Generator"]["om_cost_per_hr_per_kw_rated"] = 2.0
             finalize(backend(m))
             empty!(m)
             GC.gc()            
@@ -2518,7 +2519,9 @@ else  # run HiGHS tests
             @test r["Financial"]["lifecycle_capital_costs"] ≈ 100*(700+324.235442*(1-0.26)) + other_offgrid_capex_after_tax atol=0.1 # replacement in yr 10 is considered tax deductible
             @test r["Financial"]["initial_capital_costs_after_incentives"] ≈ 700*100 + other_offgrid_capex_after_tax atol=0.1
             @test r["Financial"]["replacements_future_cost_after_tax"] ≈ 700*100
-            @test r["Financial"]["replacements_present_cost_after_tax"] ≈ 100*(324.235442*(1-0.26)) atol=0.1 
+            @test r["Financial"]["replacements_present_cost_after_tax"] ≈ 100*(324.235442*(1-0.26)) atol=0.1
+            generator_hours_runtime = sum(x -> x > 0, r["Generator"]["electric_to_load_series_kw"]) + sum(x -> x > 0, r["Generator"]["electric_to_storage_series_kw"])
+            @test r["Generator"]["year_one_variable_om_cost_before_tax"] ≈ generator_hours_runtime * r["Generator"]["size_kw"] * post["Generator"]["om_cost_per_hr_per_kw_rated"] atol=0.1
 
             ## Scenario 3: Fixed Generator that can meet load, but cannot meet load operating reserve requirement
             ## This test ensures the load operating reserve requirement is being enforced
@@ -4201,6 +4204,27 @@ else  # run HiGHS tests
             finalize(backend(m2))
             empty!(m2)
             GC.gc()
+        end
+        
+        @testset "Fixed ElectricStorage state of charge" begin
+            post_name = "fixed_pv_bess" 
+            post = JSON.parsefile("./scenarios/$post_name.json")
+            
+            # Get optimal SOC
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m1 , post)
+            lcc1 = results["Financial"]["lcc"]
+            soc_series = results["ElectricStorage"]["soc_series_fraction"]
+            
+            # Fix soc_series to optimal from previous run
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false)) 
+            post["ElectricStorage"]["fixed_soc_series_fraction"] =  soc_series
+            post["ElectricStorage"]["fixed_soc_series_fraction_tolerance"] = 0.05
+            results = run_reopt(m1 , post)
+            lcc2 = results["Financial"]["lcc"]
+            
+            @test lcc1 ≈ lcc2 rtol=0.001
+            @test maximum(abs.(soc_series - results["ElectricStorage"]["soc_series_fraction"])) <= post["ElectricStorage"]["fixed_soc_series_fraction_tolerance"]+ 1e-7
         end
 
         @testset "Existing HVAC (Boiler and Chiller) Costs for BAU" begin

@@ -3,13 +3,13 @@
 `HotThermalStorage` results keys:
 - `size_kwh` Optimal TES capacity, by energy [kWh]
 - `size_gal` Optimal TES capacity, by volume [gal]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
-- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
-- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
-- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
-- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
-- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over an average year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over an average year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over an average year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over an average year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over an average year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over an average year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -43,24 +43,20 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
         r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(HotTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
 
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
-            storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            storage_to_turbine_sh = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"SpaceHeating",ts]) for ts in p.time_steps)
-            storage_to_turbine_dhw = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"DomesticHotWater",ts]) for ts in p.time_steps)
-            storage_to_turbine_ph = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"ProcessHeat",ts]) for ts in p.time_steps)
-            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine .- HotTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
+            @expression(m, HotTEStoTurbineKW[ts in p.time_steps], sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads))
+            @expression(m, HotTEStoTurbineByQualityKW[q in p.heating_loads, ts in p.time_steps], m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts])
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(HotTEStoTurbineKW) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- HotTEStoTurbineKW .- HotTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
         else
-            storage_to_turbine = zeros(length(p.time_steps))
-            storage_to_turbine_sh = zeros(length(p.time_steps))
-            storage_to_turbine_dhw = zeros(length(p.time_steps))
-            storage_to_turbine_ph = zeros(length(p.time_steps))
+            @expression(m, HotTEStoTurbineKW[ts in p.time_steps], 0.0)
+            @expression(m, HotTEStoTurbineByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- HotTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
             r["storage_to_steamturbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
 
         if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - storage_to_turbine_sh[ts] - HotTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - HotTEStoTurbineByQualityKW["SpaceHeating",ts] - HotTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
             )
         else
             @expression(m, HotTESToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -69,7 +65,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "DomesticHotWater" in p.heating_loads && p.s.storage.attr[b].can_serve_dhw
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - storage_to_turbine_dhw[ts] - HotTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - HotTEStoTurbineByQualityKW["DomesticHotWater",ts] - HotTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
             )
         else
             @expression(m, HotTESToDHWKW[ts in p.time_steps], 0.0)
@@ -78,7 +74,7 @@ function add_hot_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict,
 
         if "ProcessHeat" in p.heating_loads && p.s.storage.attr[b].can_serve_process_heat
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - storage_to_turbine_ph[ts] - HotTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - HotTEStoTurbineByQualityKW["ProcessHeat",ts] - HotTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
             )
         else
             @expression(m, HotTESToProcessHeatKW[ts in p.time_steps], 0.0)
@@ -119,8 +115,8 @@ end
 """
 `ColdThermalStorage` results:
 - `size_gal` Optimal TES capacity, by volume [gal]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_load_series_ton` Vector of power used to meet load over the first year [ton]
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_load_series_ton` Vector of power used to meet load over an average year [ton]
 """
 function add_cold_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict, b::String; _n="")
     #=
@@ -171,13 +167,13 @@ end
 """
 `HighTempThermalStorage` results keys:
 - `size_kwh` Optimal TES capacity, by energy [kWh]
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year [-]
-- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over the first year [MMBTU/hr]  
-- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over the first year [MMBTU/hr]  
-- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over the first year [MMBTU/hr]
-- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over the first year [MMBTU/hr]  
-- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over the first year [MMBTU/hr]  
-- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over the first year [MMBTU/hr]  
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year [-]
+- `storage_to_steamturbine_series_mmbtu_per_hour` Vector of heat sent to steam turbine over an average year [MMBTU/hr]  
+- `storage_to_absorption_chiller_series_mmbtu_per_hour` Vector of heat sent to absorption chiller over an average year [MMBTU/hr]  
+- `storage_to_load_series_mmbtu_per_hour` Vector of thermal power used to meet load over an average year [MMBTU/hr]
+- `storage_to_space_heating_load_series_mmbtu_per_hour` Vector of heat sent to space heating load over an average year [MMBTU/hr]  
+- `storage_to_dhw_load_series_mmbtu_per_hour` Vector of heat sent to domestic hot water load over an average year [MMBTU/hr]  
+- `storage_to_process_heat_load_series_mmbtu_per_hour` Vector of heat sent to process heat load over an average year [MMBTU/hr]  
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -197,8 +193,8 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
 
         discharge = (sum(m[Symbol("dvHeatFromStorage"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
         if "AbsorptionChiller" in p.techs.cooling
-            @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts] for q in p.heating_loads)))
-            @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], value(m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts]))
+            @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], sum(m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts] for q in p.heating_loads))
+            @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], m[:dvHeatFromStorageToAbsorptionChiller][b,q,ts])
         else
             @expression(m, HighTempTEStoAbsorptionChillerKW[ts in p.time_steps], 0.0)
             @expression(m, HighTempTEStoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
@@ -206,24 +202,20 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
         r["storage_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
         
         if p.s.storage.attr[b].can_supply_steam_turbine && ("SteamTurbine" in p.techs.all)
-            storage_to_turbine = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads) for ts in p.time_steps)
-            storage_to_turbine_sh = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"SpaceHeating",ts]) for ts in p.time_steps)
-            storage_to_turbine_dhw = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"DomesticHotWater",ts]) for ts in p.time_steps)
-            storage_to_turbine_ph = (sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,"ProcessHeat",ts]) for ts in p.time_steps)
-            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(storage_to_turbine) / KWH_PER_MMBTU, digits=7)
-            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- storage_to_turbine .- HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
+            @expression(m, HighTempTEStoTurbineKW[ts in p.time_steps], sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for q in p.heating_loads))
+            @expression(m, HighTempTEStoTurbineByQualityKW[q in p.heating_loads, ts in p.time_steps], m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts])
+            r["storage_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(HighTempTEStoTurbineKW) / KWH_PER_MMBTU, digits=7)
+            r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- HighTempTEStoTurbineKW .- HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
         else
-            storage_to_turbine = zeros(length(p.time_steps))
-            storage_to_turbine_sh = zeros(length(p.time_steps))
-            storage_to_turbine_dhw = zeros(length(p.time_steps))
-            storage_to_turbine_ph = zeros(length(p.time_steps))
+            @expression(m, HighTempTEStoTurbineKW[ts in p.time_steps], 0.0)
+            @expression(m, HighTempTEStoTurbineByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
             r["storage_to_load_series_mmbtu_per_hour"] = round.(value.(discharge .- HighTempTEStoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=7)
             r["storage_to_steamturbine_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
         end
 
         if "SpaceHeating" in p.heating_loads && p.s.storage.attr[b].can_serve_space_heating
             @expression(m, HighTempTESToSpaceHeatingKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - storage_to_turbine_sh[ts] - HighTempTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"SpaceHeating",ts] - HighTempTEStoTurbineByQualityKW["SpaceHeating",ts] - HighTempTEStoAbsorptionChillerByQualityKW["SpaceHeating",ts]
             )
         else
             @expression(m, HighTempTESToSpaceHeatingKW[ts in p.time_steps], 0.0)
@@ -232,7 +224,7 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
 
         if "DomesticHotWater" in p.heating_loads && p.s.storage.attr[b].can_serve_dhw
             @expression(m, HighTempTESToDHWKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - storage_to_turbine_dhw[ts] - HighTempTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"DomesticHotWater",ts] - HighTempTEStoTurbineByQualityKW["DomesticHotWater",ts] - HighTempTEStoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
             )
         else
             @expression(m, HighTempTESToDHWKW[ts in p.time_steps], 0.0)
@@ -241,7 +233,7 @@ function add_high_temp_thermal_storage_results(m::JuMP.AbstractModel, p::REoptIn
 
         if "ProcessHeat" in p.heating_loads && p.s.storage.attr[b].can_serve_process_heat
             @expression(m, HighTempTESToProcessHeatKW[ts in p.time_steps], 
-                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - storage_to_turbine_ph[ts] - HighTempTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
+                m[Symbol("dvHeatFromStorage"*_n)][b,"ProcessHeat",ts] - HighTempTEStoTurbineByQualityKW["ProcessHeat",ts] - HighTempTEStoAbsorptionChillerByQualityKW["ProcessHeat",ts]
             )
         else
             @expression(m, HighTempTESToProcessHeatKW[ts in p.time_steps], 0.0)
