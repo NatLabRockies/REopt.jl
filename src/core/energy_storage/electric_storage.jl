@@ -353,14 +353,14 @@ struct ElectricStorage <: AbstractElectricStorage
 
         installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
         size_kw_for_size_class, size_class_bounds_kw = get_electric_storage_cost_params(;
-            installed_cost_per_kw = s.installed_cost_per_kw,
-            installed_cost_per_kwh = s.installed_cost_per_kwh,
-            installed_cost_constant = s.installed_cost_constant, 
-            size_class = s.size_class,
-            electric_load_annual_peak = s.electric_load_annual_peak,
-            electric_load_average = s.electric_load_average,
-            min_kw = s.min_kw,
-            max_kw = s.max_kw
+            installed_cost_per_kw = stor.installed_cost_per_kw,
+            installed_cost_per_kwh = stor.installed_cost_per_kwh,
+            installed_cost_constant = stor.installed_cost_constant, 
+            size_class = stor.size_class,
+            electric_load_annual_peak = stor.electric_load_annual_peak,
+            electric_load_average = stor.electric_load_average,
+            min_kw = stor.min_kw,
+            max_kw = stor.max_kw
         )
 
         net_present_cost_per_kw = effective_cost(;
@@ -476,8 +476,8 @@ struct ElectricStorage <: AbstractElectricStorage
             stor.fixed_soc_series_fraction_tolerance,
             size_class,
             size_class_bounds_kw,
-            s.electric_load_annual_peak,
-            s.electric_load_average
+            stor.electric_load_annual_peak,
+            stor.electric_load_average
         )
     end
 end
