@@ -580,7 +580,7 @@ function cambium_profile(; scenario::String,
                         profile_year::Int=2017
                         )
 
-    url = "https://scenarioviewer.nrel.gov/api/get-levelized/" # Production 
+    url = "https://scenarioviewer.nlr.gov/api/get-levelized/" # Production 
     project_uuid = "0f92fe57-3365-428a-8fe8-0afc326b3b43" # Cambium 2023 
     
 

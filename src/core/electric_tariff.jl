@@ -49,7 +49,7 @@ end
     urdb_utility_name::String="",
     urdb_rate_name::String="",
     urdb_metadata::Dict=Dict(), # Meta data about the URDB rate, from the URDB API response
-    wholesale_rate::T1=nothing, # Price of electricity sold back to the grid in absence of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour.
+    wholesale_rate::T1=nothing, # Price of electricity [\$ per kWh] sold back to the grid in absence of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour.
     export_rate_beyond_net_metering_limit::T2=nothing, # Price of electricity sold back to the grid beyond total annual grid purchases, regardless of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour
     monthly_energy_rates::Array=[], # Array (length of 12) of blended energy rates in dollars per kWh
     monthly_demand_rates::Array=[], # Array (length of 12) of blended demand charges in dollars per kW

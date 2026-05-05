@@ -44,7 +44,6 @@ A Scenario struct can contain the following keys:
 - [HotThermalStorage](@ref) (optional)
 - [HighTempThermalStorage](@ref) (optional)
 - [ColdThermalStorage](@ref) (optional)
-- [ElectricStorage](@ref) (optional)
 - [ElectricUtility](@ref) (optional)
 - [Generator](@ref) (optional)
 - [HeatingLoad](@ref) (optional)
@@ -215,7 +214,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     else
         storage_dict = Dict(:max_kw => 0.0)
     end
-    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site)
+    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site, settings.time_steps_per_hour)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")
