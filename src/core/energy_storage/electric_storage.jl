@@ -299,6 +299,7 @@ struct ElectricStorage <: AbstractElectricStorage
     min_duration_hours::Real
     max_duration_hours::Real
     size_class::Union{Int, Nothing}
+    size_class_bounds_kw::AbstractVector
     electric_load_annual_peak::Real
     electric_load_average::Real
 
@@ -326,7 +327,7 @@ struct ElectricStorage <: AbstractElectricStorage
         end
 
         installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
-        size_kw_for_size_class = get_electric_storage_cost_params(;
+        size_kw_for_size_class, size_class_bounds_kw = get_electric_storage_cost_params(;
             installed_cost_per_kw = s.installed_cost_per_kw,
             installed_cost_per_kwh = s.installed_cost_per_kwh,
             installed_cost_constant = s.installed_cost_constant, 
@@ -449,6 +450,7 @@ struct ElectricStorage <: AbstractElectricStorage
             s.min_duration_hours,
             s.max_duration_hours,
             size_class,
+            size_class_bounds_kw,
             s.electric_load_annual_peak,
             s.electric_load_average
         )
@@ -554,7 +556,13 @@ function get_electric_storage_cost_params(;
         throw(ErrorException("No installed costs provided and no size class determined"))
     end
 
-    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0)
+    size_class_bounds_kw = if !isnothing(determined_size_class) && !isnothing(class_defaults)
+        convert(Vector{Float64}, class_defaults["size_class_bounds_kw"])
+    else
+        Float64[]
+    end
+
+    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0), size_class_bounds_kw
 end
 
 # TODO combine functions to load size class defaults for eligible techs.

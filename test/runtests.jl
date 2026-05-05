@@ -4785,6 +4785,20 @@ else  # run HiGHS tests
             @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 705
             @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 616
             @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
+
+            # Test: Warning is issued when optimal size_kw falls outside the size class bounds.
+            # size_class 1 has bounds [0, 40] kW; forcing min_kw=200 guarantees the optimal size exceeds that range.
+            input_data["ElectricStorage"]["min_kw"] = 200.0
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+            @test_logs (:warn, r"doesn't match size class") match_mode=:any run_reopt([m1, m2], inputs)
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+            GC.gc()
         end
 
     end
