@@ -260,6 +260,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	m[:ExistingChillerCost] = 0.0
 	m[:ElectricStorageCapCost] = 0.0
 	m[:ElectricStorageOMCost] = 0.0
+	m[:TotalUtilityGridCost] = 0.0
 
 	if !isempty(p.techs.all) || !isempty(p.techs.ghp)
 		if !isempty(p.techs.all)
@@ -502,6 +503,12 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		add_capex_constraints(m, p)
 	end
 
+	# Calculate total grid cost based on utility grid cost per kW series and net load 
+	if !isempty(p.s.electric_utility.utility_grid_cost_per_kw_series)
+		calculate_net_load(m, p)
+		m[:TotalUtilityGridCost] = p.pwf_e * sum(p.s.electric_utility.utility_grid_cost_per_kw_series .* m[:dvNetLoad])
+	end
+
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
 		# Capital Costs
@@ -535,7 +542,10 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		m[:AvoidedCapexByGHP] - m[:ResidualGHXCapCost] - 
 
 		# Subtract capital expenditures avoided by inclusion of ASHP
-		m[:AvoidedCapexByASHP]
+		m[:AvoidedCapexByASHP]+ 
+
+		# Add utility grid cost (not incurred by customer) - only nonzero if utility_grid_cost_per_kw_series provided
+		m[:TotalUtilityGridCost]
 
 	);
 	if !isempty(p.s.electric_utility.outage_durations)

@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## cost-to-utility
+### Added
+- Add **ElectricUtility** input field `utility_grid_cost_per_kw_series`. When provided, the TotalUtilityGridCost (lifecycle cost) is included in the LCC and objective function, but IS NOT included in the assumed site energy costs. 
+
 ## v0.59.0
 ### Added
 - Added two new size classes for **SteamTurbine** tech with new tech size ranges.

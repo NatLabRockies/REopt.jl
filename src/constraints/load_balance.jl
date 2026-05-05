@@ -158,6 +158,15 @@ function add_thermal_load_constraints(m, p; _n="")
     end
 end
 
+function calculate_net_load(m, p; _n="")
+    # Calculate net load (grid purchase - production to grid - BESS to grid)
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("dvNetLoad"*_n)][ts] == sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) 
+        - sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for t in setdiff(p.techs.elec, p.techs.steam_turbine), u in p.export_bins_by_tech[t])
+        - sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
+    )
+end
+
 function add_absorption_chiller_load_constraints(m,p;_n="")
     if !isempty(p.techs.absorption_chiller)
         for q in p.heating_loads
