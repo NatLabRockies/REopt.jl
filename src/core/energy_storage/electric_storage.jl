@@ -186,7 +186,7 @@ end
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
-    om_cost_fraction_of_installed_cost::Float64 = 0.025 # Annual O&M cost as a fraction of installed cost
+    om_cost_fraction_of_installed_cost::Float64 = 0.04 # Annual O&M cost as a fraction of installed cost
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_itc_reduction::Float64 = 0.5
@@ -230,7 +230,7 @@ Base.@kwdef struct ElectricStorageDefaults
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
-    om_cost_fraction_of_installed_cost::Float64 = 0.025
+    om_cost_fraction_of_installed_cost::Float64 = 0.04
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
     macrs_itc_reduction::Float64 = 0.5
@@ -558,7 +558,7 @@ function get_electric_storage_cost_params(;
 end
 
 # TODO combine functions to load size class defaults for eligible techs.
-# Load PV default size class data from JSON file
+# Load ElectricStorage default size class data from JSON file
 function get_electric_storage_defaults_size_class()
     electric_storage_defaults_path = joinpath(@__DIR__, "..", "..", "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
     if !isfile(electric_storage_defaults_path)
