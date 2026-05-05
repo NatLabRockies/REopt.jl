@@ -54,9 +54,6 @@
     ### Grid Clean Energy Fraction Inputs ###
     cambium_cef_metric::String = "cef_load", # Options = ["cef_load", "cef_gen"] # cef_load is the fraction of generation that is clean, for the generation that is allocated to a region’s end-use load; cef_gen is the fraction of generation that is clean within a region
     renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[], # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
-
-    # Timeseries grid cost input
-    utility_grid_cost_per_kw_series::Array{<:Real,1} = Float64[] # Timeseries of per kW grid costs (incurred by utility, not the site). # TODO: this should be \$ per kWh like wholesale_rate etc; will require multiplying by hours per timestep somewhere 
 ```
 
 !!! note "Outage modeling"
@@ -115,10 +112,6 @@
         - Default clean energy fraction data comes from NLR's Cambium database (Current version: 2022)
             - By default, REopt uses *clean energy fraction* for the region in which the site is located.
     - For sites outside of CONUS: REopt does not have default grid clean energy fraction data. Users must supply a custom `renewable_energy_fraction_series`
-
-    **Utility Grid Costs**
-    - utility_grid_cost_per_kw_series timeseries will be multiplied by the net load in each time step, and the analysis period total grid cost will be calculated using a pwf, assuming costs escalate at the elec_cost_escalation_rate_fraction. 
-    - If provided, total grid cost will be included in the objective function (and impact dispatch)
 
 """
 struct ElectricUtility

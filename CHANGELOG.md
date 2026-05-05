@@ -28,8 +28,6 @@ Classify the change according to the following categories:
 ## bess-export
 ### Added 
 - Add decision variable **dvStorageToGrid** and **ElectricStorage** input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`
-- Add **ElectricStorage** input field `fixed_soc_series_fraction` to allow users to fix the SOC timeseries
-- Add **ElectricUtility** input field `utility_grid_cost_per_kw_series`. When provided, the TotalUtilityGridCost (lifecycle cost) is included in the LCC and objective function, but IS NOT included in the assumed site energy costs. 
  
 ## v0.59.0
 ### Added

@@ -163,7 +163,6 @@ function dictkeys_tosymbols(d::Dict)
             "grid_draw_limit_kw_by_time_step", "export_limit_kw_by_time_step",
             "outage_probabilities",
             "renewable_energy_fraction_series",
-            "utility_grid_cost_per_kw_series",
             "heating_cop_reference",
             "heating_cf_reference",
             "heating_reference_temps_degF",
