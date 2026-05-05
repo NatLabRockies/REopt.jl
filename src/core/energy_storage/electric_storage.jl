@@ -325,8 +325,6 @@ struct ElectricStorage <: AbstractElectricStorage
             throw(@error("ElectricStorage macrs_option_years must be 0, 5, or 7."))
         end
 
-        @info s.installed_cost_per_kw, s.size_class, s.electric_load_annual_peak, s.electric_load_average
-
         installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
         size_kw_for_size_class = get_electric_storage_cost_params(;
             installed_cost_per_kw = s.installed_cost_per_kw,
@@ -338,8 +336,6 @@ struct ElectricStorage <: AbstractElectricStorage
             min_kw = s.min_kw,
             max_kw = s.max_kw
         )
-
-        @info installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class, size_kw_for_size_class
 
         net_present_cost_per_kw = effective_cost(;
             itc_basis = installed_cost_per_kw,
@@ -590,7 +586,6 @@ function get_electric_storage_size_class(
     kw_for_sizing = electric_load_annual_peak - electric_load_average
     # if default min/max kw have been updated, factor those in.
     # Do we need 2 size_kw here to factor in a wide size range that spreads over multiple size classes?
-    @info kw_for_sizing
     if max_kw != 1.0e9 
         size_kw = min(kw_for_sizing, max_kw)
     end
@@ -600,7 +595,6 @@ function get_electric_storage_size_class(
     if isnothing(size_kw)
         size_kw = kw_for_sizing
     end
-    @info size_kw
     # Find the appropriate kw size class for the effective size
     for (i, size_range) in enumerate(size_class_bounds_kw)
         min_size = convert(Float64, size_range[1])
