@@ -19,7 +19,6 @@
     capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the rated kg capacity of the H2 storage tank
     soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the kg of H2 stored in each timestep
     fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing 
-    require_start_and_end_charge_to_be_equal::Bool = true, # If true, the model will constrain final SOC = initial SOC
 ```
 """
 Base.@kwdef struct HydrogenStorageDefaults
@@ -40,7 +39,6 @@ Base.@kwdef struct HydrogenStorageDefaults
     capacity_based_per_ts_self_discharge_fraction::Float64 = 0.0
     soc_based_per_ts_self_discharge_fraction::Float64 = 0.0 
     fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
-    require_start_and_end_charge_to_be_equal::Bool = true
 end
 
 
@@ -69,7 +67,6 @@ struct HydrogenStorage <: AbstractHydrogenStorage
     capacity_based_per_ts_self_discharge_fraction::Float64
     soc_based_per_ts_self_discharge_fraction::Float64
     fixed_dispatch_series::Union{Nothing, Array{Real,1}}
-    require_start_and_end_charge_to_be_equal::Bool
 
     function HydrogenStorage(d::Dict, f::Financial)  
         s = HydrogenStorageDefaults(;d...)
@@ -118,7 +115,6 @@ struct HydrogenStorage <: AbstractHydrogenStorage
             s.capacity_based_per_ts_self_discharge_fraction,
             s.soc_based_per_ts_self_discharge_fraction,
             s.fixed_dispatch_series,
-            s.require_start_and_end_charge_to_be_equal
         )
     end
 end
