@@ -70,11 +70,15 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::AbstractInputs, 
     if !isempty(p.techs.electrolyzer)
         GridToElectrolyzer = (m[Symbol("dvGridToElectrolyzer"*_n)][ts] for ts in p.time_steps)
         r["electric_to_electrolyzer_series_kw"] = round.(value.(GridToElectrolyzer), digits=3)
-    end
+	else
+		r["electric_to_electrolyzer_series_kw"] = zeros(length(p.time_steps))
+	end
 
     if !isempty(p.techs.compressor)
         GridToCompressor = (m[Symbol("dvGridToCompressor"*_n)][ts] for ts in p.time_steps)
         r["electric_to_compressor_series_kw"] = round.(value.(GridToCompressor), digits=3)
+    else
+        r["electric_to_compressor_series_kw"] = zeros(length(p.time_steps))
     end
 
     if _n=="" #only output emissions and RE results if not a multinode model
@@ -140,11 +144,15 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     if !isempty(p.techs.electrolyzer)
         GridToElectrolyzer = (m[Symbol("dvGridToElectrolyzer"*_n)][ts] for ts in p.time_steps)
         r["electric_to_electrolyzer_series_kw"] = round.(value.(GridToElectrolyzer), digits=3)
-    end
+    else
+		r["electric_to_electrolyzer_series_kw"] = zeros(length(p.time_steps))
+	end
 
     if !isempty(p.techs.compressor)
         GridToCompressor = (m[Symbol("dvGridToCompressor"*_n)][ts] for ts in p.time_steps)
         r["electric_to_compressor_series_kw"] = round.(value.(GridToCompressor), digits=3)
+    else
+        r["electric_to_compressor_series_kw"] = zeros(length(p.time_steps))
     end
 
     if _n=="" #only output emissions results if not a multinode model
