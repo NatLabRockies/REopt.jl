@@ -1,7 +1,7 @@
 name = "REopt"
 uuid = "d36ad4e8-d74a-4f7a-ace1-eaea049febf6"
 authors = ["Nick Laws", "Hallie Dunham <hallie.dunham@nlr.gov>", "Bill Becker <william.becker@nlr.gov>", "Bhavesh Rathod <bhavesh.rathod@nlr.gov>", "Alex Zolan <alexander.zolan@nlr.gov>", "Amanda Farthing <amanda.farthing@nlr.gov>", "Xiangkun Li <xiangkun.li@nlr.gov>", "An Pham <an.pham@nlr.gov>", "Byron Pullutasig <byron.pullatasig@nlr.gov>"]
-version = "0.58.2"
+version = "0.59.0"
 
 [deps]
 ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
