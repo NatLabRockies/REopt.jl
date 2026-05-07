@@ -59,6 +59,8 @@
         "can_net_meter": false,
         "prime_mover": "recip_engine",
         "size_class": 5,
+        "installed_cost_per_kw": 2752.9,
+        "om_cost_per_kwh": 0.016,
         "min_kw": 1104.0,
         "min_allowable_kw": 1104.0,
         "max_kw": 1104.0,

@@ -25,6 +25,16 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## v0.59.0
+### Added
+- Added two new size classes for **SteamTurbine** tech with new tech size ranges.
+- Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
+### Changed
+- **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+- Updated **CHP.installed_cost_per_kw** and **CHP.om_cost_per_kwh** default values for size classes for recip_engine, combustion turbine, and microturbine prime mover types.
+- Updated default values for **SteamTurbine** size classes.
+- Reduced the number of size classes in **AbsorptionChiller** technology to five for single effect and four for double effect and updated installed and O&M costs accordingly.
+
 ## v0.58.2
 ### Added
 - **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
