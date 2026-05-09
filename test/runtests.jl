@@ -224,7 +224,7 @@ else  # run HiGHS tests
             thermal_efficiency = NaN
             avg_cooling_load_kw = nothing
             absorption_chiller_cop = nothing
-            include_cooling_in_size = nothing
+            include_cooling_in_chp_size = nothing
             #Case 1: electric only
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
@@ -238,7 +238,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 100.0 atol=1e-3
             @test response["chp_max_size_kw"] ≈ 200.0 atol=1e-3
@@ -260,7 +260,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 65.0 atol=0.1
             @test response["chp_max_size_kw"] ≈ 130.0 atol=0.2
@@ -268,7 +268,7 @@ else  # run HiGHS tests
             #Case 3: heating + cooling via absorption chiller only (low electric load)
             avg_cooling_load_kw = 100.0
             absorption_chiller_cop = 1.0
-            include_cooling_in_size = true
+            include_cooling_in_chp_size = true
 
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
@@ -282,7 +282,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 146.2 atol=0.1
             @test response["chp_max_size_kw"] ≈ 146.2*2 atol=0.2
@@ -335,7 +335,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ case3_max_size_kw / 2 atol=0.1
             @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
