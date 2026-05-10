@@ -500,7 +500,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     year = electric_load.year,
                     sector = site.sector,
                     federal_procurement_type = site.federal_procurement_type)
-        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
+        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only, or only sending heat to absorption chiller)
             chp = CHP(d["CHP"];
                     electric_load_series_kw = electric_load.loads_kw,
                     avg_cooling_load_kw = avg_cooling_load_kw,
