@@ -46,6 +46,42 @@ else  # run HiGHS tests
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
                 end
+            end 
+        end   
+        @testset "Fixed ElectricStorage and HydrogenStorage state of charge" begin
+            post_name = "fixed_pv_bess" 
+            post = JSON.parsefile("./scenarios/$post_name.json")
+            soc_series = 0.5 * ones(8760)
+            post["ElectricStorage"]["fixed_dispatch_series"] = soc_series
+
+            # Fix soc_series to optimal from previous run
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false)) 
+            results = run_reopt(m1 , post)
+            @test maximum(abs.(soc_series - results["ElectricStorage"]["soc_series_fraction"])) <= 0.01 + 1e-7
+
+            post_name = "hydrogen_techs_fixed_sizes"
+            post = JSON.parsefile("./scenarios/$post_name.json")
+            flat_h2_load_kg = 100.0
+            flat_elec_load_kw = 500.0
+            post["ElectricLoad"]["loads_kw"] = repeat([flat_elec_load_kw], 8760)
+            post["HydrogenLoad"]["loads_kg"] = repeat([flat_h2_load_kg], 8760)
+            soc_series = 0.5 * ones(8760)
+            post["HydrogenStorage"]["fixed_dispatch_series"] = soc_series
+
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m1, post)
+            @test maximum(abs.(soc_series - results["HydrogenStorage"]["soc_series_fraction"])) <= 0.01 + 1e-7
+        end
+
+        @testset "Prevent simultaneous charge and discharge" begin
+            logger = SimpleLogger()
+            results = nothing
+            with_logger(logger) do
+                model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(model, "./scenarios/simultaneous_charge_discharge.json")
+                finalize(backend(model))
+                empty!(model)
+                GC.gc()
             end
             for tech_struct in (s.pvs[1], s.wind, s.ghp_option_list[1])
                 @test getfield(tech_struct, :federal_itc_fraction) != 0

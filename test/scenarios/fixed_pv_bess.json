@@ -1,0 +1,31 @@
+{
+    "Site": {
+        "longitude": -118.1164613,
+        "latitude": 34.5794343
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "RetailStore", 
+        "annual_kwh": 876000.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.10,
+        "blended_annual_demand_rate": 0
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.026, 
+        "offtaker_discount_rate_fraction": 0.081,
+        "analysis_years": 20, 
+        "offtaker_tax_rate_fraction": 0.4, 
+        "om_cost_escalation_rate_fraction": 0.025
+    },
+    "PV" : {
+        "min_kw": 100,
+        "max_kw": 100
+    },
+    "ElectricStorage" : {
+        "min_kw": 100,
+        "max_kw": 100,
+        "min_kwh": 200,
+        "max_kwh": 200
+    }
+}

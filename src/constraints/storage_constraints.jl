@@ -53,19 +53,19 @@ end
 function add_general_storage_dispatch_constraints(m, p, b; _n="")
     # Constraint (4a): initial and final state of charge
     if !hasproperty(p.s.storage.attr[b], :fixed_dispatch_series) || isnothing(p.s.storage.attr[b].fixed_dispatch_series)
-        if hasproperty(p.s.storage.attr[b], :optimize_soc_init_fraction) && p.s.storage.attr[b].optimize_soc_init_fraction
+        if (hasproperty(p.s.storage.attr[b], :optimize_soc_init_fraction) && p.s.storage.attr[b].optimize_soc_init_fraction)
             @info "\nOptimizing "*b*" inital SOC and constraining initial SOC = final SOC. soc_init_fraction will not apply.\n"
             @constraint(m,
                 m[Symbol("dvStoredEnergy"*_n)][b, 0] == m[:dvStoredEnergy][b, maximum(p.time_steps)]
             )
+            # TODO: always constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
+            # @constraint(m,
+            #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
+            # )
         else
             @constraint(m,
                 m[Symbol("dvStoredEnergy"*_n)][b, 0] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
             )
-            # TODO: constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
-            # @constraint(m,
-            #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
-            # )
         end
     end
 
@@ -84,10 +84,21 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
         m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
     )
 
-    #Constraint (4j): Dispatch from storage is no greater than hydrogen capacity
-	@constraint(m, [ts in p.time_steps],
-        m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
-    )
+    # #Constraint (4j): Dispatch from storage is no greater than hydrogen capacity
+	# @constraint(m, [ts in p.time_steps],
+    #     m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
+    # )
+
+    # Constrain to fixed_dispatch_series
+    if hasproperty(p.s.storage.attr[b], :fixed_dispatch_series) && !isnothing(p.s.storage.attr[b].fixed_dispatch_series)      
+        @constraint(m, [ts in p.time_steps],
+        # Allow for a 1 pct point buffer on user-provided fixed_dispatch_series
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] <= (0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] >= (-0.01 + p.s.storage.attr[b].fixed_dispatch_series[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+    end
 
 end
 

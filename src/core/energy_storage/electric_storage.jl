@@ -201,7 +201,6 @@ end
     soc_self_discharge_rate_fraction::Float64 = 0.0 # Battery self-discharge per timestep, as a fraction of the system's stored energy [1/h]
     capacity_self_discharge_rate_fraction::Float64 = 0.0 # Battery self-discharge per timestep, as a fraction of the system's rated kWh capacity [1/h]
     fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
-    require_start_and_end_charge_to_be_equal::Bool = false
     optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC. 
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
@@ -245,7 +244,6 @@ Base.@kwdef struct ElectricStorageDefaults
     soc_self_discharge_rate_fraction::Float64 = 0.0
     capacity_self_discharge_rate_fraction::Float64 = 0.0
     fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
-    require_start_and_end_charge_to_be_equal::Bool = false
     optimize_soc_init_fraction::Bool = false
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
@@ -298,7 +296,6 @@ struct ElectricStorage <: AbstractElectricStorage
     soc_self_discharge_rate_fraction::Float64
     capacity_self_discharge_rate_fraction::Float64
     fixed_dispatch_series::Union{Nothing, Array{Real,1}}
-    require_start_and_end_charge_to_be_equal::Bool
     optimize_soc_init_fraction::Bool
     min_duration_hours::Real
     max_duration_hours::Real
@@ -445,7 +442,6 @@ struct ElectricStorage <: AbstractElectricStorage
             s.soc_self_discharge_rate_fraction,
             s.capacity_self_discharge_rate_fraction,
             s.fixed_dispatch_series,
-            s.require_start_and_end_charge_to_be_equal,
             optimize_soc_init_fraction,
             s.min_duration_hours,
             s.max_duration_hours

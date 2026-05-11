@@ -18,7 +18,7 @@
     soc_min_applies_during_outages::Bool = false, # If true, the minimum state of charge fraction applies during outages. Otherwise min SOC is set to 0 during outages.
     soc_self_discharge_rate_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the kg of H2 stored in each timestep
     capacity_self_discharge_rate_fraction::Float64 = 0.0 # Storage leakage per timestep, as a fraction of the rated kg capacity of the H2 storage tank
-    require_start_and_end_charge_to_be_equal::Bool = true, # If true, the model will constrain final SOC = initial SOC
+    fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing 
 ```
 """
 Base.@kwdef struct HydrogenStorageDefaults
@@ -38,7 +38,7 @@ Base.@kwdef struct HydrogenStorageDefaults
     soc_min_applies_during_outages::Bool = false
     soc_self_discharge_rate_fraction::Float64 = 0.0 
     capacity_self_discharge_rate_fraction::Float64 = 0.0
-    require_start_and_end_charge_to_be_equal::Bool = true
+    fixed_dispatch_series::Union{Nothing, Array{Real,1}} = nothing
 end
 
 
@@ -66,13 +66,20 @@ struct HydrogenStorage <: AbstractHydrogenStorage
     soc_min_applies_during_outages::Bool
     soc_self_discharge_rate_fraction::Float64
     capacity_self_discharge_rate_fraction::Float64
-    require_start_and_end_charge_to_be_equal::Bool
+    fixed_dispatch_series::Union{Nothing, Array{Real,1}}
 
     function HydrogenStorage(d::Dict, f::Financial)  
         s = HydrogenStorageDefaults(;d...)
 
         if s.replacement_year >= f.analysis_years
             @warn "Hydrogen storage tank replacement costs (per_kg) will not be considered because replacement_year >= analysis_years."
+        end
+
+        minimum_avg_soc_fraction = s.minimum_avg_soc_fraction
+        if !isnothing(s.fixed_dispatch_series) 
+            @warn "Fixing HydrogenStorage soc_series_fraction to the provided fixed_dispatch_series. Other SOC inputs will be ignored."
+            minimum_avg_soc_fraction = 0.0
+            error_if_series_vals_not_0_to_1(s.fixed_dispatch_series, "HydrogenStorage", "fixed_dispatch_series")
         end
 
         net_present_cost_per_kg = effective_cost(;
@@ -107,7 +114,7 @@ struct HydrogenStorage <: AbstractHydrogenStorage
             s.soc_min_applies_during_outages,
             s.soc_self_discharge_rate_fraction,
             s.capacity_self_discharge_rate_fraction,
-            s.require_start_and_end_charge_to_be_equal
+            s.fixed_dispatch_series,
         )
     end
 end
