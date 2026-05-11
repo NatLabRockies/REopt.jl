@@ -378,7 +378,7 @@ end
                                         include_cooling_in_size::Union{Bool,Nothing}=nothing)
 
 Depending on the set of inputs, different sets of outputs are determine in addition to all CHP cost and performance parameter defaults:
-    1. Inputs: hot_water_or_steam and avg_boiler_fuel_load_mmbtu_per_hour
+    1. Inputs: hot_water_or_steam and avg_boiler_fuel_load_mmbtu_per_hour or avg_cooling_load_kw with absorption_chiller_cop and include_cooling_in_size
        Outputs: prime_mover, size_class, chp_elec_size_heuristic_kw, chp_max_size_kw
     2. Inputs: prime_mover and avg_boiler_fuel_load_mmbtu_per_hour
        Outputs: size_class, chp_elec_size_heuristic_kw, chp_max_size_kw
