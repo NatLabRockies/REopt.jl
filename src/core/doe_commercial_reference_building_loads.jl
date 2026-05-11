@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 const DEFAULT_BUILDINGS = [
     "FastFoodRest",
     "FullServiceRest",
@@ -112,7 +112,9 @@ end
         year::Int, 
         annual_energy::Real, 
         monthly_energies::AbstractArray{<:Real,1},
-        boiler_efficiency_input::Union{Real,Nothing}=nothing        
+        boiler_efficiency_input::Union{Real,Nothing}=nothing,
+        normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[];
+        time_steps_per_hour::Int = 1 # only used with normalized_profile      
     )
 Scale a normalized Commercial Reference Building according to inputs provided and return the 8760.
 """
@@ -125,7 +127,8 @@ function built_in_load(
     annual_energy::Real, 
     monthly_energies::AbstractArray{<:Real,1},
     boiler_efficiency_input::Union{Real,Nothing}=nothing,
-    normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[],
+    normalized_profile::Union{Vector{Float64}, Vector{<:Real}}=Real[]; # provided as function input for customer loads, not CRBs
+    time_steps_per_hour::Int = 1 # only used with user-provided normalized_profile. CRB loads are always hourly when this function is called.
     )
 
     @assert type in ["electric", "domestic_hot_water", "space_heating", "cooling", "process_heat"]
@@ -135,7 +138,9 @@ function built_in_load(
     profile_path = joinpath(lib_path, string("crb8760_norm_" * city * "_" * buildingtype * ".dat"))
     input_normalized = false
     shift_possible = false
-    if isempty(normalized_profile)
+    monthly_timesteps = get_monthly_time_steps(year; time_steps_per_hour=time_steps_per_hour)
+
+    if isempty(normalized_profile) # Not user-provided
         if occursin("FlatLoad", buildingtype)
             normalized_profile = custom_normalized_flatload(buildingtype, year)
         else 
@@ -155,26 +160,22 @@ function built_in_load(
         crb_start_day = Dates.dayofweek(DateTime(2017,1,1))
         load_start_day = Dates.dayofweek(DateTime(year,1,1))
         cut_days = 7 - (crb_start_day - load_start_day) # Ex: = 7-(7-5) = 5 --> cut Sun, Mon, Tues, Wed, Thurs for 2021 load year
-        wrap_ts = normalized_profile[25:24+24*cut_days] # Ex: = crb_profile[25:144] wrap Mon-Fri to end for 2021
-        normalized_profile = append!(normalized_profile[24*cut_days+1:end], wrap_ts) # Ex: now starts on Fri and end Fri to align with 2021 cal
+        wrap_ts = normalized_profile[25*time_steps_per_hour: (24+24*cut_days)*time_steps_per_hour] # Ex: = crb_profile[25:144] wrap Mon-Fri to end for 2021
+        normalized_profile = append!(normalized_profile[(24*cut_days+1)*time_steps_per_hour:end], wrap_ts) # Ex: now starts on Fri and end Fri to align with 2021 cal
         normalized_profile = normalized_profile ./ sum(normalized_profile)
     end
 
     if length(monthly_energies) == 12
         annual_energy = 1.0  # do not scale based on annual_energy
-        t0 = 1
         for month in 1:12
-            plus_hours = daysinmonth(Date(string(year) * "-" * string(month))) * 24
-            if month == 12 && isleapyear(year)  # for a leap year, the last day is assumed to be truncated
-                plus_hours -= 24
-            end
-            month_total = sum(normalized_profile[t0:t0+plus_hours-1])
+            start_idx = monthly_timesteps[month][1]
+            end_idx = monthly_timesteps[month][end]
+            month_total = sum(normalized_profile[start_idx:end_idx])
             if month_total == 0.0  # avoid division by zero
                 monthly_scalers[month] = 0.0
             else
                 monthly_scalers[month] = monthly_energies[month] / month_total
             end
-            t0 += plus_hours
         end
     end
 
@@ -188,11 +189,11 @@ function built_in_load(
     else
         boiler_efficiency = 1.0
     end
-    datetime = DateTime(year, 1, 1, 1)
-    for ld in normalized_profile
-        month = Month(datetime).value
-        push!(scaled_load, ld * annual_energy * monthly_scalers[month] * boiler_efficiency * used_kwh_per_mmbtu)
-        datetime += Dates.Hour(1)
+
+    for (month, timesteps) in enumerate(monthly_timesteps)
+        for t in timesteps
+            push!(scaled_load, normalized_profile[t] * annual_energy * monthly_scalers[month] * time_steps_per_hour * boiler_efficiency * used_kwh_per_mmbtu)
+        end
     end
 
     return scaled_load
@@ -330,19 +331,19 @@ Get monthly energy from an hourly load profile.
 """
 function get_monthly_energy(power_profile::AbstractArray{<:Real,1}; 
                             year::Int64=2017)
-    t0 = 1
+    if length(power_profile) != 8760
+        throw(@error("get_monthly_energy can only be used for hourly profiles"))
+    end
+    monthly_timesteps = get_monthly_time_steps(year)
     monthly_energy_total = zeros(12)
     for month in 1:12
-        plus_hours = daysinmonth(Date(string(year) * "-" * string(month))) * 24
-        if month == 12 && isleapyear(year)
-            plus_hours -= 24
-        end
+        start_idx = monthly_timesteps[month][1]
+        end_idx = monthly_timesteps[month][end]
         if !isempty(power_profile)
-            monthly_energy_total[month] = sum(power_profile[t0:t0+plus_hours-1])
+            monthly_energy_total[month] = sum(power_profile[start_idx:end_idx])
         else
             throw(@error("Must provide power_profile"))
         end
-        t0 += plus_hours
     end
 
     return monthly_energy_total

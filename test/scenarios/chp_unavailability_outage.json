@@ -40,7 +40,8 @@
         "fuel_cost_per_mmbtu": 5.0,
         "min_kw": 1000,
         "min_allowable_kw": 0,
-        "max_kw": 1000
+        "max_kw": 1000,
+        "federal_itc_fraction": 0.3        
     },
     "PV": {
         "max_kw": 0.0

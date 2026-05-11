@@ -206,3 +206,8 @@ REopt.HydrogenStorage
 ```@docs
 REopt.FuelCell
 ```
+
+## CST
+```@docs
+REopt.CST
+```

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricLoad` results keys:
 - `load_series_kw` # vector of BAU site load in every time step. Does not include electric load for any new heating or cooling techs.
@@ -9,6 +9,9 @@
 - `offgrid_load_met_fraction` # percentage of total electric load met on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_required_series_kwh` # total operating reserves required (for load and techs) on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_provided_series_kwh` # total operating reserves provided on an annual basis, for off-grid scenarios only
+- `monthly_calculated_kwh` # vector of monthly energy consumption at a site
+- `monthly_peaks_kw` # vector of monthly peak demand
+- `annual_peak_kw` # annual peak electricity demand
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -24,8 +27,17 @@ function add_electric_load_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
     r["load_series_kw"] = p.s.electric_load.loads_kw
     r["critical_load_series_kw"] = p.s.electric_load.critical_loads_kw
     r["annual_calculated_kwh"] = round(
-        sum(r["load_series_kw"]) * p.hours_per_time_step, digits=2
+        sum(r["load_series_kw"]) / p.s.settings.time_steps_per_hour, digits=2
     )
+
+    load_dict = get_load_metrics(
+        r["load_series_kw"];
+        time_steps_per_hour=p.s.settings.time_steps_per_hour,
+        year=p.s.electric_load.year
+    )
+    r["monthly_calculated_kwh"] = load_dict["monthly_energy"]
+    r["monthly_peaks_kw"] = load_dict["monthly_peaks"]
+    r["annual_peak_kw"] = load_dict["annual_peak"]
 
     if _n==""
         # Aggregation of all end-use electrical loads (including electrified heating and cooling).

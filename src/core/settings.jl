@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 Captures high-level inputs affecting the optimization.
 
@@ -19,4 +19,5 @@ Base.@kwdef struct Settings
     include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model's objective function
     include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model's objective function
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
+    include_export_cost_series_in_results::Bool = false # set to true to add electricity export compensation rate timeseries under electric tariff results.
 end

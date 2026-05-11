@@ -26304,6 +26304,8 @@
         "building_sqft": 31623.0,
         "om_cost_per_sqft_year": 0,
         "heatpump_capacity_sizing_factor_on_peak_load": 1.0,
+        "macrs_bonus_fraction": 0.4,
+        "macrs_option_years": 5,
         "ghpghx_responses": [
             {
                 "outputs": {

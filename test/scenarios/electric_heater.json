@@ -54,6 +54,11 @@
         "monthly_energy_rates": [0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1]
     },
     "HotThermalStorage":{
-        "max_gal":2500
+        "min_gal":2500,
+        "max_gal":2500,
+        "can_serve_dhw":true,
+        "can_serve_space_heating":true,
+        "can_serve_process_heat":false,
+        "thermal_decay_rate_fraction": 0.0
     }
 }

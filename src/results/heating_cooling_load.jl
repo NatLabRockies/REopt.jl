@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `CoolingLoad` results keys:
 - `load_series_ton` # vector of site cooling load in every time step
@@ -64,7 +64,6 @@ function add_heating_load_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict
     process_heat_load_series_kw  =   p.s.process_heat_load.loads_kw
 
     existing_boiler_efficiency =   isnothing(p.s.existing_boiler) ? EXISTING_BOILER_EFFICIENCY : p.s.existing_boiler.efficiency
-    
     r["dhw_thermal_load_series_mmbtu_per_hour"]           =   dhw_load_series_kw ./ KWH_PER_MMBTU
     r["space_heating_thermal_load_series_mmbtu_per_hour"] =   space_heating_load_series_kw ./ KWH_PER_MMBTU
     r["process_heat_thermal_load_series_mmbtu_per_hour"]  =   process_heat_load_series_kw ./ KWH_PER_MMBTU
