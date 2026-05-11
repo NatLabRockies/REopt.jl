@@ -5076,5 +5076,5 @@ else  # run HiGHS tests
             GC.gc()
         end
 
-?    end
+    end
 end
