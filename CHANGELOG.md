@@ -25,6 +25,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fix-chp-to-abschl
+### Fixed
+- Fixed an error in which the absorption chiller could not be included without a nonzero site heating load
+- Fixed a bug in dispatch of heat to absorption chiller from steam turbine and Hot TES
+### Changed
+- Renamed argument `include_cooling_in_chp_size` to `include_cooling_in_chp_size` within a few methods in `CHP`
+
 ## v0.59.0
 ### Added
 - Added two new size classes for **SteamTurbine** tech with new tech size ranges.
