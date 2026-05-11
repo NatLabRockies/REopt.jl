@@ -210,6 +210,32 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
         )
     end
 
+    if "Electrolyzer" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.electrolyzer.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["Electrolyzer"]
+        )
+    end
+
+    if "FuelCell" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.fuel_cell.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["FuelCell"]
+        )
+    end
+
+    if "Compressor" in p.techs.all
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.compressor.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["Compressor"]
+        )
+    end
+
+    for b in p.s.storage.types.hydrogen
+        if p.s.storage.attr[b].max_kg > 0
+            add_to_expression!(m[:InitialCapexNoIncentives], 
+                p.s.storage.attr[b].net_present_cost_per_kg * m[Symbol("dvStorageEnergy"*_n)][b]
+            )
+        end
+    end
+
     if !isempty(p.s.electric_utility.outage_durations)
         add_to_expression!(m[:InitialCapexNoIncentives], 
             m[:mgTotalTechUpgradeCost] + m[:dvMGStorageUpgradeCost]
