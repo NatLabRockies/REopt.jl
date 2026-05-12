@@ -949,9 +949,12 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         if !haskey(d,"Site") || !haskey(d["Site"], "land_acres")
             throw(@error("Site.land_acres not provided as an input, which is required when CST is included as a technology."))
         end
-        cst_ssc_response = run_ssc(d)
-        d["CST"]["production_factor"] = cst_ssc_response["thermal_production_series"]
-        d["CST"]["elec_consumption_factor_series"] = cst_ssc_response["electric_consumption_series"]
+        if ("production_factor" in keys(d["CST"])) || ("elec_consumption_factor_series" in keys(d["CST"]))
+            @info "Either CST.thermal_production_series or CST.electric_consumption_series not included in inputs; using CST.SSC_Inputs to obtain production factor from SSC."
+            cst_ssc_response = run_ssc(d)
+            d["CST"]["production_factor"] = cst_ssc_response["thermal_production_series"]
+            d["CST"]["elec_consumption_factor_series"] = cst_ssc_response["electric_consumption_series"]
+        end
         if haskey(d["CST"], "SSC_Inputs")
             pop!(d["CST"],"SSC_Inputs")
         end
