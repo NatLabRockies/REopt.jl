@@ -383,4 +383,12 @@ function add_hot_tes_flow_restrictions!(m, p, b)
             m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0
         )
     end
+
+    #Don't allow existing boiler to charge storage if attribute can_charge_storage is false
+    if !isnothing(p.s.existing_boiler) && !p.s.existing_boiler.can_charge_storage
+        for q in p.heating_loads, ts in p.time_steps
+            fix(m[:dvHeatToStorage][b,"ExistingBoiler",q,ts], 0.0, force=true)
+        end
+    end
+
 end
