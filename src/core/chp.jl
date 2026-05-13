@@ -441,13 +441,13 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
     end
 
     if !isnothing(avg_boiler_fuel_load_mmbtu_per_hour)  # Option 1
-        if avg_boiler_fuel_load_mmbtu_per_hour <= 0
+        if avg_boiler_fuel_load_mmbtu_per_hour < 0
             throw(@error("avg_boiler_fuel_load_mmbtu_per_hour must be >= 0.0"))
         end
     end
 
     if !isnothing(avg_cooling_load_kw)  # Option 1
-        if avg_cooling_load_kw <= 0
+        if avg_cooling_load_kw < 0
             throw(@error("avg_cooling_load_kw must be >= 0.0"))
         end
     end
