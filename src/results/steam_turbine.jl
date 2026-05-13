@@ -32,7 +32,9 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 
 	r["size_kw"] = round(value(sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.steam_turbine)), digits=3)
     @expression(m, Year1SteamTurbineThermalConsumptionKWH,
-		p.hours_per_time_step * sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps))
+		p.hours_per_time_step * sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads, ts in p.time_steps)
+		+ sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads, ts in p.time_steps )
+		)
     r["annual_thermal_consumption_mmbtu"] = round(value(Year1SteamTurbineThermalConsumptionKWH) / KWH_PER_MMBTU, digits=5)
     @expression(m, Year1SteamTurbineElecProd,
 		p.hours_per_time_step * sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts]
@@ -42,7 +44,9 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 		p.hours_per_time_step * sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads, t in p.techs.steam_turbine, ts in p.time_steps))
 	r["annual_thermal_production_mmbtu"] = round(value(Year1SteamTurbineThermalProdKWH) / KWH_PER_MMBTU, digits=5)
     @expression(m, SteamTurbineThermalConsumptionKW[ts in p.time_steps],
-		sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads))
+		sum(m[Symbol("dvThermalToSteamTurbine"*_n)][tst,q,ts] for tst in p.techs.can_supply_steam_turbine, q in p.heating_loads)
+			+ sum(m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
+		)
     r["thermal_consumption_series_mmbtu_per_hour"] = round.(value.(SteamTurbineThermalConsumptionKW) ./ KWH_PER_MMBTU, digits=5)
 	@expression(m, SteamTurbineElecProdTotal[ts in p.time_steps],
 		sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for t in p.techs.steam_turbine))
@@ -91,8 +95,8 @@ function add_steam_turbine_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 	r["thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour"] = round.(value.(m[:SteamTurbineToHotSensibleTESKW]) ./ KWH_PER_MMBTU, digits=5)
 	
 	if "AbsorptionChiller" in p.techs.cooling
-		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads)))
-		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(value.(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine)))
+		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine, q in p.heating_loads))
+		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller][t,q,ts] for t in p.techs.steam_turbine))
 	else
 		@expression(m, SteamTurbinetoAbsorptionChillerKW[ts in p.time_steps], 0.0)
 		@expression(m, SteamTurbinetoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)

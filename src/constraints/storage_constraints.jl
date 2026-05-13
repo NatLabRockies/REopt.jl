@@ -105,36 +105,37 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
         )
     )
 
-	# Constraint (4i)-1: Dispatch to electrical storage is no greater than power capacity
-	@constraint(m, [ts in p.time_steps],
-        m[Symbol("dvStoragePower"*_n)][b] >= 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) + m[Symbol("dvGridToStorage"*_n)][b, ts]
-    )
-	
-	#Constraint (4k)-alt: Dispatch to and from electrical storage is no greater than power capacity
-	@constraint(m, [ts in p.time_steps_with_grid],
-        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts] + 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) + m[Symbol("dvGridToStorage"*_n)][b, ts]
-    )
-
-	#Constraint (4l)-alt: Dispatch from electrical storage is no greater than power capacity (no grid connection)
-	@constraint(m, [ts in p.time_steps_without_grid],
-        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b,ts] + 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec)
+    # Constraint (4i): Dispatch to and from electrical storage is no greater than power capacity
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts] 
+            + sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec)
+            + m[Symbol("dvGridToStorage"*_n)][b, ts]
     )
     	
-    # Remove grid-to-storage as an option if option to grid charge is turned off
+    # Constraint (4j): Remove grid-to-storage as an option if option to grid charge is turned off
     if !(p.s.storage.attr[b].can_grid_charge)
         for ts in p.time_steps_with_grid
             fix(m[Symbol("dvGridToStorage"*_n)][b, ts], 0.0, force=true)
         end
 	end
 
+    # Constraint (4k): Constrain average state of charge
     if p.s.storage.attr[b].minimum_avg_soc_fraction > 0
         avg_soc = sum(m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps) /
                    (8760. / p.hours_per_time_step)
         @constraint(m, avg_soc >= p.s.storage.attr[b].minimum_avg_soc_fraction * 
             sum(m[Symbol("dvStorageEnergy"*_n)][b])
+        )
+    end
+
+    # Constraint (4l): Constrain to fixed_soc_series_fraction
+    if hasproperty(p.s.storage.attr[b], :fixed_soc_series_fraction) && !isnothing(p.s.storage.attr[b].fixed_soc_series_fraction)
+        # Allow for a percentage point (fractional) buffer on user-provided fixed_soc_series_fraction 
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] <= (p.s.storage.attr[b].fixed_soc_series_fraction_tolerance + p.s.storage.attr[b].fixed_soc_series_fraction[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] >= (-p.s.storage.attr[b].fixed_soc_series_fraction_tolerance + p.s.storage.attr[b].fixed_soc_series_fraction[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
         )
     end
 end
@@ -382,4 +383,12 @@ function add_hot_tes_flow_restrictions!(m, p, b)
             m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0
         )
     end
+
+    #Don't allow existing boiler to charge storage if attribute can_charge_storage is false
+    if !isnothing(p.s.existing_boiler) && !p.s.existing_boiler.can_charge_storage
+        for q in p.heating_loads, ts in p.time_steps
+            fix(m[:dvHeatToStorage][b,"ExistingBoiler",q,ts], 0.0, force=true)
+        end
+    end
+
 end
