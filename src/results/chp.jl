@@ -107,12 +107,8 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 		@expression(m, CHPtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
 	end
 	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(CHPtoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
-    @expression(m, CHPThermalToLoadKW[ts in p.time_steps],
-        sum(sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in p.heating_loads) + m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts]
-            for t in p.techs.chp) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts] - CHPtoAbsorptionChillerKW[ts])
-    r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CHPThermalToLoadKW ./ KWH_PER_MMBTU), digits=5)
-    
-    if "DomesticHotWater" in p.heating_loads && p.s.chp.can_serve_dhw
+
+    if "DomesticHotWater" in p.heating_loads && p.s.chp.can_serve_dhw && sum(p.heating_loads_kw["DomesticHotWater"]) > 0.0
         @expression(m, CHPToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","DomesticHotWater",ts] - CHPToHotTESByQuality["DomesticHotWater",ts] - CHPToSteamTurbineByQualityKW["DomesticHotWater",ts] 
 			- CHPThermalToWasteByQualityKW["DomesticHotWater",ts] - CHPtoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
@@ -120,9 +116,9 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     else
         @expression(m, CHPToDHWKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(value.(CHPToDHWKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CHPToDHWKW ./ KWH_PER_MMBTU)), digits=5)
     
-    if "SpaceHeating" in p.heating_loads && p.s.chp.can_serve_space_heating
+    if "SpaceHeating" in p.heating_loads && p.s.chp.can_serve_space_heating && sum(p.heating_loads_kw["SpaceHeating"]) > 0.0
         @expression(m, CHPToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","SpaceHeating",ts] - CHPToHotTESByQuality["SpaceHeating",ts] - CHPToSteamTurbineByQualityKW["SpaceHeating",ts]
 			- CHPThermalToWasteByQualityKW["SpaceHeating",ts] - CHPtoAbsorptionChillerByQualityKW["SpaceHeating",ts]
@@ -130,9 +126,9 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     else
         @expression(m, CHPToSpaceHeatingKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(value.(CHPToSpaceHeatingKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CHPToSpaceHeatingKW ./ KWH_PER_MMBTU)), digits=5)
     
-    if "ProcessHeat" in p.heating_loads && p.s.chp.can_serve_process_heat
+    if "ProcessHeat" in p.heating_loads && p.s.chp.can_serve_process_heat && sum(p.heating_loads_kw["ProcessHeat"]) > 0.0
         @expression(m, CHPToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CHP","ProcessHeat",ts] - CHPToHotTESByQuality["ProcessHeat",ts] - CHPToSteamTurbineByQualityKW["ProcessHeat",ts]
 			- CHPThermalToWasteByQualityKW["ProcessHeat",ts] - CHPtoAbsorptionChillerByQualityKW["ProcessHeat",ts]
@@ -140,7 +136,9 @@ function add_chp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     else
         @expression(m, CHPToProcessHeatKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(value.(CHPToProcessHeatKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CHPToProcessHeatKW ./ KWH_PER_MMBTU)), digits=5)
+    
+	r["thermal_to_load_series_mmbtu_per_hour"] = r["thermal_to_dhw_load_series_mmbtu_per_hour"] .+ r["thermal_to_space_heating_load_series_mmbtu_per_hour"] .+ r["thermal_to_process_heat_load_series_mmbtu_per_hour"]
 
 	r["year_one_fuel_cost_before_tax"] = round(value(m[:TotalCHPFuelCosts] / p.pwf_fuel["CHP"]), digits=3)
 	r["year_one_fuel_cost_after_tax"] = r["year_one_fuel_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
