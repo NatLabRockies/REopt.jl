@@ -28,7 +28,7 @@ Classify the change according to the following categories:
 ## v0.59.2
 ### Fixed
 - Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
-
+- Zeroed out arbitrary non-zero `thermal_to_load` results
 
 ## v0.59.1
 ### Fixed
