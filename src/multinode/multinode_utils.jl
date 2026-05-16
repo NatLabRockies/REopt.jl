@@ -1,9 +1,100 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
 
-function run_PowerModelsDistribution_using_just_dss_file()
+function run_PowerModelsDistribution_using_just_dss_file(dss_file_path::String, PMD_model_subtype::String, optimizer; options=[])
+	#=
+	Information about this function
+	The PMD_model_subtype defines which model to run
+		"NFAUPowerModel_pf" will run the simplest type of model that looks only at feasibility of real power balance: run this model first when checking the model
+		"NFAUPowerModel_opf" 
+
+	The "options" input can be used to activate various debugging treatments
+		Adding "set_all_transformers_to_infinite_kVA" into the inputs vector sets all of the transformers to be able to handle infinite power
+
+	=#
+
+	eng_model = PowerModelsDistribution.parse_file(dss_file_path)
+	
+	# start of a section of code that was developed using assistance from AI
+	# Ensure that the slack bus can provide infinite power if the power maximum and minimum is not already defined
+
+	for (k, v) in eng_model["voltage_source"]
+		n = length(v["connections"])
+		if !haskey(v, "pg_lb") v["pg_lb"] = fill(-Inf, n) end
+		if !haskey(v, "pg_ub") v["pg_ub"] = fill( Inf, n) end
+		if !haskey(v, "qg_lb") v["qg_lb"] = fill(-Inf, n) end
+		if !haskey(v, "qg_ub") v["qg_ub"] = fill( Inf, n) end
+	end
+
+	eng_model["settings"]["sbase_default"] = 0.001  # set sbase to 1 kVA
+
+	if "set_all_transformers_to_infinite_kVA_and_detect_if_any_transformers_exceed_the_original_power_limit" in options
+		# save the original
+
+		original_sm_ub = Dict(k => xfmr["sm_ub"] for (k, xfmr) in eng_model["transformer"]  if haskey(xfmr, "sm_ub"))
+
+		for (k, xfmr) in eng_model["transformer"]
+			xfmr["sm_ub"] = Inf
+		end
+	end
+
+	# end of section that was developed using AI
+
+	#return eng_model
+
+	data_math_mn = PowerModelsDistribution.transform_data_model(eng_model)
+
+	if PMD_model_subtype == "LPUBFDiagPowerModel"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.LPUBFDiagPowerModel, PowerModelsDistribution.build_mn_mc_opf) # Note: instantiate_mc_model automatically converts the "engineering" model into a "mathematical" model
+    elseif PMD_model_subtype == "NFAUPowerModel_pf"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.NFAUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+		results = PowerModelsDistribution.solve_mc_pf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
+    elseif PMD_model_subtype == "NFAUPowerModel_opf"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.NFAUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+		results = PowerModelsDistribution.solve_mc_opf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
+
+	elseif PMD_model_subtype == "ACPUPowerModel"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.ACPUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+    elseif PMD_model_subtype == "ACRUPowerModel"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.ACRUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+    elseif PMD_model_subtype == "IVRUPowerModel"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.IVRUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+    elseif PMD_model_subtype == "SOCNLPUBFPowerModel"                                      
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.SOCNLPUBFPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+    elseif PMD_model_subtype == "SOCConicUBFPowerModel"
+        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.SOCConicUBFPowerModel, PowerModelsDistribution.build_mn_mc_opf)
+    else
+        throw(@error("The PMD subtype is not valid"))
+    end
 
 
+	# start of a section of code that was developed using assistance from AI
+	if "set_all_transformers_to_infinite_kVA_and_detect_if_any_transformers_exceed_the_original_power_limit" in options
+		println("Overloaded transformers (flow > original kVA rating):")
+		found_any = false
+		sol_xfmrs = get(results["solution"], "transformer", Dict())
+		for (k, rating) in original_sm_ub
+			sol_key = lowercase(k)  # solution keys are lowercase
+			if haskey(sol_xfmrs, sol_key)
+				p = get(sol_xfmrs[sol_key], "p", nothing)
+				if p !== nothing
+					# p is [[winding1_phase_powers...], [winding2_phase_powers...]]
+					# Use winding 1 (primary) active power across all phases
+					flow_kw = maximum(abs.(p[1]))
+					if flow_kw > rating
+						pct = round(100 * flow_kw / rating, digits=1)
+						println("  Transformer $k: rating = $(round(rating, digits=1)) kVA, " *
+								"flow = $(round(flow_kw, digits=1)) kW ($pct% of rating)")
+						found_any = true
+					end
+				end
+			end
+		end
+		found_any || println("  None — all transformers within rating.")
+		# end of section that was developed using AI
+	end
+
+	return results
 end
 
 
