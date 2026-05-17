@@ -588,9 +588,49 @@ function Create_PMD_Model_For_REopt_Integration(Multinode_Inputs, PMD_number_of_
     Start_create_PMD_generators = now()
     CreatePMDGenerators(Multinode_Inputs, data_eng, REopt_nodes; combined_REopt_inputs = combined_REopt_inputs)
 
+    # Beginning of code provided by AI
+        # Kron reduction requires f_connections == t_connections for every line and switch.
+        # Some DSS lines include the neutral conductor (4) in connections but reference a
+        # 3×3 linecode (so rs is not inlined), or have asymmetric Bus1/Bus2 conductor lists.
+        # This function makes both connection vectors consistent before transform_data_model.
+        function fix_line_connections_for_kron!(data_eng)
+            n_fixed = 0
+            for comp_type in ("line", "switch")
+                for (name, comp) in get(data_eng, comp_type, Dict())
+                    f_conns = get(comp, "f_connections", Int[])
+                    t_conns = get(comp, "t_connections", Int[])
 
+                    # Step 1: if an inline rs matrix is smaller than the connection count,
+                    # strip conductor 4 (neutral) from both sides.
+                    rs = get(comp, "rs", nothing)
+                    if rs !== nothing
+                        n_matrix = size(rs, 1)
+                        if n_matrix < max(length(f_conns), length(t_conns))
+                            f_conns = filter(c -> c != 4, f_conns)
+                            t_conns = filter(c -> c != 4, t_conns)
+                            comp["f_connections"] = f_conns
+                            comp["t_connections"] = t_conns
+                            n_fixed += 1
+                        end
+                    end
+
+                    # Step 2: Kron reduction asserts f_connections == t_connections.
+                    # If they still differ (e.g. neutral on one end only, or different
+                    # ordering from the DSS Bus1/Bus2 specs), force t to match f.
+                    if f_conns != t_conns
+                        comp["t_connections"] = copy(f_conns)
+                        n_fixed += 1
+                    end
+                end
+            end
+            println("fix_line_connections_for_kron!: corrected $n_fixed line/switch connection vector(s)")
+        end
+        fix_line_connections_for_kron!(data_eng)
+    # End of code provided by AI
+
+    kron_reduce_indicator=true
     Start_transform_to_math_model = now()
-    data_math_mn = PowerModelsDistribution.transform_data_model(data_eng, multinetwork=true) # Transforming the engineering model to a mathematical model in PMD 
+    data_math_mn = PowerModelsDistribution.transform_data_model(data_eng, kron_reduce=kron_reduce_indicator, multinetwork=true) # Transforming the engineering model to a mathematical model in PMD 
     
     # Initialize voltage variable values:
     @info "running add_start_vrvi (this may take a few minutes for large models)\n"
