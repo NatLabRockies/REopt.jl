@@ -539,8 +539,10 @@ function detect_network_loops(
     # ------------------------------------------------------------------ #
     # 1.  Build edge list                                                  #
     # ------------------------------------------------------------------ #
-    # Each entry: NamedTuple (type, name, f_bus, t_bus)
-    Edge = NamedTuple{(:type, :name, :f_bus, :t_bus), Tuple{String,String,String,String}}
+    # Each entry: NamedTuple (type, name, f_bus, t_bus, phases)
+    # phases is a Vector{Int} using PMD convention: 1=A, 2=B, 3=C, 0=neutral
+    Edge = NamedTuple{(:type, :name, :f_bus, :t_bus, :phases),
+                      Tuple{String,String,String,String,Vector{Int}}}
     edges = Edge[]
 
     # Helper: is a component disabled?
@@ -549,6 +551,13 @@ function detect_network_loops(
         status = get(comp, "status", nothing)
         status === nothing && return false
         return string(status) == "DISABLED"
+    end
+
+    # Helper: convert integer phase list to a readable string ("A", "AB", "ABC", etc.)
+    _phase_label = Dict(1 => "A", 2 => "B", 3 => "C", 0 => "N")
+    function phases_str(phases::Vector{Int})
+        isempty(phases) && return "?"
+        return join([get(_phase_label, p, string(p)) for p in sort(phases)])
     end
 
     # --- Lines (includes overhead lines, underground cables, and any        ---
@@ -562,7 +571,8 @@ function detect_network_loops(
         t_bus = get(line, "t_bus", nothing)
         (f_bus === nothing || t_bus === nothing) && continue
 
-        push!(edges, (type="line", name=name, f_bus=string(f_bus), t_bus=string(t_bus)))
+        phases = Vector{Int}(get(line, "f_connections", Int[]))
+        push!(edges, (type="line", name=name, f_bus=string(f_bus), t_bus=string(t_bus), phases=phases))
     end
 
     # --- Dedicated switch entries (PMD stores some switches separately)  ---
@@ -572,7 +582,8 @@ function detect_network_loops(
             f_bus = get(sw, "f_bus", nothing)
             t_bus = get(sw, "t_bus", nothing)
             (f_bus === nothing || t_bus === nothing) && continue
-            push!(edges, (type="switch", name=name, f_bus=string(f_bus), t_bus=string(t_bus)))
+            phases = Vector{Int}(get(sw, "f_connections", Int[]))
+            push!(edges, (type="switch", name=name, f_bus=string(f_bus), t_bus=string(t_bus), phases=phases))
         end
     end
 
@@ -581,9 +592,12 @@ function detect_network_loops(
         for (name, xfmr) in get(data_eng, "transformer", Dict())
             is_disabled(xfmr) && continue
             buses = get(xfmr, "bus", String[])
+            # connections is a vector of per-winding connection arrays
+            conns = get(xfmr, "connections", Vector{Vector{Int}}())
             for i in 1:(length(buses) - 1)
+                phases = !isempty(conns) && i <= length(conns) ? Vector{Int}(conns[i]) : Int[]
                 push!(edges, (type="transformer", name=name,
-                              f_bus=string(buses[i]), t_bus=string(buses[i+1])))
+                              f_bus=string(buses[i]), t_bus=string(buses[i+1]), phases=phases))
             end
         end
     end
@@ -628,6 +642,13 @@ function detect_network_loops(
         end
     end
 
+    # ------------------------------------------------------------------ #
+    # Helper (defined here so it is available for the report below)        #
+    # ------------------------------------------------------------------ #
+    _phase_label_report = Dict(1 => "A", 2 => "B", 3 => "C", 0 => "N")
+    phases_str_report(phases::Vector{Int}) =
+        isempty(phases) ? "?" : join([get(_phase_label_report, p, string(p)) for p in sort(phases)])
+
     has_loops = !isempty(loop_edges)
 
     # ------------------------------------------------------------------ #
@@ -644,7 +665,8 @@ function detect_network_loops(
         if has_loops
             println("LOOPS DETECTED — $(length(loop_edges)) loop-closing edge(s):")
             for e in loop_edges
-                println("  [$(e.type)]  \"$(e.name)\"   $(e.f_bus)  <-->  $(e.t_bus)")
+                ph = phases_str_report(e.phases)
+                println("  [$(e.type)]  \"$(e.name)\"   $(e.f_bus)  <-->  $(e.t_bus)   phases: $ph")
             end
         else
             println("No loops detected — network appears to be radial.")
