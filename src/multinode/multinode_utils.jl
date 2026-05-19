@@ -502,3 +502,322 @@ function replace_dss_load_name(line::String, new_name::String)
 end
 
 
+"""
+Note: this function was generated using AI
+
+    detect_network_loops(data_eng; kwargs...) -> (has_loops::Bool, loop_edges::Vector)
+
+Detects loops (cycles) in a PowerModelsDistribution engineering-model network
+using Union-Find (disjoint set union). Compatible with single-phase and
+multi-phase radial or meshed distribution systems.
+
+A "loop" is any edge whose two endpoint buses are already connected by another
+path — i.e. removing it would not disconnect the graph.  In a purely radial
+feeder no loops will be found.
+
+# Keyword arguments
+- `include_switches` (default `true`): include switch elements (both dedicated
+  `"switch"` entries and lines whose name starts with `"sw_"`).
+- `include_transformers` (default `true`): include transformers as edges
+  between their winding buses.
+- `only_enabled` (default `true`): skip any component whose `"status"` field
+  is `PowerModelsDistribution.DISABLED`.
+- `verbose` (default `true`): print a summary table to stdout.
+
+# Returns
+- `has_loops::Bool` – `true` if at least one loop was found.
+- `loop_edges::Vector{NamedTuple}` – one entry per loop-closing edge, each
+  with fields `(type, name, f_bus, t_bus)`.
+"""
+function detect_network_loops(
+    data_eng::Dict;
+    include_switches::Bool         = true,
+    include_transformers::Bool     = true,
+    only_enabled::Bool             = true,
+    verbose::Bool                  = true,
+)
+    # ------------------------------------------------------------------ #
+    # 1.  Build edge list                                                  #
+    # ------------------------------------------------------------------ #
+    # Each entry: NamedTuple (type, name, f_bus, t_bus)
+    Edge = NamedTuple{(:type, :name, :f_bus, :t_bus), Tuple{String,String,String,String}}
+    edges = Edge[]
+
+    # Helper: is a component disabled?
+    function is_disabled(comp::Dict)
+        only_enabled || return false
+        status = get(comp, "status", nothing)
+        status === nothing && return false
+        return string(status) == "DISABLED"
+    end
+
+    # --- Lines (includes overhead lines, underground cables, and any        ---
+    #     stub lines created by the REopt DSS pre-processor)                  #
+    for (name, line) in get(data_eng, "line", Dict())
+        is_disabled(line) && continue
+        startswith(name, "loadconn_") && continue
+        !include_switches && startswith(name, "sw_") && continue
+
+        f_bus = get(line, "f_bus", nothing)
+        t_bus = get(line, "t_bus", nothing)
+        (f_bus === nothing || t_bus === nothing) && continue
+
+        push!(edges, (type="line", name=name, f_bus=string(f_bus), t_bus=string(t_bus)))
+    end
+
+    # --- Dedicated switch entries (PMD stores some switches separately)  ---
+    if include_switches
+        for (name, sw) in get(data_eng, "switch", Dict())
+            is_disabled(sw) && continue
+            f_bus = get(sw, "f_bus", nothing)
+            t_bus = get(sw, "t_bus", nothing)
+            (f_bus === nothing || t_bus === nothing) && continue
+            push!(edges, (type="switch", name=name, f_bus=string(f_bus), t_bus=string(t_bus)))
+        end
+    end
+
+    # --- Transformers (multi-winding: connect each adjacent pair of buses) ---
+    if include_transformers
+        for (name, xfmr) in get(data_eng, "transformer", Dict())
+            is_disabled(xfmr) && continue
+            buses = get(xfmr, "bus", String[])
+            for i in 1:(length(buses) - 1)
+                push!(edges, (type="transformer", name=name,
+                              f_bus=string(buses[i]), t_bus=string(buses[i+1])))
+            end
+        end
+    end
+
+    # ------------------------------------------------------------------ #
+    # 2.  Union-Find with path compression and union-by-rank               #
+    # ------------------------------------------------------------------ #
+    all_buses = unique(vcat(
+        [e.f_bus for e in edges],
+        [e.t_bus for e in edges],
+    ))
+
+    parent = Dict{String,String}(b => b for b in all_buses)
+    rnk    = Dict{String,Int}(b => 0    for b in all_buses)
+
+    function find!(x::String)
+        while parent[x] != x
+            parent[x] = parent[parent[x]]   # path-halving compression
+            x = parent[x]
+        end
+        return x
+    end
+
+    function union!(x::String, y::String)::Bool
+        rx, ry = find!(x), find!(y)
+        rx == ry && return false             # already connected → cycle
+        if rnk[rx] < rnk[ry]
+            rx, ry = ry, rx
+        end
+        parent[ry] = rx
+        rnk[rx] == rnk[ry] && (rnk[rx] += 1)
+        return true
+    end
+
+    # ------------------------------------------------------------------ #
+    # 3.  Detect loop-closing edges                                         #
+    # ------------------------------------------------------------------ #
+    loop_edges = Edge[]
+    for e in edges
+        if !union!(e.f_bus, e.t_bus)
+            push!(loop_edges, e)
+        end
+    end
+
+    has_loops = !isempty(loop_edges)
+
+    # ------------------------------------------------------------------ #
+    # 4.  Report                                                            #
+    # ------------------------------------------------------------------ #
+    if verbose
+        println("\n" * "=" ^ 70)
+        println("Network Loop Detection")
+        println("  Buses      : $(length(all_buses))")
+        println("  Edges used : $(length(edges))  ",
+                "(switches=$(include_switches), ",
+                "transformers=$(include_transformers))")
+        println("=" ^ 70)
+        if has_loops
+            println("LOOPS DETECTED — $(length(loop_edges)) loop-closing edge(s):")
+            for e in loop_edges
+                println("  [$(e.type)]  \"$(e.name)\"   $(e.f_bus)  <-->  $(e.t_bus)")
+            end
+        else
+            println("No loops detected — network appears to be radial.")
+        end
+        println("=" ^ 70)
+    end
+
+    return has_loops, loop_edges
+end
+
+
+"""
+Note: this function was generated using AI
+
+    detect_islanded_buses(data_eng, source_bus; kwargs...) -> (has_islands::Bool, islanded_buses::Vector{String}, island_groups::Vector{Vector{String}})
+
+Detects buses that are not electrically connected to `source_bus` (the
+substation / voltage-source bus) in a PowerModelsDistribution engineering model.
+
+Each disconnected group is reported separately so you can see which buses are
+isolated together versus individually.
+
+# Arguments
+- `data_eng`   : parsed PMD engineering model (`data_eng = PowerModelsDistribution.parse_file(...)`)
+- `source_bus` : name of the reference bus (e.g. `Multinode_Inputs.substation_node`)
+
+# Keyword arguments
+- `include_switches`    (default `true`): treat switch elements as edges.
+- `include_transformers`(default `true`): treat transformer winding connections as edges.
+- `only_enabled`        (default `true`): ignore components whose `"status"` field is DISABLED.
+- `verbose`             (default `true`): print a summary to stdout.
+
+# Returns
+- `has_islands::Bool`                    – `true` if any islanded bus was found.
+- `islanded_buses::Vector{String}`       – flat list of all buses not reachable from `source_bus`.
+- `island_groups::Vector{Vector{String}}`– buses grouped by their connected component.
+"""
+function detect_islanded_buses(
+    data_eng::Dict,
+    source_bus::String;
+    include_switches::Bool    = true,
+    include_transformers::Bool = true,
+    only_enabled::Bool        = true,
+    verbose::Bool             = true,
+)
+    # ------------------------------------------------------------------ #
+    # 1.  Collect all buses present in the model                           #
+    # ------------------------------------------------------------------ #
+    all_buses = collect(keys(get(data_eng, "bus", Dict())))
+
+    # ------------------------------------------------------------------ #
+    # 2.  Build edge list (same logic as detect_network_loops)             #
+    # ------------------------------------------------------------------ #
+    function is_disabled(comp::Dict)
+        only_enabled || return false
+        status = get(comp, "status", nothing)
+        status === nothing && return false
+        return string(status) == "DISABLED"
+    end
+
+    edges = Tuple{String,String}[]   # (f_bus, t_bus)
+
+    for (name, line) in get(data_eng, "line", Dict())
+        is_disabled(line) && continue
+        !include_switches && startswith(name, "sw_") && continue
+        f = get(line, "f_bus", nothing)
+        t = get(line, "t_bus", nothing)
+        (f === nothing || t === nothing) && continue
+        push!(edges, (string(f), string(t)))
+    end
+
+    if include_switches
+        for (_, sw) in get(data_eng, "switch", Dict())
+            is_disabled(sw) && continue
+            f = get(sw, "f_bus", nothing)
+            t = get(sw, "t_bus", nothing)
+            (f === nothing || t === nothing) && continue
+            push!(edges, (string(f), string(t)))
+        end
+    end
+
+    if include_transformers
+        for (_, xfmr) in get(data_eng, "transformer", Dict())
+            is_disabled(xfmr) && continue
+            buses = get(xfmr, "bus", String[])
+            for i in 1:(length(buses) - 1)
+                push!(edges, (string(buses[i]), string(buses[i+1])))
+            end
+        end
+    end
+
+    # ------------------------------------------------------------------ #
+    # 3.  Union-Find over ALL buses (not just those touched by edges)      #
+    # ------------------------------------------------------------------ #
+    parent = Dict{String,String}(b => b for b in all_buses)
+    rnk    = Dict{String,Int}(b => 0    for b in all_buses)
+
+    # Also register any edge-endpoint buses not already in data_eng["bus"]
+    for (f, t) in edges
+        get!(parent, f, f); get!(rnk, f, 0)
+        get!(parent, t, t); get!(rnk, t, 0)
+    end
+
+    function find!(x::String)
+        while parent[x] != x
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        end
+        return x
+    end
+
+    function union!(x::String, y::String)
+        rx, ry = find!(x), find!(y)
+        rx == ry && return
+        if rnk[rx] < rnk[ry]; rx, ry = ry, rx; end
+        parent[ry] = rx
+        rnk[rx] == rnk[ry] && (rnk[rx] += 1)
+    end
+
+    for (f, t) in edges
+        union!(f, t)
+    end
+
+    # ------------------------------------------------------------------ #
+    # 4.  Identify connected components                                     #
+    # ------------------------------------------------------------------ #
+    if !haskey(parent, source_bus)
+        error("detect_islanded_buses: source_bus \"$source_bus\" not found in the model.")
+    end
+
+    source_root = find!(source_bus)
+
+    # Group all buses by their root
+    components = Dict{String, Vector{String}}()
+    for b in keys(parent)
+        root = find!(b)
+        push!(get!(components, root, String[]), b)
+    end
+
+    islanded_buses  = String[]
+    island_groups   = Vector{String}[]
+
+    for (root, group) in components
+        root == source_root && continue   # this is the main connected network
+        sort!(group)
+        append!(islanded_buses, group)
+        push!(island_groups, group)
+    end
+    sort!(islanded_buses)
+    sort!(island_groups, by = g -> g[1])
+
+    has_islands = !isempty(islanded_buses)
+
+    # ------------------------------------------------------------------ #
+    # 5.  Report                                                            #
+    # ------------------------------------------------------------------ #
+    if verbose
+        println("\n" * "=" ^ 70)
+        println("Islanded Bus Detection")
+        println("  Source bus : \"$source_bus\"")
+        println("  Total buses: $(length(keys(parent)))")
+        println("  Connected components (excluding main): $(length(island_groups))")
+        println("=" ^ 70)
+        if has_islands
+            println("ISLANDED BUSES DETECTED — $(length(islanded_buses)) bus(es) in $(length(island_groups)) group(s):")
+            for (i, group) in enumerate(island_groups)
+                println("  Island $i ($(length(group)) bus(es)): ", join(group, ", "))
+            end
+        else
+            println("No islanded buses — all buses are reachable from \"$source_bus\".")
+        end
+        println("=" ^ 70)
+    end
+
+    return has_islands, islanded_buses, island_groups
+end

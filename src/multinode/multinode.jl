@@ -2013,6 +2013,19 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
             end
         end
     end
+
+    # Check for internal loops
+    data_eng = PowerModelsDistribution.parse_file(Multinode_Inputs.PMD_network_input, transformations=[PowerModelsDistribution.remove_all_bounds!])
+    has_loops, loop_edges = REopt.detect_network_loops(data_eng)
+    has_islands, islanded_buses, island_groups = REopt.detect_islanded_buses(data_eng, Multinode_Inputs.substation_node)
+
+    if has_loops
+        @warn("The distribution system has the following loops: $(loop_edges)")
+    end
+    if has_islands
+        @warn("The following islands are present in the distribution system: $(island_groups)")
+    end
+
 end
 
 
