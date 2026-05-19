@@ -40,10 +40,6 @@ function run_PowerModelsDistribution_using_just_dss_file(dss_file_path::String, 
 
 	# end of section that was developed using AI
 
-	#return eng_model
-
-	data_math_mn = PowerModelsDistribution.transform_data_model(eng_model)
-
 	if PMD_model_subtype == "LPUBFDiagPowerModel"
         #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.LPUBFDiagPowerModel, PowerModelsDistribution.build_mn_mc_opf) # Note: instantiate_mc_model automatically converts the "engineering" model into a "mathematical" model
     elseif PMD_model_subtype == "NFAUPowerModel_pf"
