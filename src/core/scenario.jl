@@ -44,7 +44,6 @@ A Scenario struct can contain the following keys:
 - [HotThermalStorage](@ref) (optional)
 - [HighTempThermalStorage](@ref) (optional)
 - [ColdThermalStorage](@ref) (optional)
-- [ElectricStorage](@ref) (optional)
 - [ElectricUtility](@ref) (optional)
 - [Generator](@ref) (optional)
 - [HeatingLoad](@ref) (optional)
@@ -207,7 +206,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     else
         storage_dict = Dict(:max_kw => 0.0)
     end
-    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site)
+    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site, settings.time_steps_per_hour)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")
@@ -473,12 +472,12 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         absorption_chiller_cop = nothing
         # User can override by explicitly setting include_cooling_in_chp_size = false
         if "include_cooling_in_chp_size" in keys(d["CHP"])
-            include_cooling_in_size = pop!(d["CHP"], "include_cooling_in_chp_size")
+            include_cooling_in_chp_size = pop!(d["CHP"], "include_cooling_in_chp_size")
         else
-            include_cooling_in_size = haskey(d, "AbsorptionChiller")
+            include_cooling_in_chp_size = haskey(d, "AbsorptionChiller")
         end
         
-        if max_cooling_demand_kw > 0 && include_cooling_in_size
+        if max_cooling_demand_kw > 0 && include_cooling_in_chp_size
             # Use already-processed cooling_load object
             avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
             # Get absorption chiller COP if specified, otherwise will use default
@@ -496,16 +495,16 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     electric_load_series_kw = electric_load.loads_kw,
                     avg_cooling_load_kw = avg_cooling_load_kw,
                     absorption_chiller_cop = absorption_chiller_cop,
-                    include_cooling_in_size = include_cooling_in_size,
+                    include_cooling_in_chp_size = include_cooling_in_chp_size,
                     year = electric_load.year,
                     sector = site.sector,
                     federal_procurement_type = site.federal_procurement_type)
-        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
+        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only, or only sending heat to absorption chiller)
             chp = CHP(d["CHP"];
                     electric_load_series_kw = electric_load.loads_kw,
                     avg_cooling_load_kw = avg_cooling_load_kw,
                     absorption_chiller_cop = absorption_chiller_cop,
-                    include_cooling_in_size = include_cooling_in_size,
+                    include_cooling_in_chp_size = include_cooling_in_chp_size,
                     year = electric_load.year,
                     sector = site.sector,
                     federal_procurement_type = site.federal_procurement_type)

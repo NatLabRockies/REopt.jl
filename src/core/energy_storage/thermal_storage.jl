@@ -14,7 +14,7 @@ Cold thermal energy storage sytem; specifically, a chilled water system used to 
     internal_efficiency_fraction::Float64 = 0.999999 # Thermal losses due to mixing from thermal power entering or leaving tank
     soc_min_fraction::Float64 = 0.1 # Minimum allowable TES thermal state of charge
     soc_init_fraction::Float64 = 0.5 # TES thermal state of charge at first hour of optimization
-    installed_cost_per_gal::Float64 = 1.50 # Thermal energy-based cost of TES (e.g. volume of the tank)
+    installed_cost_per_gal::Float64 = 1.90 # Thermal energy-based cost of TES (e.g. volume of the tank)
     thermal_decay_rate_fraction::Float64 = 0.0004 # Thermal loss (gain) rate as a fraction of energy storage capacity, per hour (frac*energy_capacity/hr = kw_thermal)
     om_cost_per_gal::Float64 = 0.0 # Yearly fixed O&M cost dependent on storage energy size
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -32,7 +32,7 @@ Base.@kwdef struct ColdThermalStorageDefaults <: AbstractThermalStorageDefaults
     internal_efficiency_fraction::Float64 = 0.999999
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
-    installed_cost_per_gal::Float64 = 1.50
+    installed_cost_per_gal::Float64 = 1.90
     thermal_decay_rate_fraction::Float64 = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5
@@ -54,7 +54,7 @@ end
     internal_efficiency_fraction::Float64 = 0.999999
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
-    installed_cost_per_gal::Float64 = 1.50
+    installed_cost_per_gal::Float64 = 1.90
     thermal_decay_rate_fraction::Float64 = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -75,7 +75,7 @@ Base.@kwdef struct HotThermalStorageDefaults <: AbstractThermalStorageDefaults
     internal_efficiency_fraction::Float64 = 0.999999
     soc_min_fraction::Float64 = 0.1
     soc_init_fraction::Float64 = 0.5
-    installed_cost_per_gal::Float64 = 1.50
+    installed_cost_per_gal::Float64 = 1.90
     thermal_decay_rate_fraction::Float64 = 0.0004
     om_cost_per_gal::Float64 = 0.0
     macrs_option_years::Int = 5
