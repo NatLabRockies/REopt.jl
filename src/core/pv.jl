@@ -584,7 +584,7 @@ function get_pv_defaults_size_class()
         throw(ErrorException("pv_defaults.json not found at path: $pv_defaults_path"))
     end
     
-    pv_defaults_all = JSON.parsefile(pv_defaults_path, dicttype = Dict{String, Any})
+    pv_defaults_all = parse_json_file_to_dict(pv_defaults_path)
     return pv_defaults_all["size_classes"]
 end
 

@@ -1,4 +1,13 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
+"""
+    parse_json_file_to_dict(fp::String)::Dict{String, Any}
+
+Parse a JSON file at filepath `fp` and return a `Dict{String, Any}`.
+"""
+function parse_json_file_to_dict(fp::String)::Dict{String, Any}
+    JSON.parsefile(fp, dicttype = Dict{String, Any})
+end
+
 function time_step_wrap_around(time_step::Int; time_steps_per_hour::Int=1)::Int
     time_steps_per_year = 8760 * time_steps_per_hour
     ((time_step - 1) % time_steps_per_year) + 1

@@ -1076,7 +1076,7 @@ end
 Consruct Scenario from filepath `fp` to JSON with keys aligned with the `Scenario(d::Dict)` method.
 """
 function Scenario(fp::String)
-    Scenario(JSON.parsefile(fp, dicttype = Dict{String, Any}); flex_hvac_from_json=true)
+    Scenario(parse_json_file_to_dict(fp); flex_hvac_from_json=true)
 end
 
 
