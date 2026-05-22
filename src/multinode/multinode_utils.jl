@@ -523,6 +523,9 @@ feeder no loops will be found.
 - `only_enabled` (default `true`): skip any component whose `"status"` field
   is `PowerModelsDistribution.DISABLED`.
 - `verbose` (default `true`): print a summary table to stdout.
+- `phase_filter` (default `nothing`): if set to an integer (1=A, 2=B, 3=C), only edges
+  that carry that phase are included. Edges with no phase information are always included.
+  Use this to check loop connectivity on a single phase.
 
 # Returns
 - `has_loops::Bool` – `true` if at least one loop was found.
@@ -531,10 +534,11 @@ feeder no loops will be found.
 """
 function detect_network_loops(
     data_eng::Dict;
-    include_switches::Bool         = true,
-    include_transformers::Bool     = true,
-    only_enabled::Bool             = true,
-    verbose::Bool                  = true,
+    include_switches::Bool            = true,
+    include_transformers::Bool        = true,
+    only_enabled::Bool                = true,
+    verbose::Bool                     = true,
+    phase_filter::Union{Nothing, Int} = nothing,
 )
     # ------------------------------------------------------------------ #
     # 1.  Build edge list                                                  #
@@ -572,6 +576,7 @@ function detect_network_loops(
         (f_bus === nothing || t_bus === nothing) && continue
 
         phases = Vector{Int}(get(line, "f_connections", Int[]))
+        phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
         push!(edges, (type="line", name=name, f_bus=string(f_bus), t_bus=string(t_bus), phases=phases))
     end
 
@@ -583,6 +588,7 @@ function detect_network_loops(
             t_bus = get(sw, "t_bus", nothing)
             (f_bus === nothing || t_bus === nothing) && continue
             phases = Vector{Int}(get(sw, "f_connections", Int[]))
+            phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
             push!(edges, (type="switch", name=name, f_bus=string(f_bus), t_bus=string(t_bus), phases=phases))
         end
     end
@@ -596,6 +602,7 @@ function detect_network_loops(
             conns = get(xfmr, "connections", Vector{Vector{Int}}())
             for i in 1:(length(buses) - 1)
                 phases = !isempty(conns) && i <= length(conns) ? Vector{Int}(conns[i]) : Int[]
+                phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
                 push!(edges, (type="transformer", name=name,
                               f_bus=string(buses[i]), t_bus=string(buses[i+1]), phases=phases))
             end
@@ -657,6 +664,7 @@ function detect_network_loops(
     if verbose
         println("\n" * "=" ^ 70)
         println("Network Loop Detection")
+        phase_filter === nothing || println("  Phase filter: $(phase_filter) ($(get(Dict(1=>"A",2=>"B",3=>"C",0=>"N"), phase_filter, string(phase_filter))))")
         println("  Buses      : $(length(all_buses))")
         println("  Edges used : $(length(edges))  ",
                 "(switches=$(include_switches), ",
@@ -698,6 +706,10 @@ isolated together versus individually.
 - `include_transformers`(default `true`): treat transformer winding connections as edges.
 - `only_enabled`        (default `true`): ignore components whose `"status"` field is DISABLED.
 - `verbose`             (default `true`): print a summary to stdout.
+- `phase_filter`        (default `nothing`): if set to an integer (1=A, 2=B, 3=C), only edges
+  that carry that phase are used to build the connectivity graph. Edges with no phase
+  information are always included. Use this to detect per-phase islands in systems where
+  some buses are connected on one phase but not another.
 
 # Returns
 - `has_islands::Bool`                    – `true` if any islanded bus was found.
@@ -707,15 +719,27 @@ isolated together versus individually.
 function detect_islanded_buses(
     data_eng::Dict,
     source_bus::String;
-    include_switches::Bool    = true,
-    include_transformers::Bool = true,
-    only_enabled::Bool        = true,
-    verbose::Bool             = true,
+    include_switches::Bool            = true,
+    include_transformers::Bool        = true,
+    only_enabled::Bool                = true,
+    verbose::Bool                     = true,
+    phase_filter::Union{Nothing, Int} = nothing,
 )
     # ------------------------------------------------------------------ #
     # 1.  Collect all buses present in the model                           #
     # ------------------------------------------------------------------ #
-    all_buses = collect(keys(get(data_eng, "bus", Dict())))
+    # When phase_filter is set, only include buses whose `terminals` field
+    # contains the filtered phase. Otherwise buses that physically exist on
+    # other phases only (e.g. a phase-2 battery) would appear as singleton
+    # islands on the phase-1 graph.
+    all_buses = String[]
+    for (bname, bdata) in get(data_eng, "bus", Dict())
+        if phase_filter !== nothing
+            terms = Vector{Int}(get(bdata, "terminals", Int[]))
+            !isempty(terms) && !(phase_filter in terms) && continue
+        end
+        push!(all_buses, string(bname))
+    end
 
     # ------------------------------------------------------------------ #
     # 2.  Build edge list (same logic as detect_network_loops)             #
@@ -735,6 +759,8 @@ function detect_islanded_buses(
         f = get(line, "f_bus", nothing)
         t = get(line, "t_bus", nothing)
         (f === nothing || t === nothing) && continue
+        phases = Vector{Int}(get(line, "f_connections", Int[]))
+        phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
         push!(edges, (string(f), string(t)))
     end
 
@@ -744,6 +770,8 @@ function detect_islanded_buses(
             f = get(sw, "f_bus", nothing)
             t = get(sw, "t_bus", nothing)
             (f === nothing || t === nothing) && continue
+            phases = Vector{Int}(get(sw, "f_connections", Int[]))
+            phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
             push!(edges, (string(f), string(t)))
         end
     end
@@ -752,7 +780,10 @@ function detect_islanded_buses(
         for (_, xfmr) in get(data_eng, "transformer", Dict())
             is_disabled(xfmr) && continue
             buses = get(xfmr, "bus", String[])
+            conns = get(xfmr, "connections", Vector{Vector{Int}}())
             for i in 1:(length(buses) - 1)
+                phases = !isempty(conns) && i <= length(conns) ? Vector{Int}(conns[i]) : Int[]
+                phase_filter !== nothing && !isempty(phases) && !(phase_filter in phases) && continue
                 push!(edges, (string(buses[i]), string(buses[i+1])))
             end
         end
@@ -826,9 +857,12 @@ function detect_islanded_buses(
     if verbose
         println("\n" * "=" ^ 70)
         println("Islanded Bus Detection")
+        phase_filter === nothing || println("  Phase filter: $(phase_filter) ($(get(Dict(1=>"A",2=>"B",3=>"C",0=>"N"), phase_filter, string(phase_filter))))")
         println("  Source bus : \"$source_bus\"")
         println("  Total buses: $(length(keys(parent)))")
-        println("  Connected components (excluding main): $(length(island_groups))")
+        main_group_size = haskey(components, source_root) ? length(components[source_root]) : 0
+        println("  Connected buses (reachable from source): $(main_group_size)")
+        println("  Island groups (excluding the group connected to the sourebus): $(length(island_groups))")
         println("=" ^ 70)
         if has_islands
             println("ISLANDED BUSES DETECTED — $(length(islanded_buses)) bus(es) in $(length(island_groups)) group(s):")

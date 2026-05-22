@@ -1727,6 +1727,38 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs)
     
     TerminationStatus = string(results["termination_status"])
     if TerminationStatus != "OPTIMAL"
+        #=
+        import MathOptInterface as MOI
+        model = pm.model
+
+        println("Computing IIS via Xpress (this may take a while)...")
+        try
+            MOI.compute_conflict!(JuMP.backend(model))
+        catch err
+            println("compute_conflict! failed: ", err)
+        end
+
+        conflict_status = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
+        println("Conflict status: ", conflict_status)
+
+        if conflict_status == MOI.CONFLICT_FOUND
+            open("iis_conflict.txt", "w") do io
+                for (F, S) in JuMP.list_of_constraint_types(model)
+                    for c in JuMP.all_constraints(model, F, S)
+                        st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
+                        if st == MOI.IN_CONFLICT
+                            nm = JuMP.name(c)
+                            println(io, (isempty(nm) ? string(c) : nm))
+                        end
+                    end
+                end
+            end
+            println("IIS written to iis_conflict.txt")
+        else
+            println("Xpress did not return a conflict set.")
+        end
+        =#
+        
         throw(@error("The termination status of the optimization was"*string(results["termination_status"])))
     end
         
