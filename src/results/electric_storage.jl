@@ -3,11 +3,11 @@
 `ElectricStorage` results keys:
 - `size_kw` Optimal inverter capacity
 - `size_kwh` Optimal storage capacity
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year
-- `storage_to_load_series_kw` Vector of power used to meet load over the first year
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year
+- `storage_to_load_series_kw` Vector of power used to meet load over an average year
 - `initial_capital_cost` Upfront capital cost for storage and inverter
 # The following results are reported if storage degradation is modeled:
-- `state_of_health`
+- `state_of_health_series_fraction`
 - `maintenance_cost`
 - `replacement_month` # only applies is maintenance_strategy = "replacement"
 - `residual_value`
@@ -45,7 +45,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
         r["year_one_om_cost_before_tax"] = round(value(StoragePerUnitOMCosts) / (p.pwf_om * p.third_party_factor), digits=0)
             
         if p.s.storage.attr[b].model_degradation
-            r["state_of_health"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
+            r["state_of_health_series_fraction"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
             if p.s.storage.attr[b].degradation.maintenance_strategy == "replacement"
                 r["replacement_month"] = round(Int, value(
@@ -55,9 +55,9 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
                 # Determine fraction of useful life left assuming same replacement frequency.
                 # Multiply by 0.2 to scale residual useful life since entire BESS is replaced when SOH drops below 80%.
                 # Total BESS capacity residual is (0.8 + residual useful fraction) * BESS capacity
-                # If not replacements happen then useful capacity is SOH[end]*BESS capacity.
+                # If no replacements happen then useful capacity is SOH[end]*BESS capacity.
                 if iszero(r["replacement_month"])
-                    r["total_residual_kwh"] = r["state_of_health"][end]*r["size_kwh"]
+                    r["total_residual_kwh"] = r["state_of_health_series_fraction"][end]*r["size_kwh"]
                 else
                     # SOH[end] can be negative, so alternate method to calculate residual healthy SOH.
                     total_replacements = (p.s.financial.analysis_years*12)/r["replacement_month"]
