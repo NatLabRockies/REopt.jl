@@ -46,6 +46,14 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
         time_results["Step $(length(keys(time_results))+1): model_solve_time_minutes"] = round(JuMP.solve_time(pm.model)/60, digits = 2)  
         GC.gc()
         print("\n Completed running the build_run_and_process_results function")
+
+        if REopt_Results == "N/A"
+            @warn "The optimization did not return an optimal solution. Returning the failed model with all other outputs set to \"N/A\"."
+            ComputationTime_EntireModel_Milliseconds, ComputationTime_EntireModel_Minutes = CalculateComputationTime(StartTime_EntireModel)
+            time_results["ComputationTime_EntireModel_Minutes"] = ComputationTime_EntireModel_Minutes
+            return "N/A", pm.model, "N/A", "N/A"
+        end
+
         if Multinode_Inputs.run_outage_simulator
             Outage_Results, single_model_outage_simulator, outage_simulator_time_minutes, outage_simulator_results_for_plotting, outage_survival_results_dictionary, outage_start_timesteps_dictionary = run_outage_simulator(DataDictionaryForEachNode, REopt_inputs_combined, Multinode_Inputs, TimeStamp, LineInfo_PMD, line_upgrade_options_each_line, line_upgrade_results, REoptInputs_Combined)
             time_results["Step $(length(keys(time_results))+1): outage_simulator_time_minutes"] = outage_simulator_time_minutes
@@ -266,9 +274,15 @@ function build_run_and_process_results(Multinode_Inputs, REopt_inputs_combined, 
 
     add_objective(pm, Multinode_Inputs, REoptInputs_Combined)
 
-    results, TerminationStatus = Run_REopt_PMD_Model(pm, Multinode_Inputs)
+    results, TerminationStatus = Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp)
     
     GC.gc()
+
+    if TerminationStatus != "OPTIMAL"
+        @warn "Optimization did not solve to optimality (status: $(TerminationStatus)). Skipping results processing and returning the failed model."
+        return "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", REoptInputs_Combined, data_eng, "Value not saved", pm, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"
+    end
+
     REopt_Results, PMD_Results, DataDictionaryForEachNode, Dictionary_LineFlow_Power_Series, DataFrame_LineFlow_Summary, line_upgrade_results = Results_Processing_REopt_PMD_Model(pm.model, results, data_math_mn, REoptInputs_Combined, Multinode_Inputs, timestamp, time_results; allow_upgrades=allow_upgrades, line_upgrade_options_each_line = line_upgrade_options_each_line, BAU_case=BAU_case)
     
     print("\n Completed the build_run_and_process_results step")
@@ -1692,7 +1706,7 @@ function CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
 end
 
 
-function Run_REopt_PMD_Model(pm, Multinode_Inputs)
+function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
     # This function runs the optimization
     
     m = pm.model
@@ -1703,6 +1717,36 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs)
         @info "Setting attributes for the Xpress solver"
         set_optimizer_attribute(m, "MIPRELSTOP", Multinode_Inputs.optimizer_tolerance)
         set_optimizer_attribute(m, "OUTPUTLOG", Multinode_Inputs.log_solver_output_to_console ? 1 : 0)
+
+        # Save the Xpress log into the per-run timestamped folder created by CreateOutputsFolder.
+        # Use mkpath (idempotent) so this works even when generate_CSV_of_outputs/generate_results_plots
+        # are false (in which case CreateOutputsFolder did not create the folder) and on repeated
+        # solves within the same run (e.g. BAU case).
+        log_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
+                     joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
+        mkpath(log_folder)
+        # Distinguish BAU vs main run logs within the same timestamped folder
+        log_filename = isfile(joinpath(log_folder, "xpress_log.txt")) ? "xpress_log_BAU.txt" : "xpress_log.txt"
+        xpress_log_path = joinpath(log_folder, log_filename)
+
+        # Xpress.jl does NOT expose "LOGFILE" as a MOI RawOptimizerAttribute, so set_optimizer_attribute
+        # will throw MOI.UnsupportedAttribute. The log file has to be set via the Xpress C API on the
+        # inner problem handle (Xpress.setlogfile). We force JuMP to instantiate the backend optimizer
+        # first (so .inner exists), then call Xpress.setlogfile. If anything goes wrong, fall back
+        # quietly to console-only logging.
+        log_file_set = false
+        try
+            JuMP.MOI.Utilities.attach_optimizer(m)
+            xpress_opt = JuMP.unsafe_backend(m)
+            Xpress = Base.require(Main, :Xpress)
+            Xpress.setlogfile(xpress_opt.inner, xpress_log_path)
+            log_file_set = true
+        catch err
+            @warn "Could not configure Xpress LOGFILE via the C API; the log will only appear in the console if log_solver_output_to_console=true. Error: $(err)"
+        end
+        if log_file_set
+            @info "Xpress log will be written to $(xpress_log_path)"
+        end
     elseif string(Multinode_Inputs.optimizer) == "Gurobi.Optimizer"
         @info "Setting attributes for the Gurobi solver"
         set_optimizer_attribute(m, "MIPGap", Multinode_Inputs.optimizer_tolerance)
@@ -1727,39 +1771,66 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs)
     
     TerminationStatus = string(results["termination_status"])
     if TerminationStatus != "OPTIMAL"
-        #=
-        import MathOptInterface as MOI
+        
         model = pm.model
 
-        println("Computing IIS via Xpress (this may take a while)...")
+        solver_name_str = ""
         try
-            MOI.compute_conflict!(JuMP.backend(model))
-        catch err
-            println("compute_conflict! failed: ", err)
+            solver_name_str = lowercase(JuMP.solver_name(model))
+        catch
+            solver_name_str = lowercase(string(Multinode_Inputs.optimizer))
         end
+        iis_supported = occursin("xpress", solver_name_str) || occursin("gurobi", solver_name_str) || occursin("cplex", solver_name_str)
 
-        conflict_status = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
-        println("Conflict status: ", conflict_status)
+        infeasible_statuses = ("INFEASIBLE", "LOCALLY_INFEASIBLE", "INFEASIBLE_OR_UNBOUNDED")
 
-        if conflict_status == MOI.CONFLICT_FOUND
-            open("iis_conflict.txt", "w") do io
-                for (F, S) in JuMP.list_of_constraint_types(model)
-                    for c in JuMP.all_constraints(model, F, S)
-                        st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
-                        if st == MOI.IN_CONFLICT
-                            nm = JuMP.name(c)
-                            println(io, (isempty(nm) ? string(c) : nm))
+        if !(TerminationStatus in infeasible_statuses)
+            println("Termination status is $(TerminationStatus); skipping IIS computation (IIS is only meaningful for infeasible models).")
+        elseif !iis_supported
+            println("Skipping IIS computation: the active solver ($(solver_name_str)) does not support MOI.compute_conflict!. Supported solvers include Xpress, Gurobi, and CPLEX.")
+        else
+            println("Computing IIS via $(solver_name_str) (this may take a while)...")
+            conflict_computed = true
+            try
+                MOI.compute_conflict!(JuMP.backend(model))
+            catch err
+                println("compute_conflict! failed: ", err)
+                conflict_computed = false
+            end
+
+            if conflict_computed
+                conflict_status = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
+                println("Conflict status: ", conflict_status)
+
+                if conflict_status == MOI.CONFLICT_FOUND
+                    iis_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
+                                 joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
+                    mkpath(iis_folder)
+                    iis_filename = isfile(joinpath(iis_folder, "iis_conflict.txt")) ? "iis_conflict_BAU.txt" : "iis_conflict.txt"
+                    iis_path = joinpath(iis_folder, iis_filename)
+                    open(iis_path, "w") do io
+                        # include_variable_in_set_constraints=true so variable bound conflicts (e.g. fix(...) or lower/upper bounds) are reported
+                        for (F, S) in JuMP.list_of_constraint_types(model)
+                            for c in JuMP.all_constraints(model, F, S; include_variable_in_set_constraints = true)
+                                st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
+                                if st == MOI.IN_CONFLICT
+                                    nm = JuMP.name(c)
+                                    label = isempty(nm) ? "<unnamed>" : nm
+                                    # Also write the constraint object so unnamed constraints remain interpretable
+                                    println(io, label, " :: ", c)
+                                end
+                            end
                         end
                     end
+                    println("IIS written to $(iis_path)")
+                else
+                    println("The solver did not return a conflict set.")
                 end
             end
-            println("IIS written to iis_conflict.txt")
-        else
-            println("Xpress did not return a conflict set.")
         end
-        =#
         
-        throw(@error("The termination status of the optimization was"*string(results["termination_status"])))
+        
+        @error("The termination status of the optimization was "*string(results["termination_status"])*". Returning the failed model without further processing.")
     end
         
     return results, TerminationStatus;
