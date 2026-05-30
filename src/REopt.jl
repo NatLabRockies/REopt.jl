@@ -151,6 +151,7 @@ include("core/reopt_inputs.jl")
 include("core/bau_inputs.jl")
 include("core/cost_curve.jl")
 include("core/simulated_load.jl")
+include("core/battery_ssc.jl")
 
 include("constraints/outage_constraints.jl")
 include("constraints/storage_constraints.jl")

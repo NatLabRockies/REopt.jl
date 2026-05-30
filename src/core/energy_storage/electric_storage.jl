@@ -315,8 +315,8 @@ struct ElectricStorage <: AbstractElectricStorage
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
     
-    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int)  
-        set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
+    function ElectricStorage(d::Dict, f::Financial, site::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int)  
+        set_sector_defaults!(d; struct_name="Storage", sector=site.sector, federal_procurement_type=site.federal_procurement_type)
         s = ElectricStorageDefaults(;d...)
 
         if s.inverter_replacement_year >= f.analysis_years
@@ -354,8 +354,40 @@ struct ElectricStorage <: AbstractElectricStorage
         # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
         if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
             @info "Using a SAM dispatch strategy for ElectricStorage: $(dispatch_strategy)"
-            # TODO: Call SAM here?
-            # fixed_soc_series_fraction = SAM output
+            
+            # If a SAM dispatch strategy is specified, pre-populate production_factor_series if not specified by the user
+            if !isempty(pvs)
+                for pv in pvs
+                    if isnothing(pv.production_factor_series)
+                        pv.production_factor_series = get_production_factor(pv, site.latitude, site.longitude;
+                                                                            time_steps_per_hour=time_steps_per_hour)
+                    end
+                end
+            end
+            ssc_battery_response = run_ssc_battery(;
+                batt_kw = s.max_kw,
+                batt_kwh = s.max_kwh,
+                dispatch_strategy = dispatch_strategy,
+                soc_init_fraction = s.soc_init_fraction,
+                soc_min_fraction = s.soc_min_fraction,
+                inverter_efficiency_fraction = s.inverter_efficiency_fraction,
+                rectifier_efficiency_fraction = s.rectifier_efficiency_fraction,
+                internal_efficiency_fraction = s.internal_efficiency_fraction,
+                can_grid_charge = s.can_grid_charge,
+                loads_kw = l.loads_kw,
+                pvs = pvs,
+                time_steps_per_hour = time_steps_per_hour
+            )
+            if ssc_battery_response["error"] != ""
+                throw(@error("SAM battery dispatch failed: $(ssc_battery_response["error"])"))
+            end
+
+            fixed_soc_series_fraction = ssc_battery_response["soc_series_fraction"]
+
+            # print(ssc_battery_response["soc_series_fraction"])
+            # df = DataFrame()
+            # df[!, "sam_soc"] = ssc_battery_response["soc_series_fraction"]
+            # CSV.write("C:/Users/xli1/Documents/REopt/FY26/ITO_fixed_bess_discharge/test_code/outputs/soc_series_fraction.csv", df)
         end
 
         # Copy SOC input in case we need to change them
