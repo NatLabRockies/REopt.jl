@@ -221,12 +221,12 @@ end
 Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
     size_kw::Float64
     size_kwh::Float64
-    charge_efficiency::Float64 =  0.96 * 0.975^2
-    discharge_efficiency::Float64 =  0.96 * 0.975^2
+    charge_efficiency::Float64 =  0.96 * 0.975^0.5
+    discharge_efficiency::Float64 =  0.96 * 0.975^0.5
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
-    grid_charge_efficiency::Float64 = 0.96 * 0.975^2
+    grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.05 : nothing
 end
@@ -235,12 +235,12 @@ end
 Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     size_kw::Float64
     size_kwh::Float64
-    charge_efficiency::Float64 = 0.96 * 0.975^2
-    discharge_efficiency::Float64 = 0.96 * 0.975^2
+    charge_efficiency::Float64 = 0.96 * 0.975^0.5
+    discharge_efficiency::Float64 = 0.96 * 0.975^0.5
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
-    grid_charge_efficiency::Float64 = 0.96 * 0.975^2
+    grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     max_kw::Float64 = size_kw
     max_kwh::Float64 = size_kwh
     minimum_avg_soc_fraction::Float64 = 0.0
