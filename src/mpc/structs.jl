@@ -228,7 +228,7 @@ Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
     can_grid_charge::Bool = true
     can_net_meter::Bool = true
     can_wholesale::Bool = false
-    can_export_beyond_nem_limit = false
+    can_export_beyond_nem_limit::Bool = false
     grid_charge_efficiency::Float64 = 0.96 * 0.975^2
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
@@ -245,7 +245,7 @@ Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     can_grid_charge::Bool = true
     can_net_meter::Bool = true
     can_wholesale::Bool = false
-    can_export_beyond_nem_limit = false
+    can_export_beyond_nem_limit::Bool = false
     grid_charge_efficiency::Float64 = 0.96 * 0.975^2
     max_kw::Float64 = size_kw
     max_kwh::Float64 = size_kwh
