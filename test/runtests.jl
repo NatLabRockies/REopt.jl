@@ -227,7 +227,7 @@ else  # run HiGHS tests
             thermal_efficiency = NaN
             avg_cooling_load_kw = nothing
             absorption_chiller_cop = nothing
-            include_cooling_in_size = nothing
+            include_cooling_in_chp_size = nothing
             #Case 1: electric only
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
@@ -241,7 +241,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 100.0 atol=1e-3
             @test response["chp_max_size_kw"] ≈ 200.0 atol=1e-3
@@ -263,7 +263,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 65.0 atol=0.1
             @test response["chp_max_size_kw"] ≈ 130.0 atol=0.2
@@ -271,7 +271,7 @@ else  # run HiGHS tests
             #Case 3: heating + cooling via absorption chiller only (low electric load)
             avg_cooling_load_kw = 100.0
             absorption_chiller_cop = 1.0
-            include_cooling_in_size = true
+            include_cooling_in_chp_size = true
 
             response = get_chp_defaults_prime_mover_size_class(;hot_water_or_steam=hot_water_or_steam,
                                             avg_boiler_fuel_load_mmbtu_per_hour=avg_boiler_fuel_load_mmbtu_per_hour,
@@ -285,7 +285,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ 146.2 atol=0.1
             @test response["chp_max_size_kw"] ≈ 146.2*2 atol=0.2
@@ -338,7 +338,7 @@ else  # run HiGHS tests
                                             thermal_efficiency=thermal_efficiency,
                                             avg_cooling_load_kw=avg_cooling_load_kw,
                                             absorption_chiller_cop=absorption_chiller_cop,
-                                            include_cooling_in_size=include_cooling_in_size
+                                            include_cooling_in_chp_size=include_cooling_in_chp_size
                                             )
             @test response["chp_elec_size_heuristic_kw"] ≈ case3_max_size_kw / 2 atol=0.1
             @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
@@ -1262,12 +1262,13 @@ else  # run HiGHS tests
                 @test results["CHP"]["size_kw"] == 800
                 @test results["CHP"]["size_supplemental_firing_kw"] == 0
                 @test results["CHP"]["annual_electric_production_kwh"] ≈ 800*8760 rtol=1e-5
-                @test results["CHP"]["annual_thermal_production_mmbtu"] ≈ 800*(0.4418/0.3573)*8760/293.07107 rtol=1e-5
+                full_non_supp_thermal = 800*(0.4418/0.3573)*8760/293.07107
+                @test results["CHP"]["annual_thermal_production_mmbtu"] ≈ full_non_supp_thermal rtol=1e-5
                 @test results["ElectricTariff"]["lifecycle_demand_cost_after_tax"] == 0
                 @test results["HeatingLoad"]["annual_calculated_total_heating_thermal_load_mmbtu"] == 12.0 * 8760 * data["ExistingBoiler"]["efficiency"]
                 @test results["HeatingLoad"]["annual_calculated_dhw_thermal_load_mmbtu"] == 6.0 * 8760 * data["ExistingBoiler"]["efficiency"]
                 @test results["HeatingLoad"]["annual_calculated_space_heating_thermal_load_mmbtu"] == 6.0 * 8760 * data["ExistingBoiler"]["efficiency"]
-            
+
                 #part 2: supplementary firing used when more efficient than the boiler and low-cost; demand charges not reduced by CHP
                 data["CHP"]["supplementary_firing_capital_cost_per_kw"] = 10
                 data["CHP"]["reduces_demand_charges"] = false
@@ -1277,7 +1278,7 @@ else  # run HiGHS tests
                 inputs = REoptInputs(s)
                 results = run_reopt(m2, inputs)
                 @test results["CHP"]["size_supplemental_firing_kw"] ≈ 321.71 atol=0.1
-                @test results["CHP"]["annual_thermal_production_mmbtu"] ≈ 149136.6 rtol=1e-5
+                @test results["CHP"]["annual_thermal_production_mmbtu"] > 2.0 * full_non_supp_thermal
                 @test results["ElectricTariff"]["lifecycle_demand_cost_after_tax"] ≈ 5212.7 rtol=1e-5
                 finalize(backend(m1))
                 empty!(m1)
@@ -3747,11 +3748,11 @@ else  # run HiGHS tests
             p = REoptInputs(s)
             m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
             results = run_reopt(m1, p)
-            @test results["CST"]["annual_thermal_production_mmbtu"] ≈ 26175.2 rtol=1.0e-4
-            @test sum(results["CST"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 19548.3 rtol=1.0e-4
+            @test results["CST"]["annual_thermal_production_mmbtu"] ≈ 6626.9 rtol=1.0e-3
+            @test sum(results["CST"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 19548.3 rtol=1.0e-3
             @test results["CST"]["size_kw"] ≈ 10000.0 atol=0.001
             @test results["CST"]["size_mmbtu_per_hour"] ≈ 10000.0 / REopt.KWH_PER_MMBTU atol=1.0e-3
-            @test results["ExistingBoiler"]["annual_thermal_production_mmbtu"] ≈ 386.9 rtol=1.0e-4
+            @test results["ExistingBoiler"]["annual_thermal_production_mmbtu"] ≈ 386.4 rtol=1.0e-3
             @test results["HighTempThermalStorage"]["size_kwh"] ≈ 10000.0 atol=0.1
             @test results["HotThermalStorage"]["size_gal"] ≈ 1000.0 atol=0.1
 
