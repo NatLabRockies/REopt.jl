@@ -228,9 +228,9 @@ mutable struct MultinodeInputs <: AbstractMultinode
     
     if allow_bus_voltage_violations
         @warn "Setting the per unit phase voltage upper bound, phase voltage lower bound, and neutral voltage upper bound to 10, 0, and 10, respectively, for the PMD inputs because allow_bus_voltage_violations is set to true"
-        bus_phase_voltage_upper_bound_per_unit = 2.5
+        bus_phase_voltage_upper_bound_per_unit = 10.0
         bus_phase_voltage_lower_bound_per_unit = 0.0
-        bus_neutral_voltage_upper_bound_per_unit = 2.5
+        bus_neutral_voltage_upper_bound_per_unit = 10.0
     end
 
     new(

@@ -1747,6 +1747,9 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
         if log_file_set
             @info "Xpress log will be written to $(xpress_log_path)"
         end
+        #print("\n ************************************************ removing the presolve; presolve should be reactivated")
+        #set_optimizer_attribute(m, "PRESOLVE", 0)
+
     elseif string(Multinode_Inputs.optimizer) == "Gurobi.Optimizer"
         @info "Setting attributes for the Gurobi solver"
         set_optimizer_attribute(m, "MIPGap", Multinode_Inputs.optimizer_tolerance)
@@ -1809,9 +1812,12 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
                     iis_filename = isfile(joinpath(iis_folder, "iis_conflict.txt")) ? "iis_conflict_BAU.txt" : "iis_conflict.txt"
                     iis_path = joinpath(iis_folder, iis_filename)
                     open(iis_path, "w") do io
-                        # include_variable_in_set_constraints=true so variable bound conflicts (e.g. fix(...) or lower/upper bounds) are reported
+                        # The typed all_constraints(model, F, S) overload already returns variable-in-set
+                        # constraints (e.g. fix(...) or lower/upper bounds) when F is VariableRef, so no
+                        # kwarg is needed here. The include_variable_in_set_constraints kwarg only applies
+                        # to the untyped all_constraints(model) overload and will throw if passed here.
                         for (F, S) in JuMP.list_of_constraint_types(model)
-                            for c in JuMP.all_constraints(model, F, S; include_variable_in_set_constraints = true)
+                            for c in JuMP.all_constraints(model, F, S)
                                 st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
                                 if st == MOI.IN_CONFLICT
                                     nm = JuMP.name(c)
@@ -2132,3 +2138,27 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
 end
 
 
+# Function to check for commons issues in the model if the model fails to optimize
+function run_diagnostics(model, Multinode_Inputs,  REopt_dictionary)
+
+    diagnostic_report = Dict([])
+
+    # Evaluation 1: Check for single variable contradictions
+    # AI was used to generate the evaluation 1 code
+    bad = []
+    for v in all_variables(model)
+        lb = has_lower_bound(v) ? lower_bound(v) : -Inf
+        ub = has_upper_bound(v) ? upper_bound(v) :  Inf
+        fx = is_fixed(v) ? fix_value(v) : nothing
+        if lb > ub + 1e-9
+            push!(bad, (v, lb, ub, fx, :lb_gt_ub))
+        elseif fx !== nothing && (fx < lb - 1e-9 || fx > ub + 1e-9)
+            push!(bad, (v, lb, ub, fx, :fix_outside_bounds))
+        end
+    end
+    length(bad), first(bad, 20)
+
+    diagnostic_report["single_variable_contradictions"] = bad
+    
+    return diagnostic_report
+end
