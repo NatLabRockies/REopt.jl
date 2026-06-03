@@ -1416,6 +1416,10 @@ else  # run HiGHS tests
             @testset "CHP Production Factor" begin
                 include("test_chp_prodfactor.jl")
             end
+
+            @testset "CHP Existing KW" begin
+                include("test_chp_existing_kw.jl")
+            end
                         
         end
         
