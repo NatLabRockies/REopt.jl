@@ -558,7 +558,7 @@ function cambium_emissions_profile(; scenario::String,
                                     emissions_year::Int=2017
                                     )
 
-    url = "https://scenarioviewer.nrel.gov/api/get-levelized/" # Production 
+    url = "https://scenarioviewer.nlr.gov/api/get-levelized/" # Production 
     project_uuid = "82460f06-548c-4954-b2d9-b84ba92d63e2" # Cambium 2022 
 
     payload=Dict(

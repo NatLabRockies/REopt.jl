@@ -462,7 +462,7 @@ function call_pvwatts_api(latitude::Real, longitude::Real; tilt=latitude, azimut
     # Determine resource dataset to use for this location
     dataset, dist_meters, datasource  = call_solar_dataset_api(latitude, longitude, radius)
 
-    url = string("https://developer.nrel.gov/api/pvwatts/v8.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("https://developer.nlr.gov/api/pvwatts/v8.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
         "&lat=", latitude , "&lon=", longitude, "&tilt=", tilt,
         "&system_capacity=1", "&azimuth=", azimuth, "&module_type=", module_type,
         "&array_type=", array_type, "&losses=", losses, "&dc_ac_ratio=", dc_ac_ratio,
