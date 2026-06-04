@@ -28,12 +28,15 @@ r_existing = run_reopt(m_existing, p_existing)
 
 size_total = r_existing["CHP"]["size_kw"]
 new_purchase = size_total - input_existing["CHP"]["existing_kw"]
+expected_existing_chp_capex = REopt.get_tech_initial_capex(s_existing.chps[1], new_purchase) +
+	s_existing.chps[1].supplementary_firing_capital_cost_per_kw * r_existing["CHP"]["size_supplemental_firing_kw"]
 
 # Technical feasibility checks
 @test new_purchase <= input_existing["CHP"]["max_kw"] + 1e-3
 @test size_total <= input_existing["CHP"]["existing_kw"] + input_existing["CHP"]["max_kw"] + 1e-3
 
 # Financial consistency check: existing CHP should not be charged as new CHP capex
+@test r_existing["CHP"]["initial_capital_costs"] ≈ expected_existing_chp_capex atol=1e-2
 @test r_existing["CHP"]["initial_capital_costs"] < r_base["CHP"]["initial_capital_costs"]
 @test r_existing["Financial"]["initial_capital_costs"] < r_base["Financial"]["initial_capital_costs"]
 
