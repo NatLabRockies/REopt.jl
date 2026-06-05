@@ -25,6 +25,11 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## v0.59.2
+### Fixed
+- Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
+- Zeroed out arbitrary non-zero `thermal_to_load` results
+
 ## v0.59.1
 ### Fixed
 - `constraints/thermal_tech_constraints.jl`: In `add_heating_tech_constraints`, updated waste heat constraints to include **dvHeatToAbsorptionChiller** in the total heat output, so that `dvProductionToWaste + dvHeatToAbsorptionChiller <= dvHeatingProduction`. Previously, heat dispatched to the absorption chiller was unconstrained by total production.
