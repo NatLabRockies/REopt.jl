@@ -1747,8 +1747,11 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
         if log_file_set
             @info "Xpress log will be written to $(xpress_log_path)"
         end
-        #print("\n ************************************************ removing the presolve; presolve should be reactivated")
-        #set_optimizer_attribute(m, "PRESOLVE", 0)
+        
+        if Multinode_Inputs.run_Xpress_model_presolve == false
+            print("\n Removing the presolve step because Multinode_Inputs.run_Xpress_model_presolve was set to false")
+            set_optimizer_attribute(m, "PRESOLVE", 0)
+        end
 
     elseif string(Multinode_Inputs.optimizer) == "Gurobi.Optimizer"
         @info "Setting attributes for the Gurobi solver"
@@ -1774,69 +1777,69 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
     
     TerminationStatus = string(results["termination_status"])
     if TerminationStatus != "OPTIMAL"
-        
-        model = pm.model
+        if Multinode_Inputs.run_IIS_on_nonoptimal_models
+            model = pm.model
 
-        solver_name_str = ""
-        try
-            solver_name_str = lowercase(JuMP.solver_name(model))
-        catch
-            solver_name_str = lowercase(string(Multinode_Inputs.optimizer))
-        end
-        iis_supported = occursin("xpress", solver_name_str) || occursin("gurobi", solver_name_str) || occursin("cplex", solver_name_str)
-
-        infeasible_statuses = ("INFEASIBLE", "LOCALLY_INFEASIBLE", "INFEASIBLE_OR_UNBOUNDED")
-
-        if !(TerminationStatus in infeasible_statuses)
-            println("Termination status is $(TerminationStatus); skipping IIS computation (IIS is only meaningful for infeasible models).")
-        elseif !iis_supported
-            println("Skipping IIS computation: the active solver ($(solver_name_str)) does not support MOI.compute_conflict!. Supported solvers include Xpress, Gurobi, and CPLEX.")
-        else
-            println("Computing IIS via $(solver_name_str) (this may take a while)...")
-            conflict_computed = true
+            solver_name_str = ""
             try
-                MOI.compute_conflict!(JuMP.backend(model))
-            catch err
-                println("compute_conflict! failed: ", err)
-                conflict_computed = false
+                solver_name_str = lowercase(JuMP.solver_name(model))
+            catch
+                solver_name_str = lowercase(string(Multinode_Inputs.optimizer))
             end
+            iis_supported = occursin("xpress", solver_name_str) || occursin("gurobi", solver_name_str) || occursin("cplex", solver_name_str)
 
-            if conflict_computed
-                conflict_status = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
-                println("Conflict status: ", conflict_status)
+            infeasible_statuses = ("INFEASIBLE", "LOCALLY_INFEASIBLE", "INFEASIBLE_OR_UNBOUNDED")
 
-                if conflict_status == MOI.CONFLICT_FOUND
-                    iis_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
-                                 joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
-                    mkpath(iis_folder)
-                    iis_filename = isfile(joinpath(iis_folder, "iis_conflict.txt")) ? "iis_conflict_BAU.txt" : "iis_conflict.txt"
-                    iis_path = joinpath(iis_folder, iis_filename)
-                    open(iis_path, "w") do io
-                        # The typed all_constraints(model, F, S) overload already returns variable-in-set
-                        # constraints (e.g. fix(...) or lower/upper bounds) when F is VariableRef, so no
-                        # kwarg is needed here. The include_variable_in_set_constraints kwarg only applies
-                        # to the untyped all_constraints(model) overload and will throw if passed here.
-                        for (F, S) in JuMP.list_of_constraint_types(model)
-                            for c in JuMP.all_constraints(model, F, S)
-                                st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
-                                if st == MOI.IN_CONFLICT
-                                    nm = JuMP.name(c)
-                                    label = isempty(nm) ? "<unnamed>" : nm
-                                    # Also write the constraint object so unnamed constraints remain interpretable
-                                    println(io, label, " :: ", c)
+            if !(TerminationStatus in infeasible_statuses)
+                println("Termination status is $(TerminationStatus); skipping IIS computation (IIS is only meaningful for infeasible models).")
+            elseif !iis_supported
+                println("Skipping IIS computation: the active solver ($(solver_name_str)) does not support MOI.compute_conflict!. Supported solvers include Xpress, Gurobi, and CPLEX.")
+            else
+                println("Computing IIS via $(solver_name_str) (this may take a while)...")
+                conflict_computed = true
+                try
+                    MOI.compute_conflict!(JuMP.backend(model))
+                catch err
+                    println("compute_conflict! failed: ", err)
+                    conflict_computed = false
+                end
+
+                if conflict_computed
+                    conflict_status = MOI.get(JuMP.backend(model), MOI.ConflictStatus())
+                    println("Conflict status: ", conflict_status)
+
+                    if conflict_status == MOI.CONFLICT_FOUND
+                        iis_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
+                                    joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
+                        mkpath(iis_folder)
+                        iis_filename = isfile(joinpath(iis_folder, "iis_conflict.txt")) ? "iis_conflict_BAU.txt" : "iis_conflict.txt"
+                        iis_path = joinpath(iis_folder, iis_filename)
+                        open(iis_path, "w") do io
+                            # The typed all_constraints(model, F, S) overload already returns variable-in-set
+                            # constraints (e.g. fix(...) or lower/upper bounds) when F is VariableRef, so no
+                            # kwarg is needed here. The include_variable_in_set_constraints kwarg only applies
+                            # to the untyped all_constraints(model) overload and will throw if passed here.
+                            for (F, S) in JuMP.list_of_constraint_types(model)
+                                for c in JuMP.all_constraints(model, F, S)
+                                    st = MOI.get(model, MOI.ConstraintConflictStatus(), c)
+                                    if st == MOI.IN_CONFLICT
+                                        nm = JuMP.name(c)
+                                        label = isempty(nm) ? "<unnamed>" : nm
+                                        # Also write the constraint object so unnamed constraints remain interpretable
+                                        println(io, label, " :: ", c)
+                                    end
                                 end
                             end
                         end
+                        println("IIS written to $(iis_path)")
+                    else
+                        println("The solver did not return a conflict set.")
                     end
-                    println("IIS written to $(iis_path)")
-                else
-                    println("The solver did not return a conflict set.")
                 end
             end
         end
         
-        
-        @error("The termination status of the optimization was "*string(results["termination_status"])*". Returning the failed model without further processing.")
+        @warn("The termination status of the optimization was "*string(results["termination_status"])*". Returning the failed model without further processing.")
     end
         
     return results, TerminationStatus;

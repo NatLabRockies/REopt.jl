@@ -62,6 +62,7 @@
     
     display_information_during_modeling_run::Bool=false, # This can be helpful for debugging a model
     include_additional_outputs_into_the_combined_results_dictionary::Bool=false,
+    
     fault_analysis::Dict=Dict(),
     allow_bus_voltage_violations::Bool=false,
     bus_per_unit_voltage_target_upper_bound::Real=1.05,
@@ -69,6 +70,8 @@
     cost_per_voltage_violation_per_timestep::Real=1000,
     allow_dropped_load_in_main_optimization::Bool=false,
     cost_per_kwh_dropped_load::Real=100,
+    run_Xpress_model_presolve::Bool=true,  
+    run_IIS_on_nonoptimal_models::Bool=false
     
 """
 
@@ -133,6 +136,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
     cost_per_voltage_violation_per_timestep
     allow_dropped_load_in_main_optimization
     cost_per_kwh_dropped_load
+    run_Xpress_model_presolve  
+    run_IIS_on_nonoptimal_models
     load_profiles_for_outage_sim_if_using_the_fraction_method
 
     function MultinodeInputs(;
@@ -196,6 +201,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
         cost_per_voltage_violation_per_timestep::Real=1000,
         allow_dropped_load_in_main_optimization::Bool=false,
         cost_per_kwh_dropped_load::Real=100,
+        run_Xpress_model_presolve::Bool=true,  
+        run_IIS_on_nonoptimal_models::Bool=false,
         load_profiles_for_outage_sim_if_using_the_fraction_method::Array=[]
         )
     
@@ -294,10 +301,11 @@ mutable struct MultinodeInputs <: AbstractMultinode
         cost_per_voltage_violation_per_timestep,
         allow_dropped_load_in_main_optimization,
         cost_per_kwh_dropped_load,
+        run_Xpress_model_presolve,  
+        run_IIS_on_nonoptimal_models,
         load_profiles_for_outage_sim_if_using_the_fraction_method
     )
    
     end
 end
-
 
