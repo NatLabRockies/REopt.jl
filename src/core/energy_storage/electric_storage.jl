@@ -320,6 +320,10 @@ struct ElectricStorage <: AbstractElectricStorage
             @warn "Battery replacement costs (per_kwh) will not be considered because battery_replacement_year is greater than or equal to analysis_years."
         end
 
+        if !s.include_exported_renewable_electricity_in_total && (stor.can_net_meter || stor.can_wholesale)
+            @warn "include_exported_renewable_electricity_in_total = false, but ElectricStorage can_net_meter or can_wholesale is true. REopt's calculation of onsite renewable electricity does not currently accurately account for exported renewable electricity via the battery and will thus overestimate onsite renewable electricity."
+        end
+``
         can_net_meter = stor.can_net_meter
         can_wholesale = stor.can_wholesale
         can_export_beyond_nem_limit = stor.can_export_beyond_nem_limit  
