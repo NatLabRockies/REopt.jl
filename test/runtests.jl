@@ -3672,7 +3672,7 @@ else  # run HiGHS tests
                 @test results["Electrolyzer"]["size_kw"] ≈ flat_h2_load_kg * d["Electrolyzer"]["efficiency_kwh_per_kg"] atol=1e-3
                 @test results["Compressor"]["size_kw"] ≈ flat_h2_load_kg * d["Compressor"]["efficiency_kwh_per_kg"] atol=1e-3
                 # TO-DO: This is currently 2x the load - what should it be?
-                @test results["HydrogenStorage"]["size_kg"] ≈ 2 * flat_h2_load_kg atol=1e-3
+                @test results["HydrogenStorage"]["size_kg"] ≈ 2 * flat_h2_load_kg atol=1e-3 #because starting SOC is 0.5 and needs to serve H2 load in first time step
 
                 @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["ElectricUtility"]["electric_to_electrolyzer_series_kw"]) atol=1e-3
                 @test results["Electrolyzer"]["size_kw"] ≈ maximum(results["Electrolyzer"]["electricity_consumed_series_kw"]) atol=1e-3
