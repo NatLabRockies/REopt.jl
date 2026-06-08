@@ -4,6 +4,7 @@ function add_export_constraints(m, p; _n="")
     ## Imports and Exports must be no greater than the transmission limit
     m[Symbol("ImportExportLimitCon"*_n)] = @constraint(m, [ts in p.time_steps_with_grid],
     sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+        + sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
         + sum(sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers))
         <= p.s.electric_utility.transmission_limit_kw
     )
