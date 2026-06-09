@@ -198,6 +198,12 @@ function add_export_constraints(m, p; _n="")
                     }
                 )
                 @constraint(m, !binWHL => {WHL_benefit >= 0})
+                @constraint(m, [ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:WHL]],
+                    !binWHL => {m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] == 0}
+                )
+                @constraint(m, [ts in p.time_steps_with_grid, b in p.storage_by_exportbin[:WHL]],
+                    !binWHL => {m[Symbol("dvStorageToGrid"*_n)][b, :WHL, ts] == 0}
+                )
             else
                 @constraint(m,
                     WHL_benefit >= p.pwf_e * p.hours_per_time_step *
@@ -208,6 +214,12 @@ function add_export_constraints(m, p; _n="")
                         )
                 )
                 @constraint(m, WHL_benefit >= max_bene * binWHL)
+                @constraint(m, [ts in p.time_steps_with_grid, t in p.techs_by_exportbin[:WHL]],
+                    m[Symbol("dvProductionToGrid"*_n)][t, :WHL, ts] <= binWHL * sum(p.s.electric_load.loads_kw)
+                )
+                @constraint(m, [ts in p.time_steps_with_grid, b in p.storage_by_exportbin[:WHL]],
+                    m[Symbol("dvStorageToGrid"*_n)][b, :WHL, ts] <= binWHL * sum(p.s.electric_load.loads_kw)
+                )
             end
         end
     end
