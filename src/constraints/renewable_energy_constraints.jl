@@ -79,7 +79,7 @@ function add_re_elec_calcs(m,p)
 			)
 			# TODO: battery can now discharge to the grid, but this export is not yet accounted for in the RE calculation. 
 			# 	This is only relevant if include_exported_renewable_electricity_in_total = false. If false, the 
-			# 	battery could become a "back door" for export of RE to the grid since it's not subtracted here. Will require tracking of RE in BESS. 
+			# 	battery could become a "back door" for export of RE to the grid since it's not subtracted here. Will require tracking of onsite vs grid RE in BESS. 
 		)
 		# + SteamTurbineAnnualREEleckWh  # SteamTurbine RE Elec, already adjusted for p.hours_per_time_step
 	)		
@@ -94,9 +94,7 @@ function add_re_elec_calcs(m,p)
 				for ts in p.time_steps, b in p.s.storage.types.elec
 			)
 			# TODO: battery can now discharge to the grid, but this export is not yet accounted for in the RE calculation.
-			# 	Need to subtract out *grid RE* discharged from battery back to grid so that loop doesn't become a back door for increasing RE. This will require some careful thought!
-
-			# TODO: Should this subtract out exported energy * renewable_energy_fraction_series? 
+			# 	Need to subtract out *grid RE* discharged from battery back to grid so that loop doesn't become a back door for increasing RE. Will require tracking of onsite vs grid RE in BESS.
 		) 
 	)
 
