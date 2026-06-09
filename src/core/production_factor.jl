@@ -140,7 +140,14 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
 
     try        
         if Sys.isapple() 
-            libfile = "libssc.dylib"
+            if Sys.ARCH == :aarch64
+                libfile = "libssc_arm.dylib"
+            elseif Sys.ARCH == :x86_64
+                libfile = "libssc.dylib"
+            else
+                throw(@error("Unsupported platform for using the SAM Wind module. 
+                      You can alternatively provide the Wind `production_factor_series`"))
+            end
         elseif Sys.islinux()
             libfile = "libssc.so"
         elseif Sys.iswindows()
