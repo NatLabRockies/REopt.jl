@@ -1023,8 +1023,59 @@ else  # run HiGHS tests
             empty!(m)
             GC.gc()
             
-            # Case 4: ElectricStorage can net meter
-            #TODO: add
+            # Case 4: ElectricStorage can net meter and energy rate is lower during PV production
+            # expect battery to do energy arbitrage and NEM export during higher rate
+            d = JSON.parsefile("./scenarios/bess_export.json")
+            d["ElectricStorage"]["min_kw"] = 50
+            d["ElectricStorage"]["max_kw"] = 50
+            d["ElectricStorage"]["min_kwh"] = 50*6
+            d["ElectricStorage"]["max_kwh"] = 50*6
+            d["ElectricTariff"]["tou_energy_rates_per_kwh"] = repeat([0.5, 0.1, 0.5], inner=8, outer=365)
+            p = REoptInputs(d)
+            for exbin in [:WHL, :NEM]
+                @test exbin in p.export_bins_by_storage["ElectricStorage"]
+            end
+            @test !(:EXC in p.export_bins_by_storage["ElectricStorage"])
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02))
+            results = run_reopt(m, p)
+            @test sum(results["ElectricStorage"]["storage_to_grid_series_kw"]) > 0
+            @test all(x == 0.0 for (i,x) in enumerate(results["ElectricStorage"]["storage_to_grid_series_kw"]) if 8 < i % 24 < 17)
+            @test value(m[:NEM_benefit]) <= 0
+            @test value(m[:WHL_benefit]) ≈ 0.0 atol=1e-5
+            @test value(m[:EXC_benefit]) ≈ 0.0 atol=1e-5
+            @test results["ElectricTariff"]["year_one_export_benefit_before_tax"] >= 0
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+            
+            # Case 5: ElectricStorage wholesale 
+            d["ElectricUtility"]["net_metering_limit_kw"] = 0 
+            # Set wholesale rate to 0.01 from 6am-8pm and 0.15 otherwise; repeat array for 1 year
+            wholesale_rate = [6 <= hour < 20 ? 0.01 : 0.15 for hour in 0:23]
+            d["ElectricTariff"]["wholesale_rate"] = repeat(wholesale_rate, 365)
+            d["ElectricTariff"]["blended_annual_energy_rate"] = 0.18
+            d["ElectricTariff"]["blended_annual_demand_rate"] = 0.0
+
+            # Fix sizes
+            d["PV"]["min_kw"] = 200
+            d["PV"]["max_kw"] = 200
+            d["ElectricStorage"]["min_kw"] = 50
+            d["ElectricStorage"]["max_kw"] = 50
+            d["ElectricStorage"]["min_kwh"] = 200
+            d["ElectricStorage"]["max_kwh"] = 200
+
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, d)
+
+            @test sum(results["ElectricStorage"]["storage_to_grid_series_kw"]) > 0
+            @test value(m[:NEM_benefit]) ≈ 0.0 atol=1e-5
+            @test value(m[:WHL_benefit]) <= 0
+            @test value(m[:EXC_benefit]) ≈ 0.0 atol=1e-5
+            @test results["ElectricTariff"]["year_one_export_benefit_before_tax"] >= 0
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+
         end
 
         @testset "Heating loads and addressable load fraction" begin
