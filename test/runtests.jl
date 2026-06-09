@@ -344,7 +344,6 @@ else  # run HiGHS tests
             @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
         end
         @testset "January Export Rates" begin
-            model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             data = JSON.parsefile("./scenarios/monthly_rate.json")
 
             # 1) create wholesale_rate with compensation in January > retail rate

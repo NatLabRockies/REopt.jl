@@ -27,7 +27,8 @@ Classify the change according to the following categories:
 
 ## bess-export
 ### Added 
-- Add decision variable **dvStorageToGrid** and **ElectricStorage** input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`
+- Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
+- Add result **ElectricStorage** `storage_to_grid_series_kw`  
  
 ## v0.59.2
 ### Fixed

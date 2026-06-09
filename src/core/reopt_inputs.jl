@@ -1304,6 +1304,7 @@ function fillin_techs_by_exportbin(techs_by_exportbin::Dict, tech::AbstractTech,
 end
 
 function fillin_storage_by_exportbin(s::AbstractScenario, storage_by_exportbin::Dict, b::String)
+    # TODO: Consider modifying this function's args to align with fillin_techs_by_exportbin (passing in storage struct instead of scenario)
     if s.storage.attr[b].can_net_meter && :NEM in keys(storage_by_exportbin)
         push!(storage_by_exportbin[:NEM], b)
         if s.storage.attr[b].can_export_beyond_nem_limit && :EXC in keys(storage_by_exportbin)
