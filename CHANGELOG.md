@@ -25,15 +25,38 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## fixed-bess-soc
+## v0.59.2
+### Fixed
+- Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
+- Zeroed out arbitrary non-zero `thermal_to_load` results
+
+## v0.59.1
+### Fixed
+- `constraints/thermal_tech_constraints.jl`: In `add_heating_tech_constraints`, updated waste heat constraints to include **dvHeatToAbsorptionChiller** in the total heat output, so that `dvProductionToWaste + dvHeatToAbsorptionChiller <= dvHeatingProduction`. Previously, heat dispatched to the absorption chiller was unconstrained by total production.
+- `core/techs.jl`: In `Techs(s::Scenario)`, prevented zeroing out `can_serve_dhw`, `can_serve_space_heating`, and `can_serve_process_heat` technology lists when the corresponding direct load is zero, if an **AbsorptionChiller** is using that heating quality as its heat source. This ensures heating technologies remain available to supply heat to the absorption chiller even when no direct heating load exists.
+### Changed
+- Renamed argument `include_cooling_in_chp_size` to `include_cooling_in_chp_size` within a few methods in `CHP`
+
+## v0.59.0
 ### Added
+- Added two new size classes for **SteamTurbine** tech with new tech size ranges.
 - Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
 ### Changed
 - **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+- Updated **CHP.installed_cost_per_kw** and **CHP.om_cost_per_kwh** default values for size classes for recip_engine, combustion turbine, and microturbine prime mover types.
+- Updated default values for **SteamTurbine** size classes.
+- Reduced the number of size classes in **AbsorptionChiller** technology to five for single effect and four for double effect and updated installed and O&M costs accordingly.
 
-## develop
+## v0.58.2
 ### Added
 - **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
+  
+### Changed
+- Refactored some results expressions so that `value.` isn't called within them.
+
+### Fixed
+- Fixed an error creating results for flows from hot TES to the steam turbine.
+- Fixed an bug preventing `include_cooling_in_chp_size` from being included in CHP inputs.
 
 ## v0.58.1 
 ### Fixed
@@ -48,13 +71,11 @@ Classify the change according to the following categories:
 
 ### Changed
 - Updated heating dispatch results by separating heat flows to absorption chiller from heating load served (formerly, these were aggregated).
+- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
 
 ### Fixed
 - Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
 - Fixed a bug in which the storage to steam turbine flow was included in the thermal heating load served.
-
-### Changed
-- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
 
 ## v0.57.0
 ### Fixed
