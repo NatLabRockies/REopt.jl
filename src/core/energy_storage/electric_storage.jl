@@ -333,20 +333,20 @@ struct ElectricStorage <: AbstractElectricStorage
 
         # Dispatch validation
         valid_dispatch_strategies = ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"]
-        dispatch_strategy = s.dispatch_strategy
+        dispatch_strategy = stor.dispatch_strategy
         if !(dispatch_strategy in valid_dispatch_strategies)
             throw(@error("ElectricStorage dispatch_strategy must be one of the following: $(valid_dispatch_strategies)"))
         end
-        if dispatch_strategy == "custom_soc" && isnothing(s.fixed_soc_series_fraction)
+        if dispatch_strategy == "custom_soc" && isnothing(stor.fixed_soc_series_fraction)
             throw(@error("ElectricStorage fixed_soc_series_fraction must be provided when dispatch_strategy is custom_soc."))
         end
-        if dispatch_strategy != "custom_soc" && !isnothing(s.fixed_soc_series_fraction)
+        if dispatch_strategy != "custom_soc" && !isnothing(stor.fixed_soc_series_fraction)
             @warn "Updating ElectricStorage dispatch_strategy to custom_soc since fixed_soc_series_fraction is provided."
             dispatch_strategy = "custom_soc"
         end
         requires_fixed_sizing = ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
         # TODO: Add checks on PV sizing
-        if dispatch_strategy in requires_fixed_sizing && (s.min_kw != s.max_kw || s.min_kwh != s.max_kwh || s.max_kw == 0 || s.max_kwh == 0)
+        if dispatch_strategy in requires_fixed_sizing && (stor.min_kw != stor.max_kw || stor.min_kwh != stor.max_kwh || stor.max_kw == 0 || stor.max_kwh == 0)
             throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
         
@@ -365,15 +365,15 @@ struct ElectricStorage <: AbstractElectricStorage
                 end
             end
             ssc_battery_response = run_ssc_battery(;
-                batt_kw = s.max_kw,
-                batt_kwh = s.max_kwh,
+                batt_kw = stor.max_kw,
+                batt_kwh = stor.max_kwh,
                 dispatch_strategy = dispatch_strategy,
-                soc_init_fraction = s.soc_init_fraction,
-                soc_min_fraction = s.soc_min_fraction,
-                inverter_efficiency_fraction = s.inverter_efficiency_fraction,
-                rectifier_efficiency_fraction = s.rectifier_efficiency_fraction,
-                internal_efficiency_fraction = s.internal_efficiency_fraction,
-                can_grid_charge = s.can_grid_charge,
+                soc_init_fraction = stor.soc_init_fraction,
+                soc_min_fraction = stor.soc_min_fraction,
+                inverter_efficiency_fraction = stor.inverter_efficiency_fraction,
+                rectifier_efficiency_fraction = stor.rectifier_efficiency_fraction,
+                internal_efficiency_fraction = stor.internal_efficiency_fraction,
+                can_grid_charge = stor.can_grid_charge,
                 loads_kw = l.loads_kw,
                 pvs = pvs,
                 time_steps_per_hour = time_steps_per_hour
