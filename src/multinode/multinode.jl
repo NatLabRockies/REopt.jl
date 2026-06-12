@@ -985,6 +985,32 @@ function CreateDictionaryOfNodeConnections(Multinode_Inputs, data_eng)
         connections_upstream_lines[bus] = upstream_lines_temp
     end
 
+    #Start of code segment created by AI
+    # --- Repair phantom-edge orientation -------------------------------------
+    # The phase-agnostic BFS in DeterminePathToSourcebus can classify some real
+    # tree edges as non-tree (because the union graph over all phases has
+    # shortcuts that don't exist on any individual phase). Such lines end up in
+    # both endpoints' downstream lists and zero upstream lists, which makes
+    # their dvPline a free degree of freedom and breaks power balance on
+    # simple-PF timesteps. Re-orient each such line so it appears in exactly
+    # one bus's upstream list and one bus's downstream list (closer-to-source
+    # bus becomes the "from" end).
+    for ln in all_lines_including_transformers_converted_to_lines
+        in_up = [b for (b, lns) in connections_upstream_lines   if ln in lns]
+        in_dn = [b for (b, lns) in connections_downstream_lines if ln in lns]
+        if length(in_up) == 0 && length(in_dn) == 2
+            bus_a, bus_b = in_dn
+            d_a = get(summed_lengths_to_sourcebus_dict, bus_a, Inf)
+            d_b = get(summed_lengths_to_sourcebus_dict, bus_b, Inf)
+            from_bus, to_bus = d_a <= d_b ? (bus_a, bus_b) : (bus_b, bus_a)
+            filter!(x -> x != ln, connections_downstream_lines[to_bus])
+            push!(get!(connections_upstream_lines, to_bus, []), ln)
+            @info "Phantom-edge repair: line $ln re-oriented as $from_bus -> $to_bus"
+        end
+    end
+    # --------------------------------------------------------------------------
+    # End of code segment created by AI
+
     all_connections_lines_to_busses = merge(connections_downstream_lines, connections_upstream_lines) do a, b
                                             vcat(a, b)
                                         end
@@ -1256,10 +1282,30 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
         bus_connections = connections[bus]
         
         if bus == Multinode_Inputs.substation_node
-            #print("\n Adding constraint for substation bus $(bus)")
-            # TODO: does this constraint need to exist?
-            #@constraint(m, [t in indeces], m[:dvP][bus, t] - sum(m[:dvPline][line, t] for line in connections_downstream[string(bus)]) == 0)
-
+            # Start of section of code created by AI
+            # KCL at the substation bus, with dvP[substation, phase] retained as
+            # a free slack variable representing the source injection from the
+            # grid. Same form as the REopt-bus KCL below, but no linkage to
+            # GP/Export: dvP[sub, ph] + Σ upstream - Σ downstream = 0.
+            # dvP[sub, ph] is otherwise unconstrained (declared in all_busses).
+            Multinode_Inputs.display_information_during_modeling_run ? print("\n Adding KCL for substation bus $(bus)") : nothing
+            for phase in phases_for_each_bus[bus]
+                connections_upstream_of_same_phase = []
+                for line in get(connections_upstream, string(bus), [])
+                    if phase in phases_for_each_line[line]
+                        push!(connections_upstream_of_same_phase, line)
+                    end
+                end
+                connections_downstream_of_same_phase = []
+                for line in get(connections_downstream, string(bus), [])
+                    if phase in phases_for_each_line[line]
+                        push!(connections_downstream_of_same_phase, line)
+                    end
+                end
+                @constraint(m, [t in indeces], m[:dvP][bus, phase, t] + sum(m[:dvPline][line, phase, t] for line in connections_upstream_of_same_phase; init=0) - sum(m[:dvPline][line, phase, t] for line in connections_downstream_of_same_phase; init=0) == 0)
+            end
+            # End of code segment created by AI
+            
         elseif bus in REopt_nodes # parse(Int, bus) in REopt_nodes  # for buses that have an associated REopt node
             Multinode_Inputs.display_information_during_modeling_run ? print("\n Adding constraint for REopt bus $(bus):") : nothing
             if length(connections_downstream[bus]) > 0
