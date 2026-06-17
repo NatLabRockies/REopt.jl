@@ -459,7 +459,7 @@ function SetTechSizesToZero(Multinode_Settings)
         if string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != Multinode_Settings["facilitymeter_node"]
             Multinode_Settings_No_Techs["REopt_inputs_list"][i]["ElectricUtility"]["net_metering_limit_kw"] = 0
             Multinode_Settings_No_Techs["REopt_inputs_list"][i]["ElectricUtility"]["interconnection_limit_kw"] = 0
-            Multinode_Settings_No_Techs["REopt_inputs_list"][i]["PV"]["can_net_meter"] = false
+            #Multinode_Settings_No_Techs["REopt_inputs_list"][i]["PV"]["can_net_meter"] = false
         end
     end
     
