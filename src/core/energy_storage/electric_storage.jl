@@ -212,9 +212,9 @@ end
 !!! note "Dispatch Strategy Options"
 	The following dispatch strategies are available via the `dispatch_strategy` input:
     - `optimized`: Storage dispatch is optimized to minimize the total lifecycle cost of energy for the site. The model has perfect foresight into loads and modeled variable generation potential over the entire year. 
-    - `peak_shaving_look_ahead`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look-ahead (perfect prediction) of load and solar resource. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) 
-    - `peak_shaving_look_behind`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look behind for the load and solar resource to introduce forecast uncertainty. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values) 
-    - `self_consumption`: Uses SAM's Self-Consumption dispatch heuristic to maximize the onsite use of PV generation. To use this option, users MUST specify BESS (and PV if included) sizing (by setting min and max values)
+    - `peak_shaving_look_ahead`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look-ahead (perfect prediction) of load and solar resource. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `peak_shaving_look_behind`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look behind for the load and solar resource to introduce forecast uncertainty. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `self_consumption`: Uses SAM's Self-Consumption dispatch heuristic to maximize the onsite use of PV generation. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values)
     - `backup`: Storage is reserved to meet load during grid outages by changing the default soc_min_fraction to 0.8.
     - `daily_foresight_optimized`: This option is only available via the REopt API (not available in REopt.jl)
     - `custom_soc`: User must provide a fixed_soc_series_fraction and can optionally tailor the fixed_soc_series_fraction_tolerance. 
