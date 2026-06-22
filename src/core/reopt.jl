@@ -630,7 +630,13 @@ function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organ
         if k > 1
             pv_k = pvs_by_priority[k]
             z = @variable(m, binary=true, base_name="z_priority_stage_$(k)")
-            big_m_k = max(pv_k.max_kw - pv_k.existing_kw, 0.0)
+            # Use the model-enforced upper bound from setup_pv_inputs (already tightened by
+            # site.roof_squarefeet / site.land_acres when available) instead of the raw
+            # pv.max_kw field, which defaults to 1e9 and would yield a loose big-M.
+            big_m_k = max(p.max_sizes[pv_k.name] - pv_k.existing_kw, 0.0)
+            if big_m_k >= 1.0e6
+                @warn "PV \"$(pv_k.name)\" priority big-M is $(big_m_k) kW. Set `max_kw`, `site.roof_squarefeet`, or `site.land_acres` to tighten it."
+            end
             @constraint(m, m[:dvSize][pv_k.name] - pv_k.existing_kw <= big_m_k * z)
             for j in 1:(k-1)
                 pv_j = pvs_by_priority[j]

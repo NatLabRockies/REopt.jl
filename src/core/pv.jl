@@ -687,8 +687,11 @@ Behavior:
   PVs have `priority` set; prioritization is then disabled for the run.
 - Throws an `ErrorException` if all PVs have `priority` set but the values contain a
   duplicate (tie) or do not form the contiguous set 1..N (gap or out-of-range value).
-- Emits a `@warn` if any priority PV uses the default `max_kw == 1e9`, since the staged
-  big-M relaxation is loose without a realistic upper bound.
+
+Note: big-M tightness for the staged priority relaxation is checked later in
+`run_reopt_with_pv_priority`, where the per-PV upper bound (`p.max_sizes[pv.name]`)
+is available — that bound already reflects `site.roof_squarefeet` /
+`site.land_acres` derived caps from `setup_pv_inputs`.
 """
 function validate_pv_priorities!(pvs::AbstractVector{PV})
     length(pvs) < 2 && return nothing
@@ -712,12 +715,6 @@ function validate_pv_priorities!(pvs::AbstractVector{PV})
     end
     if sort(priorities) != collect(1:n)
         throw(ErrorException("PV `priority` values must form the contiguous set 1..$(n) (no gaps, starting at 1); got $(priorities)."))
-    end
-
-    for pv in pvs
-        if pv.max_kw >= 1.0e9
-            @warn "PV \"$(pv.name)\" uses `priority` but has the default `max_kw` of 1e9. Set a realistic `max_kw` so the staged-priority big-M relaxation stays tight."
-        end
     end
 
     return nothing
