@@ -49,11 +49,21 @@
     use_detailed_cost_curve::Bool = false, # Use detailed cost curve instead of average cost
     electric_load_annual_kwh::Real = 0.0, # Annual electric load (kWh) for size class determination
     site_land_acres::Union{Real, Nothing} = nothing,  # site.land_acres to determine size_class if space constraineed
-    site_roof_squarefeet::Union{Real, Nothing} = nothing  # site.roof_squarefeet to determine size_class if space constraineed
+    site_roof_squarefeet::Union{Real, Nothing} = nothing,  # site.roof_squarefeet to determine size_class if space constraineed
+    priority::Union{Int, Nothing} = nothing  # Optional integer (>=1) sizing priority for use with multiple PV systems
 ```
 
 !!! note "Multiple PV types" 
     Multiple PV types can be considered by providing an array of PV inputs. See example in `src/test/scenarios/multiple_pvs.json`
+
+!!! note "PV sizing `priority`"
+    When modelling more than one PV system, an integer `priority` can be assigned to each PV (1 = first to be sized, 2 = second, etc.). 
+    REopt then runs a sequence of LCC-minimization solves, one per priority level. In stage `k`, all PVs with priority greater 
+    than `k` are locked at their `existing_kw`. Lower-priority PVs may only be built beyond `existing_kw` in their own stage 
+    if every higher-priority PV is at least as large as the size that priority chose for itself. If `priority` is unset on 
+    any PV in a multi-PV scenario, prioritization is disabled and a single solve is performed (legacy behavior). All `priority` 
+    values across PVs must be unique and form the contiguous set 1..N (no ties, no gaps). Note that a staged solve performs 
+    one optimization per priority level and therefore takes roughly N times as long as a non-priority solve.
 
 !!! note "PV tilt and aziumth"
     If `tilt` is not provided, then it is set to the absolute value of `Site.latitude` for ground-mount systems and is set to 10 degrees for rooftop systems.
@@ -114,6 +124,7 @@ mutable struct PV <: AbstractTech
     electric_load_annual_kwh
     site_land_acres
     site_roof_squarefeet
+    priority
 
     function PV(;
         off_grid_flag::Bool = false,
@@ -167,7 +178,8 @@ mutable struct PV <: AbstractTech
         use_detailed_cost_curve::Bool = false,
         electric_load_annual_kwh::Real = 0.0,
         site_land_acres::Union{Real, Nothing} = nothing,
-        site_roof_squarefeet::Union{Real, Nothing} = nothing
+        site_roof_squarefeet::Union{Real, Nothing} = nothing,
+        priority::Union{Int, Nothing} = nothing
         )
 
         # Adjust operating_reserve_required_fraction based on off_grid_flag
@@ -214,6 +226,9 @@ mutable struct PV <: AbstractTech
         end
         if !isnothing(production_factor_series)
             error_if_series_vals_not_0_to_1(production_factor_series, "PV", "production_factor_series")
+        end
+        if !isnothing(priority) && priority < 1
+            push!(invalid_args, "priority must be a positive integer (>= 1) when set, got $(priority)")
         end
         if length(invalid_args) > 0
             throw(ErrorException("Invalid PV argument values: $(invalid_args)"))
@@ -290,7 +305,8 @@ mutable struct PV <: AbstractTech
             use_detailed_cost_curve,
             electric_load_annual_kwh,
             site_land_acres,
-            site_roof_squarefeet
+            site_roof_squarefeet,
+            priority
         )
     end
 end
@@ -631,4 +647,78 @@ function get_pv_size_class(electric_load_annual_kwh::Real, tech_sizes_for_cost_c
     end
     
     return 1, size_kw  # Default to smallest size class
+end
+
+"""
+    pv_priority_active(pvs::AbstractVector{PV})::Bool
+
+Pure runtime check: return `true` iff PV sizing prioritization should be applied to this
+collection of PV systems. Returns `true` only when:
+- there are at least 2 PVs in the collection,
+- every PV has a `priority` value set (not `nothing`), and
+- at least one PV has room to grow (`max_kw > existing_kw`).
+
+This function does NOT validate priority uniqueness or contiguity — that validation is
+performed once by `validate_pv_priorities!` when the `Scenario` is constructed.
+"""
+function pv_priority_active(pvs::AbstractVector{PV})::Bool
+    length(pvs) < 2 && return false
+    if any(isnothing(pv.priority) for pv in pvs)
+        return false
+    end
+    if !any(pv.max_kw > pv.existing_kw for pv in pvs)
+        # nothing to size (e.g., BAU scenario where all PVs are locked to existing_kw)
+        return false
+    end
+    return true
+end
+
+
+"""
+    validate_pv_priorities!(pvs::AbstractVector{PV})
+
+Validate that the `priority` settings across a vector of `PV` systems form a usable
+configuration. Called once from the `Scenario` constructor so user-facing errors fire
+before any optimization is attempted.
+
+Behavior:
+- No-op if `length(pvs) < 2` or no PV has `priority` set.
+- Emits a `@warn` and clears all priorities (sets to `nothing`) if some — but not all —
+  PVs have `priority` set; prioritization is then disabled for the run.
+- Throws an `ErrorException` if all PVs have `priority` set but the values contain a
+  duplicate (tie) or do not form the contiguous set 1..N (gap or out-of-range value).
+- Emits a `@warn` if any priority PV uses the default `max_kw == 1e9`, since the staged
+  big-M relaxation is loose without a realistic upper bound.
+"""
+function validate_pv_priorities!(pvs::AbstractVector{PV})
+    length(pvs) < 2 && return nothing
+
+    set_count = count(pv -> !isnothing(pv.priority), pvs)
+    if set_count == 0
+        return nothing
+    end
+    if set_count != length(pvs)
+        @warn "PV `priority` was set on $(set_count) of $(length(pvs)) PV systems. Prioritization requires `priority` to be set on every PV in the scenario; sizing prioritization is disabled for this run."
+        for pv in pvs
+            pv.priority = nothing
+        end
+        return nothing
+    end
+
+    priorities = Int[pv.priority for pv in pvs]
+    n = length(priorities)
+    if length(unique(priorities)) != n
+        throw(ErrorException("PV `priority` values must be unique (no ties); got $(priorities)."))
+    end
+    if sort(priorities) != collect(1:n)
+        throw(ErrorException("PV `priority` values must form the contiguous set 1..$(n) (no gaps, starting at 1); got $(priorities)."))
+    end
+
+    for pv in pvs
+        if pv.max_kw >= 1.0e9
+            @warn "PV \"$(pv.name)\" uses `priority` but has the default `max_kw` of 1e9. Set a realistic `max_kw` so the staged-priority big-M relaxation stays tight."
+        end
+    end
+
+    return nothing
 end

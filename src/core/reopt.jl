@@ -589,9 +589,118 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 end
 
 
+"""
+    run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+
+Solve a multi-PV scenario in stages, sizing higher-priority PV systems before lower-
+priority ones. For N PV systems with priorities 1..N, this performs N sequential MILP
+solves, where stage `k` sizes the priority-`k` PV. PVs with priority > k are locked at
+their `existing_kw` (so they cannot grow yet), and an implication constraint forbids the
+priority-`k` PV from building beyond its `existing_kw` unless every higher-priority PV
+has already reached its previously-found stage-optimal size.
+
+The model `m` is reused (and `JuMP.empty!`'ed) between stages, so the optimizer attached
+to `m` is preserved. The final stage's solved model is the source of the returned
+results dict; a `PriorityStages` entry summarises every stage.
+
+This function is dispatched automatically by `run_reopt(m, p)` when
+`pv_priority_active(p.s.pvs)` is `true`. Users typically do not call it directly.
+"""
+function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+    pvs_by_priority = sort(p.s.pvs, by = pv -> pv.priority)
+    n_stages = length(pvs_by_priority)
+    stage_records = Dict[]
+    total_solver_seconds = 0.0
+    final_status = "not optimal"
+
+    for k in 1:n_stages
+        if k > 1
+            JuMP.empty!(m)
+        end
+        build_reopt!(m, p)
+
+        # Lock PVs with priority strictly greater than k to existing_kw (deferred to later stages).
+        for pv in pvs_by_priority
+            if pv.priority > k
+                JuMP.fix(m[:dvSize][pv.name], pv.existing_kw; force=true)
+            end
+        end
+
+        # Cap-out implication for priority-k PV vs. each previously-sized higher-priority PV.
+        if k > 1
+            pv_k = pvs_by_priority[k]
+            z = @variable(m, binary=true, base_name="z_priority_stage_$(k)")
+            big_m_k = max(pv_k.max_kw - pv_k.existing_kw, 0.0)
+            @constraint(m, m[:dvSize][pv_k.name] - pv_k.existing_kw <= big_m_k * z)
+            for j in 1:(k-1)
+                pv_j = pvs_by_priority[j]
+                S_j = stage_records[j]["size_kw"]
+                # If a higher-priority PV did not build beyond its existing_kw, no cap-out
+                # is needed for it (the priority is already trivially honoured).
+                if S_j <= pv_j.existing_kw + 1e-6
+                    continue
+                end
+                @constraint(m,
+                    m[:dvSize][pv_j.name] >= pv_j.existing_kw + (S_j - pv_j.existing_kw) * z
+                )
+            end
+        end
+
+        @info "PV priority stage $(k) of $(n_stages): sizing $(pvs_by_priority[k].name)..."
+        tstart = time()
+        optimize!(m)
+        opt_time = round(time() - tstart, digits=3)
+        total_solver_seconds += opt_time
+
+        term = termination_status(m)
+        stage_status = if term == MOI.OPTIMAL
+            "optimal"
+        elseif term == MOI.TIME_LIMIT
+            "timed-out"
+        else
+            "not optimal"
+        end
+
+        if stage_status == "not optimal"
+            @warn "REopt PV priority stage $(k) terminated with $(term); returning model."
+            return m
+        end
+
+        S_k = JuMP.value(m[:dvSize][pvs_by_priority[k].name])
+        push!(stage_records, Dict(
+            "stage" => k,
+            "pv_name" => pvs_by_priority[k].name,
+            "size_kw" => S_k,
+            "objective_value" => JuMP.objective_value(m),
+            "solver_seconds" => opt_time,
+            "status" => stage_status,
+        ))
+        @info "PV priority stage $(k) complete: $(pvs_by_priority[k].name) sized to $(round(S_k, digits=3)) kW (LCC = $(round(JuMP.objective_value(m), digits=2)))."
+        final_status = stage_status
+    end
+
+    tstart = time()
+    results = reopt_results(m, p)
+    @info "Results processing took $(round(time() - tstart, digits=3)) seconds."
+    results["status"] = final_status
+    results["solver_seconds"] = total_solver_seconds
+    results["PriorityStages"] = stage_records
+
+    if organize_pvs && !isempty(p.techs.pv)
+        organize_multiple_pv_results(p, results)
+    end
+
+    results["Messages"] = logger_to_dict()
+    return results
+end
+
+
 function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 
 	try
+		if pv_priority_active(p.s.pvs)
+			return run_reopt_with_pv_priority(m, p; organize_pvs=organize_pvs)
+		end
 		build_reopt!(m, p)
 
 		@info "Model built. Optimizing..."

@@ -1802,6 +1802,74 @@ else  # run HiGHS tests
             end
         end
 
+        @testset "Multiple PVs with priority" begin
+            logger = SimpleLogger()
+            with_logger(logger) do
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, "./scenarios/multiple_pvs_priority.json")
+
+                @test haskey(results, "PriorityStages")
+                @test length(results["PriorityStages"]) == 3
+                stage_names = [stage["pv_name"] for stage in results["PriorityStages"]]
+                @test stage_names == ["roof_west", "roof_east", "ground"]
+                for (k, stage) in enumerate(results["PriorityStages"])
+                    @test stage["stage"] == k
+                    @test stage["status"] == "optimal"
+                    @test stage["size_kw"] >= 0.0
+                end
+
+                # Verify cap-out: lower-priority PV (ground) can only build beyond existing_kw
+                # if the higher-priority roof PVs reached their stage-1/stage-2 size.
+                ground_pv = results["PV"][findfirst(pv -> pv["name"] == "ground", results["PV"])]
+                roof_west = results["PV"][findfirst(pv -> pv["name"] == "roof_west", results["PV"])]
+                roof_east = results["PV"][findfirst(pv -> pv["name"] == "roof_east", results["PV"])]
+                roof_west_stage = results["PriorityStages"][1]["size_kw"]
+                roof_east_stage = results["PriorityStages"][2]["size_kw"]
+                if ground_pv["size_kw"] > 1e-4
+                    @test roof_west["size_kw"] >= roof_west_stage - 1e-4
+                    @test roof_east["size_kw"] >= roof_east_stage - 1e-4
+                end
+
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+            end
+        end
+
+        @testset "PV priority validation" begin
+            base = JSON.parsefile("./scenarios/multiple_pvs_priority.json")
+
+            # Tie: two PVs with the same priority -> error
+            tied = deepcopy(base)
+            tied["PV"][1]["priority"] = 1
+            tied["PV"][2]["priority"] = 1
+            tied["PV"][3]["priority"] = 2
+            @test_throws ErrorException REopt.Scenario(tied)
+
+            # Gap: priorities {1, 3, 4} (missing 2) -> error
+            gap = deepcopy(base)
+            gap["PV"][1]["priority"] = 1
+            gap["PV"][2]["priority"] = 3
+            gap["PV"][3]["priority"] = 4
+            @test_throws ErrorException REopt.Scenario(gap)
+
+            # Out of range: priority < 1 should be rejected by PV constructor
+            zero_priority = deepcopy(base)
+            zero_priority["PV"][1]["priority"] = 0
+            @test_throws ErrorException REopt.Scenario(zero_priority)
+
+            # Partial: only some PVs have priority -> warn and clear all priorities (no throw)
+            partial = deepcopy(base)
+            delete!(partial["PV"][2], "priority")
+            s = REopt.Scenario(partial)
+            @test all(isnothing(pv.priority) for pv in s.pvs)
+            @test REopt.pv_priority_active(s.pvs) == false
+
+            # Valid contiguous priorities (1,2,3): activates prioritization
+            s_valid = REopt.Scenario(base)
+            @test REopt.pv_priority_active(s_valid.pvs) == true
+        end
+
         @testset "Thermal Energy Storage + Absorption Chiller" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             data = JSON.parsefile("./scenarios/thermal_storage.json")

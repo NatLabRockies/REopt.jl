@@ -247,6 +247,13 @@ end
 
 function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 
+	for p in ps
+		if any(!isnothing(pv.priority) for pv in p.s.pvs)
+			@warn "PV `priority` is set on one or more PV systems at site/node $(p.s.site.node), but PV sizing prioritization is only supported for single-site `run_reopt`; `priority` is ignored in multi-node runs."
+			break
+		end
+	end
+
 	build_reopt!(m, ps)
 
 	add_objective!(m, ps)

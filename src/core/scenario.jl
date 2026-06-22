@@ -139,6 +139,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         end
     end
 
+    validate_pv_priorities!(pvs)
+
     if haskey(d, "Financial")
         financial = Financial(; dictkeys_tosymbols(d["Financial"])...,
                                 latitude=site.latitude, longitude=site.longitude, 

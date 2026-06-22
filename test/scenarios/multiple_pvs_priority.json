@@ -1,0 +1,98 @@
+{
+    "Site": {
+        "latitude": 34.5794343,
+        "longitude": -118.1164613,
+        "land_acres": 0.25,
+        "roof_squarefeet": 1000.0
+    },
+    "Financial": {
+      "om_cost_escalation_rate_fraction": 0.025,
+      "elec_cost_escalation_rate_fraction": 0.023,
+      "offtaker_tax_rate_fraction": 0.26,
+      "offtaker_discount_rate_fraction": 0.083,
+      "analysis_years": 25
+    },
+    "ElectricLoad": {
+      "doe_reference_name": "RetailStore",
+      "annual_kwh": 1000000.0,
+      "year": 2017
+    },
+    "ElectricTariff": {
+      "blended_annual_energy_rate": 0.3,
+      "blended_annual_demand_rate": 20.0
+    },
+    "ElectricUtility" : {
+      "co2_from_avert" : true
+    },
+    "PV": [
+        {
+          "name": "ground",
+          "existing_kw": 0.0,
+          "min_kw": 0.0,
+          "max_kw": 20.0,
+          "priority": 3,
+          "installed_cost_per_kw": 1600.0,
+          "om_cost_per_kw": 16.0,
+          "macrs_option_years": 5,
+          "macrs_bonus_fraction": 1.0,
+          "macrs_itc_reduction": 0.5,
+          "federal_itc_fraction": 0.26,
+          "degradation_fraction": 0.005,
+          "azimuth": 180.0,
+          "losses": 0.14,
+          "array_type": 0,
+          "module_type": 0,
+          "gcr": 0.4,
+          "dc_ac_ratio": 1.2,
+          "inv_eff": 0.96,
+          "tilt": 34.5794343,
+          "location": "ground"
+        },
+        {
+          "name": "roof_west",
+          "existing_kw": 0.0,
+          "min_kw": 0.0,
+          "max_kw": 8.0,
+          "priority": 1,
+          "installed_cost_per_kw": 1600.0,
+          "om_cost_per_kw": 16.0,
+          "macrs_option_years": 5,
+          "macrs_bonus_fraction": 1.0,
+          "macrs_itc_reduction": 0.5,
+          "federal_itc_fraction": 0.26,
+          "degradation_fraction": 0.005,
+          "azimuth": 270.0,
+          "losses": 0.14,
+          "array_type": 1,
+          "module_type": 0,
+          "gcr": 0.4,
+          "dc_ac_ratio": 1.2,
+          "inv_eff": 0.96,
+          "tilt": 10.0,
+          "location": "roof"
+        },
+        {
+          "name": "roof_east",
+          "existing_kw": 0.0,
+          "min_kw": 0.0,
+          "max_kw": 8.0,
+          "priority": 2,
+          "installed_cost_per_kw": 1600.0,
+          "om_cost_per_kw": 16.0,
+          "macrs_option_years": 5,
+          "macrs_bonus_fraction": 1.0,
+          "macrs_itc_reduction": 0.5,
+          "federal_itc_fraction": 0.26,
+          "degradation_fraction": 0.005,
+          "azimuth": 180.0,
+          "losses": 0.14,
+          "array_type": 1,
+          "module_type": 0,
+          "gcr": 0.4,
+          "dc_ac_ratio": 1.2,
+          "inv_eff": 0.96,
+          "tilt": 10.0,
+          "location": "roof"
+        }
+      ]
+}
