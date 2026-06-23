@@ -519,7 +519,9 @@ function ApplyLoadProfileToPMDModel(Multinode_Inputs, data_eng, PMD_number_of_ti
             node = p.s.site.node
             if node in REopt_nodes           
                 for phase in p.s.settings.phase_numbers
-                    print("\n Adding PMD load empty time series to REopt node $(node), phase $(phase)")
+                    if Multinode_Inputs.display_information_during_modeling_run
+                        print("\n Adding PMD load empty time series to REopt node $(node), phase $(phase)")
+                    end
                     data_eng["load"]["load$(node)_phase$(phase)"]["time_series"] = Dict(
                             "pd_nom"=>"normalized_load_profile",
                             "qd_nom"=> "normalized_load_profile"
@@ -786,10 +788,12 @@ function generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_co
 end
 
     
-function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REopt_inputs_combined)
+function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REopt_inputs_combined; gen_name2ind=nothing, load_phase_dictionary=nothing, gen_ind_e_to_REopt_node=nothing)
     # Link the PMD and REopt variables through constraints
     
-    gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_combined, data_math_mn)
+    if gen_name2ind === nothing || load_phase_dictionary === nothing || gen_ind_e_to_REopt_node === nothing
+        gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_combined, data_math_mn)
+    end
     
     if Multinode_Inputs.display_information_during_modeling_run
         print("\n gen_ind_e_to_REopt_node")
@@ -1085,7 +1089,7 @@ function create_dictionary_of_phases_for_each_bus(data_eng)
 end
 
 
-function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng)
+function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=nothing, phases_for_each_bus=nothing)
     print("\n Adding Simple Powerflow Constraints to Non-PMD Timesteps: This can take a few minutes for very large models")
     
     time_steps_without_PMD = setdiff(REoptTimeSteps, Multinode_Inputs.PMD_time_steps)
@@ -1121,13 +1125,17 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
     # Create a dictionary such that, for instance, phases_for_each_line["line_name"] = [1,2,3] for three phase, or [3] for single phase on phase #3, or [2,3] for two phase
     print("\n Generating dvP variable for busses (this may take a few minutes for large models using the simple powerflow constraints)")
     
-    phases_for_each_bus = create_dictionary_of_phases_for_each_bus(data_eng) 
+    if phases_for_each_bus === nothing
+        phases_for_each_bus = create_dictionary_of_phases_for_each_bus(data_eng)
+    end
     all_busses = collect(keys(data_eng["bus"])) # This includes both the PMD and the REopt busses
     @variable(m, dvP[bus in all_busses, phase in phases, t in indeces; phase in phases_for_each_bus[bus]] >= -1000000 )
     #@variable(m, Q[REopt_nodes] >= -10000000)
     
     print("\n Generating dvP variable for lines (this may take a few minutes for large models using the simple powerflow constraints)")
-    phases_for_each_line =  create_dictionary_of_phases_for_each_line(data_eng) 
+    if phases_for_each_line === nothing
+        phases_for_each_line = create_dictionary_of_phases_for_each_line(data_eng)
+    end
     
     if Multinode_Inputs.display_information_during_modeling_run
         print("\n The lines are: $(lines)")
@@ -1215,34 +1223,31 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
 
     # Link this simple powerflow model to the REopt nodes
     Multinode_Inputs.display_information_during_modeling_run ? print("\n Information about connecting the REopt nodes to the simple powerflow model") : nothing
-    for t in REoptTimeSteps
-        if t in time_steps_without_PMD
-            index = findall(x->x==t, time_steps_without_PMD)[1]
-            counter = counter + 1
-            for node in REopt_nodes  # only link the REopt nodes to PMD busses
-                if string(node) != Multinode_Inputs.substation_node
-                    if counter in [1,2] # print information only for the first two timesteps
-                        Multinode_Inputs.display_information_during_modeling_run ? print("\n Connecting REopt node $(node) to the simple powerflow model") : nothing
-                    end
-                    for phase in phases_for_each_bus[string(node)]
-                        # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase
-                        @constraint(m, m[:dvP][string(node), phase, index] .== (1/length(phases_for_each_bus[string(node)])) .* ((m[Symbol("TotalExport_"*string(node))][t]) .- (m[Symbol("dvGridPurchase_"*string(node))][t])) ) # To do: double check that these variable names are correct
-                        
-                        if Multinode_Inputs.display_information_during_modeling_run 
-                            if t in [1,2] # print out some information for the first couple timesteps
-                                print("\n For node $(node), the phases_for_each_bus are: $(phases_for_each_bus[string(node)]), with a length of $(length(phases_for_each_bus[string(node)]))")
-                                print("\n    The index is $(index), and the t i $(t), and the phase is $(phase)")
-                                print("\n    (1/length(phases_for_each_bus[string(node)])) is $((1/length(phases_for_each_bus[string(node)])))")
-                            end
-                        end
-                    
-                    end
-                else
-                    # I don't think this is necessary because the substation node isn't part of REopt nodes
-                    #if counter < 3
-                    #    print("\n ****** Not connecting simple powerflow model to REopt for node $(node), which is the substation node")
-                    #end
+    for (index, t) in enumerate(time_steps_without_PMD)
+        counter = counter + 1
+        for node in REopt_nodes  # only link the REopt nodes to PMD busses
+            if string(node) != Multinode_Inputs.substation_node
+                if counter in [1,2] # print information only for the first two timesteps
+                    Multinode_Inputs.display_information_during_modeling_run ? print("\n Connecting REopt node $(node) to the simple powerflow model") : nothing
                 end
+                for phase in phases_for_each_bus[string(node)]
+                    # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase
+                    @constraint(m, m[:dvP][string(node), phase, index] .== (1/length(phases_for_each_bus[string(node)])) .* ((m[Symbol("TotalExport_"*string(node))][t]) .- (m[Symbol("dvGridPurchase_"*string(node))][t])) ) # To do: double check that these variable names are correct
+                    
+                    if Multinode_Inputs.display_information_during_modeling_run 
+                        if t in [1,2] # print out some information for the first couple timesteps
+                            print("\n For node $(node), the phases_for_each_bus are: $(phases_for_each_bus[string(node)]), with a length of $(length(phases_for_each_bus[string(node)]))")
+                            print("\n    The index is $(index), and the t i $(t), and the phase is $(phase)")
+                            print("\n    (1/length(phases_for_each_bus[string(node)])) is $((1/length(phases_for_each_bus[string(node)])))")
+                        end
+                    end
+                
+                end
+            else
+                # I don't think this is necessary because the substation node isn't part of REopt nodes
+                #if counter < 3
+                #    print("\n ****** Not connecting simple powerflow model to REopt for node $(node), which is the substation node")
+                #end
             end
         end
     end
@@ -1397,7 +1402,13 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
     REopt.build_reopt!(m, REoptInputs_Combined) # Pass the PMD JuMP model (with the PowerModelsDistribution variables and constraints) as the JuMP model that REopt should build onto
     
     CreateREoptTotalExportVariables(m, REoptInputs_Combined)
-    REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node = LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REoptInputs_Combined)
+
+    # Cache dictionaries that would otherwise be recomputed inside many helpers
+    phases_for_each_line = create_dictionary_of_phases_for_each_line(data_eng)
+    phases_for_each_bus = create_dictionary_of_phases_for_each_bus(data_eng)
+    gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REoptInputs_Combined, data_math_mn)
+
+    REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node = LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REoptInputs_Combined; gen_name2ind=gen_name2ind, load_phase_dictionary=load_phase_dictionary, gen_ind_e_to_REopt_node=gen_ind_e_to_REopt_node)
     LineInfo = CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
     REoptTimeSteps = collect(1:(Multinode_Inputs.time_steps_per_hour * 8760))
     
@@ -1417,16 +1428,16 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
         
     if Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD && (OutageSimulator == false)
         # Don't apply these constraints if the outage simulator is being used because the outage simulator applies PMD constraints to all time steps
-        connections, connections_upstream, connections_downstream = AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng)
+        connections, connections_upstream, connections_downstream = AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=phases_for_each_line, phases_for_each_bus=phases_for_each_bus)
     else
         connections = "N/A"
         connections_upstream = "N/A" 
         connections_downstream = "N/A"
     end
 
-    ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, OutageSimulator, OutageLength_Timesteps, data_eng)
+    ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, OutageSimulator, OutageLength_Timesteps, data_eng; phases_for_each_line=phases_for_each_line)
     
-    LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptInputs_Combined, LineInfo, REopt_gen_ind_e, REoptTimeSteps, REopt_nodes, data_math_mn, data_eng)
+    LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptInputs_Combined, LineInfo, REopt_gen_ind_e, REoptTimeSteps, REopt_nodes, data_math_mn, data_eng; phases_for_each_line=phases_for_each_line, gen_name2ind=gen_name2ind, load_phase_dictionary=load_phase_dictionary, gen_ind_e_to_REopt_node=gen_ind_e_to_REopt_node)
     
     if Multinode_Inputs.generators_only_run_during_grid_outage == true
         LimitGeneratorOperatingTimes(m, Multinode_Inputs, REoptInputs_Combined)
@@ -1518,12 +1529,12 @@ function add_bus_voltage_violation_to_the_model(pm, Multinode_Inputs)
 end
 
 
-function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, OutageSimulator, OutageLength_Timesteps, data_eng)
+function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, OutageSimulator, OutageLength_Timesteps, data_eng; phases_for_each_line=nothing)
     # Apply a variety of grid import and/or export constraints:
     
     # Restrict power flow from the substation if the multinode type is offgrid
     if Multinode_Inputs.multinode_type == "Offgrid" 
-        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Off_Grid=true)
+        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Off_Grid=true, phases_for_each_line=phases_for_each_line)
     end
     
     # Define limits on grid import and export
@@ -1532,12 +1543,12 @@ function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combi
         #RestrictLinePowerFlow(Multinode_Inputs, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo; Prevent_Export=true) # This constraint is handled by other constraints below
     elseif Multinode_Inputs.substation_export_limit != ""
         print("\n Applying a limit to the power export at the substation")
-        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Export_Limit = Multinode_Inputs.substation_export_limit)
+        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Export_Limit = Multinode_Inputs.substation_export_limit, phases_for_each_line=phases_for_each_line)
     end 
     
     if Multinode_Inputs.substation_import_limit != ""
         print("\n Applying a limit to the power import from the substation")
-        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Import_Limit = Multinode_Inputs.substation_import_limit)
+        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Import_Limit = Multinode_Inputs.substation_import_limit, phases_for_each_line=phases_for_each_line)
     end 
     
     # Apply a grid outage to the model
@@ -1545,11 +1556,11 @@ function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combi
         if Multinode_Inputs.outages_vector != []
             print("\n Applying a grid outages on the following timesteps: ")
             print(Multinode_Inputs.model_outages_with_outages_vector)
-            RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, Multinode_Inputs.outages_vector, LineInfo, data_eng; Grid_Outage=true, OutageSimulator = OutageSimulator, OutageLength_Timesteps = OutageLength_Timesteps)
+            RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, Multinode_Inputs.outages_vector, LineInfo, data_eng; Grid_Outage=true, OutageSimulator = OutageSimulator, OutageLength_Timesteps = OutageLength_Timesteps, phases_for_each_line=phases_for_each_line)
         end    
     elseif Multinode_Inputs.single_outage_end_time_step - Multinode_Inputs.single_outage_start_time_step > 0
         print("\n Applying a grid outage from time step $(Multinode_Inputs.single_outage_start_time_step) to $(Multinode_Inputs.single_outage_end_time_step) ")
-        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, collect(Multinode_Inputs.single_outage_start_time_step:Multinode_Inputs.single_outage_end_time_step), LineInfo, data_eng; Grid_Outage=true, OutageSimulator = OutageSimulator, OutageLength_Timesteps = OutageLength_Timesteps)
+        RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, collect(Multinode_Inputs.single_outage_start_time_step:Multinode_Inputs.single_outage_end_time_step), LineInfo, data_eng; Grid_Outage=true, OutageSimulator = OutageSimulator, OutageLength_Timesteps = OutageLength_Timesteps, phases_for_each_line=phases_for_each_line)
     end
     
     # Open switches if defined by the user
@@ -1558,20 +1569,22 @@ function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combi
         print("\n Switches are included in the model")
         for i in keys(Multinode_Inputs.switch_open_timesteps)
             #print("\n   Opening the switch on line $(i) from timesteps $(minimum(Multinode_Inputs.switch_open_timesteps[i])) to $(maximum(Multinode_Inputs.switch_open_timesteps[i])) \n")
-            RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, i, Multinode_Inputs.switch_open_timesteps[i], LineInfo, data_eng; Switches_Open=true)
+            RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, i, Multinode_Inputs.switch_open_timesteps[i], LineInfo, data_eng; Switches_Open=true, phases_for_each_line=phases_for_each_line)
         end
     end
     
 end
 
 
-function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptInputs_Combined, LineInfo, REopt_gen_ind_e, REoptTimeSteps, REopt_nodes, data_math_mn, data_eng)
+function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptInputs_Combined, LineInfo, REopt_gen_ind_e, REoptTimeSteps, REopt_nodes, data_math_mn, data_eng; phases_for_each_line=nothing, gen_name2ind=nothing, load_phase_dictionary=nothing, gen_ind_e_to_REopt_node=nothing)
     # Link export through the substation to the utility tariff on the facility meter node
     
     PMDTimeSteps_InREoptTimes = Multinode_Inputs.PMD_time_steps
     buses = REopt_nodes
 
-    gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REoptInputs_Combined, data_math_mn)
+    if gen_name2ind === nothing || load_phase_dictionary === nothing || gen_ind_e_to_REopt_node === nothing
+        gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REoptInputs_Combined, data_math_mn)
+    end
 
     if Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
         time_steps_without_PMD = setdiff(REoptTimeSteps, Multinode_Inputs.PMD_time_steps)
@@ -1579,7 +1592,15 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
         time_steps_without_PMD = 0
     end
 
-    phases_for_each_line =  create_dictionary_of_phases_for_each_line(data_eng)
+    if phases_for_each_line === nothing
+        phases_for_each_line = create_dictionary_of_phases_for_each_line(data_eng)
+    end
+
+    # Precompute O(1) lookups for PMD timestep index and simple-PF timestep index
+    pmd_index_of = Dict(t => i for (i, t) in enumerate(PMDTimeSteps_InREoptTimes))
+    simple_pf_index_of = isa(time_steps_without_PMD, AbstractVector) ?
+        Dict(t => i for (i, t) in enumerate(time_steps_without_PMD)) :
+        Dict{Int,Int}()
 
     for p in REoptInputs_Combined
         if string(p.s.site.node) == p.s.settings.facilitymeter_node
@@ -1609,9 +1630,9 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                     # Set the power flowing through the line from the substation to be the grid purchase minus the dvProductionToGrid for node 15
                     #TODO: make this compatible with three phase power- I believe p_fr[1] only refers to the first phase: might be able to say:  p_fr .>= 0   with the period
                     
-                    if timestep in PMDTimeSteps_InREoptTimes
+                    if haskey(pmd_index_of, timestep)
                         
-                        PMD_time_step = findall(x -> x==timestep, PMDTimeSteps_InREoptTimes)[1] #use the [1] to convert the 1-element vector into an integer
+                        PMD_time_step = pmd_index_of[timestep]
 
                         p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
                         p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
@@ -1624,7 +1645,7 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(p_fr[phase] for phase in f_connections))
                     
                     elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD      
-                        simple_powerflow_timestep = findall(x -> x==timestep, time_steps_without_PMD)[1]
+                        simple_powerflow_timestep = simple_pf_index_of[timestep]
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, simple_powerflow_timestep] for phase in phases_for_each_line[lowercase(Multinode_Inputs.substation_line)]))
                         
                     else
@@ -1648,8 +1669,8 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                 else                  
                     @constraint(m, sum(m[Symbol("dvProductionToGrid_"*p.s.settings.facilitymeter_node)]["PV", u, timestep] for u in p.export_bins_by_tech["PV"]) == 0)
 
-                    if timestep in PMDTimeSteps_InREoptTimes
-                        PMD_time_step = findall(x -> x==timestep, PMDTimeSteps_InREoptTimes)[1] #use the [1] to convert the 1-element vector into an integer
+                    if haskey(pmd_index_of, timestep)
+                        PMD_time_step = pmd_index_of[timestep]
 
                         p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
                         p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
@@ -1665,7 +1686,7 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] >= 0) 
                     
                     elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
-                        simple_powerflow_timestep = findall(x -> x==timestep, time_steps_without_PMD)[1]
+                        simple_powerflow_timestep = simple_pf_index_of[timestep]
                         
                         @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) == sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, simple_powerflow_timestep] for phase in phases_for_each_line[lowercase(Multinode_Inputs.substation_line)]))
                         
@@ -1892,7 +1913,7 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
 end
 
 
-function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, line, REoptTimeSteps, LineInfo, data_eng; Grid_Outage=false, Off_Grid=false, Switches_Open=false, Prevent_Export=false, Substation_Export_Limit=1E10, Substation_Import_Limit=1E10, OutageSimulator = false, OutageLength_Timesteps = 0)
+function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, line, REoptTimeSteps, LineInfo, data_eng; Grid_Outage=false, Off_Grid=false, Switches_Open=false, Prevent_Export=false, Substation_Export_Limit=1E10, Substation_Import_Limit=1E10, OutageSimulator = false, OutageLength_Timesteps = 0, phases_for_each_line=nothing)
     # Function used for restricting power flow for grid outages, times when switches are opened, and substation import and export limits
     
     line = lowercase(line)
@@ -1933,7 +1954,9 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         f_idx = (i, f_bus, t_bus)
         t_idx = (i, t_bus, f_bus)
 
-    phases_for_each_line = create_dictionary_of_phases_for_each_line(data_eng) 
+    if phases_for_each_line === nothing
+        phases_for_each_line = create_dictionary_of_phases_for_each_line(data_eng)
+    end
     
     if Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD    
         time_steps_without_PMD = setdiff(REoptTimeSteps, Multinode_Inputs.PMD_time_steps)
@@ -1941,11 +1964,17 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         time_steps_without_PMD = 0
     end
 
+    # Precompute O(1) lookups for PMD timestep index and simple-PF timestep index
+    pmd_index_of = Dict(t => i for (i, t) in enumerate(PMDTimeSteps_InREoptTimes))
+    simple_pf_index_of = isa(time_steps_without_PMD, AbstractVector) ?
+        Dict(t => i for (i, t) in enumerate(time_steps_without_PMD)) :
+        Dict{Int,Int}()
+
     for timestep in REoptTimeSteps
             
-        if timestep in PMDTimeSteps_InREoptTimes
+        if haskey(pmd_index_of, timestep)
             # Based off of code in line 274 of PMD's src>core>constraints
-            PMD_time_step = findall(x -> x==timestep, PMDTimeSteps_InREoptTimes)[1] #use the [1] to convert the 1-element vector into an integer
+            PMD_time_step = pmd_index_of[timestep]
             
             p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
             p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
@@ -1956,12 +1985,12 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
             end
         elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
             # redefine the timestep variable to be correlated with the timestep variable in the simple powerflow model
-            timestep_for_simple_powerflow_model = findall(x -> x==timestep, time_steps_without_PMD)[1]
+            timestep_for_simple_powerflow_model = simple_pf_index_of[timestep]
         end
 
         if Prevent_Export == true
             # If the timesteps are part of the PMD model, then apply the constraints to the lines in PMD
-            if timestep in PMDTimeSteps_InREoptTimes
+            if haskey(pmd_index_of, timestep)
                 JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .>= 0)
                 JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .>= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) # no restrictions on reactive power
             elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
@@ -1974,7 +2003,7 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         end
 
         if Substation_Export_Limit != ""
-            if timestep in PMDTimeSteps_InREoptTimes
+            if haskey(pmd_index_of, timestep)
                 JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .>= -Substation_Export_Limit) 
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"
                     JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .>= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
@@ -1989,7 +2018,7 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         end
 
         if Substation_Import_Limit != ""
-            if timestep in PMDTimeSteps_InREoptTimes
+            if haskey(pmd_index_of, timestep)
                 JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .<= Substation_Import_Limit)
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"
                     JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
@@ -2002,10 +2031,10 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
                 @constraint(m, sum(m[Symbol("dvGridPurchase_"*Multinode_Inputs.facilitymeter_node)][timestep, tier] for tier in 1:FacilityMeterNode_REoptInputs.s.electric_tariff.n_energy_tiers) <= Substation_Import_Limit)
             end
         end
-
+ 
         if Off_Grid == true || Grid_Outage == true || Switches_Open==true
             # Restrict all power flow
-            if timestep in PMDTimeSteps_InREoptTimes
+            if haskey(pmd_index_of, timestep)
                 JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .== 0)  # The _fr and _to variables are just indicating power flow in either direction on the line. In PMD, there is a constraint that requires  p_to = -p_fr 
                 JuMP.@constraint(m, [phase in t_connections], p_to[phase] .== 0)  # TODO test removing the "fr" constraints here in order to reduce the # of constraints in the model
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"

@@ -79,6 +79,9 @@ function Multinode_OutageSimulator(DataDictionaryForEachNode, REopt_dictionary, 
         dropped_load_results_summary = "N/A"
     end
 
+    # Cache PMD information across outage iterations (because the network, REopt node generator mapping, and phase mapping are the same for all of the outages)
+    cached_pmd_info = nothing
+
     for x in 1:RunNumber
         print("\n Outage Simulation Run # "*string(x)*"  of  "*string(RunNumber)*" runs")
         RunsTested = RunsTested + 1
@@ -102,7 +105,11 @@ function Multinode_OutageSimulator(DataDictionaryForEachNode, REopt_dictionary, 
         end 
                 
         if Multinode_Inputs.model_type == "PowerModelsDistribution"
-            Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined)
+            if cached_pmd_info === nothing
+                REopt_nodes_for_cache = REopt.GenerateREoptNodesList(Multinode_Inputs)
+                cached_pmd_info = generate_PMD_information(Multinode_Inputs, REopt_nodes_for_cache, REopt_inputs_combined, data_math_mn)
+            end
+            Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined; cached_pmd_info=cached_pmd_info)
         end
 
         if Multinode_Inputs.model_line_upgrades
@@ -331,13 +338,17 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
     
     
     if (string(Multinode_Inputs.optimizer) == "Xpress.Optimizer") || (string(Multinode_Inputs.optimizer) == "Gurobi.Optimizer") # only apply the indicator constraints if using a solver that is compatible with indicator constraints
-        # Use a binary to prohibit charging and discharging at the same time:
-        for t in 1:TimeSteps
-            @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("Binary_"*n)][ts] .=> {m_outagesimulator[Symbol("dvGridToBat_"*n)][ts] .== 0.0} )
-            @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("Binary_"*n)][ts] .=> {m_outagesimulator[Symbol("dvPVToBat_"*n)][ts] .== 0.0} )
-            @constraint(m_outagesimulator, [ts in [1:TimeSteps]], !m_outagesimulator[Symbol("Binary_"*n)][ts] .=> {m_outagesimulator[Symbol("dvBatToLoad_"*n)][ts] .== 0.0} )
-            @constraint(m_outagesimulator, [ts in [1:TimeSteps]], !m_outagesimulator[Symbol("Binary_"*n)][ts] .=> {m_outagesimulator[Symbol("dvBatToGrid_"*n)][ts] .== 0.0} )
-        end      
+        # Use a binary to prohibit charging and discharging at the same time.
+                
+        binary_var      = m_outagesimulator[Symbol("Binary_"*n)]
+        grid_to_bat_var = m_outagesimulator[Symbol("dvGridToBat_"*n)]
+        pv_to_bat_var   = m_outagesimulator[Symbol("dvPVToBat_"*n)]
+        bat_to_load_var = m_outagesimulator[Symbol("dvBatToLoad_"*n)]
+        bat_to_grid_var = m_outagesimulator[Symbol("dvBatToGrid_"*n)]
+        @constraint(m_outagesimulator, [ts=1:TimeSteps],  binary_var[ts] => {grid_to_bat_var[ts] == 0.0})
+        @constraint(m_outagesimulator, [ts=1:TimeSteps],  binary_var[ts] => {pv_to_bat_var[ts]   == 0.0})
+        @constraint(m_outagesimulator, [ts=1:TimeSteps], !binary_var[ts] => {bat_to_load_var[ts] == 0.0})
+        @constraint(m_outagesimulator, [ts=1:TimeSteps], !binary_var[ts] => {bat_to_grid_var[ts] == 0.0})
     else
         @warn "The battery may charge and discharge at the same time in the outage simulator because the solver is not compatible with indicator constraints."
     end
@@ -364,13 +375,19 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
 end
 
 
-function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined)
+function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined;
+                              cached_pmd_info=nothing)
     # Link the power export decision variables to the PMD model
     outage_timesteps = collect(1:OutageLength_TimeSteps_Input)
 
     REopt_nodes = REopt.GenerateREoptNodesList(Multinode_Inputs)
 
-    gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_combined, data_math_mn)
+    # Reuse cached generate_PMD_information results if available
+    if cached_pmd_info === nothing
+        gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_combined, data_math_mn)
+    else
+        gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = cached_pmd_info
+    end
 
 
     #gen_name2ind = Dict(gen["name"] => gen["index"] for (_,gen) in data_math_mn["nw"]["1"]["gen"])
@@ -415,18 +432,18 @@ function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_T
         end
     end
     
-    # Prevent power from entering the multinode to simulate a power outage
-    for PMD_time_step in outage_timesteps
-        substation_line_index = LineInfo_PMD[lowercase(Multinode_Inputs.substation_line)]["index"]
-        timestep_for_network_data = 1 # collect the network configuration information from timestep 1, which assumes that the network is not changing (fair to assume with the REopt integration)
-        branch = PowerModelsDistribution.ref(pm, timestep_for_network_data, :branch, substation_line_index)
-        f_bus = branch["f_bus"]
-        t_bus = branch["t_bus"]
-        f_connections = branch["f_connections"]
-        t_connections = branch["t_connections"]
-        f_idx = (substation_line_index, f_bus, t_bus)
-        t_idx = (substation_line_index, t_bus, f_bus)
+    # Prevent power from entering the multinode to simulate a power outage.
+    substation_line_index = LineInfo_PMD[lowercase(Multinode_Inputs.substation_line)]["index"]
+    timestep_for_network_data = 1 # collect the network configuration information from timestep 1, which assumes that the network is not changing (fair to assume with the REopt integration)
+    branch_sub = PowerModelsDistribution.ref(pm, timestep_for_network_data, :branch, substation_line_index)
+    f_bus = branch_sub["f_bus"]
+    t_bus = branch_sub["t_bus"]
+    f_connections = branch_sub["f_connections"]
+    t_connections = branch_sub["t_connections"]
+    f_idx = (substation_line_index, f_bus, t_bus)
+    t_idx = (substation_line_index, t_bus, f_bus)
 
+    for PMD_time_step in outage_timesteps
         p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
         p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
 
@@ -453,12 +470,15 @@ end
 function AddConstraintsFromLineUpgrades(pm, OutageLength_TimeSteps_Input, LineInfo, line_upgrade_options_each_line, line_upgrade_results)
     
     outage_timesteps = collect(1:OutageLength_TimeSteps_Input)
-    max_amps = Dict()
+
+    max_amps_by_line = Dict(line_upgrade_results.Line[r] => line_upgrade_results[r, :MaximumRatedAmps]
+                            for r in 1:nrow(line_upgrade_results))
 
     for line in keys(line_upgrade_options_each_line)
 
-        max_amps_temp = Dict(line => line_upgrade_results[findfirst(x -> x == line, line_upgrade_results.Line), :MaximumRatedAmps])
-        merge!(max_amps, max_amps_temp)
+        max_amps_line = max_amps_by_line[line]
+        voltage_kv    = line_upgrade_options_each_line[line]["voltage_kv"]
+        power_limit   = max_amps_line * voltage_kv 
 
         i = LineInfo[line]["index"]
 
@@ -477,13 +497,13 @@ function AddConstraintsFromLineUpgrades(pm, OutageLength_TimeSteps_Input, LineIn
             p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
             
             for phase in f_connections
-                @constraint(pm.model, p_fr[phase] <=  max_amps[line] * line_upgrade_options_each_line[line]["voltage_kv"])
-                @constraint(pm.model, p_fr[phase] >= -max_amps[line] * line_upgrade_options_each_line[line]["voltage_kv"])
+                @constraint(pm.model, p_fr[phase] <=  power_limit)
+                @constraint(pm.model, p_fr[phase] >= -power_limit)
             end
 
             for phase in t_connections
-                @constraint(pm.model, p_to[phase] <=  max_amps[line] * line_upgrade_options_each_line[line]["voltage_kv"]) 
-                @constraint(pm.model, p_to[phase] >= -max_amps[line] * line_upgrade_options_each_line[line]["voltage_kv"]) 
+                @constraint(pm.model, p_to[phase] <=  power_limit) 
+                @constraint(pm.model, p_to[phase] >= -power_limit) 
             end
         end
     end

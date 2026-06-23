@@ -73,57 +73,78 @@ function Results_Processing_REopt_PMD_Model(m, results, data_math_mn, REoptInput
     end
 
     # Compute values for each line and store line power flows in a dataframe and dictionary 
-    DataLineFlow = Vector{Any}(zeros(7))
-    DataFrame_LineFlow = DataFrame(fill(Any[],7), [:Line, :Minimum_LineFlow_ActivekW, :Maximum_LineFlow_ActivekW, :Average_LineFlow_ActivekW, :Minimum_LineFlow_ReactivekVAR, :Maximum_LineFlow_ReactivekVAR, :Average_LineFlow_ReactivekVAR ])
-    PMD_Dictionary_LineFlow_Power_Series = Dict([])
+    line_names = collect(keys(sol_eng["nw"]["1"]["line"]))
+    n_lines = length(line_names)
+    n_timesteps = length(sol_eng["nw"])
+    is_nfa = Multinode_Inputs.model_subtype == "NFAUPowerModel"
+
+    # Preallocate the per-line summary columns; one row per line
+    col_Line = Vector{String}(undef, n_lines)
+    col_min_active  = Vector{Any}(undef, n_lines)
+    col_max_active  = Vector{Any}(undef, n_lines)
+    col_avg_active  = Vector{Any}(undef, n_lines)
+    col_min_react   = Vector{Any}(undef, n_lines)
+    col_max_react   = Vector{Any}(undef, n_lines)
+    col_avg_react   = Vector{Any}(undef, n_lines)
+
+    PMD_Dictionary_LineFlow_Power_Series = Dict{String, Dict{String, Any}}()
     print("\n Storing the line flow data in PMD")
-    for line in keys(sol_eng["nw"]["1"]["line"]) # read all of the line names from the first time step
-        ActivePowerFlow_line_temp = []
-        ReactivePowerFlow_line_temp = []
+    for (line_idx, line) in enumerate(line_names)
+        # Preallocate per-timestep vectors for this line
+        ActivePowerFlow_line_temp   = Vector{Float64}(undef, n_timesteps)
+        ReactivePowerFlow_line_temp = is_nfa ? Vector{Any}(fill("N/A", n_timesteps)) : Vector{Float64}(undef, n_timesteps)
 
-        ActivePowerFlow_line_Phase1_temp = []
-        ActivePowerFlow_line_Phase2_temp = []
-        ActivePowerFlow_line_Phase3_temp = []
-        ReactivePowerFlow_line_Phase1_temp = []
-        ReactivePowerFlow_line_Phase2_temp = []
-        ReactivePowerFlow_line_Phase3_temp = []
+        ActivePowerFlow_line_Phase1_temp   = Float64[]
+        ActivePowerFlow_line_Phase2_temp   = Float64[]
+        ActivePowerFlow_line_Phase3_temp   = Float64[]
+        ReactivePowerFlow_line_Phase1_temp = is_nfa ? Any[] : Float64[]
+        ReactivePowerFlow_line_Phase2_temp = is_nfa ? Any[] : Float64[]
+        ReactivePowerFlow_line_Phase3_temp = is_nfa ? Any[] : Float64[]
 
-        for i in 1:length(sol_eng["nw"])
-            push!(ActivePowerFlow_line_temp, sum(sol_eng["nw"][string(i)]["line"][line][pf_name][Phase] for Phase in keys(sol_eng["nw"][string(i)]["line"][line][pf_name])) ) # The "for Phase in keys(..." sums the power across the phases
-            if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                push!(ReactivePowerFlow_line_temp, sum(sol_eng["nw"][string(i)]["line"][line][qf_name][Phase] for Phase in keys(sol_eng["nw"][string(i)]["line"][line][qf_name])) )
-            else
-                push!(ReactivePowerFlow_line_temp, "N/A")
+        for i in 1:n_timesteps
+            line_pf = sol_eng["nw"][string(i)]["line"][line][pf_name]
+            ActivePowerFlow_line_temp[i] = sum(line_pf[Phase] for Phase in keys(line_pf))
+            if !is_nfa
+                line_qf = sol_eng["nw"][string(i)]["line"][line][qf_name]
+                ReactivePowerFlow_line_temp[i] = sum(line_qf[Phase] for Phase in keys(line_qf))
             end
         end
 
         # Pull data from the first time step
-        for phase in keys(sol_eng["nw"]["1"]["line"][line][pf_name])  # TODO: confirm that "phase" here is the phase number, not just the index
+        first_step_phases = keys(sol_eng["nw"]["1"]["line"][line][pf_name])
+        # Preallocate the per-phase vectors (based on the phases that actually exist)
+        if 1 in first_step_phases
+            resize!(ActivePowerFlow_line_Phase1_temp, n_timesteps)
+            is_nfa || resize!(ReactivePowerFlow_line_Phase1_temp, n_timesteps)
+        end
+        if 2 in first_step_phases
+            resize!(ActivePowerFlow_line_Phase2_temp, n_timesteps)
+            is_nfa || resize!(ReactivePowerFlow_line_Phase2_temp, n_timesteps)
+        end
+        if 3 in first_step_phases
+            resize!(ActivePowerFlow_line_Phase3_temp, n_timesteps)
+            is_nfa || resize!(ReactivePowerFlow_line_Phase3_temp, n_timesteps)
+        end
+        for phase in first_step_phases
             if phase == 1
-                for i in 1:length(sol_eng["nw"])
-                    push!(ActivePowerFlow_line_Phase1_temp, sol_eng["nw"][string(i)]["line"][line][pf_name][phase])
-                    if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                        push!(ReactivePowerFlow_line_Phase1_temp, sol_eng["nw"][string(i)]["line"][line][qf_name][phase])
-                    else
-                        push!(ReactivePowerFlow_line_Phase1_temp, "N/A")
+                for i in 1:n_timesteps
+                    ActivePowerFlow_line_Phase1_temp[i] = sol_eng["nw"][string(i)]["line"][line][pf_name][phase]
+                    if !is_nfa
+                        ReactivePowerFlow_line_Phase1_temp[i] = sol_eng["nw"][string(i)]["line"][line][qf_name][phase]
                     end
                 end
             elseif phase == 2
-                for i in 1:length(sol_eng["nw"])
-                    push!(ActivePowerFlow_line_Phase2_temp, sol_eng["nw"][string(i)]["line"][line][pf_name][phase])
-                    if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                        push!(ReactivePowerFlow_line_Phase2_temp, sol_eng["nw"][string(i)]["line"][line][qf_name][phase])
-                    else
-                        push!(ReactivePowerFlow_line_Phase2_temp, "N/A")
+                for i in 1:n_timesteps
+                    ActivePowerFlow_line_Phase2_temp[i] = sol_eng["nw"][string(i)]["line"][line][pf_name][phase]
+                    if !is_nfa
+                        ReactivePowerFlow_line_Phase2_temp[i] = sol_eng["nw"][string(i)]["line"][line][qf_name][phase]
                     end
                 end
-            elseif phase ==3
-                for i in 1:length(sol_eng["nw"])
-                    push!(ActivePowerFlow_line_Phase3_temp, sol_eng["nw"][string(i)]["line"][line][pf_name][phase])
-                    if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                        push!(ReactivePowerFlow_line_Phase3_temp, sol_eng["nw"][string(i)]["line"][line][qf_name][phase])
-                    else
-                        push!(ReactivePowerFlow_line_Phase3_temp, "N/A")
+            elseif phase == 3
+                for i in 1:n_timesteps
+                    ActivePowerFlow_line_Phase3_temp[i] = sol_eng["nw"][string(i)]["line"][line][pf_name][phase]
+                    if !is_nfa
+                        ReactivePowerFlow_line_Phase3_temp[i] = sol_eng["nw"][string(i)]["line"][line][qf_name][phase]
                     end
                 end
             else
@@ -131,38 +152,42 @@ function Results_Processing_REopt_PMD_Model(m, results, data_math_mn, REoptInput
             end
         end
 
-        DataLineFlow[1] = round(minimum(ActivePowerFlow_line_temp[:]), digits = 5)
-        DataLineFlow[2] = round(maximum(ActivePowerFlow_line_temp[:]), digits = 5)
-        DataLineFlow[3] = round(mean(ActivePowerFlow_line_temp[:]), digits = 5)
-        
-        if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-            DataLineFlow[4] = round(minimum(ReactivePowerFlow_line_temp[:]), digits = 5)
-            DataLineFlow[5] = round(maximum(ReactivePowerFlow_line_temp[:]), digits = 5)
-            DataLineFlow[6] = round(mean(ReactivePowerFlow_line_temp[:]), digits = 5)
+        col_Line[line_idx]       = "Line "*string(line)
+        col_min_active[line_idx] = round(minimum(ActivePowerFlow_line_temp), digits = 5)
+        col_max_active[line_idx] = round(maximum(ActivePowerFlow_line_temp), digits = 5)
+        col_avg_active[line_idx] = round(mean(ActivePowerFlow_line_temp),    digits = 5)
+
+        if !is_nfa
+            col_min_react[line_idx] = round(minimum(ReactivePowerFlow_line_temp), digits = 5)
+            col_max_react[line_idx] = round(maximum(ReactivePowerFlow_line_temp), digits = 5)
+            col_avg_react[line_idx] = round(mean(ReactivePowerFlow_line_temp),    digits = 5)
         else
-            DataLineFlow[4] = "N/A"
-            DataLineFlow[5] = "N/A"
-            DataLineFlow[6] = "N/A"
+            col_min_react[line_idx] = "N/A"
+            col_max_react[line_idx] = "N/A"
+            col_avg_react[line_idx] = "N/A"
         end
 
-        DataFrame_LineFlow_temp = DataFrame([("Line "*string(line)) DataLineFlow[1] DataLineFlow[2] DataLineFlow[3] DataLineFlow[4] DataLineFlow[5] DataLineFlow[6]], [:Line, :Minimum_LineFlow_ActivekW, :Maximum_LineFlow_ActivekW, :Average_LineFlow_ActivekW, :Minimum_LineFlow_ReactivekVAR, :Maximum_LineFlow_ReactivekVAR, :Average_LineFlow_ReactivekVAR])
-        DataFrame_LineFlow = append!(DataFrame_LineFlow,DataFrame_LineFlow_temp)
-        
-        # Also create a dictionary of the line power flows
-        PMD_Dictionary_LineFlow_Power_Series_temp = Dict([(line, Dict([
-                                                            ("ActiveLineFlow", ActivePowerFlow_line_temp),
-                                                            ("ReactiveLineFlow", ReactivePowerFlow_line_temp),
-                                                            ("Phase1_ActiveLineFlow", ActivePowerFlow_line_Phase1_temp),
-                                                            ("Phase2_ActiveLineFlow", ActivePowerFlow_line_Phase2_temp),
-                                                            ("Phase3_ActiveLineFlow", ActivePowerFlow_line_Phase3_temp),
-                                                            ("Phase1_ReactiveLineFlow", ReactivePowerFlow_line_Phase1_temp),
-                                                            ("Phase2_ReactiveLineFlow", ReactivePowerFlow_line_Phase2_temp),
-                                                            ("Phase3_ReactiveLineFlow", ReactivePowerFlow_line_Phase3_temp)
-                                                        ]))
-                                                        ])
-        merge!(PMD_Dictionary_LineFlow_Power_Series, PMD_Dictionary_LineFlow_Power_Series_temp)
-
+        PMD_Dictionary_LineFlow_Power_Series[line] = Dict{String, Any}(
+            "ActiveLineFlow"           => ActivePowerFlow_line_temp,
+            "ReactiveLineFlow"         => ReactivePowerFlow_line_temp,
+            "Phase1_ActiveLineFlow"    => ActivePowerFlow_line_Phase1_temp,
+            "Phase2_ActiveLineFlow"    => ActivePowerFlow_line_Phase2_temp,
+            "Phase3_ActiveLineFlow"    => ActivePowerFlow_line_Phase3_temp,
+            "Phase1_ReactiveLineFlow"  => ReactivePowerFlow_line_Phase1_temp,
+            "Phase2_ReactiveLineFlow"  => ReactivePowerFlow_line_Phase2_temp,
+            "Phase3_ReactiveLineFlow"  => ReactivePowerFlow_line_Phase3_temp,
+        )
     end
+
+    DataFrame_LineFlow = DataFrame(
+        Line                          = col_Line,
+        Minimum_LineFlow_ActivekW     = col_min_active,
+        Maximum_LineFlow_ActivekW     = col_max_active,
+        Average_LineFlow_ActivekW     = col_avg_active,
+        Minimum_LineFlow_ReactivekVAR = col_min_react,
+        Maximum_LineFlow_ReactivekVAR = col_max_react,
+        Average_LineFlow_ReactivekVAR = col_avg_react,
+    )
 
     print("\n Completed storing the line flow data in PMD")
 
@@ -175,24 +200,33 @@ end
 
 function Process_Line_Upgrades(m, line_upgrade_options_each_line, Multinode_Inputs, TimeStamp)
 
-    line_upgrade_results = DataFrame(fill(Any[], 4), [:Line, :Upgraded, :MaximumRatedAmps, :UpgradeCost])
-    for line in keys(line_upgrade_options_each_line)
+    line_keys = collect(keys(line_upgrade_options_each_line))
+    n = length(line_keys)
+    col_Line             = Vector{Any}(undef, n)
+    col_Upgraded         = Vector{String}(undef, n)
+    col_MaximumRatedAmps = Vector{Any}(undef, n)
+    col_UpgradeCost      = Vector{Any}(undef, n)
+
+    for (idx, line) in enumerate(line_keys)
         number_of_entries = length(line_upgrade_options_each_line[line]["max_amperage"])
         dv = "Bin"*line
         maximum_amps = sum(value.(m[Symbol(dv)][i])*line_upgrade_options_each_line[line]["max_amperage"][i] for i in 1:number_of_entries)
-        #rmatrix = sum(value.(m[Symbol(dv)][i])*line_upgrades_each_line[line]["rmatrix"][i] for i in 1:number_of_entries)
-        #xmatrix = sum(value.(m[Symbol(dv)][i])*line_upgrades_each_line[line]["xmatrix"][i] for i in 1:number_of_entries)
         upgraded_cost = round(value.(m[Symbol("line_cost")][line]), digits = 0)
 
-        if Int(round(value.(m[Symbol(dv)][1]), digits=0)) != 1
-            upgraded = "Yes"
-        else
-            upgraded = "No"
-        end
+        upgraded = Int(round(value.(m[Symbol(dv)][1]), digits=0)) != 1 ? "Yes" : "No"
 
-        line_upgrade_results_temp = DataFrame([line upgraded maximum_amps upgraded_cost ], [:Line, :Upgraded, :MaximumRatedAmps, :UpgradeCost])
-        line_upgrade_results = append!(line_upgrade_results, line_upgrade_results_temp)
+        col_Line[idx]             = line
+        col_Upgraded[idx]         = upgraded
+        col_MaximumRatedAmps[idx] = maximum_amps
+        col_UpgradeCost[idx]      = upgraded_cost
     end
+
+    line_upgrade_results = DataFrame(
+        Line             = col_Line,
+        Upgraded         = col_Upgraded,
+        MaximumRatedAmps = col_MaximumRatedAmps,
+        UpgradeCost      = col_UpgradeCost,
+    )
 
     # Save line upgrade results to a csv 
     if Multinode_Inputs.generate_CSV_of_outputs
@@ -201,7 +235,7 @@ function Process_Line_Upgrades(m, line_upgrade_options_each_line, Multinode_Inpu
 
     return line_upgrade_results
 end
-
+ 
 
 function Results_Compilation(model, results, PMD_Results, Outage_Results, Multinode_Inputs, DataFrame_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, TimeStamp, start_time_entire_model; all_line_powerflow_results="", simple_powerflow_model_results="", bau_model = "", system_results_BAU = "", line_upgrade_results = "", transformer_upgrade_results = "", outage_simulator_time = "")
       
@@ -591,89 +625,98 @@ function combine_PMD_and_simple_powerflow_results(Multinode_Inputs, m, data_eng,
     # This function combines the powerflow results from the PMD model and the simple powerflow model
     phases_for_each_line =  create_dictionary_of_phases_for_each_line(data_eng) 
     simplified_powerflow_model_timesteps, REoptTimeSteps, time_steps_without_PMD, time_steps_with_PMD = determine_timestep_information(Multinode_Inputs, m, data_eng, phases_for_each_line)
-    
+
     lines = collect(keys(data_eng["line"]))
-    
-    all_line_powerflows = Dict([])
-    
+    n_timesteps_total = Int(Multinode_Inputs.time_steps_per_hour * 8760)
+    use_simple_pf = Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
+
+    pmd_index_of = Dict(t => i for (i, t) in enumerate(time_steps_with_PMD))
+    simple_pf_index_of = use_simple_pf ?
+        Dict(t => i for (i, t) in enumerate(time_steps_without_PMD)) :
+        Dict{Int,Int}()
+
+    all_line_powerflows = Dict{String, Dict{String, Any}}()
+
     for line in lines
 
-        ActivePowerFlow_line_temp = []
-        ReactivePowerFlow_line_temp = []
+        # Preallocate per-timestep vectors (mixed Float/String values, so Any)
+        ActivePowerFlow_line_temp          = Vector{Any}(undef, n_timesteps_total)
+        ReactivePowerFlow_line_temp        = Vector{Any}(undef, n_timesteps_total)
+        ActivePowerFlow_line_Phase1_temp   = Vector{Any}(undef, n_timesteps_total)
+        ActivePowerFlow_line_Phase2_temp   = Vector{Any}(undef, n_timesteps_total)
+        ActivePowerFlow_line_Phase3_temp   = Vector{Any}(undef, n_timesteps_total)
+        ReactivePowerFlow_line_Phase1_temp = Vector{Any}(undef, n_timesteps_total)
+        ReactivePowerFlow_line_Phase2_temp = Vector{Any}(undef, n_timesteps_total)
+        ReactivePowerFlow_line_Phase3_temp = Vector{Any}(undef, n_timesteps_total)
+        power_flow_model_at_timesteps      = Vector{String}(undef, n_timesteps_total)
 
-        ActivePowerFlow_line_Phase1_temp = []
-        ActivePowerFlow_line_Phase2_temp = []
-        ActivePowerFlow_line_Phase3_temp = []
-        ReactivePowerFlow_line_Phase1_temp = []
-        ReactivePowerFlow_line_Phase2_temp = []
-        ReactivePowerFlow_line_Phase3_temp = []
-        power_flow_model_at_timesteps = []
+        # Cache per-line dicts once to avoid repeated lookups inside the inner loop
+        line_pmd = PMD_Dictionary_LineFlow_Power_Series[line]
+        has_p1 = length(line_pmd["Phase1_ActiveLineFlow"])   > 0
+        has_p2 = length(line_pmd["Phase2_ActiveLineFlow"])   > 0
+        has_p3 = length(line_pmd["Phase3_ActiveLineFlow"])   > 0
+        has_q1 = length(line_pmd["Phase1_ReactiveLineFlow"]) > 0
+        has_q2 = length(line_pmd["Phase2_ReactiveLineFlow"]) > 0
+        has_q3 = length(line_pmd["Phase3_ReactiveLineFlow"]) > 0
+        simple_line = use_simple_pf ? simple_powerflow_model_results["lines"][line]["line_power_flow_series"] : nothing
 
-        for timestep in collect(1:Int(Multinode_Inputs.time_steps_per_hour * 8760))
+        for timestep in 1:n_timesteps_total
 
-            if timestep in time_steps_with_PMD
-                
-                timestep_in_PMD_model = findall(x->x== timestep, time_steps_with_PMD)[1]
+            if haskey(pmd_index_of, timestep)
+                k = pmd_index_of[timestep]
 
-                push!(ActivePowerFlow_line_temp, PMD_Dictionary_LineFlow_Power_Series[line]["ActiveLineFlow"][timestep_in_PMD_model])
-                push!(ReactivePowerFlow_line_temp, PMD_Dictionary_LineFlow_Power_Series[line]["ReactiveLineFlow"][timestep_in_PMD_model])
-                
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase1_ActiveLineFlow"]) > 0)  ?  push!(ActivePowerFlow_line_Phase1_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase1_ActiveLineFlow"][timestep_in_PMD_model]) : push!(ActivePowerFlow_line_Phase1_temp,"N/A")
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase2_ActiveLineFlow"]) > 0)  ?  push!(ActivePowerFlow_line_Phase2_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase2_ActiveLineFlow"][timestep_in_PMD_model]) : push!(ActivePowerFlow_line_Phase2_temp,"N/A")
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase3_ActiveLineFlow"]) > 0)  ?  push!(ActivePowerFlow_line_Phase3_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase3_ActiveLineFlow"][timestep_in_PMD_model]) : push!(ActivePowerFlow_line_Phase3_temp,"N/A")
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase1_ReactiveLineFlow"]) > 0)  ?  push!(ReactivePowerFlow_line_Phase1_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase1_ReactiveLineFlow"][timestep_in_PMD_model]) : push!(ReactivePowerFlow_line_Phase1_temp,"N/A")
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase2_ReactiveLineFlow"]) > 0)  ?  push!(ReactivePowerFlow_line_Phase2_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase2_ReactiveLineFlow"][timestep_in_PMD_model]) : push!(ReactivePowerFlow_line_Phase2_temp,"N/A")
-                (length(PMD_Dictionary_LineFlow_Power_Series[line]["Phase3_ReactiveLineFlow"]) > 0)  ?  push!(ReactivePowerFlow_line_Phase3_temp, PMD_Dictionary_LineFlow_Power_Series[line]["Phase3_ReactiveLineFlow"][timestep_in_PMD_model]) : push!(ReactivePowerFlow_line_Phase3_temp,"N/A")
+                ActivePowerFlow_line_temp[timestep]   = line_pmd["ActiveLineFlow"][k]
+                ReactivePowerFlow_line_temp[timestep] = line_pmd["ReactiveLineFlow"][k]
 
-                push!(power_flow_model_at_timesteps, "PMD")
+                ActivePowerFlow_line_Phase1_temp[timestep]   = has_p1 ? line_pmd["Phase1_ActiveLineFlow"][k]   : "N/A"
+                ActivePowerFlow_line_Phase2_temp[timestep]   = has_p2 ? line_pmd["Phase2_ActiveLineFlow"][k]   : "N/A"
+                ActivePowerFlow_line_Phase3_temp[timestep]   = has_p3 ? line_pmd["Phase3_ActiveLineFlow"][k]   : "N/A"
+                ReactivePowerFlow_line_Phase1_temp[timestep] = has_q1 ? line_pmd["Phase1_ReactiveLineFlow"][k] : "N/A"
+                ReactivePowerFlow_line_Phase2_temp[timestep] = has_q2 ? line_pmd["Phase2_ReactiveLineFlow"][k] : "N/A"
+                ReactivePowerFlow_line_Phase3_temp[timestep] = has_q3 ? line_pmd["Phase3_ReactiveLineFlow"][k] : "N/A"
 
-            elseif (timestep in time_steps_without_PMD) && (Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD)   
-                timestep_in_simple_powerflow_model = findall(x->x== timestep, time_steps_without_PMD)[1]
-                push!(ActivePowerFlow_line_temp, simple_powerflow_model_results["lines"][line]["line_power_flow_series"][timestep_in_simple_powerflow_model])
-                push!(ReactivePowerFlow_line_temp, "No reactive power in the simple powerflow model")
-                
-                push!(ActivePowerFlow_line_Phase1_temp, "To do: add individual phase reporting for the simple powerflow model")
-                push!(ActivePowerFlow_line_Phase2_temp, "To do: add individual phase reporting for the simple powerflow model")
-                push!(ActivePowerFlow_line_Phase3_temp, "To do: add individual phase reporting for the simple powerflow model")
-                push!(ReactivePowerFlow_line_Phase1_temp, "No reactive power in the simple powerflow model")
-                push!(ReactivePowerFlow_line_Phase2_temp, "No reactive power in the simple powerflow model")
-                push!(ReactivePowerFlow_line_Phase3_temp, "No reactive power in the simple powerflow model")
+                power_flow_model_at_timesteps[timestep] = "PMD"
 
-                push!(power_flow_model_at_timesteps, "simplified_powerflow_model")
+            elseif haskey(simple_pf_index_of, timestep)
+                k = simple_pf_index_of[timestep]
+                ActivePowerFlow_line_temp[timestep]   = simple_line[k]
+                ReactivePowerFlow_line_temp[timestep] = "No reactive power in the simple powerflow model"
+
+                ActivePowerFlow_line_Phase1_temp[timestep]   = "To do: add individual phase reporting for the simple powerflow model"
+                ActivePowerFlow_line_Phase2_temp[timestep]   = "To do: add individual phase reporting for the simple powerflow model"
+                ActivePowerFlow_line_Phase3_temp[timestep]   = "To do: add individual phase reporting for the simple powerflow model"
+                ReactivePowerFlow_line_Phase1_temp[timestep] = "No reactive power in the simple powerflow model"
+                ReactivePowerFlow_line_Phase2_temp[timestep] = "No reactive power in the simple powerflow model"
+                ReactivePowerFlow_line_Phase3_temp[timestep] = "No reactive power in the simple powerflow model"
+
+                power_flow_model_at_timesteps[timestep] = "simplified_powerflow_model"
             else
-                push!(ActivePowerFlow_line_temp, "No powerflow model at this time step")
-                push!(ReactivePowerFlow_line_temp, "No powerflow model at this time step")
-                
-                push!(ActivePowerFlow_line_Phase1_temp, "No powerflow model at this time step")
-                push!(ActivePowerFlow_line_Phase2_temp, "No powerflow model at this time step")
-                push!(ActivePowerFlow_line_Phase3_temp, "No powerflow model at this time step")
-                push!(ReactivePowerFlow_line_Phase1_temp, "No powerflow model at this time step")
-                push!(ReactivePowerFlow_line_Phase2_temp, "No powerflow model at this time step")
-                push!(ReactivePowerFlow_line_Phase3_temp, "No powerflow model at this time step")
+                ActivePowerFlow_line_temp[timestep]   = "No powerflow model at this time step"
+                ReactivePowerFlow_line_temp[timestep] = "No powerflow model at this time step"
 
-                push!(power_flow_model_at_timesteps, "no powerflow model")
+                ActivePowerFlow_line_Phase1_temp[timestep]   = "No powerflow model at this time step"
+                ActivePowerFlow_line_Phase2_temp[timestep]   = "No powerflow model at this time step"
+                ActivePowerFlow_line_Phase3_temp[timestep]   = "No powerflow model at this time step"
+                ReactivePowerFlow_line_Phase1_temp[timestep] = "No powerflow model at this time step"
+                ReactivePowerFlow_line_Phase2_temp[timestep] = "No powerflow model at this time step"
+                ReactivePowerFlow_line_Phase3_temp[timestep] = "No powerflow model at this time step"
+
+                power_flow_model_at_timesteps[timestep] = "no powerflow model"
             end
         end
 
-        if Int(length(ActivePowerFlow_line_temp)) != Int(Multinode_Inputs.time_steps_per_hour * 8760)
-            throw(@error("Error in processing the powerflow results"))
-        end
-
-        all_line_powerflows_temp = Dict([(line, Dict([
-                                                        ("ActiveLineFlow", ActivePowerFlow_line_temp),
-                                                        ("ReactiveLineFlow", ReactivePowerFlow_line_temp),
-                                                        ("Phase1_ActiveLineFlow", ActivePowerFlow_line_Phase1_temp),
-                                                        ("Phase2_ActiveLineFlow", ActivePowerFlow_line_Phase2_temp),
-                                                        ("Phase3_ActiveLineFlow", ActivePowerFlow_line_Phase3_temp),
-                                                        ("Phase1_ReactiveLineFlow", ReactivePowerFlow_line_Phase1_temp),
-                                                        ("Phase2_ReactiveLineFlow", ReactivePowerFlow_line_Phase2_temp),
-                                                        ("Phase3_ReactiveLineFlow", ReactivePowerFlow_line_Phase3_temp),
-                                                        ("power_flow_model_at_timesteps", power_flow_model_at_timesteps)
-                                                    ]))
-                                                    ])
-
-    merge!(all_line_powerflows, all_line_powerflows_temp)
-
+        # Direct assignment is O(1); per-line merge! over a single-entry Dict was O(N) per line
+        all_line_powerflows[line] = Dict{String, Any}(
+            "ActiveLineFlow"                => ActivePowerFlow_line_temp,
+            "ReactiveLineFlow"              => ReactivePowerFlow_line_temp,
+            "Phase1_ActiveLineFlow"         => ActivePowerFlow_line_Phase1_temp,
+            "Phase2_ActiveLineFlow"         => ActivePowerFlow_line_Phase2_temp,
+            "Phase3_ActiveLineFlow"         => ActivePowerFlow_line_Phase3_temp,
+            "Phase1_ReactiveLineFlow"       => ReactivePowerFlow_line_Phase1_temp,
+            "Phase2_ReactiveLineFlow"       => ReactivePowerFlow_line_Phase2_temp,
+            "Phase3_ReactiveLineFlow"       => ReactivePowerFlow_line_Phase3_temp,
+            "power_flow_model_at_timesteps" => power_flow_model_at_timesteps,
+        )
     end
 
     return all_line_powerflows
@@ -835,39 +878,47 @@ end
 
 function VoltageResultsSummary(results)
 
-    DataFrame_BusVoltages = DataFrame(fill(Any[],4), [:Bus, :minimum_pu_voltage, :Average_pu_voltage, :maximum_pu_voltage ])
-    per_unit_voltages = Dict([])
-    bus_voltage_minimums = []
-    bus_voltage_averages = []
-    bus_voltage_maximums = []
-    for bus in keys(results["nw"]["1"]["bus"]) # read all of the line names from the first time step
-        Data_BusVoltages = zeros(3)
-        per_unit_voltages[bus] = []
-        for timestep in collect(keys(results["nw"]))
-            if "w" in keys(results["nw"][string(timestep)]["bus"][bus])
-                per_unit_voltages[bus] = push!(per_unit_voltages[bus], sqrt(results["nw"][string(timestep)]["bus"][bus]["w"][1]))
-            elseif "Wr" in keys(results["nw"][string(timestep)]["bus"][bus])
-                per_unit_voltages[bus] = push!(per_unit_voltages[bus], sqrt(results["nw"][string(timestep)]["bus"][bus]["Wr"][1][1])) # TODO: figure out what "Wi" is in the results when using the SOCNLPUBFPowerModel model
+    bus_names = collect(keys(results["nw"]["1"]["bus"]))
+    n_buses = length(bus_names)
+    timestep_keys = collect(keys(results["nw"]))
+    n_timesteps = length(timestep_keys)
+
+    per_unit_voltages = Dict{String, Vector{Float64}}()
+    col_Bus = Vector{String}(undef, n_buses)
+    col_min = Vector{Float64}(undef, n_buses)
+    col_avg = Vector{Float64}(undef, n_buses)
+    col_max = Vector{Float64}(undef, n_buses)
+
+    for (b_idx, bus) in enumerate(bus_names)
+        bus_voltages = Vector{Float64}(undef, n_timesteps)
+        for (t_idx, timestep) in enumerate(timestep_keys)
+            bus_at_t = results["nw"][string(timestep)]["bus"][bus]
+            if haskey(bus_at_t, "w")
+                bus_voltages[t_idx] = sqrt(bus_at_t["w"][1])
+            elseif haskey(bus_at_t, "Wr")
+                bus_voltages[t_idx] = sqrt(bus_at_t["Wr"][1][1]) # TODO: figure out what "Wi" is in the results when using the SOCNLPUBFPowerModel model
             else
-                throw(@error("Bus voltage results data is not available"))            
+                throw(@error("Bus voltage results data is not available"))
             end
         end
+        per_unit_voltages[bus] = bus_voltages
 
-        Data_BusVoltages[1] = round(minimum(per_unit_voltages[bus][:]), digits = 6)
-        Data_BusVoltages[2] = round(mean(per_unit_voltages[bus][:]), digits = 6)
-        Data_BusVoltages[3] = round(maximum(per_unit_voltages[bus][:]), digits = 6)
-        
-        bus_voltage_minimums = push!(bus_voltage_minimums, Data_BusVoltages[1])
-        bus_voltage_averages = push!(bus_voltage_averages, Data_BusVoltages[2])
-        bus_voltage_maximums = push!(bus_voltage_maximums, Data_BusVoltages[3])
-
-        DataFrame_BusVoltages_temp = DataFrame([("Bus "*string(bus)) Data_BusVoltages[1] Data_BusVoltages[2] Data_BusVoltages[3] ], [:Bus, :minimum_pu_voltage, :Average_pu_voltage, :maximum_pu_voltage])
-        DataFrame_BusVoltages = append!(DataFrame_BusVoltages, DataFrame_BusVoltages_temp)
+        col_Bus[b_idx] = "Bus "*string(bus)
+        col_min[b_idx] = round(minimum(bus_voltages), digits = 6)
+        col_avg[b_idx] = round(mean(bus_voltages),    digits = 6)
+        col_max[b_idx] = round(maximum(bus_voltages), digits = 6)
     end
 
-    minimum_voltage = round(minimum(bus_voltage_minimums), digits=6)
-    average_voltage = round(mean(bus_voltage_averages), digits=6)
-    maximum_voltage = round(maximum(bus_voltage_maximums), digits=6)
+    DataFrame_BusVoltages = DataFrame(
+        Bus                = col_Bus,
+        minimum_pu_voltage = col_min,
+        Average_pu_voltage = col_avg,
+        maximum_pu_voltage = col_max,
+    )
+
+    minimum_voltage = round(minimum(col_min), digits=6)
+    average_voltage = round(mean(col_avg),    digits=6)
+    maximum_voltage = round(maximum(col_max), digits=6)
 
     return DataFrame_BusVoltages, per_unit_voltages, minimum_voltage, average_voltage, maximum_voltage
 end
