@@ -63,8 +63,8 @@ A Scenario struct can contain the following keys:
 - [ElectricHeater](@ref) (optional)
 - [WaterPower](@ref) (optional)
 - [water_storage](@ref) (optional)
-- [upstream_reservoir](@ref) (optional)
-- [downstream_reservoir](@ref) (optional)
+- [UpstreamReservoirWaterStorage](@ref) (optional)
+- [DownstreamReservoirWaterStorage](@ref) (optional)
 - absorption_chillers_using_heating_load
 - [CST](@ref) (optional)
 - [ASHPSpaceHeater](@ref) (optional)
