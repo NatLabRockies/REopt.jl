@@ -67,6 +67,7 @@ struct REoptInputs <: AbstractInputs
     heating_loads_kw::Dict{String, <:Real} # (heating_loads)
     unavailability::Dict{String, Array{Float64,1}}  # Dict by tech of unavailability profile
     water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing water_power inputs
+    avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
 end
 ```
 """
