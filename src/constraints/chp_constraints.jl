@@ -200,8 +200,6 @@ run at capacity otherwise in dispatch (without regard to heat flows).
 function add_chp_electrical_load_following_constraints(m, p; _n="")
     dv = "binCHPSizeExceedsElectricLoad"*_n
     m[Symbol(dv)] = @variable(m, [p.time_steps], binary=true, base_name=dv)
-    dv = "dvCHPSizeTimesExcess"*_n
-    m[Symbol(dv)] = @variable(m, [p.time_steps], lower_bound=0, base_name=dv)
     # binary variable enforcement for size >= load
     max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads))  #exclude heating electrification but include elec cooling? 
     )
@@ -215,13 +213,6 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     # big-M is min CF times heat load
     
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts])  
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"]
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
     )
     #Enforce dispatch: output = system size - (overage)
     @constraint(m, [ts in p.time_steps],
