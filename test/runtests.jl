@@ -1378,6 +1378,23 @@ else  # run HiGHS tests
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
+
+                # CHP load-following and absorption chiller flow simultaneously
+                d = JSON.parsefile("./scenarios/chp-abschl-flow.json")
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, p)
+                @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ 3756.73 rtol=1e-2
+                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 269.35 rtol=1e-2
+                #test individual hour 4040 - CHP runs at size, and sends to abschl (not waste)
+                @test value(m[:dvRatedProduction]["CHP",4040]) ≈ value(m[:dvSize]["CHP"]) rtol=1e-4
+                @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4040]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4040]) rtol=1e-4
+                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4040]) ≈ 0.0 atol=1e-4
+                #test individual hour 4045 - CHP runs at load-following, and sends to abschl (not waste) so electric load is reduced
+                @test value(m[:dvRatedProduction]["CHP",4045]) < p.s.electric_load.loads_kw[4045]
+                @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4045]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4045]) rtol=1e-4
+                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4 
             end
 
             @testset "CHP Proforma Metrics" begin
