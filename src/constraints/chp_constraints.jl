@@ -215,9 +215,9 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     @constraint(m, [ts in p.time_steps],
         m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
     )
-    #Enforce dispatch: output = system size - (overage)
+    #enforce dispatch: grid purchase = 0 if size exceeds load, i.e., CHP must dispatch to load-follow after accounting for PV, Batteries and other onsite resources.
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] + p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
+        sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) <= max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts])
     )
 end
 
