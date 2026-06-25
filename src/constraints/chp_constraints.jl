@@ -206,7 +206,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads))  #exclude heating electrification but include elec cooling? 
     )
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
+        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
     )
     @constraint(m, [ts in p.time_steps],
         m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - (p.s.electric_load.loads_kw[ts] - m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
