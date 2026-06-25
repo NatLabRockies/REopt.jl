@@ -350,6 +350,7 @@ struct ElectricStorage <: AbstractElectricStorage
             throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
         
+        # TODO: Add checks on allowed technologies for SAM dispatch strategies. 
 
         # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
         if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
