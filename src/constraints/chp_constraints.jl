@@ -213,6 +213,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     # big-M is min CF times heat load
     
     @constraint(m, [ts in p.time_steps],
+        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
     )
     #Enforce dispatch: output = system size - (overage)
     @constraint(m, [ts in p.time_steps],
