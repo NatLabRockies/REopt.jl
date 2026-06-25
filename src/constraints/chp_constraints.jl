@@ -176,7 +176,7 @@ load or send to waste in dispatch.
 function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
     monthly_timesteps = get_monthly_time_steps(p.s.electric_load.year; time_steps_per_hour=p.s.settings.time_steps_per_hour)
     for mth in p.s.chp.months_serving_absorption_chiller_only
-        @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
+        m[Symbol("CHPToAbsFlowCon_month"*string(mth)*_n)] = @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
             m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
         )
         # During restricted months, CHP cannot serve other heating loads (space heating, DHW)
