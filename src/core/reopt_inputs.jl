@@ -744,8 +744,8 @@ function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs
         production_factor[turbine_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
         fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Turbine"*string(i))
         
-        max_sizes[turbine_tech_name] = s.water_power.max_kw_turbine
-        min_sizes[turbine_tech_name] = s.water_power.min_kw_turbine
+        max_sizes[turbine_tech_name] = s.water_power.turbine_max_kw
+        min_sizes[turbine_tech_name] = s.water_power.turbine_min_kw
         om_cost_per_kw[turbine_tech_name] = s.water_power.om_cost_per_kw_turbine
 
         if !(s.water_power.can_curtail)

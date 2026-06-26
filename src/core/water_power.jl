@@ -6,8 +6,8 @@
     # Define turbine information
     number_of_turbines::Real=0, 
     turbine_cost_per_kw::Real=5000.0,
-    max_kw_turbine::Real=10000000,
-    min_kw_turbine::Real=0,
+    turbine_max_kw::Real=10000000,
+    turbine_min_kw::Real=0,
     computation_type::String="average_power_conversion", 
     water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0, # only applied when the computation_type = "average_power_conversion"   
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0,
@@ -59,8 +59,8 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
    # Define turbine information
     number_of_turbines::Real=0
     turbine_cost_per_kw::Real=5000.0
-    max_kw_turbine::Real=10000000
-    min_kw_turbine::Real=0
+    turbine_max_kw::Real=10000000
+    turbine_min_kw::Real=0
     
     computation_type::String="average_power_conversion"
     water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0
@@ -117,8 +117,8 @@ REopt WaterPower and Financial inputs.
 mutable struct WaterPower <: AbstractWaterPower
     number_of_turbines
     turbine_cost_per_kw
-    max_kw_turbine
-    min_kw_turbine
+    turbine_max_kw
+    turbine_min_kw
     
     computation_type
     water_turbine_average_cubic_meters_per_second_conversion_efficiency
@@ -221,8 +221,8 @@ mutable struct WaterPower <: AbstractWaterPower
         return new(
             stor.number_of_turbines,
             stor.turbine_cost_per_kw,
-            stor.max_kw_turbine,
-            stor.min_kw_turbine,
+            stor.turbine_max_kw,
+            stor.turbine_min_kw,
             stor.computation_type,
             stor.water_turbine_average_cubic_meters_per_second_conversion_efficiency,
             stor.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
