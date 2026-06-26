@@ -25,6 +25,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## bugfix-chp-to-abschl-flow
+### Fixed
+- Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
+
+### Changed
+- Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
+
 ## v0.59.2
 ### Fixed
 - Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
