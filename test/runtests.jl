@@ -1394,7 +1394,7 @@ else  # run HiGHS tests
                 #test individual hour 4045 - CHP runs at load-following, and sends to abschl (not waste) so electric load is reduced
                 @test value(m[:dvRatedProduction]["CHP",4045]) < p.s.electric_load.loads_kw[4045]
                 @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4045]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4045]) rtol=1e-4
-                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4 
+                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4
             end
 
             @testset "CHP Proforma Metrics" begin
