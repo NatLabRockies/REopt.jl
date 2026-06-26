@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     REoptInputs
 
@@ -231,6 +231,15 @@ function REoptInputs(s::AbstractScenario)
             absorption_chillers_using_heating_load["ProcessHeat"] = Vector{String}()
         end
     end
+    
+    if !isnothing(s.absorption_chiller) && (
+            isempty(absorption_chillers_using_heating_load) 
+            || (s.absorption_chiller.heating_load_input == "SpaceHeating" && isempty(techs.can_serve_space_heating))
+            || (s.absorption_chiller.heating_load_input == "DomesticHotWater" && isempty(techs.can_serve_dhw))
+            || (s.absorption_chiller.heating_load_input == "ProcessHeat" && isempty(techs.can_serve_process_heat))
+        )
+            reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load, s, techs)
+    end
 
     if sum(heating_loads_kw["SpaceHeating"]) > 0.0 && isempty(techs.can_serve_space_heating) 
         throw(@error("SpaceHeating load is nonzero and no techs can serve the load."))
@@ -414,7 +423,8 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
 
     if "Boiler" in techs.all
         setup_boiler_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-            tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+            tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+            om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     end
 
     if "CHP" in techs.all
@@ -755,7 +765,6 @@ end
 Update tech-indexed data arrays necessary to build the JuMP model with the values for existing boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
-
 function setup_existing_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
     heating_cf)
@@ -778,18 +787,24 @@ end
 
 """
     function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, 
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for (new) boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
 function setup_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
-        tech_renewable_energy_fraction, om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
+        tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25,
+        om_cost_per_kw, production_factor, fuel_cost_per_kwh, heating_cf)
     max_sizes["Boiler"] = s.boiler.max_kw
     min_sizes["Boiler"] = s.boiler.min_kw
     existing_sizes["Boiler"] = 0.0
     boiler_efficiency["Boiler"] = s.boiler.efficiency
     tech_renewable_energy_fraction["Boiler"] = s.boiler.fuel_renewable_energy_fraction
+    tech_emissions_factors_CO2["Boiler"] = s.boiler.emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU  # lb/mmtbu * mmtbu/kWh
+    tech_emissions_factors_NOx["Boiler"] = s.boiler.emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_SO2["Boiler"] = s.boiler.emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+    tech_emissions_factors_PM25["Boiler"] = s.boiler.emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU 
     
     # The Boiler only has a MACRS benefit, no ITC etc.
     if s.boiler.macrs_option_years in [5, 7]
@@ -1396,4 +1411,33 @@ function get_unavailability_by_tech(s::AbstractScenario, techs::Techs, time_step
         unavailability = Dict(""=>Float64[])
     end
     return unavailability
+end
+
+"""
+reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
+    overrides the absorption chiller's heating load input as needed, using the first available heat input for which a technology
+    exists.
+"""
+function reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load::Dict{String, Vector{String}}, s::AbstractScenario, techs::Techs)
+    if !isempty(techs.can_serve_space_heating)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to SpaceHeating.")
+        s.absorption_chiller.heating_load_input = "SpaceHeating"
+        absorption_chillers_using_heating_load["SpaceHeating"] = ["AbsorptionChiller"]
+        absorption_chillers_using_heating_load["DomesticHotWater"] = []
+        absorption_chillers_using_heating_load["ProcessHeat"] = []
+    elseif !isempty(techs.can_serve_dhw)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to DomesticHotWater.")
+        s.absorption_chiller.heating_load_input = "DomesticHotWater"
+        absorption_chillers_using_heating_load["SpaceHeating"] = []
+        absorption_chillers_using_heating_load["DomesticHotWater"] = ["AbsorptionChiller"]
+        absorption_chillers_using_heating_load["ProcessHeat"] = []
+    elseif !isempty(techs.can_serve_process_heat)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to ProcessHeat.")
+        s.absorption_chiller.heating_load_input = "ProcessHeat"
+        absorption_chillers_using_heating_load["SpaceHeating"] = []
+        absorption_chillers_using_heating_load["DomesticHotWater"] = []
+        absorption_chillers_using_heating_load["ProcessHeat"] = ["AbsorptionChiller"]
+    else
+       throw(@error("Absorption Chiller is selected as a technology, but there are no heating technologies to supply any heat.")) 
+    end
 end

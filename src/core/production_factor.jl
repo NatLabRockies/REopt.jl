@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 function get_production_factor(pv::PV, latitude::Real, longitude::Real; timeframe="hourly", 
     time_steps_per_hour::Int=1)
@@ -64,7 +64,7 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
         # TODO validate against API with different hub heights (not in windtoolkit_hub_heights)
 
         for height in heights_for_sam
-            url = string("https://developer.nrel.gov/api/wind-toolkit/v2/wind/wtk-srw-download", 
+            url = string("https://developer.nlr.gov/api/wind-toolkit/v2/wind/wtk-srw-download", 
                 "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
                 "&lat=", latitude , "&lon=", longitude, 
                 "&hubheight=", Int(height), "&year=", 2012

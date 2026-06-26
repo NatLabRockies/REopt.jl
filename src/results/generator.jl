@@ -1,11 +1,11 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Generator` results keys:
 - `size_kw` Optimal generator capacity
 - `lifecycle_fixed_om_cost_after_tax` Lifecycle fixed operations and maintenance cost in present value, after tax
 - `year_one_fixed_om_cost_before_tax` fixed operations and maintenance cost over the first year, before considering tax benefits
-- `lifecycle_variable_om_cost_after_tax` Lifecycle variable operations and maintenance cost in present value, after tax
-- `year_one_variable_om_cost_before_tax` variable operations and maintenance cost over the first year, before considering tax benefits
+- `lifecycle_variable_om_cost_after_tax` Lifecycle variable operations and maintenance cost in present value, after tax. Includes om_cost_per_kwh and om_cost_per_hr_per_kw_rated
+- `year_one_variable_om_cost_before_tax` variable operations and maintenance cost over the first year, before considering tax benefits. Includes om_cost_per_kwh and om_cost_per_hr_per_kw_rated
 - `lifecycle_fuel_cost_after_tax` Lifecycle fuel cost in present value, after tax
 - `year_one_fuel_cost_before_tax` Fuel cost over the first year, before considering tax benefits. Does not include fuel use during outages if using multiple outage modeling.
 - `year_one_fuel_cost_after_tax` Fuel cost over the first year, after considering tax benefits. Does not include fuel use during outages if using multiple outage modeling.
@@ -28,17 +28,13 @@ function add_generator_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
 
 	GenPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum(m[:dvSize][t] * p.om_cost_per_kw[t] for t in p.techs.gen))
 
-	GenPerUnitProdOMCosts = @expression(m, p.third_party_factor * p.pwf_om * p.hours_per_time_step *
-		sum(m[:dvRatedProduction][t, ts] * p.production_factor[t, ts] * p.s.generator.om_cost_per_kwh
-			for t in p.techs.gen, ts in p.time_steps)
-	)
 	r["size_kw"] = round(value(sum(m[:dvSize][t] for t in p.techs.gen)), digits=2)
 	r["lifecycle_fixed_om_cost_after_tax"] = round(value(GenPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-	r["lifecycle_variable_om_cost_after_tax"] = round(value(m[:TotalPerUnitProdOMCosts]) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
+	r["lifecycle_variable_om_cost_after_tax"] = round((value(m[:TotalGenPerUnitProdOMCosts]) + value(m[:TotalHourlyGenOMCosts])) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
 	r["lifecycle_fuel_cost_after_tax"] = round(value(m[:TotalGenFuelCosts]) * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=2)
 	r["year_one_fuel_cost_before_tax"] = round(value(m[:TotalGenFuelCosts]) / p.pwf_fuel["Generator"], digits=2)
 	r["year_one_fuel_cost_after_tax"] = r["year_one_fuel_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
-	r["year_one_variable_om_cost_before_tax"] = round(value(GenPerUnitProdOMCosts) / (p.pwf_om * p.third_party_factor), digits=0)
+	r["year_one_variable_om_cost_before_tax"] = round(value(m[:TotalGenPerUnitProdOMCosts] + m[:TotalHourlyGenOMCosts]) / (p.pwf_om * p.third_party_factor), digits=0)
 	r["year_one_fixed_om_cost_before_tax"] = round(value(GenPerUnitSizeOMCosts) / (p.pwf_om * p.third_party_factor), digits=0)
 
 	if !isempty(p.s.storage.types.elec)

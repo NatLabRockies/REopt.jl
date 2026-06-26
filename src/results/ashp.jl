@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `ASHPSpaceHeater` results keys:
@@ -20,7 +20,6 @@
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
 
 """
-
 function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_ton"] = round(p.s.ashp.sizing_factor * value(m[Symbol("dvSize"*_n)]["ASHPSpaceHeater"]) / KWH_THERMAL_PER_TONHOUR, digits=3)
@@ -119,6 +118,7 @@ end
 - `annual_thermal_production_mmbtu`  # Thermal heating energy produced in a year [MMBtu]
 - `thermal_to_storage_series_mmbtu_per_hour`  # Thermal power production to TES (HotThermalStorage) series [MMBtu/hr]
 - `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr]
+- `thermal_to_dhw_load_series_mmbtu_per_hour` # Thermal power production to serve domestic hot water load series [MMBtu/hr]
 
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
@@ -126,7 +126,6 @@ end
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
 
 """
-
 function add_ashp_wh_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_ton"] = round(p.s.ashp_wh.sizing_factor * value(m[Symbol("dvSize"*_n)]["ASHPWaterHeater"]) / KWH_THERMAL_PER_TONHOUR, digits=3)

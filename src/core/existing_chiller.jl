@@ -1,11 +1,11 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ExistingChiller` is an optional REopt input with the following keys and default values:
 ```julia
     loads_kw_thermal::Vector{<:Real},
     cop::Union{Real, Nothing} = nothing,
     max_thermal_factor_on_peak_load::Real=1.25
-    installed_cost_per_kw::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis based on current size; also incurred in Optimal case if still using at all
+    installed_cost_per_ton::Real = 0.0  # Represents needed CapEx in BAU, assuming net present value basis based on current size; also incurred in Optimal case if still using at all
     installed_cost_dollars::Real = 0.0  # Represents needed CapEx in BAU, assuming net present cost basis; also incurred in Optimal case if still using at all
     retire_in_optimal::Bool = false  # Do NOT use in the optimal case (still used in BAU)
 ```

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 struct Scenario <: AbstractScenario
     settings::Settings
     site::Site
@@ -44,7 +44,6 @@ A Scenario struct can contain the following keys:
 - [HotThermalStorage](@ref) (optional)
 - [HighTempThermalStorage](@ref) (optional)
 - [ColdThermalStorage](@ref) (optional)
-- [ElectricStorage](@ref) (optional)
 - [ElectricUtility](@ref) (optional)
 - [Generator](@ref) (optional)
 - [HeatingLoad](@ref) (optional)
@@ -203,22 +202,31 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         
     storage_structs = Dict{String, AbstractStorage}()
     if haskey(d,  "ElectricStorage")
-        storage_dict = d["ElectricStorage"]
-        storage_dict["off_grid_flag"] = settings.off_grid_flag
+        storage_dict = dictkeys_tosymbols(d["ElectricStorage"])
+        storage_dict[:off_grid_flag] = settings.off_grid_flag
     else
-        storage_dict = Dict("max_kw" => 0.0)
+        storage_dict = Dict(:max_kw => 0.0)
     end
-    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site)
+    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site, settings.time_steps_per_hour)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")
-        storage_structs["HotThermalStorage"] = HotThermalStorage(d["HotThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["HotThermalStorage"] = HotThermalStorage(
+                                                    dictkeys_tosymbols(d["HotThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
     end
     if haskey(d, "HighTempThermalStorage")
-        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(d["HighTempThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["HighTempThermalStorage"] = HighTempThermalStorage(
+                                                        dictkeys_tosymbols(d["HighTempThermalStorage"]), 
+                                                        financial, site, settings.time_steps_per_hour
+                                                    )
     end
     if haskey(d, "ColdThermalStorage")
-        storage_structs["ColdThermalStorage"] = ColdThermalStorage(d["ColdThermalStorage"], financial, site, settings.time_steps_per_hour)
+        storage_structs["ColdThermalStorage"] = ColdThermalStorage(
+                                                    dictkeys_tosymbols(d["ColdThermalStorage"]), 
+                                                    financial, site, settings.time_steps_per_hour
+                                                )
     end
     storage = Storage(storage_structs)
 
@@ -399,30 +407,6 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
 
-    chp = nothing
-    chp_prime_mover = nothing
-    if haskey(d, "CHP")
-        electric_only = get(d["CHP"], "is_electric_only", false) || get(d["CHP"], "thermal_efficiency_full_load", 0.5) == 0.0
-        if !isnothing(existing_boiler) && !electric_only
-            total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
-            avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
-            chp = CHP(d["CHP"]; 
-                    avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
-                    existing_boiler = existing_boiler,
-                    electric_load_series_kw = electric_load.loads_kw,
-                    year = electric_load.year,
-                    sector = site.sector,
-                    federal_procurement_type = site.federal_procurement_type)
-        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only)
-            chp = CHP(d["CHP"],
-                    electric_load_series_kw = electric_load.loads_kw,
-                    year = electric_load.year,
-                    sector = site.sector,
-                    federal_procurement_type = site.federal_procurement_type)
-        end
-        chp_prime_mover = chp.prime_mover
-    end
-
     max_cooling_demand_kw = 0
     if haskey(d, "CoolingLoad") && !haskey(d, "FlexibleHVAC")
         d["CoolingLoad"] = convert(Dict{String, Any}, d["CoolingLoad"])
@@ -479,6 +463,55 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         )
     end
 
+
+    chp = nothing
+    if haskey(d, "CHP")
+        electric_only = get(d["CHP"], "is_electric_only", false) || get(d["CHP"], "thermal_efficiency_full_load", 0.5) == 0.0
+        
+        # If AbsorptionChiller is evaluated, need cooling load -> absorption chiller heating consumption estimate for CHP sizing heuristic
+        avg_cooling_load_kw = nothing
+        absorption_chiller_cop = nothing
+        # User can override by explicitly setting include_cooling_in_chp_size = false
+        if "include_cooling_in_chp_size" in keys(d["CHP"])
+            include_cooling_in_chp_size = pop!(d["CHP"], "include_cooling_in_chp_size")
+        else
+            include_cooling_in_chp_size = haskey(d, "AbsorptionChiller")
+        end
+        
+        if max_cooling_demand_kw > 0 && include_cooling_in_chp_size
+            # Use already-processed cooling_load object
+            avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
+            # Get absorption chiller COP if specified, otherwise will use default
+            if haskey(d, "AbsorptionChiller") && haskey(d["AbsorptionChiller"], "cop_thermal")
+                absorption_chiller_cop = d["AbsorptionChiller"]["cop_thermal"]
+            end
+        end
+        
+        if !isnothing(existing_boiler) && !electric_only
+            total_fuel_heating_load_mmbtu_per_hour = (space_heating_load.loads_kw + dhw_load.loads_kw + process_heat_load.loads_kw) / existing_boiler.efficiency / KWH_PER_MMBTU
+            avg_boiler_fuel_load_mmbtu_per_hour = sum(total_fuel_heating_load_mmbtu_per_hour) / length(total_fuel_heating_load_mmbtu_per_hour)
+            chp = CHP(d["CHP"]; 
+                    avg_boiler_fuel_load_mmbtu_per_hour = avg_boiler_fuel_load_mmbtu_per_hour,
+                    existing_boiler = existing_boiler,
+                    electric_load_series_kw = electric_load.loads_kw,
+                    avg_cooling_load_kw = avg_cooling_load_kw,
+                    absorption_chiller_cop = absorption_chiller_cop,
+                    include_cooling_in_chp_size = include_cooling_in_chp_size,
+                    year = electric_load.year,
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type)
+        else # Only if modeling CHP without heating_load and existing_boiler (for prime generator, electric-only, or only sending heat to absorption chiller)
+            chp = CHP(d["CHP"];
+                    electric_load_series_kw = electric_load.loads_kw,
+                    avg_cooling_load_kw = avg_cooling_load_kw,
+                    absorption_chiller_cop = absorption_chiller_cop,
+                    include_cooling_in_chp_size = include_cooling_in_chp_size,
+                    year = electric_load.year,
+                    sector = site.sector,
+                    federal_procurement_type = site.federal_procurement_type)
+        end
+    end
+
     absorption_chiller = nothing
     if max_cooling_demand_kw > 0 && !haskey(d, "FlexibleHVAC")  # create ExistingChiller
         chiller_inputs = Dict{Symbol, Any}()
@@ -496,7 +529,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         if haskey(d, "AbsorptionChiller")
             absorption_chiller = AbsorptionChiller(d["AbsorptionChiller"]; 
                                                     existing_boiler = existing_boiler,
-                                                    chp_prime_mover = chp_prime_mover,
+                                                    chp_prime_mover = isnothing(chp) ? nothing : chp.prime_mover,
                                                     cooling_load = cooling_load)
         end
     end
@@ -604,7 +637,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "Non-hybrid GHX sizing complete using GhpGhx.jl"
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment"))
                 end
                 d["GHP"]["number_of_boreholes_nonhybrid"] = nonhybrid_results_resp_dict["number_of_boreholes"]
@@ -672,7 +705,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end
@@ -697,7 +730,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         @info "New hybrid GHX sizing complete using GhpGhx.jl"
                     catch e
                         @info e
-                        throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                        throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                             loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                             to the GhpGhx.jl package."))
                     end
@@ -818,7 +851,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     @info "GhpGhx.jl model solved" #with status $(results["status"])."
                 catch e
                     @info e
-                    throw(@error("The GhpGhx package was not added (add https://github.com/NREL/GhpGhx.jl) or 
+                    throw(@error("The GhpGhx package was not added (add https://github.com/NatLabRockies/GhpGhx.jl) or 
                         loaded (using GhpGhx) to the active Julia environment, or an error occurred during the call 
                         to the GhpGhx.jl package."))
                 end

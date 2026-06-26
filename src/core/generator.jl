@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Generator` is an optional REopt input with the following keys and default values:
 ```julia
@@ -9,6 +9,7 @@
     installed_cost_per_kw::Real = off_grid_flag ? 880 : only_runs_during_grid_outage ? 650.0 : 800.0,
     om_cost_per_kw::Real = off_grid_flag ? 10.0 : 20.0,
     om_cost_per_kwh::Real = 0.0,
+    om_cost_per_hr_per_kw_rated::Float64 = 0.0, # Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated
     fuel_cost_per_gallon::Real = 2.25,
     electric_efficiency_full_load::Real = 0.322,
     electric_efficiency_half_load::Real = electric_efficiency_full_load,
@@ -57,6 +58,7 @@ struct Generator <: AbstractGenerator
     installed_cost_per_kw
     om_cost_per_kw
     om_cost_per_kwh
+    om_cost_per_hr_per_kw_rated
     fuel_cost_per_gallon
     electric_efficiency_full_load
     electric_efficiency_half_load
@@ -104,6 +106,7 @@ struct Generator <: AbstractGenerator
         installed_cost_per_kw::Real = off_grid_flag ? 880 : only_runs_during_grid_outage ? 650.0 : 800.0,
         om_cost_per_kw::Real= off_grid_flag ? 10.0 : 20.0,
         om_cost_per_kwh::Real = 0.0,
+        om_cost_per_hr_per_kw_rated::Float64 = 0.0, # Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated
         fuel_cost_per_gallon::Real = 2.25,
         electric_efficiency_full_load::Real = 0.322,
         electric_efficiency_half_load::Real = electric_efficiency_full_load,
@@ -152,6 +155,7 @@ struct Generator <: AbstractGenerator
             installed_cost_per_kw,
             om_cost_per_kw,
             om_cost_per_kwh,
+            om_cost_per_hr_per_kw_rated,
             fuel_cost_per_gallon,
             electric_efficiency_full_load,
             electric_efficiency_half_load,
