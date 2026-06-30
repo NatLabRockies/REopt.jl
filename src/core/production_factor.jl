@@ -35,7 +35,6 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
     if !(isnothing(wind.production_factor_series))
         return wind.production_factor_series
     end
-    check_api_key()
     resources = []
     heights_for_sam = [wind.hub_height]
 
@@ -63,30 +62,38 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
         end
         # TODO validate against API with different hub heights (not in windtoolkit_hub_heights)
 
-        for height in heights_for_sam
-            url = string("https://developer.nlr.gov/api/wind-toolkit/v2/wind/wtk-srw-download", 
-                "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
-                "&lat=", latitude , "&lon=", longitude, 
-                "&hubheight=", Int(height), "&year=", 2012
-            )
-            resource = []
-            try
-                @info "Querying Wind Toolkit for resource data ..."
-                r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; retries=5)
-                if r.status != 200
-                    throw(@error("Bad response from Wind Toolkit: $(response["errors"])"))
-                end
-                @info "Wind Toolkit success."
+        wind_data_file = joinpath(@__DIR__, "..", "..", "data", "wind", "wind_data_60.71_-161.84_2020.csv")
+        resource = []
+        try
+            @info "Loading wind resource data from $(wind_data_file) ..."
+            header_line = split(readlines(wind_data_file)[2], ',')
+            data = readdlm(wind_data_file, ',', Float64, '\n'; skipstart=2)
 
-                resource = readdlm(IOBuffer(String(r.body)), ',', Float64, '\n'; skipstart=5);
-                # columns: Temperature, Pressure, Speed, Direction (C, atm, m/s, Degrees)
-                if size(resource) != (8760, 4)
-                    throw(@error("Wind Toolkit did not return valid resource data. Got an array with size $(size(resource))"))
-                end
-            catch e
-                throw(@error("Error occurred when calling Wind Toolkit: $e"))
+            temp_idx = findfirst(==("air temperature at 60m (C)"), header_line)
+            pressure_idx = findfirst(==("air pressure at 100m (Pa)"), header_line)
+            speed_idx = findfirst(==("wind speed at 60m (m/s)"), header_line)
+            direction_idx = findfirst(==("wind direction at 60m (deg)"), header_line)
+            if any(isnothing, [temp_idx, pressure_idx, speed_idx, direction_idx])
+                throw(@error("Missing one or more required columns in wind data CSV."))
             end
-            push!(resources, resource)
+
+            resource = hcat(
+                data[:, temp_idx],
+                data[:, pressure_idx] ./ 101325.0,  # convert Pa to atm
+                data[:, speed_idx],
+                data[:, direction_idx]
+            )
+
+            # Keep prior behavior where resources are provided for each height used by SAM.
+            for _ in heights_for_sam
+                push!(resources, resource)
+            end
+
+            if size(resource) != (8760, 4)
+                throw(@error("Wind data file did not return valid resource data. Got an array with size $(size(resource))"))
+            end
+        catch e
+            throw(@error("Error occurred when loading local wind data file: $e"))
         end
         resources = hcat(resources...)
     end  # done filling in resources (can contain one Vector of Vectors or multiple Vectors of Vectors)
