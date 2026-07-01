@@ -156,9 +156,14 @@ function CHP(d::Dict;
             avg_cooling_load_kw::Union{Float64, Nothing}=nothing,
             absorption_chiller_cop::Union{Float64, Nothing}=nothing,
             include_cooling_in_chp_size::Bool=false,
+            include_cooling_in_size::Union{Bool, Nothing}=nothing,
             year::Int64=2017,
             sector::String,
             federal_procurement_type::String)
+    if !isnothing(include_cooling_in_size)
+        include_cooling_in_chp_size = include_cooling_in_size
+    end
+
     # If array inputs are coming from Julia JSON.parsefile (reader), they have type Vector{Any}; convert to expected type here
     for (k,v) in d
         if typeof(v) <: AbstractVector{Any} && k != "unavailability_periods"
