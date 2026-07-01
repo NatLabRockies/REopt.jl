@@ -386,18 +386,18 @@ function run_ssc(case_data::Dict)
             "swh_evactube" => ["Q_useful","P_pump",0.0,"system_capacity",1.0]           # Q_useful = [kWt] confirmed 1/14/2025), kW, kW, kW
         )
         thermal_conversion_factor = Dict(
-            "mst" => 1,         
-            "lf" => 1, 
-            "ptc" => 1,  
-            "swh_flatplate" => 1,          
-            "swh_evactube" => 1           
+            "mst" => 1.0,         
+            "lf" => 1.0, 
+            "ptc" => 3.0,  
+            "swh_flatplate" => 1.0,          
+            "swh_evactube" => 1.0           
         ) 
         elec_conversion_factor = Dict(
-            "mst" => 1,   
-            "lf" => 1, 
-            "ptc" => 1,  
-            "swh_flatplate" => 1,           
-            "swh_evactube" => 1           
+            "mst" => 1.0,   
+            "lf" => 1.0, 
+            "ptc" => 1.0,  
+            "swh_flatplate" => 1.0,           
+            "swh_evactube" => 1.0           
         ) 
         outputs = outputs_dict[model]
         
