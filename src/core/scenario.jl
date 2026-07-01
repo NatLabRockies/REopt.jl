@@ -481,12 +481,12 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
             avg_cooling_load_kw = nothing
             absorption_chiller_cop = nothing
             if "include_cooling_in_chp_size" in keys(chp_dict)
-                include_cooling_in_size = pop!(chp_dict, "include_cooling_in_chp_size")
+                include_cooling_in_chp_size = pop!(chp_dict, "include_cooling_in_chp_size")
             else
-                include_cooling_in_size = haskey(d, "AbsorptionChiller")
+                include_cooling_in_chp_size = haskey(d, "AbsorptionChiller")
             end
 
-            if max_cooling_demand_kw > 0 && include_cooling_in_size
+            if max_cooling_demand_kw > 0 && include_cooling_in_chp_size
                 avg_cooling_load_kw = sum(cooling_load.loads_kw_thermal) / length(cooling_load.loads_kw_thermal)
                 if haskey(d, "AbsorptionChiller") && haskey(d["AbsorptionChiller"], "cop_thermal")
                     absorption_chiller_cop = d["AbsorptionChiller"]["cop_thermal"]
@@ -502,7 +502,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         electric_load_series_kw = electric_load.loads_kw,
                         avg_cooling_load_kw = avg_cooling_load_kw,
                         absorption_chiller_cop = absorption_chiller_cop,
-                        include_cooling_in_size = include_cooling_in_size,
+                        include_cooling_in_chp_size = include_cooling_in_chp_size,
                         year = electric_load.year,
                         sector = site.sector,
                         federal_procurement_type = site.federal_procurement_type,
@@ -512,7 +512,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         electric_load_series_kw = electric_load.loads_kw,
                         avg_cooling_load_kw = avg_cooling_load_kw,
                         absorption_chiller_cop = absorption_chiller_cop,
-                        include_cooling_in_size = include_cooling_in_size,
+                        include_cooling_in_chp_size = include_cooling_in_chp_size,
                         year = electric_load.year,
                         sector = site.sector,
                         federal_procurement_type = site.federal_procurement_type,
