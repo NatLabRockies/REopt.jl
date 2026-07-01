@@ -162,7 +162,7 @@ function CHP(d::Dict;
             federal_procurement_type::String)
     if !isnothing(include_cooling_in_size)
         if !isnothing(include_cooling_in_chp_size) && include_cooling_in_size != include_cooling_in_chp_size
-            throw(@error("CHP received conflicting values for include_cooling_in_size and include_cooling_in_chp_size. Use include_cooling_in_chp_size only."))
+            error("CHP received conflicting values for include_cooling_in_size and include_cooling_in_chp_size. Use include_cooling_in_chp_size only.")
         end
         @warn "The `include_cooling_in_size` keyword is deprecated and will be removed in a future release; use `include_cooling_in_chp_size`."
         include_cooling_in_chp_size = include_cooling_in_size
