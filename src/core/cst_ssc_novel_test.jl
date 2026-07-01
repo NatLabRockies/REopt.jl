@@ -388,7 +388,7 @@ function run_ssc(case_data::Dict)
         thermal_conversion_factor = Dict(
             "mst" => 1,         
             "lf" => 1, 
-            "ptc" => 1,  
+            "ptc" => 3.0,  
             "swh_flatplate" => 1,          
             "swh_evactube" => 1           
         ) 
