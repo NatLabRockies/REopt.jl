@@ -169,10 +169,13 @@ function dictkeys_tosymbols(d::Dict)
             "cooling_cop_reference",
             "cooling_cf_reference",
             "cooling_reference_temps_degF",
+            "cycle_fade_coefficient",
+            "cycle_fade_fraction",
             #for ERP
             "pv_production_factor_series", "wind_production_factor_series",
             "battery_starting_soc_series_fraction",
-            "monthly_mmbtu", "monthly_tonhour"
+            "monthly_mmbtu", "monthly_tonhour",
+            "fixed_soc_series_fraction"
         ] && !isnothing(v)
             try
                 v = convert(Array{Real, 1}, v)
@@ -404,8 +407,7 @@ function call_solar_dataset_api(latitude::Real, longitude::Real, radius::Int)
     elseif longitude < -180 || longitude > 180
         throw(@error("Invalid coordinates: longitude of $longitude must be between -180 and 180 degrees."))
     end
-
-    url = string("https://developer.nrel.gov/api/solar/data_query/v2.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("https://developer.nlr.gov/api/solar/data_query/v2.json", "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
         "&lat=", latitude , "&lon=", longitude, "&radius=", radius, "&all=", 0 
         )
     try
@@ -476,7 +478,7 @@ function call_pvwatts_api(latitude::Real, longitude::Real; tilt=latitude, azimut
     # Determine resource dataset to use for this location
     dataset, dist_meters, datasource  = call_solar_dataset_api(latitude, longitude, radius)
 
-    url = string("https://developer.nrel.gov/api/pvwatts/v8.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("https://developer.nlr.gov/api/pvwatts/v8.json", "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
         "&lat=", latitude , "&lon=", longitude, "&tilt=", tilt,
         "&system_capacity=1", "&azimuth=", azimuth, "&module_type=", module_type,
         "&array_type=", array_type, "&losses=", losses, "&dc_ac_ratio=", dc_ac_ratio,
@@ -660,18 +662,32 @@ function convert_temp_degF_to_Kelvin(degF::Float64)
 end
 
 function check_api_key()
-    if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
-        throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
-                    Within your Julia environment, specify ENV['NREL_DEVELOPER_API_KEY']='your API key'
+    if isempty(get(ENV, "NLR_DEVELOPER_API_KEY", ""))
+        if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
+            throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_API_KEY']='your API key'
                     See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
+        else
+            ENV["NLR_DEVELOPER_API_KEY"] = ENV["NREL_DEVELOPER_API_KEY"]
+            @warn "The environment variable NREL_DEVELOPER_API_KEY will be discontinued. Use NLR_DEVELOPER_API_KEY instead.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_API_KEY']='your API key'
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."
+        end
     end
 end
 
 function check_api_email()
-    if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
-        throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
-                    Within your Julia environment, specify ENV['NREL_DEVELOPER_EMAIL']='your contact email'
+    if isempty(get(ENV, "NLR_DEVELOPER_EMAIL", ""))
+        if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
+            throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_EMAIL']='your contact email'
                     See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
+        else
+            ENV["NLR_DEVELOPER_EMAIL"] = ENV["NREL_DEVELOPER_EMAIL"]
+            @warn "The environment variable NREL_DEVELOPER_EMAIL will be discontinued. Use NLR_DEVELOPER_EMAIL instead.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_EMAIL']='your contact email'
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."
+        end
     end
 end
 
