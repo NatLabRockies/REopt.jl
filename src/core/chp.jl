@@ -164,7 +164,7 @@ function CHP(d::Dict;
     # when both current and legacy keyword names are supplied with conflicting values.
     if !isnothing(include_cooling_in_size)
         if !isnothing(include_cooling_in_chp_size) && include_cooling_in_size != include_cooling_in_chp_size
-            error("CHP received conflicting values for include_cooling_in_size and include_cooling_in_chp_size. Use include_cooling_in_chp_size only.")
+            error("CHP received conflicting values for include_cooling_in_size=$(include_cooling_in_size) and include_cooling_in_chp_size=$(include_cooling_in_chp_size). Use include_cooling_in_chp_size only.")
         end
         @warn "The `include_cooling_in_size` keyword is deprecated and will be removed in a future release; use `include_cooling_in_chp_size`."
         include_cooling_in_chp_size = include_cooling_in_size

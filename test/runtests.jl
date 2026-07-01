@@ -2250,7 +2250,7 @@ else  # run HiGHS tests
             #Test CHP defaults use average fuel load, size class 2 for recip_engine 
             @test inputs.s.chp.min_allowable_kw ≈ 50.0 atol=0.01
             @test inputs.s.chp.om_cost_per_kwh ≈ 0.027 atol=0.0001
-            chp_from_legacy_kw = @test_logs (:warn, r"include_cooling_in_size") REopt.CHP(
+            chp_with_legacy_keyword = @test_logs (:warn, r"include_cooling_in_size") REopt.CHP(
                 copy(input_data["CHP"]);
                 avg_boiler_fuel_load_mmbtu_per_hour = 10.0,
                 existing_boiler = inputs.s.existing_boiler,
@@ -2262,7 +2262,7 @@ else  # run HiGHS tests
                 sector = inputs.s.site.sector,
                 federal_procurement_type = inputs.s.site.federal_procurement_type
             )
-            chp_from_current_kw = REopt.CHP(copy(input_data["CHP"]);
+            chp_with_current_keyword = REopt.CHP(copy(input_data["CHP"]);
                 avg_boiler_fuel_load_mmbtu_per_hour = 10.0,
                 existing_boiler = inputs.s.existing_boiler,
                 electric_load_series_kw = inputs.s.electric_load.loads_kw,
@@ -2273,8 +2273,8 @@ else  # run HiGHS tests
                 sector = inputs.s.site.sector,
                 federal_procurement_type = inputs.s.site.federal_procurement_type
             )
-            @test chp_from_legacy_kw.max_kw ≈ chp_from_current_kw.max_kw
-            @test chp_from_legacy_kw.min_allowable_kw ≈ chp_from_current_kw.min_allowable_kw
+            @test chp_with_legacy_keyword.max_kw ≈ chp_with_current_keyword.max_kw
+            @test chp_with_legacy_keyword.min_allowable_kw ≈ chp_with_current_keyword.min_allowable_kw
 
             @test_throws ErrorException REopt.CHP(copy(input_data["CHP"]);
                 avg_boiler_fuel_load_mmbtu_per_hour = 10.0,
