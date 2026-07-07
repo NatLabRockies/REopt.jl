@@ -14,11 +14,11 @@ REopt evaluations for all system types except GHP (see below) can be performed u
 If you don't have an NLR developer network API key, [sign up here on https://developer.nlr.gov to get one (free)](https://developer.nlr.gov/signup); this is required to load PV and Wind resource profiles from PVWatts and the Wind Toolkit APIs from within REopt.jl.
 Assign your API key to the expected environment variable:
 ```julia
-ENV["NREL_DEVELOPER_API_KEY"]="your API key"
+ENV["NLR_DEVELOPER_API_KEY"]="your API key"
 ```
 before running PV or Wind scenarios, and also assign your email to the expected environment variable as well before running CST scenarios: 
 ```julia
-ENV["NREL_DEVELOPER_EMAIL"]="your contact email"
+ENV["NLR_DEVELOPER_EMAIL"]="your contact email"
 ```
 
 ### Additional package loading for GHP

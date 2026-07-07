@@ -32,6 +32,11 @@ Classify the change according to the following categories:
 ### Fixed
 - Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
  
+## v0.59.3
+### Changed
+- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
+- Added temporary backwards compatiability with old environment variable names and a warning for user to update
+
 ## v0.59.2
 ### Fixed
 - Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
