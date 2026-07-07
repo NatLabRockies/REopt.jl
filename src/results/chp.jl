@@ -128,29 +128,29 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
     CHPThermalToLoadKW = [sum(value(m[Symbol("dvHeatingProduction"*_n)][chp_name,q,ts]) for q in p.heating_loads) + value(m[Symbol("dvSupplementaryThermalProduction"*_n)][chp_name,ts]) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts] - CHPtoAbsorptionChillerKW[ts] for ts in p.time_steps]
     r["thermal_to_load_series_mmbtu_per_hour"] = round.(CHPThermalToLoadKW ./ KWH_PER_MMBTU, digits=5)
     
-    if "DomesticHotWater" in p.heating_loads && chp.can_serve_dhw
+    if "DomesticHotWater" in p.heating_loads && chp.can_serve_dhw && sum(p.heating_loads_kw["DomesticHotWater"]) > 0.0
         CHPToDHWKW = [value(m[:dvHeatingProduction][chp_name,"DomesticHotWater",ts]) - CHPToHotTESByQuality["DomesticHotWater"][ts] - CHPToSteamTurbineByQualityKW["DomesticHotWater"][ts] - CHPThermalToWasteByQualityKW["DomesticHotWater"][ts] - CHPtoAbsorptionChillerByQualityKW["DomesticHotWater"][ts]
             for ts in p.time_steps]
     else
         CHPToDHWKW = zeros(length(p.time_steps))
     end
-    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(CHPToDHWKW ./ KWH_PER_MMBTU, digits=5)
+    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(max.(0.0, CHPToDHWKW ./ KWH_PER_MMBTU), digits=5)
     
-    if "SpaceHeating" in p.heating_loads && chp.can_serve_space_heating
+    if "SpaceHeating" in p.heating_loads && chp.can_serve_space_heating && sum(p.heating_loads_kw["SpaceHeating"]) > 0.0
         CHPToSpaceHeatingKW = [value(m[:dvHeatingProduction][chp_name,"SpaceHeating",ts]) - CHPToHotTESByQuality["SpaceHeating"][ts] - CHPToSteamTurbineByQualityKW["SpaceHeating"][ts] - CHPThermalToWasteByQualityKW["SpaceHeating"][ts] - CHPtoAbsorptionChillerByQualityKW["SpaceHeating"][ts]
             for ts in p.time_steps]
     else
         CHPToSpaceHeatingKW = zeros(length(p.time_steps))
     end
-    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(CHPToSpaceHeatingKW ./ KWH_PER_MMBTU, digits=5)
+    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(max.(0.0, CHPToSpaceHeatingKW ./ KWH_PER_MMBTU), digits=5)
     
-    if "ProcessHeat" in p.heating_loads && chp.can_serve_process_heat
+    if "ProcessHeat" in p.heating_loads && chp.can_serve_process_heat && sum(p.heating_loads_kw["ProcessHeat"]) > 0.0
         CHPToProcessHeatKW = [value(m[:dvHeatingProduction][chp_name,"ProcessHeat",ts]) - CHPToHotTESByQuality["ProcessHeat"][ts] - CHPToSteamTurbineByQualityKW["ProcessHeat"][ts] - CHPThermalToWasteByQualityKW["ProcessHeat"][ts] - CHPtoAbsorptionChillerByQualityKW["ProcessHeat"][ts]
             for ts in p.time_steps]
     else
         CHPToProcessHeatKW = zeros(length(p.time_steps))
     end
-    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(CHPToProcessHeatKW ./ KWH_PER_MMBTU, digits=5)
+    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(max.(0.0, CHPToProcessHeatKW ./ KWH_PER_MMBTU), digits=5)
 
 	# Calculate individual CHP fuel cost (not the total across all CHPs)
 	chp_fuel_cost_lifecycle = sum(p.pwf_fuel[chp_name] * value(m[:dvFuelUsage][chp_name, ts]) * p.fuel_cost_per_kwh[chp_name][ts] for ts in p.time_steps)

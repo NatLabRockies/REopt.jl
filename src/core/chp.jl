@@ -165,7 +165,7 @@ function CHP(d::Dict;
             electric_load_series_kw::Array{<:Real,1}=Real[],
             avg_cooling_load_kw::Union{Float64, Nothing}=nothing,
             absorption_chiller_cop::Union{Float64, Nothing}=nothing,
-            include_cooling_in_size::Bool=false,
+            include_cooling_in_chp_size::Bool=false,
             year::Int64=2017,
             sector::String,
             federal_procurement_type::String,
@@ -250,7 +250,7 @@ function CHP(d::Dict;
                                                                 thermal_efficiency=chp.thermal_efficiency_full_load,
                                                                 avg_cooling_load_kw=avg_cooling_load_kw,
                                                                 absorption_chiller_cop=absorption_chiller_cop,
-                                                                include_cooling_in_size=include_cooling_in_size)
+                                                                include_cooling_in_chp_size=include_cooling_in_chp_size)
     defaults = chp_defaults_response["default_inputs"]
     for (k, v) in custom_chp_inputs
         if k in [:installed_cost_per_kw, :tech_sizes_for_cost_curve]
@@ -397,10 +397,10 @@ end
                                         thermal_efficiency::Float64=NaN,
                                         avg_cooling_load_kw::Union{Float64,Nothing}=nothing,
                                         absorption_chiller_cop::Union{Float64,Nothing}=nothing,
-                                        include_cooling_in_size::Union{Bool,Nothing}=nothing)
+                                        include_cooling_in_chp_size::Union{Bool,Nothing}=nothing)
 
 Depending on the set of inputs, different sets of outputs are determine in addition to all CHP cost and performance parameter defaults:
-    1. Inputs: hot_water_or_steam and avg_boiler_fuel_load_mmbtu_per_hour
+    1. Inputs: hot_water_or_steam and avg_boiler_fuel_load_mmbtu_per_hour or avg_cooling_load_kw with absorption_chiller_cop and include_cooling_in_size
        Outputs: prime_mover, size_class, chp_elec_size_heuristic_kw, chp_max_size_kw
     2. Inputs: prime_mover and avg_boiler_fuel_load_mmbtu_per_hour
        Outputs: size_class, chp_elec_size_heuristic_kw, chp_max_size_kw
@@ -424,7 +424,7 @@ for larger sizes and steam.
 
 The determination of size_class and defaults based only on the electric load metrics is for non-heating "CHP", a.k.a. Prime Generator
 
-Cooling load integration: When include_cooling_in_size is true, the CHP sizing heuristic accounts for both heating and 
+Cooling load integration: When include_cooling_in_chp_size is true, the CHP sizing heuristic accounts for both heating and 
 cooling loads (via absorption chiller). The avg_cooling_load_kw and absorption_chiller_cop parameters specify the cooling thermal load 
 and absorption chiller thermal COP to convert cooling load into equivalent thermal load for CHP sizing.
 """
@@ -440,7 +440,7 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
                                                 thermal_efficiency::Float64=NaN, 
                                                 avg_cooling_load_kw::Union{Float64,Nothing}=nothing,
                                                 absorption_chiller_cop::Union{Float64,Nothing}=nothing,
-                                                include_cooling_in_size::Union{Bool,Nothing}=nothing
+                                                include_cooling_in_chp_size::Union{Bool,Nothing}=nothing
                                                 )
     
     prime_mover_defaults_all = JSON.parsefile(joinpath(@__DIR__, "..", "..", "data", "chp", "chp_defaults.json"))
@@ -463,13 +463,13 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
     end
 
     if !isnothing(avg_boiler_fuel_load_mmbtu_per_hour)  # Option 1
-        if avg_boiler_fuel_load_mmbtu_per_hour <= 0
+        if avg_boiler_fuel_load_mmbtu_per_hour < 0
             throw(@error("avg_boiler_fuel_load_mmbtu_per_hour must be >= 0.0"))
         end
     end
 
     if !isnothing(avg_cooling_load_kw)  # Option 1
-        if avg_cooling_load_kw <= 0
+        if avg_cooling_load_kw < 0
             throw(@error("avg_cooling_load_kw must be >= 0.0"))
         end
     end
@@ -491,14 +491,14 @@ function get_chp_defaults_prime_mover_size_class(;hot_water_or_steam::Union{Stri
     # and estimate max size based on 2x the heuristic size
     recalc_heuristic_flag = false
     boiler_effic = NaN
-    if isnothing(include_cooling_in_size)
+    if isnothing(include_cooling_in_chp_size)
         avg_cooling = 0.0
         abschl_cop = 1.0
         include_cooling = false
     else
         avg_cooling = isnothing(avg_cooling_load_kw) ? 0.0 : avg_cooling_load_kw
         abschl_cop = isnothing(absorption_chiller_cop) ? absorption_chiller_defaults_all[hot_water_or_steam]["cop_thermal"] : absorption_chiller_cop
-        include_cooling = include_cooling_in_size
+        include_cooling = include_cooling_in_chp_size
     end
     if !isnothing(avg_boiler_fuel_load_mmbtu_per_hour) && !is_electric_only
         if isnothing(prime_mover)
@@ -597,7 +597,7 @@ end
 
 function get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_load_mmbtu_per_hour, 
                                 prime_mover, size_class, hot_water_or_steam, boiler_effic, thermal_efficiency=NaN,
-                                avg_cooling_load_kw=0.0, absorption_chiller_cop=1.0, include_cooling_in_size=false)
+                                avg_cooling_load_kw=0.0, absorption_chiller_cop=1.0, include_cooling_in_chp_size=false)
     if isnan(thermal_efficiency)
         therm_effic = prime_mover_defaults_all[prime_mover]["thermal_efficiency_full_load"][hot_water_or_steam][size_class+1]
     else
@@ -613,7 +613,7 @@ function get_heuristic_chp_size_kw(prime_mover_defaults_all, avg_boiler_fuel_loa
     elec_effic = prime_mover_defaults_all[prime_mover]["electric_efficiency_full_load"][size_class+1]
     avg_heating_thermal_load_mmbtu_per_hr = avg_boiler_fuel_load_mmbtu_per_hour * boiler_effic
     chp_fuel_rate_mmbtu_per_hr = avg_heating_thermal_load_mmbtu_per_hr / therm_effic
-    if include_cooling_in_size
+    if include_cooling_in_chp_size
         # Convert cooling load to heat consumption/load needed by absorption chiller, then to CHP fuel input
         avg_cooling_thermal_load_mmbtu_per_hr = avg_cooling_load_kw / (absorption_chiller_cop * KWH_PER_MMBTU)
         chp_fuel_rate_mmbtu_per_hr += avg_cooling_thermal_load_mmbtu_per_hr / therm_effic
