@@ -28,6 +28,7 @@ function BAUInputs(p::REoptInputs)
     thermal_cop = Dict{String, Float64}()
     heating_cop = Dict{String, Array{Float64,1}}()
     cooling_cop = Dict{String, Array{Float64,1}}()
+    chp_params = Dict{String, Dict{Symbol, Float64}}()
     heating_cf = Dict{String, Array{Float64,1}}() 
     cooling_cf = Dict{String, Array{Float64,1}}() 
     avoided_capex_by_ashp_present_value = Dict(t => 0.0 for t in techs.all)
@@ -90,6 +91,42 @@ function BAUInputs(p::REoptInputs)
             push!(techs.no_curtail, "Generator")
         end
         fuel_cost_per_kwh["Generator"] = p.fuel_cost_per_kwh["Generator"]        
+    end
+
+    for chp in bau_scenario.chps
+        chp_name = chp.name
+        max_sizes[chp_name] = chp.existing_kw
+        min_sizes[chp_name] = chp.existing_kw
+        existing_sizes[chp_name] = chp.existing_kw
+        cap_cost_slope[chp_name] = 0.0
+        om_cost_per_kw[chp_name] = chp.om_cost_per_kw
+        production_factor[chp_name, :] = p.production_factor[chp_name, :]
+        tech_renewable_energy_fraction[chp_name] = chp.fuel_renewable_energy_fraction
+        tech_emissions_factors_CO2[chp_name] = chp.emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU
+        tech_emissions_factors_NOx[chp_name] = chp.emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+        tech_emissions_factors_SO2[chp_name] = chp.emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+        tech_emissions_factors_PM25[chp_name] = chp.emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU
+        fillin_techs_by_exportbin(techs_by_exportbin, chp, chp_name)
+        if chp_name in p.techs.pbi
+            push!(techs.pbi, chp_name)
+        end
+        if !chp.can_curtail
+            push!(techs.no_curtail, chp_name)
+        end
+        chp_fuel_cost_per_kwh = chp.fuel_cost_per_mmbtu ./ KWH_PER_MMBTU
+        fuel_cost_per_kwh[chp_name] = per_hour_value_to_time_series(chp_fuel_cost_per_kwh, p.s.settings.time_steps_per_hour, chp_name)
+        heating_cf[chp_name] = ones(8760 * p.s.settings.time_steps_per_hour)
+        chp_params[chp_name] = Dict{Symbol, Float64}(
+            :electric_efficiency_full_load => chp.electric_efficiency_full_load,
+            :electric_efficiency_half_load => chp.electric_efficiency_half_load,
+            :thermal_efficiency_full_load => chp.thermal_efficiency_full_load,
+            :thermal_efficiency_half_load => chp.thermal_efficiency_half_load,
+            :min_turn_down_fraction => chp.min_turn_down_fraction,
+            :supplementary_firing_efficiency => chp.supplementary_firing_efficiency,
+            :supplementary_firing_max_steam_ratio => chp.supplementary_firing_max_steam_ratio,
+            :om_cost_per_kwh => chp.om_cost_per_kwh,
+            :ramp_rate_fraction_per_hour => chp.ramp_rate_fraction_per_hour
+        )
     end
 
     if "ExistingBoiler" in techs.all
@@ -165,9 +202,6 @@ function BAUInputs(p::REoptInputs)
 
     heating_loads_served_by_tes = Dict{String,Array{String,1}}()
     unavailability = get_unavailability_by_tech(p.s, techs, p.time_steps)
-
-    # Initialize CHP-specific parameters as nested dictionary (empty for BAU)
-    chp_params = Dict{String, Dict{Symbol, Float64}}()
 
     REoptInputs(
         bau_scenario,
