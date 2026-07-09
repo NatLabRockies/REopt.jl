@@ -512,22 +512,26 @@ end
 
 
 function irr(cashflows::AbstractArray{<:Real, 1})
+    upper_rate_bound = 0.99
     npv_at_zero = npv(cashflows, 0.0)
     if npv_at_zero < 0
         return 0.0
     end
     f(r) = npv(cashflows, r)
-    npv_at_upper = f(0.99)
+    npv_at_upper = f(upper_rate_bound)
     if isapprox(npv_at_zero, 0.0; atol=1e-9)
         return 0.0
     elseif isapprox(npv_at_upper, 0.0; atol=1e-9)
-        return 0.99
+        return upper_rate_bound
     elseif sign(npv_at_zero) == sign(npv_at_upper)
         return 0.0
     end
     try
-        return round(fzero(f, [0.0, 0.99]), digits=3)
-    catch
+        return round(fzero(f, [0.0, upper_rate_bound]), digits=3)
+    catch e
+        if !(e isa ArgumentError)
+            rethrow(e)
+        end
         return 0.0
     end
 end
