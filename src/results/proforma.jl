@@ -518,9 +518,9 @@ function irr(cashflows::AbstractArray{<:Real, 1})
     end
     f(r) = npv(cashflows, r)
     npv_at_upper = f(0.99)
-    if npv_at_zero == 0
+    if isapprox(npv_at_zero, 0.0; atol=1e-9)
         return 0.0
-    elseif npv_at_upper == 0
+    elseif isapprox(npv_at_upper, 0.0; atol=1e-9)
         return 0.99
     elseif sign(npv_at_zero) == sign(npv_at_upper)
         return 0.0
