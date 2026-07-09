@@ -512,14 +512,22 @@ end
 
 
 function irr(cashflows::AbstractArray{<:Real, 1})
-    if npv(cashflows, 0.0) < 0
+    npv_at_zero = npv(cashflows, 0.0)
+    if npv_at_zero < 0
         return 0.0
     end
     f(r) = npv(cashflows, r)
-    rate = 0.0
+    npv_at_upper = f(0.99)
+    if npv_at_zero == 0
+        return 0.0
+    elseif npv_at_upper == 0
+        return 0.99
+    elseif sign(npv_at_zero) == sign(npv_at_upper)
+        return 0.0
+    end
     try
-        rate = fzero(f, [0.0, 0.99])
-    finally
-        return round(rate, digits=3)
+        return round(fzero(f, [0.0, 0.99]), digits=3)
+    catch
+        return 0.0
     end
 end

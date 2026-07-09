@@ -25,6 +25,11 @@ elseif "CPLEX" in ARGS
     end
 else  # run HiGHS tests
     @testset verbose=true "REopt test set using HiGHS solver" begin
+        @testset "IRR edge cases" begin
+            @test REopt.irr([100.0, 90.0, 80.0]) == 0.0
+            @test REopt.irr([-100.0, 60.0, 60.0]) ≈ 0.13 atol=1e-3
+        end
+
         @testset "Sector defaults" begin
             input_data = JSON.parsefile("scenarios/sector_defaults.json")
             
