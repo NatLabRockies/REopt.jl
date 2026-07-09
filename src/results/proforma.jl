@@ -524,15 +524,16 @@ function irr(cashflows::AbstractArray{<:Real, 1})
     elseif isapprox(npv_at_upper, 0.0; atol=1e-9)
         return upper_rate_bound
     elseif sign(npv_at_zero) == sign(npv_at_upper)
+        # No sign change on [0, upper_rate_bound] means no bracketed IRR in this interval.
         return 0.0
     end
     try
         return round(fzero(f, [0.0, upper_rate_bound]), digits=3)
     catch e
-        if !(e isa ArgumentError)
-            rethrow(e)
+        if e isa ArgumentError
+            @debug "IRR root not bracketed on [0.0, $upper_rate_bound]; returning 0.0"
+            return 0.0
         end
-        @debug "IRR root not bracketed on [0.0, $upper_rate_bound]; returning 0.0"
-        return 0.0
+        rethrow(e)
     end
 end
