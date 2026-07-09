@@ -510,28 +510,30 @@ function npv(cashflows::AbstractArray{<:Real, 1}, rate::Real)
     return sum( cashflows ./ (1+rate).^years)
 end
 
+const IRR_UPPER_RATE_BOUND = 0.99
+const IRR_NPV_ZERO_TOLERANCE = 1e-9
+
 
 function irr(cashflows::AbstractArray{<:Real, 1})
-    upper_rate_bound = 0.99
     npv_at_zero = npv(cashflows, 0.0)
     if npv_at_zero < 0
         return 0.0
     end
     f(r) = npv(cashflows, r)
-    npv_at_upper = f(upper_rate_bound)
-    if isapprox(npv_at_zero, 0.0; atol=1e-9)
+    npv_at_upper = f(IRR_UPPER_RATE_BOUND)
+    if isapprox(npv_at_zero, 0.0; atol=IRR_NPV_ZERO_TOLERANCE)
         return 0.0
-    elseif isapprox(npv_at_upper, 0.0; atol=1e-9)
-        return upper_rate_bound
+    elseif isapprox(npv_at_upper, 0.0; atol=IRR_NPV_ZERO_TOLERANCE)
+        return IRR_UPPER_RATE_BOUND
     elseif sign(npv_at_zero) == sign(npv_at_upper)
-        # No sign change on [0, upper_rate_bound] means no bracketed IRR in this interval.
+        # No sign change on [0, IRR_UPPER_RATE_BOUND] means no bracketed IRR in this interval.
         return 0.0
     end
     try
-        return round(fzero(f, [0.0, upper_rate_bound]), digits=3)
+        return round(fzero(f, [0.0, IRR_UPPER_RATE_BOUND]), digits=3)
     catch e
         if e isa ArgumentError
-            @debug "IRR root not bracketed on [0.0, $upper_rate_bound]; returning 0.0"
+            @debug "IRR root not bracketed on [0.0, IRR_UPPER_RATE_BOUND]; returning 0.0"
             return 0.0
         end
         rethrow(e)
