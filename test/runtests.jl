@@ -28,6 +28,7 @@ else  # run HiGHS tests
         @testset "IRR edge cases" begin
             @test REopt.irr([100.0, 90.0, 80.0]) ≈ 0.0
             @test REopt.irr([-100.0, 60.0, 60.0]) ≈ 0.13 atol=1e-3
+            @test REopt.irr([-1.0, 1.99]) ≈ 0.99 atol=1e-3
         end
 
         @testset "Sector defaults" begin

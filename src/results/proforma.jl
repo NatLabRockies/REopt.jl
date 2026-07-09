@@ -532,6 +532,7 @@ function irr(cashflows::AbstractArray{<:Real, 1})
         if !(e isa ArgumentError)
             rethrow(e)
         end
+        @debug "IRR root not bracketed on [0.0, $upper_rate_bound]; returning 0.0"
         return 0.0
     end
 end
