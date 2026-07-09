@@ -530,7 +530,7 @@ function irr(cashflows::AbstractArray{<:Real, 1})
         return round(fzero(f, [0.0, IRR_UPPER_RATE_BOUND]), digits=3)
     catch e
         if e isa ArgumentError
-            @debug "IRR root not bracketed on [0.0, $IRR_UPPER_RATE_BOUND]; returning 0.0"
+            @debug "IRR root not bracketed on [0.0, $IRR_UPPER_RATE_BOUND] (npv@0=$(npv_at_zero), npv@$IRR_UPPER_RATE_BOUND=$(npv_at_upper), periods=$(length(cashflows))); returning 0.0"
             return 0.0
         end
         rethrow(e)
