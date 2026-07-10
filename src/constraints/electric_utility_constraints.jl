@@ -445,7 +445,7 @@ end
 
 function add_elec_utility_expressions(m, p; _n="")
 
-    if !isempty(p.s.electric_tariff.export_bins) && (!isempty(p.techs.all) || !isempty(p.s.storage.types.elec))
+    if !isempty(p.s.electric_tariff.export_bins) && (!isempty(p.techs.elec) || !isempty(p.s.storage.types.elec))
         # NOTE: levelization_factor is baked into dvProductionToGrid and dvStorageToGrid
         m[Symbol("TotalExportBenefit"*_n)] = m[Symbol("NEM_benefit"*_n)] + m[Symbol("WHL_benefit"*_n)] +
                                              m[Symbol("EXC_benefit"*_n)]
