@@ -42,9 +42,13 @@ function add_operating_reserve_constraints(m, p; _n="")
         m[Symbol("dvOpResFromTechs"*_n)][t,ts] <= p.max_sizes[t] 
     )
     # 5c. Upper bound on dvOpResFromTechs (for CHP techs)
-    @constraint(m, [t in intersect(p.techs.chp, p.techs.providing_oper_res), ts in p.time_steps_without_grid],
-        m[Symbol("dvOpResFromTechs"*_n)][t,ts] <= m[:binCHPIsOnInTS][t, ts] * p.max_sizes[t] 
-    )
+    # binCHPIsOnInTS is only created when binary_needed (min_turn_down, thermal intercept, or hourly OM);
+    # when it doesn't exist, constraint 4 already provides a sufficient upper bound.
+    if haskey(m, :binCHPIsOnInTS)
+        @constraint(m, [t in intersect(p.techs.chp, p.techs.providing_oper_res), ts in p.time_steps_without_grid],
+            m[Symbol("dvOpResFromTechs"*_n)][t,ts] <= m[:binCHPIsOnInTS][t, ts] * p.max_sizes[t] 
+        )
+    end
 
     m[:OpResProvided] = @expression(m, [ts in p.time_steps_without_grid],
         sum(m[Symbol("dvOpResFromTechs"*_n)][t,ts] for t in p.techs.providing_oper_res)
