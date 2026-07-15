@@ -173,7 +173,7 @@ function MPCElectricTariff(d::Dict)
     if !isnothing(export_rates)
         export_rates = convert(Vector{Real}, export_rates)
     end
-    whl_rate = create_export_rate(export_rates, length(energy_rates[:,1]), 1)
+    whl_rate = create_export_rate(export_rates, length(energy_rates[:,1]), 1) # makes whl_rate negative
 
     if !NEM & (sum(whl_rate) >= 0)
         export_rates = DenseAxisArray{Array{Float64,1}}(undef, [])
@@ -188,6 +188,7 @@ function MPCElectricTariff(d::Dict)
         export_bins = [:NEM, :WHL]  # NOTE: not modeling EXC bin b/c MPC does not track annaul energy exported
         export_rates = DenseAxisArray([nem_rate, whl_rate], export_bins)
     end
+    println(export_rates)
     
     MPCElectricTariff(
         energy_rates,
@@ -327,6 +328,39 @@ end
 Base.@kwdef struct MPCCoolingLoad
     loads_kw_thermal::Array{Real,1}
     cop::Union{Real, Nothing}
+end
+
+"""
+    MPCSpaceHeatingLoad
+
+    Base.@kwdef struct MPCSpaceHeatingLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCSpaceHeatingLoad
+    loads_kw::Array{Real,1}
+end
+
+"""
+    MPCDomesticHotWaterLoad
+
+    Base.@kwdef struct MPCDomesticHotWaterLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCDomesticHotWaterLoad
+    loads_kw::Array{Real,1}
+end
+
+"""
+    MPCProcessHeatLoad
+
+    Base.@kwdef struct MPCProcessHeatLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCProcessHeatLoad
+    loads_kw::Array{Real,1}
 end
 
 
