@@ -1,0 +1,43 @@
+{
+    "Site": {
+        "longitude": -118.1164613,
+        "latitude": 34.5794343,
+        "roof_squarefeet": 5000.0,
+        "land_acres": 1.0
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "RetailStore",
+        "annual_kwh": 10000000.0,
+        "year": 2017
+    },
+    "ElectricStorage": {
+        "min_kw": 40,
+        "max_kw": 40,
+        "min_kwh": 80,
+        "max_kwh": 80,   
+        "can_grid_charge": false,
+        "replace_cost_per_kw": 460.0,
+        "replace_cost_per_kwh": 230.0,
+        "installed_cost_per_kw": 1000.0,
+        "installed_cost_per_kwh": 500.0,
+        "total_itc_fraction": 0.0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0
+    },
+    "ElectricTariff": {
+        "urdb_label": "5ed6c1a15457a3367add15ae"
+    },
+    "PV": {
+        "min_kw": 0.0,
+        "max_kw": 0.0
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.026,
+        "offtaker_discount_rate_fraction": 0.05,
+        "owner_discount_rate_fraction": 0.05,
+        "analysis_years": 20,
+        "offtaker_tax_rate_fraction": 0,
+        "owner_tax_rate_fraction": 0,
+        "om_cost_escalation_rate_fraction": 0.025
+    }
+}

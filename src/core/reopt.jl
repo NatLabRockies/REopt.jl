@@ -217,6 +217,13 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				@constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps], m[:dvHeatToStorage][b,t,q,ts] == 0)
 			end
 		else
+			# Additional variables for exporting storage energy to the grid
+			dv = "dvBattCharge_binary" 
+			m[Symbol(dv)] = @variable(m, [0:p.time_steps[end]], base_name=dv, Bin) # Binary for battery charge
+
+			dv = "dvBattDischarge_binary"
+			m[Symbol(dv)] = @variable(m, [0:p.time_steps[end]], base_name=dv, Bin) # Binary for battery discharge
+
 			add_storage_size_constraints(m, p, b)
 			add_general_storage_dispatch_constraints(m, p, b)
 			if b in p.s.storage.types.elec
@@ -337,6 +344,12 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_thermal_load_constraints(m, p)  # split into heating and cooling constraints?
         end
 
+		print("p.techs.water_power is $(p.techs.water_power)")
+		if !isempty(p.techs.water_power)
+			print("\n Adding existing water_power constraints")
+			add_water_power_constraints(m,p)
+		end
+
         if !isempty(p.ghp_options)
             add_ghp_constraints(m, p)
         end
@@ -385,12 +398,11 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(p.s.electric_tariff.coincpeak_periods)
         add_coincident_peak_charge_constraints(m, p)
     end
-
+	
     if !isempty(setdiff(p.techs.all, p.techs.segmented))
         m[:TotalTechCapCosts] += p.third_party_factor *
             sum( p.cap_cost_slope[t] * m[:dvPurchaseSize][t] for t in setdiff(p.techs.all, p.techs.segmented))
     end
-
     if !isempty(p.techs.segmented)
         @warn "Adding binary variable(s) to model cost curves"
         add_cost_curve_vars_and_constraints(m, p)
@@ -401,7 +413,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             )
         end
     end
-	
 	@expression(m, TotalStorageCapCosts, p.third_party_factor * (
 		sum( p.s.storage.attr[b].net_present_cost_per_kw * m[:dvStoragePower][b] for b in p.s.storage.types.elec) + 
 		sum( p.s.storage.attr[b].net_present_cost_per_kwh * m[:dvStorageEnergy][b] for b in p.s.storage.types.all )
@@ -427,6 +438,14 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				m[:ElectricStorageOMCost], -1.0 * p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * p.s.storage.attr[b].installed_cost_per_kwh * m[:dvStorageEnergy][b]
 			)
         end
+	end
+
+	if "downstream_reservoir" in p.s.water_storage
+		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[:dvDownstreamReservoirCapacity] )
+	end
+	
+	if "upstream_reservoir" in p.s.water_storage
+		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[:dvUpstreamReservoirCapacity] )
 	end
 
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
@@ -505,7 +524,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
 		# Capital Costs
-		m[:TotalTechCapCosts] + TotalStorageCapCosts + m[:GHPCapCosts] +
+		m[:TotalTechCapCosts] + TotalStorageCapCosts + m[:GHPCapCosts] + WaterStorageCapCosts +
 
 		# Fixed O&M, tax deductible for owner
 		(TotalPerUnitSizeOMCosts + m[:GHPOMCosts] + m[:ElectricStorageOMCost]) * (1 - p.s.financial.owner_tax_rate_fraction) +
@@ -548,6 +567,11 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	# Add Health costs (NOx, SO2, PM2.5)
 	if p.s.settings.include_health_in_objective
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
+	end
+
+	if "upstream_reservoir" in p.s.water_storage
+		print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
+		add_to_expression!(Costs, sum(m[:dvSpillwayWaterFlow][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 	end
 
 	has_degr = false
@@ -687,6 +711,48 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
 		@warn "Adding binary variable to prevent simultaneous grid import/export. Some solvers are very slow with integer variables"
 		@variable(m, binNoGridPurchases[p.time_steps], Bin)
+	end
+
+	print("\n p.s.water_power is: $(p.s.water_power)")
+	print("\n p.s.water_storage is: $(p.s.water_storage)")
+
+	if !isempty(p.techs.water_power)
+		print("\n Creating variables for existing water_power")
+		@variables m begin
+			dvWaterVolume[p.time_steps] >= 0			
+			dvWaterOutFlow[p.techs.water_power_turbines, p.time_steps] >= 0  
+			binTurbineActive[p.techs.water_power_turbines, p.time_steps], Bin
+			ReservoirHead[p.time_steps] >= 0
+			dvSpillwayWaterFlow[p.time_steps] >= 0
+			dvWaterVolumeChange[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000
+			TurbinePowerGenerationMaximum[p.techs.water_power_turbines, p.time_steps] >= 0
+			turbine_power_rating[p.techs.water_power_turbines] >= 0
+		end
+		if "downstream_reservoir" in p.s.water_storage
+			@variables m begin
+				dvPumpPowerInput[p.techs.water_power_pumps, p.time_steps] >= 0
+				dvPumpedWaterFlow[p.techs.water_power_pumps, p.time_steps] >= 0
+				dvDownstreamReservoirWaterVolume[p.time_steps] >= 0
+				dvDownstreamReservoirWaterOutflow[p.time_steps] >= 0
+				binPumpingWaterActive[p.techs.water_power_pumps, p.time_steps], Bin
+				binTurbineOrPump[p.time_steps], Bin
+				dvPumpEfficiency[p.techs.water_power, p.time_steps] >= 0
+				PumpPowerInputMaximum[p.techs.water_power_pumps, p.time_steps] >= 0
+				pump_power_rating[p.techs.water_power_pumps] >= 0
+				dvDownstreamReservoirCapacity >= 0  
+				dvDownstreamReservoirNetWaterFlow[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000 
+			end	
+		end
+
+		if p.s.water_power.minimum_turbine_off_time_steps > 1
+			@variable(m, indicator_turbine_turn_off[p.techs.water_power_turbines, p.time_steps], Bin)
+		end
+		if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
+			@variable(m, indicator_turn_down[p.techs.water_power_turbines, p.time_steps, dv in dvs], Bin)
+		end
+		if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1	
+			@variable(m, indicator_min_operating_time[p.techs.water_power, p.time_steps, dv in dvs], Bin)
+		end
 	end
 
     if !isempty(union(p.techs.heating, p.techs.chp))

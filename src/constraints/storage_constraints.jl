@@ -32,8 +32,6 @@ function add_storage_size_constraints(m, p, b; _n="")
             m[Symbol("dvStorageEnergy"*_n)][b] >= m[Symbol("dvStoragePower"*_n)][b] * p.s.storage.attr[b].min_duration_hours
         )
     end    
-
-
 end
 
 
@@ -48,10 +46,6 @@ function add_general_storage_dispatch_constraints(m, p, b; _n="")
         @constraint(m,
             m[Symbol("dvStoredEnergy"*_n)][b, 0] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
         )
-        # TODO: constrain final soc to equal initial soc even when not optimized (ran into feasibility issues)
-        # @constraint(m,
-        #     m[Symbol("dvStoredEnergy"*_n)][b, maximum(p.time_steps)] == p.s.storage.attr[b].soc_init_fraction * m[Symbol("dvStorageEnergy"*_n)][b]
-        # )
     end
 
     #Constraint (4n): State of charge upper bound is storage system size
@@ -78,16 +72,20 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
 	@constraint(m, [ts in p.time_steps_with_grid],
         m[Symbol("dvStoredEnergy"*_n)][b, ts] == m[Symbol("dvStoredEnergy"*_n)][b, ts-1] + p.hours_per_time_step * (  
             sum(p.s.storage.attr[b].charge_efficiency * m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) 
-            + p.s.storage.attr[b].grid_charge_efficiency * m[Symbol("dvGridToStorage"*_n)][b, ts] 
-            - m[Symbol("dvDischargeFromStorage"*_n)][b,ts] / p.s.storage.attr[b].discharge_efficiency
+            + p.s.storage.attr[b].grid_charge_efficiency * m[Symbol("dvGridToStorage"*_n)][b, ts]
+            - (m[Symbol("dvDischargeFromStorage"*_n)][b,ts]  / p.s.storage.attr[b].discharge_efficiency)
         )
 	)
+
+    # Note: Hydro to storage not added for off-grid scenarios
+	# Constraint (4h): state-of-charge for electrical storage - no grid
 	# Constraint (4g)-2: state-of-charge for electrical storage - no grid
 	@constraint(m, [ts in p.time_steps_without_grid],
         m[Symbol("dvStoredEnergy"*_n)][b, ts] == m[Symbol("dvStoredEnergy"*_n)][b, ts-1] + p.hours_per_time_step * (  
             sum(p.s.storage.attr[b].charge_efficiency * m[Symbol("dvProductionToStorage"*_n)][b,t,ts] for t in p.techs.elec) 
             - m[Symbol("dvDischargeFromStorage"*_n)][b, ts] / p.s.storage.attr[b].discharge_efficiency
         )
+        
     )	
 
 	# Constraint (4h): prevent simultaneous charge and discharge by limitting charging alone to not make the SOC exceed 100%

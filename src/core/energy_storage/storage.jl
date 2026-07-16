@@ -16,6 +16,7 @@ mutable struct StorageTypes
     thermal::Vector{String}
     hot::Vector{String}
     cold::Vector{String}
+    water::Vector{String}
 end
 ```
 """
@@ -25,10 +26,11 @@ mutable struct StorageTypes
     thermal::Vector{String}
     hot::Vector{String}
     cold::Vector{String}
-
+    water::Vector{String}
 
     function StorageTypes()
         new(
+            String[],
             String[],
             String[],
             String[],
@@ -42,6 +44,7 @@ mutable struct StorageTypes
         elec_storage = String[]
         hot_storage = String[]
         cold_storage = String[]
+        water_storage = String[]
 
         for (k,v) in d
             if v.max_kw > 0.0 && v.max_kwh > 0.0
@@ -54,8 +57,10 @@ mutable struct StorageTypes
                     push!(hot_storage, k)
                 elseif typeof(v) <: ColdThermalStorage
                     push!(cold_storage, k)
+                elseif typeof(v) <: WaterStorage
+                    push!(water_storage, k)
                 else
-                    throw(@error("Storage not labeled as Hot or Cold, or Electric."))
+                    throw(@error("Storage not labeled as Hot or Cold, Electric, or Water."))
                 end
             end
         end
@@ -67,7 +72,8 @@ mutable struct StorageTypes
             elec_storage,
             thermal_storage,
             hot_storage,
-            cold_storage
+            cold_storage,
+            water_storage
         )
     end
 end

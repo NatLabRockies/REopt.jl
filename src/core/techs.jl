@@ -25,6 +25,9 @@ function Techs(p::REoptInputs, s::BAUScenario)
     steam_turbines = String[]
     techs_can_supply_steam_turbine = String[]
     electric_heaters = String[]
+    water_power = String[]
+    water_power_turbines = String[]
+    water_power_pumps = String[]
     techs_can_serve_space_heating = String[]
     techs_can_serve_dhw = String[]
     techs_can_serve_process_heat = String[]
@@ -58,6 +61,27 @@ function Techs(p::REoptInputs, s::BAUScenario)
         push!(electric_chillers, "ExistingChiller")
     end
 
+    if !isnothing(s.water_power)
+        
+            # Add a tech for each turbine separately
+            for i in 1:s.water_power.number_of_turbines
+                water_power_name_turbine = "WaterPower_Turbine"*string(i)
+                push!(all_techs, water_power_name_turbine)
+                push!(elec, water_power_name_turbine)
+                push!(water_power, water_power_name_turbine)
+                push!(water_power_turbines, water_power_name_turbine)
+            end
+                
+            # Add a tech for each pump separately
+            for i in 1:s.water_power.number_of_pumps
+                water_power_name_pump = "WaterPower_Pump"*string(i)
+                push!(all_techs, water_power_name_pump)
+                push!(elec, water_power_name_pump)
+                push!(water_power, water_power_name_pump)
+                push!(water_power_pumps, water_power_name_pump)
+            end
+    end
+
     cooling_techs = union(electric_chillers, absorption_chillers)
     fuel_burning_techs = union(gentechs, boiler_techs, chp_techs)
     thermal_techs = union(heating_techs, boiler_techs, cooling_techs)
@@ -88,6 +112,9 @@ function Techs(p::REoptInputs, s::BAUScenario)
         techs_can_serve_dhw,
         techs_can_serve_process_heat,
         ghp_techs,
+        water_power,
+        water_power_turbines,  
+        water_power_pumps,          
         ashp_techs,
         ashp_wh_techs
     )
@@ -123,11 +150,14 @@ function Techs(s::Scenario)
     absorption_chillers = String[]
     steam_turbines = String[]
     techs_can_supply_steam_turbine = String[]
-    electric_heaters = String[]   
+    electric_heaters = String[]
     techs_can_serve_space_heating = String[]
     techs_can_serve_dhw = String[] 
     techs_can_serve_process_heat = String[]
     ghp_techs = String[]
+    water_power = String[]
+    water_power_turbines = String[] 
+    water_power_pumps = String[]     
     ashp_techs = String[]
     ashp_wh_techs = String[]
 
@@ -222,7 +252,26 @@ function Techs(s::Scenario)
             push!(techs_can_serve_process_heat, "GHP")
         end
     end
-
+    
+    if !isnothing(s.water_power)
+            # Add a tech for each turbine separately
+            for i in 1:s.water_power.number_of_turbines
+                water_power_name_turbine = "WaterPower_Turbine"*string(i)
+                push!(all_techs, water_power_name_turbine)
+                push!(elec, water_power_name_turbine)
+                push!(water_power, water_power_name_turbine)
+                push!(water_power_turbines, water_power_name_turbine)
+            end
+            # Add a tech for each pump separately
+            for i in 1:s.water_power.number_of_pumps
+                water_power_name_pump = "WaterPower_Pump"*string(i)
+                push!(all_techs, water_power_name_pump)
+                push!(elec, water_power_name_pump)
+                push!(water_power, water_power_name_pump)
+                push!(water_power_pumps, water_power_name_pump)
+            end
+    end
+    
     if !isnothing(s.existing_chiller)
         push!(all_techs, "ExistingChiller")
         push!(cooling_techs, "ExistingChiller")
@@ -398,6 +447,9 @@ function Techs(s::Scenario)
         techs_can_serve_dhw,
         techs_can_serve_process_heat,
         ghp_techs,
+        water_power,
+        water_power_turbines,  
+        water_power_pumps, 
         ashp_techs,
         ashp_wh_techs
     )

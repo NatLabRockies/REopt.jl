@@ -131,12 +131,96 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		m[Symbol(ex_name)] = 0
 		ex_name = "ExistingChillerCost"*_n
 		m[Symbol(ex_name)] = 0
-	
+		
+		print("\n p.s.water_power is: $(p.s.water_power)")
+		print("\n p.s.water_storage is: $(p.s.water_storage)")
+
+		if !isempty(p.techs.water_power)
+			print("\n Creating variables for turbines and an upstream reservoir")
+			
+			dv = "dvWaterVolume"*_n
+			m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+
+			dv = "dvWaterOutFlow"*_n
+			m[Symbol(dv)] = @variable(m, [p.techs.water_power_turbines, p.time_steps], base_name=dv, lower_bound=0)
+
+			dv = "binTurbineActive"*_n
+			m[Symbol(dv)] = @variable(m, [p.techs.water_power_turbines, p.time_steps], base_name=dv, Bin)
+
+			dv = "ReservoirHead"*_n
+			m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+
+			dv = "dvSpillwayWaterFlow"*_n
+			m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+
+			dv = "TurbinePowerGenerationMaximum"*_n
+			m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines, ts in p.time_steps], base_name=dv, lower_bound=0)
+
+			dv = "turbine_power_rating"*_n
+			m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines], base_name=dv, lower_bound=0)
+			
+			dv = "dvWaterVolumeChange"*_n
+			m[Symbol(dv)] = @variable(m, [ts in time_steps_without_first_time_step], base_name=dv, lower_bound=-100000 )
+			
+
+			if "downstream_reservoir" in p.s.water_storage
+				print("\n Creating variables for pumps and a downstream reservoir")
+
+				dv = "dvPumpPowerInput"*_n
+				m[Symbol(dv)] = @variable(m, [p.techs.water_power_pumps, p.time_steps], base_name=dv, lower_bound=0)
+
+				dv = "dvPumpedWaterFlow"*_n
+				m[Symbol(dv)] = @variable(m, [p.techs.water_power_pumps, p.time_steps], base_name=dv, lower_bound=0)
+
+				dv = "binPumpingWaterActive"*_n
+				m[Symbol(dv)] = @variable(m, [p.techs.water_power_pumps, p.time_steps], base_name=dv, Bin)
+
+				dv = "binTurbineOrPump"*_n
+				m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, Bin)
+
+				dv = "dvPumpEfficiency"*_n
+				m[Symbol(dv)] = @variable(m, [p.techs.water_power, p.time_steps], base_name=dv, lower_bound=0)
+
+				dv = "PumpPowerInputMaximum"*_n
+				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_pumps, ts in p.time_steps], base_name=dv, lower_bound=0)
+
+				dv = "pump_power_rating"*_n
+				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_pumps], base_name=dv, lower_bound=0)
+				
+				dv = "dvDownstreamReservoirCapacity"*_n
+				m[Symbol(dv)] = @variable(m, base_name=dv, lower_bound=0)
+			
+				dv = "dvDownstreamReservoirNetWaterFlow"*_n
+				m[Symbol(dv)] = @variable(m, [ts in time_steps_without_first_time_step], base_name=dv, lower_bound=-100000 )
+
+				dv = "dvDownstreamReservoirWaterVolume"*_n
+				m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+
+				dv = "dvDownstreamReservoirWaterOutflow"*_n
+				m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+
+			end
+
+			if p.s.water_power.minimum_turbine_off_time_steps > 1
+				dv = "indicator_turbine_turn_off"*_n
+				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines, ts in p.time_steps],base_name=dv, Bin)
+			end
+			if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
+				dv = "indicator_turn_down"*_n
+				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines, ts in p.time_steps, dv in dvs], base_name=dv, Bin)	
+			end
+			if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1
+				dv = "indicator_min_operating_time"*_n
+				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power, ts in p.time_steps, dv in dvs], base_name=dv, Bin)
+			end
+
+		end
+
 		#################################  Objective Function   ########################################
 		m[Symbol("Costs"*_n)] = @expression(m,
 			#TODO: update in line with non-multinode version
 			# Capital Costs
-			m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] +  
+			m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] +  m[Symbol("WaterStorageCapCosts"*_n)] +
 			
 			## Fixed O&M, tax deductible for owner
 			m[Symbol("TotalPerUnitSizeOMCosts"*_n)] * (1 - p.s.financial.owner_tax_rate_fraction) +
@@ -202,7 +286,26 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
                 add_no_curtail_constraints(m, p; _n=_n)
             end
         end
-    
+		
+		if !isempty(p.techs.water_power)
+			print("\n Adding existing water_power constraints")
+			add_water_power_constraints(m,p; _n=_n)
+		end
+
+		if "downstream_reservoir" in p.s.water_storage
+			ex_name = "WaterStorageCapCosts"*_n
+			m[Symbol(ex_name)] = @expression(m, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)] )
+		end
+		
+		if "upstream_reservoir" in p.s.water_storage
+			add_to_expression!(m[Symbol("WaterStorageCapCosts"*_n)], p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)])
+		end
+
+		if "upstream_reservoir" in p.s.water_storage
+			print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
+			add_to_expression!(m[Symbol("Costs"*_n)], sum(m[Symbol("dvSpillwayWaterFlow"*_n)][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
+		end
+
         add_elec_load_balance_constraints(m, p; _n=_n)
     
         if !isempty(p.s.electric_tariff.export_bins)

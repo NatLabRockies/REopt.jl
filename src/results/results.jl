@@ -44,6 +44,18 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
         add_wind_results(m, p, d; _n)
     end
     
+    if "WaterPower_Turbine1" in p.techs.elec
+        add_water_power_results(m, p, d; _n)
+    end
+
+    if "downstream_reservoir" in p.s.water_storage 
+        add_downstream_reservoir_water_storage_results(m, p, d; _n)
+    end
+
+    if "upstream_reservoir" in p.s.water_storage
+        add_upstream_reservoir_water_storage_results(m, p, d; _n)
+    end
+
     if "CHP" in p.techs.all
         add_chp_results(m, p, d; _n)
     end
