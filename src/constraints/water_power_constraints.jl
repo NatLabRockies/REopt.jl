@@ -266,7 +266,7 @@ function add_water_power_constraints(m,p; _n="")
 	end
 	
 	# TODO: remove this constraint, which prevents a spike in the spillway use during the first time step
-	@constraint(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][1] == 0)
+	@constraint(m, m[Symbol("dvSpillwayWaterFlow"*_n)][1] == 0)
 
 end
 
