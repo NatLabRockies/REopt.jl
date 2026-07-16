@@ -24,7 +24,7 @@ function add_water_power_constraints(m,p; _n="")
 	#elseif p.s.water_power.computation_type == ""
 		
 	else 
-		throw(@error("Invalid input for the computation_type field"))
+		error("Invalid input for the computation_type field")
 	end
 
 	# Create variable for the upstream reservoir capacity
@@ -175,7 +175,7 @@ function add_water_power_constraints(m,p; _n="")
 							)
 			end
 		else
-			throw(@error("An invalid computation type was provided"))
+			error("An invalid computation type was provided")
 		end
 	else	
 		@info("Preventing use of the water pump variables because there is no downstream reservoir")
@@ -202,7 +202,7 @@ function add_water_power_constraints(m,p; _n="")
 		@warn "Setting minimum_operating_time_steps_individual_turbine to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
 		end
 
 		print("\n Adding minimum operating time constraint \n")
@@ -214,7 +214,7 @@ function add_water_power_constraints(m,p; _n="")
 				techs = p.techs.water_power_pumps
 				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_individual_pump 
 			else
-				throw(@error("Error in applying the local maximum operating time constraint"))
+				error("Error in applying the local maximum operating time constraint")
 			end
 			for t in techs, ts in 1:Int(length(p.time_steps)- min_operating_timesteps - 1 )
 				@constraint(m, m[Symbol("indicator_min_operating_time"*_n)][t, ts, dv] =>  { sum(m[Symbol(dv)][t,ts+i] for i in 1:min_operating_timesteps) >= min_operating_timesteps} ) 
@@ -228,7 +228,7 @@ function add_water_power_constraints(m,p; _n="")
 		@warn "Setting minimum_operating_time_steps_at_local_maximum_turbine_output to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
 		end
 
 		print("\n Adding a constraint for the minimum operating time at a local maximum water flow \n")
@@ -240,7 +240,7 @@ function add_water_power_constraints(m,p; _n="")
 				variable = Symbol("dvPumpedWaterFlow")
 				techs = p.techs.water_power_pumps
 			else
-				throw(@error("Error in applying the local maximum operating time constraint"))
+				error("Error in applying the local maximum operating time constraint")
 			end
 			for t in techs, ts in (2 + p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output):Int(length(p.time_steps))
 				for i in 1:p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output
@@ -255,7 +255,7 @@ function add_water_power_constraints(m,p; _n="")
 		@warn "Setting minimum_turbine_off_time_steps to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			throw(@error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1"))
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
 		end
 	
 		print("\n Adding minimum off duration for the turbines \n")
