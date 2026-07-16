@@ -38,7 +38,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
             p.s.storage.attr[b].installed_cost_constant
 
         if p.s.storage.attr[b].model_degradation
-            r["state_of_health_series_fraction"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
+            r["state_of_health_series_fraction"] = round.(results_array(value.(m[:SOH])) / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
             if p.s.storage.attr[b].degradation.maintenance_strategy == "replacement"
                 r["replacement_month"] = round(Int, value(

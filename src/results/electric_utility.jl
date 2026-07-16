@@ -104,13 +104,13 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     else
         GridToBatt = zeros(length(p.time_steps))
     end
-    r["electric_to_storage_series_kw"] = round.(value.(GridToBatt), digits=3).data
+    r["electric_to_storage_series_kw"] = results_array(round.(value.(GridToBatt), digits=3))
 
     GridToLoad = @expression(m, [ts in p.time_steps], 
         sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) - 
         GridToBatt[ts]
     )
-    r["electric_to_load_series_kw"] = round.(value.(GridToLoad), digits=3).data
+    r["electric_to_load_series_kw"] = results_array(round.(value.(GridToLoad), digits=3))
 
     d["ElectricUtility"] = r
     nothing
