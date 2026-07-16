@@ -9,12 +9,12 @@ function add_water_power_constraints(m,p; _n="")
 	if p.s.water_power.computation_type == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
 		@info "Adding water_power power output constraint using the average power conversion"
 
-		for t in 1:Int(length(p.techs.water_power_turbines))
+		for (t_i, t) in enumerate(p.techs.water_power_turbines)
 			@constraint(m, [ts in p.time_steps],
-					m[Symbol("dvRatedProduction"*_n)][p.techs.water_power_turbines[t],ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
-																			m[Symbol("dvWaterOutFlow"*_n)][p.techs.water_power_turbines[t],ts] * 
+					m[Symbol("dvRatedProduction"*_n)][t,ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
+																			m[Symbol("dvWaterOutFlow"*_n)][t,ts] * 
 																			(1/p.s.water_power.water_turbine_average_cubic_meters_per_second_conversion_efficiency) * 
-																			(p.s.water_power.head_turbine_meters - p.s.water_power.head_loss_turbine_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for turbine prioritization
+																			(p.s.water_power.head_turbine_meters - p.s.water_power.head_loss_turbine_meters) * (1- (t_i/1000))  # the "1 - (t_i/1000)" is for turbine prioritization
 						)
 		end
 
