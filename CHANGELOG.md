@@ -25,6 +25,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## bess-export
+### Added 
+- Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
+- Add result **ElectricStorage** `storage_to_grid_series_kw` 
+### Fixed
+- Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
+ 
 ## v0.59.3
 ### Changed
 - Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
