@@ -175,9 +175,9 @@ function get_weatherdata(lat::Float64,lon::Float64,debug::Bool)
     check_api_key()
     check_api_email()
     attributes_tmy_updated = "ghi,dhi,dni,wind_speed,wind_direction,air_temperature,surface_pressure,dew_point" #for tmy
-    url = string("http://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-tmy-v4-0-0-download.csv?api_key=",ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("http://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-tmy-v4-0-0-download.csv?api_key=",ENV["NLR_DEVELOPER_API_KEY"],
         "&wkt=POINT(",lon,"%20",lat,")&attributes=",attributes_tmy_updated,
-        "&names=tmy&utc=false&leap_day=true&interval=60&email=",ENV["NREL_DEVELOPER_EMAIL"])
+        "&names=tmy&utc=false&leap_day=true&interval=60&email=",ENV["NLR_DEVELOPER_EMAIL"])
     r = HTTP.request("GET", url)
     s = String(r.body)
     lead_df = DataFrame(CSV.File(IOBuffer(s), silencewarnings = true, delim=",", header=1, limit=1))
