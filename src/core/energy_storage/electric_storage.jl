@@ -173,6 +173,9 @@ end
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
     can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
     installed_cost_per_kw::Real = 968.0 # Cost of power components (e.g., inverter and BOS) 
     installed_cost_per_kwh::Real = 253.0 # Cost of energy components (e.g., battery pack)
     installed_cost_constant::Real = 222115.0 # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
@@ -230,6 +233,9 @@ Base.@kwdef struct ElectricStorageDefaults
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
     can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
     installed_cost_per_kw::Real = 968.0
     installed_cost_per_kwh::Real = 253.0
     installed_cost_constant::Real = 222115.0
