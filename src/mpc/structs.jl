@@ -31,7 +31,7 @@ end
 Base.@kwdef struct MPCPV
     name::String="PV"
     size_kw::Real = 0
-    production_factor_series::Union{Nothing, Array{Real,1}} = nothing
+    production_factor_series::Union{Nothing, Array{Real,1}} = nothing # production factor DOES NOT get levelized in MPC. 
 end
 ```
 """
