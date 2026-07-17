@@ -98,7 +98,7 @@ function MPCScenario(d::Dict)
 
     electric_load = MPCElectricLoad(; dictkeys_tosymbols(d["ElectricLoad"])...)
 
-    electric_tariff = MPCElectricTariff(d["ElectricTariff"])
+    electric_tariff = MPCElectricTariff(d["ElectricTariff"]; net_metering = electric_utility.net_metering_limit_kw > 0)
 
     if haskey(d, "Generator")
         generator = MPCGenerator(; dictkeys_tosymbols(d["Generator"])...)

@@ -138,7 +138,7 @@ Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examp
         ],
         "tou_previous_peak_demands": [98.0, 97.0],
         "net_metering": false,
-        "export_rates": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
+        "wholesale_rate": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
             0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
     }
 }

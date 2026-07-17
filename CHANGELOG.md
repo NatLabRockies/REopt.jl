@@ -28,6 +28,11 @@ Classify the change according to the following categories:
 ## dispatch-options
 ### Changed
 - All MPC dispatch series to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 (instead of **ElectricTariff.net_metering**)
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+
 
 ## bess-export
 ### Added 

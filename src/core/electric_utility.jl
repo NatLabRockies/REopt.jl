@@ -353,7 +353,7 @@ struct ElectricUtility
             is_MPC ? Float64[] : emissions_and_cef_series_dict["NOx"],
             is_MPC ? Float64[] : emissions_and_cef_series_dict["SO2"],
             is_MPC ? Float64[] : emissions_and_cef_series_dict["PM25"],
-            emissions_factor_CO2_decrease_fraction,
+            is_MPC ? 0.0 : emissions_factor_CO2_decrease_fraction,
             emissions_factor_NOx_decrease_fraction,
             emissions_factor_SO2_decrease_fraction,
             emissions_factor_PM25_decrease_fraction,
