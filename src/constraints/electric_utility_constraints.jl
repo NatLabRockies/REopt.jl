@@ -26,12 +26,6 @@ function add_export_constraints(m, p; _n="")
     NEM_storage = String[b for b in p.s.storage.types.elec if :NEM in p.export_bins_by_storage[b]]
     WHL_storage = String[b for b in p.s.storage.types.elec if :WHL in p.export_bins_by_storage[b]]
 
-    # TEMP
-    println("NEM_techs: ", NEM_techs)
-    println("WHL_techs: ", WHL_techs)
-    println("interconnection_limit: ", p.s.electric_utility.interconnection_limit_kw)
-    println("NEM_storage: ", NEM_storage)
-    println("WHL_storage: ", WHL_storage)
 
     if !isempty(vcat(NEM_techs, NEM_storage))
         # Constraint (9c): Net metering only -- can't sell more than you purchase

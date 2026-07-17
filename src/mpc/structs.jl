@@ -194,7 +194,6 @@ function MPCElectricTariff(d::Dict; net_metering::Bool=false)
         export_bins = [:NEM, :WHL]  # NOTE: not modeling EXC bin b/c MPC does not track annaul energy exported
         export_rates = DenseAxisArray([nem_rate, whl_rate], export_bins)
     end
-    println(export_rates)
     
     MPCElectricTariff(
         energy_rates,
