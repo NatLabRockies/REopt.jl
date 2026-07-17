@@ -279,6 +279,9 @@ struct ElectricStorage <: AbstractElectricStorage
     inverter_efficiency_fraction::Float64
     rectifier_efficiency_fraction::Float64
     can_grid_charge::Bool
+    can_net_meter::Bool
+    can_wholesale::Bool
+    can_export_beyond_nem_limit::Bool
     installed_cost_per_kw::Real
     installed_cost_per_kwh::Real
     installed_cost_constant::Real
@@ -327,6 +330,20 @@ struct ElectricStorage <: AbstractElectricStorage
             @warn "Battery replacement costs (per_kwh) will not be considered because battery_replacement_year is greater than or equal to analysis_years."
         end
 
+        if !s.include_exported_renewable_electricity_in_total && (stor.can_net_meter || stor.can_wholesale)
+            @warn "include_exported_renewable_electricity_in_total = false, but ElectricStorage can_net_meter or can_wholesale is true. REopt's calculation of onsite renewable electricity does not currently accurately account for exported renewable electricity via the battery and will thus overestimate onsite renewable electricity."
+        end
+
+        can_net_meter = stor.can_net_meter
+        can_wholesale = stor.can_wholesale
+        can_export_beyond_nem_limit = stor.can_export_beyond_nem_limit  
+        if stor.off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
+            @warn "Setting ElectricStorage can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
+            can_net_meter = false
+            can_wholesale = false
+            can_export_beyond_nem_limit = false
+        end
+        
         if stor.min_duration_hours > stor.max_duration_hours
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
@@ -495,6 +512,9 @@ struct ElectricStorage <: AbstractElectricStorage
             stor.inverter_efficiency_fraction,
             stor.rectifier_efficiency_fraction,
             stor.can_grid_charge,
+            can_net_meter,
+            can_wholesale,
+            can_export_beyond_nem_limit,
             stor.installed_cost_per_kw,
             stor.installed_cost_per_kwh,
             stor.installed_cost_constant,

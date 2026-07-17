@@ -227,6 +227,8 @@ Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
@@ -241,6 +243,9 @@ Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
+    # TODO: implement net metering and wholesale in MPC
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     max_kw::Float64 = size_kw
     max_kwh::Float64 = size_kwh
