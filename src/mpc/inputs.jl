@@ -20,6 +20,8 @@ struct MPCInputs <: AbstractInputs
     ratchets::UnitRange
     techs_by_exportbin::DenseAxisArray{Array{String,1}}  # indexed on [:NEM, :WHL]
     export_bins_by_tech::Dict{String, Array{Symbol, 1}}
+    storage_by_exportbin::DenseAxisArray{Array{String,1}}  # indexed on [:NEM, :WHL]
+    export_bins_by_storage::Dict{String, Array{Symbol, 1}} 
     cooling_cop::Dict{String, Array{Float64,1}}  # (techs.cooling, time_steps)
     thermal_cop::Dict{String, Float64}  # (techs.absorption_chiller)
     ghp_options::UnitRange{Int64}  # Range of the number of GHP options
@@ -50,6 +52,29 @@ function MPCInputs(s::MPCScenario)
     techs_by_exportbin = DenseAxisArray([ techs.all, techs.all, techs.all], s.electric_tariff.export_bins)
     # TODO account for which techs have access to export bins (when we add more techs than PV)
 
+    export_bins_by_tech = Dict{String, Array{Symbol, 1}}()
+    for t in techs.elec
+        export_bins_by_tech[t] = s.electric_tariff.export_bins
+    end
+    # TODO implement export bins by tech (rather than assuming that all techs share the export_bins)
+    
+    storage_by_exportbin = Dict{Symbol, Array{String, 1}}(k => [] for k in s.electric_tariff.export_bins)
+    export_bins_by_storage = Dict{String, Array{Symbol, 1}}()
+    for b in s.storage.types.elec
+        if s.storage.attr[b].can_net_meter && :NEM in keys(storage_by_exportbin)
+            push!(storage_by_exportbin[:NEM], b)
+            if s.storage.attr[b].can_export_beyond_nem_limit && :EXC in keys(storage_by_exportbin)
+                push!(storage_by_exportbin[:EXC], b)
+            end
+        end
+        if s.storage.attr[b].can_wholesale && :WHL in keys(storage_by_exportbin)
+            push!(storage_by_exportbin[:WHL], b)
+        end
+
+        export_bins_by_storage[b] = [bin for (bin, ts) in storage_by_exportbin if b in ts]
+    end
+    storage_by_exportbin = DenseAxisArray(collect(values(storage_by_exportbin)), collect(keys(storage_by_exportbin)))
+ 
     levelization_factor = Dict(t => 1.0 for t in techs.all)
     pwf_e = 1.0
     pwf_om = 1.0
@@ -59,12 +84,6 @@ function MPCInputs(s::MPCScenario)
 
     time_steps_with_grid, time_steps_without_grid, = setup_electric_utility_inputs(s)
 
-    export_bins_by_tech = Dict{String, Array{Symbol, 1}}()
-    for t in techs.elec
-        export_bins_by_tech[t] = s.electric_tariff.export_bins
-    end
-    # TODO implement export bins by tech (rather than assuming that all techs share the export_bins)
- 
     #Placeholder COP because the REopt model expects it
     cooling_cop = Dict("ExistingChiller" => ones(length(s.electric_load.loads_kw)) .* s.cooling_load.cop)
     thermal_cop = Dict{String, Float64}()
@@ -92,6 +111,8 @@ function MPCInputs(s::MPCScenario)
         1:length(s.electric_tariff.tou_demand_ratchet_time_steps),  # ratchets
         techs_by_exportbin,
         export_bins_by_tech,
+        storage_by_exportbin,
+        export_bins_by_storage,
         cooling_cop,
         thermal_cop,
         ghp_options,
