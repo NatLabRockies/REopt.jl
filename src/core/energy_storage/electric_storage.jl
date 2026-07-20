@@ -368,22 +368,40 @@ struct ElectricStorage <: AbstractElectricStorage
             dispatch_strategy = "custom_soc"
         end
         requires_fixed_sizing = ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
-        # TODO: Add checks on PV sizing
         if dispatch_strategy in requires_fixed_sizing && (stor.min_kw != stor.max_kw || stor.min_kwh != stor.max_kwh || stor.max_kw == 0 || stor.max_kwh == 0)
             throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
         end
-        
-        # TODO: Add checks on allowed technologies for SAM dispatch strategies. 
+
+        # SAM dispatch strategies require fixed PV sizes. The self_consumption option additionally requires a non-zero total PV size.
+        if dispatch_strategy in requires_fixed_sizing
+            sized_pvs = [pv.name for pv in pvs if pv.min_kw != pv.max_kw]
+            if !isempty(sized_pvs)
+                throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires all PV arrays to have a fixed size. The following PV array(s) are not fixed: $(join(sized_pvs, ", ")). Please set min_kw = max_kw for each PV array."))
+            end
+            if dispatch_strategy == "self_consumption"
+                total_pv_kw = sum(pv.existing_kw + pv.max_kw for pv in pvs; init=0.0)
+                if total_pv_kw <= 0
+                    throw(@error("ElectricStorage dispatch_strategy self_consumption requires a non-zero PV size. Please include PV with existing_kw > 0 or fixed new sizing (min_kw = max_kw > 0)."))
+                end
+            end
+        end
+
+        # SAM dispatch strategies overwrite these values from physics-based calculations for the battery's DC-DC RTE
+        internal_efficiency_fraction = stor.internal_efficiency_fraction
+        charge_efficiency = stor.charge_efficiency
+        discharge_efficiency = stor.discharge_efficiency
+        grid_charge_efficiency = stor.grid_charge_efficiency
+        fixed_soc_series_fraction = stor.fixed_soc_series_fraction
+        fixed_soc_series_fraction_tolerance = stor.fixed_soc_series_fraction_tolerance
 
         # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
         if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
             @info "Using a SAM dispatch strategy for ElectricStorage: $(dispatch_strategy)"
-            
             # If a SAM dispatch strategy is specified, pre-populate production_factor_series if not specified by the user
             if !isempty(pvs)
                 for pv in pvs
                     if isnothing(pv.production_factor_series)
-                        pv.production_factor_series = get_production_factor(pv, site.latitude, site.longitude;
+                        pv.production_factor_series = get_production_factor(pv, s.latitude, s.longitude;
                                                                             time_steps_per_hour=time_steps_per_hour)
                     end
                 end
@@ -400,18 +418,27 @@ struct ElectricStorage <: AbstractElectricStorage
                 can_grid_charge = stor.can_grid_charge,
                 loads_kw = l.loads_kw,
                 pvs = pvs,
-                time_steps_per_hour = time_steps_per_hour
+                time_steps_per_hour = time_steps_per_hour,
+                can_net_meter = can_net_meter,
+                can_wholesale = can_wholesale
             )
             if ssc_battery_response["error"] != ""
                 throw(@error("SAM battery dispatch failed: $(ssc_battery_response["error"])"))
             end
 
+            # Fix the battery SOC to SAM's dispatch output
             fixed_soc_series_fraction = ssc_battery_response["soc_series_fraction"]
+            if isnothing(fixed_soc_series_fraction_tolerance)
+                fixed_soc_series_fraction_tolerance = 0.02
+            end
 
-            # print(ssc_battery_response["soc_series_fraction"])
-            # df = DataFrame()
-            # df[!, "sam_soc"] = ssc_battery_response["soc_series_fraction"]
-            # CSV.write("C:/Users/xli1/Documents/REopt/FY26/ITO_fixed_bess_discharge/test_code/outputs/soc_series_fraction.csv", df)
+            # Overwrite REopt's internal_efficiency_fraction with SAM-calculated output
+            internal_efficiency_fraction = ssc_battery_response["internal_efficiency_fraction"]
+            charge_efficiency = stor.rectifier_efficiency_fraction * internal_efficiency_fraction^0.5
+            discharge_efficiency = stor.inverter_efficiency_fraction * internal_efficiency_fraction^0.5
+            grid_charge_efficiency = stor.can_grid_charge ? charge_efficiency : 0.0
+            @info "Overwriting ElectricStorage internal_efficiency_fraction with SAM-calculated value: $(round(internal_efficiency_fraction, digits=4))"
+
         end
 
         # Copy SOC input in case we need to change them
@@ -419,12 +446,11 @@ struct ElectricStorage <: AbstractElectricStorage
         soc_min_fraction = stor.soc_min_fraction
         optimize_soc_init_fraction = stor.optimize_soc_init_fraction
         minimum_avg_soc_fraction = stor.minimum_avg_soc_fraction
-        fixed_soc_series_fraction = stor.fixed_soc_series_fraction
         if !isnothing(fixed_soc_series_fraction)
             fixed_soc_series_fraction = check_and_adjust_load_length(fixed_soc_series_fraction, time_steps_per_hour, "ElectricStorage.fixed_soc_series_fraction") # using load function to clean this series.
-            @warn "Fixing ElectricStorage soc_series_fraction to the provided fixed_soc_series_fraction. Other SOC inputs will be ignored."
+            @warn "Fixing ElectricStorage soc_series_fraction to the fixed_soc_series_fraction. Other SOC inputs will be ignored."
             error_if_series_vals_not_0_to_1(fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
-            if stor.fixed_soc_series_fraction_tolerance < 0
+            if fixed_soc_series_fraction_tolerance < 0
                 throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
             end
             soc_init_fraction = fixed_soc_series_fraction[1]
@@ -514,7 +540,7 @@ struct ElectricStorage <: AbstractElectricStorage
             stor.max_kw,
             stor.min_kwh,
             stor.max_kwh,
-            stor.internal_efficiency_fraction,
+            internal_efficiency_fraction,
             stor.inverter_efficiency_fraction,
             stor.rectifier_efficiency_fraction,
             stor.can_grid_charge,
@@ -537,9 +563,9 @@ struct ElectricStorage <: AbstractElectricStorage
             stor.total_itc_fraction,
             stor.total_rebate_per_kw,
             stor.total_rebate_per_kwh,
-            stor.charge_efficiency,
-            stor.discharge_efficiency,
-            stor.grid_charge_efficiency,
+            charge_efficiency,
+            discharge_efficiency,
+            grid_charge_efficiency,
             net_present_cost_per_kw,
             net_present_cost_per_kwh,
             net_present_cost_cost_constant,
@@ -554,7 +580,7 @@ struct ElectricStorage <: AbstractElectricStorage
             minimum_avg_soc_fraction,
             optimize_soc_init_fraction,
             fixed_soc_series_fraction,
-            stor.fixed_soc_series_fraction_tolerance
+            fixed_soc_series_fraction_tolerance
         )
     end
 end

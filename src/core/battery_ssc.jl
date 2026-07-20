@@ -21,6 +21,8 @@ function run_ssc_battery(;
     loads_kw::Array{<:Real,1},
     pvs::Vector{PV} = PV[],
     time_steps_per_hour::Int,
+    can_net_meter::Bool,
+    can_wholesale::Bool,
     soc_max_fraction::Real=1.0
 )
     R = Dict{String, Any}()
@@ -29,20 +31,16 @@ function run_ssc_battery(;
 
     # Map REopt dispatch_strategy to SAM battery dispatch controls.
     # batt_dispatch_choice: 0 = PeakShaving, 5 = SelfConsumption
-    # batt_dispatch_load_forecast_choice: 0 = look-ahead, 1 = look-behind
+    # forecast_choice: 0 = look-ahead, 1 = look-behind
     dispatch_settings_map = Dict(
         "peak_shaving_look_ahead"  => (0, 0),
         "peak_shaving_look_behind" => (0, 1),
         "self_consumption"         => (5, 0)
     )
-    batt_dispatch_choice, batt_dispatch_load_forecast_choice = dispatch_settings_map[dispatch_strategy]
-
-    # ----- Load profile -----
-    loads_kw_native = Vector{Float64}(loads_kw)
-
-    # ----- Generation profile (PV) -----
-    en_standalone_batt = 0
-    gen_kw_native = zeros(Float64, n_timesteps)
+    batt_dispatch_choice, forecast_choice = dispatch_settings_map[dispatch_strategy]
+    # Get the PV generation profile
+    #TODO: Can the user enter a prod factor series that's not the same length as loads_kw in REopt in general?
+    generation_series_kw = zeros(Float64, n_timesteps)
     if !isempty(pvs)
         for pv in pvs
             if !isnothing(pv.production_factor_series) && !isempty(pv.production_factor_series)
@@ -52,39 +50,23 @@ function run_ssc_battery(;
                 if pv.min_kw == pv.max_kw
                     pv_size_kw += Float64(pv.max_kw)
                 end
-                if length(pf) == n_timesteps
-                    pf_native = Vector{Float64}(pf)
-                elseif length(pf) == 8760
-                    pf_native = repeat(Vector{Float64}(pf); inner=time_steps_per_hour)
-                else
-                    R["error"] = "PV '$(pv.name)' production_factor_series length ($(length(pf))) must be either 8760 or match loads_kw length ($(n_timesteps))."
-                    R["soc_series_fraction"] = nothing
-                    R["dispatch_series_kw"]  = nothing
-                    return R
-                end
-                gen_kw_native .+= pv_size_kw .* pf_native
+                generation_series_kw .+= pv_size_kw .* pf
             end
         end
     end 
-
-    if sum(gen_kw_native) > 0.0
-        en_standalone_batt = 1
-    end
-
     # ===== Setup SSC =====
+    # TODO: Update the MacOS and Linux files?
     global hdl = nothing
     ssc_module = C_NULL
-
     libfiles = if Sys.isapple()
         ["libssc.dylib"]
     elseif Sys.islinux()
         ["ssc.so", "libssc.so"]
     elseif Sys.iswindows()
-        ["ssc_new.dll", "ssc.dll"]
+        ["ssc_battery.dll"]
     else
         String[]
     end
-
     for libfile in libfiles
         try
             hdl_candidate = joinpath(@__DIR__, "..", "sam", libfile)
@@ -98,85 +80,101 @@ function run_ssc_battery(;
                 ssc_module = mod
                 break
             end
-        catch
+        catch e
             # Try next candidate library.
+            println("Failed to load SSC library: $libfile")
+            println("Error: ", sprint(showerror, e))
+            Base.show_backtrace(stdout, catch_backtrace())
         end
     end
-
     if ssc_module == C_NULL || isnothing(hdl)
         R["error"] = "Unable to create SAM SSC 'battery' module from available SSC binaries under src/sam."
         R["soc_series_fraction"] = nothing
-        R["dispatch_series_kw"]  = nothing
         return R
     end
-
     data = @ccall hdl.ssc_data_create()::Ptr{Cvoid}
     @ccall hdl.ssc_module_exec_set_print(0::Cint)::Cvoid
 
-    # Load baseline SAM battery defaults from JSON, then override with REopt-specific values.
+    # Load default battery parameters for SAM that do not change by REopt scenario
     defaults_file = joinpath(@__DIR__, "..", "sam", "defaults", "defaults_battery.json")
     defaults = JSON.parsefile(defaults_file)
     set_ssc_data_from_dict(defaults, "battery", data)
 
     # ----- Override with REopt-specific inputs -----
     reopt_overrides = Dict{String, Any}(
+        "batt_ac_or_dc" => 1,                                   # 0 = DC_Connected, 1 = AC_Connected
+
+        # TODO: Set up inputs below when DC-coupled batteries are enabled in REopt.
+        "batt_dispatch_auto_can_clipcharge" => 0,               # Set to 1 for DC-coupled batteries
+        "batt_dc_dc_efficiency" => 1.0 * 100.0,                 # DC-DC efficiency for DC-coupled batteries (not used for AC-coupled but still a required input)
 
         # Simulation Group 
-        "timestep_minutes" => Int(60 / time_steps_per_hour),    # The number of minutes in each timestep
+        "timestep_minutes" => Int(60 / time_steps_per_hour),    
 
-        # Lifetime Group
-        "system_use_lifetime_output" => 0,                      # 0 = SingleYearRepeated, 1 = RunEveryYear
-        "analysis_period" => 1,                                 # Only required if system_use_lifetime_output = 1
-        
         # BatterySystem Group
         "batt_ac_dc_efficiency" => rectifier_efficiency_fraction * 100.0,
-        "batt_ac_or_dc" => 1,                                   # 0 = DC_Connected, 1 = AC_Connected
-        "batt_computed_bank_capacity" => batt_kwh,              # Depends on batt_Qfull, batt_Vnom_default, batt_ac_dc_efficiency, batt_ac_or_dc, batt_chem, batt_current_choice, batt_dc_ac_efficiency, batt_dc_dc_efficiency
         "batt_dc_ac_efficiency" => inverter_efficiency_fraction * 100.0,
-        
-        "batt_dc_dc_efficiency" => internal_efficiency_fraction * 100.0, # PV coupled with PV, ignored if not DC connected
 
-        "batt_meter_position" => 0,                             # 0 = BehindTheMeter, 1 = FrontOfMeter
-        "batt_power_charge_max_kwac" => batt_kw,
-        "batt_power_charge_max_kwdc" => batt_kw,                # Should these be the same??
-        "batt_power_discharge_max_kwac" => batt_kw,
-        "batt_power_discharge_max_kwdc" => batt_kw,             # Should these be the same??
-        "en_batt" => 1,                                         # Enable battery storage model [0/1]
-        "en_standalone_batt" => en_standalone_batt,             # Enable standalone battery storage model [0/1]
-
-        # BatteryCell Group (many values in this category are in the defaults JSON)
-        "batt_chem" => 1,                                       # 0 = LeadAcid, 1 = Li-ion
-        "batt_life_model" => 1,                                 # Options: 0 = calendar/cycle, 1 = NMC, 2 = LMO/LTO
+        # BatteryCell Group
         "batt_initial_SOC" => soc_init_fraction * 100.0,
         "batt_maximum_SOC" => soc_max_fraction * 100.0,
         "batt_minimum_SOC" => soc_min_fraction * 100.0,
         
         # BatteryDispatch Group
-        "batt_dispatch_auto_btm_can_discharge_to_grid" => 0,    # TO-DO: update if battery export is enabled? - Behind the meter battery can discharge to grid? [0/1]
-        "batt_dispatch_auto_can_charge" => 1,                   # System charging allowed for automated dispatch? [0/1] - What does this mean?
-        "batt_dispatch_auto_can_clipcharge" => 1,               # Battery can charge from clipped power? [0/1] - What does this mean?
-        "batt_dispatch_auto_can_curtailcharge" => 1,            # Battery can charge from grid-limited system power? [0/1] - What does this mean?
+        "batt_dispatch_auto_btm_can_discharge_to_grid" => Int(can_net_meter || can_wholesale),
         "batt_dispatch_auto_can_gridcharge" => Int(can_grid_charge),
-        "batt_dispatch_charge_only_system_exceeds_load" => 1,   # Battery can charge from system only when system output exceeds load [0/1]
         "batt_dispatch_choice" => batt_dispatch_choice,
-        "batt_dispatch_discharge_only_load_exceeds_system" => 1,# Battery can discharge only when load exceeds system output [0/1]
-        "batt_dispatch_load_forecast_choice" => batt_dispatch_load_forecast_choice,
-        "batt_dispatch_update_frequency_hours" => 1,            # Frequency to update the look-ahead dispatch [hours]
-        "batt_look_ahead_hours" => 24,                          # Hours to look ahead in automated dispatch [hours]
-
-        # Need to specify anything under SystemCosts, PriceSignal, Revenue, ElectricityRates, etc.?
-
+        "batt_dispatch_load_forecast_choice" => forecast_choice,
+        "batt_dispatch_wf_forecast_choice" => forecast_choice
     )
     set_ssc_data_from_dict(reopt_overrides, "battery", data)
 
-    # Generation and load profiles in kW
-    gen_array = convert(Vector{Float64}, gen_kw_native)
+    # Calculated batt_computed_bank_capacity, required for the Size_battery function
+    batt_computed_bank_capacity = defaults["batt_Qfull"] * defaults["batt_Vnom_default"] *
+        defaults["batt_computed_series"] * defaults["batt_computed_strings"] / 1000.0
+    @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid}, "batt_computed_bank_capacity"::Cstring, batt_computed_bank_capacity::Cdouble)::Cvoid
+
+    # SAM defaults to 500 V for commercial-scale and 240 V for residential scale. A larger voltage for smaller systems may cause a convergence issue.
+    desired_voltage = batt_kw <= 20 ? 240.0 : 500.0
+    @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid}, "desired_power"::Cstring, Float64(batt_kw)::Cdouble)::Cvoid
+    @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid}, "desired_capacity"::Cstring, Float64(batt_kwh)::Cdouble)::Cvoid
+    @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid}, "desired_voltage"::Cstring, desired_voltage::Cdouble)::Cvoid
+
+    # Call the SSC Size_battery function to set SSC variables that depend up REopt size inputs
+    size_success = @ccall hdl.Size_battery(data::Ptr{Cvoid})::Cuchar
+
+    # Outputs from Size_battery:
+        # **batt_computed_series	        ceil(desired_voltage / batt_Vnom_default)
+        # **batt_computed_strings	        ceil(desired_capacity·1000 / (batt_Qfull·batt_Vnom_default·num_series))
+        # **batt_computed_bank_capacity	    Sized bank capacity (overwrites the reference you set)
+        # **batt_power_discharge_max_kwdc	DC discharge power limit
+        # batt_power_discharge_max_kwac	    AC discharge power limit
+        # batt_power_charge_max_kwdc	    DC charge power limit
+        # batt_power_charge_max_kwac	    AC charge power limit
+        # batt_current_charge_max	        charge_dc / computed_voltage · 1000
+        # batt_current_discharge_max	    discharge_dc / computed_voltage · 1000
+        # original_capacity	                The reference capacity it read in
+        # batt_mass	                        (via Calculate_thermal_params) scaled by desired_capacity/original_capacity
+        # batt_surface_area	                (via Calculate_thermal_params) scaled by desired_capacity/original_capacity 
+
+    if size_success == 0x00
+        err_ptr = @ccall hdl.ssc_data_get_string(data::Ptr{Cvoid}, "error"::Cstring)::Cstring
+        size_error_detail = err_ptr == C_NULL ? "No error message returned by Size_battery." : unsafe_string(err_ptr)
+        @ccall hdl.ssc_module_free(ssc_module::Ptr{Cvoid})::Cvoid
+        @ccall hdl.ssc_data_free(data::Ptr{Cvoid})::Cvoid
+        R["error"] = "SAM Size_battery failed for batt_kw=$batt_kw, batt_kwh=$batt_kwh, desired_voltage=$desired_voltage V. Detail: $size_error_detail"
+        R["soc_series_fraction"] = nothing
+        return R
+    end
+
+    # Set onsite generation and load profiles in kW
+    gen_array = convert(Vector{Float64}, generation_series_kw)
     @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid}, "gen"::Cstring, gen_array::Ptr{Cdouble}, Cint(n_timesteps)::Cint)::Cvoid
 
-    load_array = convert(Vector{Float64}, loads_kw_native)
+    load_array = convert(Vector{Float64}, loads_kw)
     @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid}, "load"::Cstring, load_array::Ptr{Cdouble}, Cint(n_timesteps)::Cint)::Cvoid
 
-    # ===== Execute =====
+    # Run SAM SSC simulation
     success = @ccall hdl.ssc_module_exec(ssc_module::Ptr{Cvoid}, data::Ptr{Cvoid})::Cint
 
     if success != 1
@@ -199,52 +197,50 @@ function run_ssc_battery(;
         @ccall hdl.ssc_data_free(data::Ptr{Cvoid})::Cvoid
         R["error"] = "SAM battery module execution failed for dispatch_strategy='$dispatch_strategy'. SSC log:\n$ssc_error_detail"
         R["soc_series_fraction"] = nothing
-        R["dispatch_series_kw"]  = nothing
         return R
     end
 
-    # ===== Extract results =====
     len_ref = Ref(Cint(0))
 
-    # batt_power — Electricity to/from battery AC [kW]
-    batt_power_ptr = @ccall hdl.ssc_data_get_array(data::Ptr{Cvoid}, "batt_power"::Cstring, len_ref::Ptr{Cint})::Ptr{Float64}
-    nout = Int(len_ref[])
-
-    # batt_SOC — Battery state of charge [%]
-    len_ref[] = Cint(0)
+    # Extract battery state of charge profile [%]
     batt_soc_ptr = @ccall hdl.ssc_data_get_array(data::Ptr{Cvoid}, "batt_SOC"::Cstring, len_ref::Ptr{Cint})::Ptr{Float64}
     nout_soc = Int(len_ref[])
 
-    if batt_power_ptr == C_NULL || batt_soc_ptr == C_NULL || nout == 0 || nout_soc == 0
+    if batt_soc_ptr == C_NULL || nout_soc == 0
         @ccall hdl.ssc_module_free(ssc_module::Ptr{Cvoid})::Cvoid
         @ccall hdl.ssc_data_free(data::Ptr{Cvoid})::Cvoid
-        R["error"] = "SAM battery module ran but did not return batt_power/batt_SOC arrays."
+        R["error"] = "SAM battery module ran but did not return batt_SOC array."
         R["soc_series_fraction"] = nothing
-        R["dispatch_series_kw"]  = nothing
         return R
     end
 
-    nout_use = min(nout, nout_soc)
+    soc_series_pct = Vector{Float64}(undef, nout_soc)
 
-    dispatch_series_kw = Vector{Float64}(undef, nout_use)
-    soc_series_pct     = Vector{Float64}(undef, nout_use)
-
-    for i in 1:nout_use
-        dispatch_series_kw[i] = unsafe_load(batt_power_ptr, i)
-        soc_series_pct[i]     = unsafe_load(batt_soc_ptr, i)
+    for i in 1:nout_soc
+        soc_series_pct[i] = unsafe_load(batt_soc_ptr, i)
     end
 
-    # ===== Free SSC =====
+    # Obtain SAM-calculated DC-DC RTE by reading the AC-AC RTE and dividing it by the rectifier and inverter efficiencies
+    conv_eff_ref = Ref(convert(Cdouble, 0.0))
+    @ccall hdl.ssc_data_get_number(data::Ptr{Cvoid}, "average_battery_conversion_efficiency"::Cstring, conv_eff_ref::Ptr{Cdouble})::Cvoid
+    ac_ac_rte_fraction = Float64(conv_eff_ref[]) /100.0
+
+    dc_dc_rte_fraction = ac_ac_rte_fraction / (inverter_efficiency_fraction * rectifier_efficiency_fraction)
+    if dc_dc_rte_fraction < 0.0 || dc_dc_rte_fraction > 1.0
+        @warn "SAM-derived DC-DC round-trip efficiency ($(round(dc_dc_rte_fraction, digits=4))) is outside [0, 1]; clamping to bounds."
+    end
+    internal_efficiency_fraction = clamp(dc_dc_rte_fraction, 0.0, 1.0)
+
+    # Free SSC
     @ccall hdl.ssc_module_free(ssc_module::Ptr{Cvoid})::Cvoid
     @ccall hdl.ssc_data_free(data::Ptr{Cvoid})::Cvoid
 
-    # ===== Convert SOC from % to fraction (0-1) =====
+    # Convert battery SOC from % to fraction 
     soc_series_fraction = soc_series_pct ./ 100.0
-    # Clamp to valid range
     clamp!(soc_series_fraction, 0.0, 1.0)
 
     R["soc_series_fraction"] = soc_series_fraction
-    R["dispatch_series_kw"]  = dispatch_series_kw
+    R["internal_efficiency_fraction"] = internal_efficiency_fraction
     R["error"] = ""
     return R
 end
