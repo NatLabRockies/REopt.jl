@@ -24,12 +24,17 @@ function add_grid_draw_limits(m::JuMP.AbstractModel, p::MPCInputs; _n="")
     )
 end
 
-
 function add_export_limits(m::JuMP.AbstractModel, p::MPCInputs; _n="")
     @constraint(m, [ts in p.time_steps],
         sum(
-            sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t])
-            for t in p.techs.elec
+            sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t]; init=0.0)
+            for t in p.techs.elec;
+            init=0.0
+        ) +
+        sum(
+            sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]; init=0.0)
+            for b in p.s.storage.types.elec;
+            init=0.0
         ) <= p.s.limits.export_limit_kw_by_time_step[ts]
     )
 end

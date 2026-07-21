@@ -23,6 +23,10 @@ elseif "CPLEX" in ARGS
     @testset "test_with_cplex" begin
         include("test_with_cplex.jl")
     end
+elseif "Dev" in ARGS
+    @testset "test development" begin
+        include("development_tests.jl")
+    end
 else  # run HiGHS tests
     @testset verbose=true "REopt test set using HiGHS solver" begin
         @testset "Sector defaults" begin
@@ -210,7 +214,6 @@ else  # run HiGHS tests
             @test space_heating_min_allowable_size ≈ 9.166666666666666 atol=1e-8
             @test wh_min_allowable_size ≈ 5.0 atol=1e-8
         end
-
         @testset "CHP Sizing Heuristic" begin
             hot_water_or_steam = "hot_water"
             avg_boiler_fuel_load_mmbtu_per_hour = nothing
@@ -340,24 +343,39 @@ else  # run HiGHS tests
             @test response["chp_elec_size_heuristic_kw"] ≈ case3_max_size_kw / 2 atol=0.1
             @test response["chp_max_size_kw"] ≈ case3_max_size_kw atol=0.1
         end
-
         @testset "January Export Rates" begin
-            model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             data = JSON.parsefile("./scenarios/monthly_rate.json")
 
-            # create wholesale_rate with compensation in January > retail rate
+            # 1) create wholesale_rate with compensation in January > retail rate
+            # and check that PV exports instead of serving load
             jan_rate = data["ElectricTariff"]["monthly_energy_rates"][1]
             data["ElectricTariff"]["wholesale_rate"] =
                 append!(repeat([jan_rate + 0.1], 31 * 24), repeat([0.0], 8760 - 31*24))
             data["ElectricTariff"]["monthly_demand_rates"] = repeat([0], 12)
 
+            model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             s = Scenario(data)
             inputs = REoptInputs(s)
             results = run_reopt(model, inputs)
 
             @test results["PV"]["size_kw"] ≈ 68.9323 atol=0.01
             @test results["Financial"]["lcc"] ≈ 432681.26 rtol=1e-5 # with levelization_factor hack the LCC is within 5e-5 of REopt API LCC
-            @test all(x == 0.0 for x in results["PV"]["electric_to_load_series_kw"][1:744])
+            @test all(x == 0.0 for x in results["PV"]["electric_to_load_series_kw"][1:(31*24)])
+            finalize(backend(model))
+            empty!(model)
+            GC.gc()
+
+            # 2) now don't allow simultaneous export/import and check that
+            # PV does NOT export unless the site load is met first for the month of January
+            data["ElectricUtility"] = Dict("allow_simultaneous_export_import" => false)
+
+            model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            s = Scenario(data)
+            inputs = REoptInputs(s)
+            results = run_reopt(model, inputs)
+            
+            @test all(x == 0.0 for (i,x) in enumerate(results["ElectricUtility"]["electric_to_load_series_kw"][1:744]) 
+                    if results["PV"]["electric_to_grid_series_kw"][i] > 0)
             finalize(backend(model))
             empty!(model)
             GC.gc()
@@ -973,33 +991,91 @@ else  # run HiGHS tests
             end
         end
 
-        @testset verbose=true "Net Metering" begin
-            @testset "Net Metering Limit and Wholesale" begin
-                #case 1: net metering limit is met by PV
-                d = JSON.parsefile("./scenarios/net_metering.json")
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-                results = run_reopt(m, d)
-                @test results["PV"]["size_kw"] ≈ 30.0 atol=1e-3
-        
-                #case 2: wholesale rate is high, big-M is met
-                d["ElectricTariff"]["wholesale_rate"] = 5.0
-                d["PV"]["can_wholesale"] = true
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-                results = run_reopt(m, d)
-                @test results["PV"]["size_kw"] ≈ 7440.0 atol=1e-3  #max benefit provides the upper bound
+        @testset verbose=true "Net Metering Limit and Wholesale" begin
+            # Case 1: net metering limit is met by PV
+            d = JSON.parsefile("./scenarios/net_metering.json")
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, d)
+            @test results["PV"]["size_kw"] ≈ 30.0 atol=1e-3
+            finalize(backend(m))
+            empty!(m)
+            GC.gc() 
+    
+            # Case 2: wholesale rate is high, big-M is met
+            d["ElectricTariff"]["wholesale_rate"] = 5.0
+            d["PV"]["can_wholesale"] = true
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, d)
+            @test results["PV"]["size_kw"] ≈ 7440.0 atol=1e-3  #max benefit provides the upper bound
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()  
 
-                #case 3: net metering limit is exceeded, no WHL, and min RE % 
-                d["ElectricTariff"]["wholesale_rate"] = 0
-                d["PV"]["min_kw"] = 50
-                d["Site"]["renewable_electricity_min_fraction"] = 0.35
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-                results = run_reopt(m, d)
-                @test sum(results["PV"]["electric_to_grid_series_kw"]) ≈ 0.0 atol=1e-3
-                @test results["ElectricTariff"]["lifecycle_export_benefit_after_tax"] ≈ 0.0 atol=1e-3        
-                finalize(backend(m))
-                empty!(m)
-                GC.gc()    
+            # Case 3: net metering limit is exceeded, no WHL, and min RE % 
+            d["ElectricTariff"]["wholesale_rate"] = 0
+            d["PV"]["min_kw"] = 50
+            d["Site"]["renewable_electricity_min_fraction"] = 0.35
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, d)
+            @test sum(results["PV"]["electric_to_grid_series_kw"]) ≈ 0.0 atol=1e-3
+            @test results["ElectricTariff"]["lifecycle_export_benefit_after_tax"] ≈ 0.0 atol=1e-3        
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+            
+            # Case 4: ElectricStorage can net meter and energy rate is lower during PV production
+            # expect battery to do energy arbitrage and NEM export during higher rate
+            d = JSON.parsefile("./scenarios/bess_export.json")
+            d["ElectricStorage"]["min_kw"] = 50
+            d["ElectricStorage"]["max_kw"] = 50
+            d["ElectricStorage"]["min_kwh"] = 50*6
+            d["ElectricStorage"]["max_kwh"] = 50*6
+            d["ElectricTariff"]["tou_energy_rates_per_kwh"] = repeat([0.5, 0.1, 0.5], inner=8, outer=365)
+            p = REoptInputs(d)
+            for exbin in [:WHL, :NEM]
+                @test exbin in p.export_bins_by_storage["ElectricStorage"]
             end
+            @test !(:EXC in p.export_bins_by_storage["ElectricStorage"])
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02))
+            results = run_reopt(m, p)
+            @test sum(results["ElectricStorage"]["storage_to_grid_series_kw"]) > 0
+            @test all(x == 0.0 for (i,x) in enumerate(results["ElectricStorage"]["storage_to_grid_series_kw"]) if 8 < i % 24 < 17)
+            @test value(m[:NEM_benefit]) <= 0
+            @test value(m[:WHL_benefit]) ≈ 0.0 atol=1e-5
+            @test value(m[:EXC_benefit]) ≈ 0.0 atol=1e-5
+            @test results["ElectricTariff"]["year_one_export_benefit_before_tax"] >= 0
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+            
+            # Case 5: ElectricStorage wholesale 
+            d["ElectricUtility"]["net_metering_limit_kw"] = 0 
+            # Set wholesale rate to 0.01 from 6am-8pm and 0.15 otherwise; repeat array for 1 year
+            wholesale_rate = [6 <= hour < 20 ? 0.01 : 0.15 for hour in 0:23]
+            d["ElectricTariff"]["wholesale_rate"] = repeat(wholesale_rate, 365)
+            d["ElectricTariff"]["blended_annual_energy_rate"] = 0.18
+            d["ElectricTariff"]["blended_annual_demand_rate"] = 0.0
+
+            # Fix sizes
+            d["PV"]["min_kw"] = 200
+            d["PV"]["max_kw"] = 200
+            d["ElectricStorage"]["min_kw"] = 50
+            d["ElectricStorage"]["max_kw"] = 50
+            d["ElectricStorage"]["min_kwh"] = 200
+            d["ElectricStorage"]["max_kwh"] = 200
+
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, d)
+
+            @test sum(results["ElectricStorage"]["storage_to_grid_series_kw"]) > 0
+            @test value(m[:NEM_benefit]) ≈ 0.0 atol=1e-5
+            @test value(m[:WHL_benefit]) <= 0
+            @test value(m[:EXC_benefit]) ≈ 0.0 atol=1e-5
+            @test results["ElectricTariff"]["year_one_export_benefit_before_tax"] >= 0
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+
         end
 
         @testset "Heating loads and addressable load fraction" begin
@@ -1535,32 +1611,6 @@ else  # run HiGHS tests
                 empty!(m2)
                 GC.gc()
             end
-        end
-
-        #=
-        add a time-of-export rate that is greater than retail rate for the month of January,
-        check to make sure that PV does NOT export unless the site load is met first for the month of January.
-        =#
-        @testset "Do not allow_simultaneous_export_import" begin
-            model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-            data = JSON.parsefile("./scenarios/monthly_rate.json")
-
-            # create wholesale_rate with compensation in January > retail rate
-            jan_rate = data["ElectricTariff"]["monthly_energy_rates"][1]
-            data["ElectricTariff"]["wholesale_rate"] =
-                append!(repeat([jan_rate + 0.1], 31 * 24), repeat([0.0], 8760 - 31*24))
-            data["ElectricTariff"]["monthly_demand_rates"] = repeat([0], 12)
-            data["ElectricUtility"] = Dict("allow_simultaneous_export_import" => false)
-
-            s = Scenario(data)
-            inputs = REoptInputs(s)
-            results = run_reopt(model, inputs)
-            
-            @test all(x == 0.0 for (i,x) in enumerate(results["ElectricUtility"]["electric_to_load_series_kw"][1:744]) 
-                    if results["PV"]["electric_to_grid_series_kw"][i] > 0)
-            finalize(backend(model))
-            empty!(model)
-            GC.gc()
         end
 
         #=
@@ -3769,11 +3819,11 @@ else  # run HiGHS tests
             p = REoptInputs(s)
             m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
             results = run_reopt(m1, p)
-            @test results["CST"]["annual_thermal_production_mmbtu"] ≈ 6626.9 rtol=1.0e-3
-            @test sum(results["CST"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 19548.3 rtol=1.0e-3
+            @test results["CST"]["annual_thermal_production_mmbtu"] ≈ 6656.36 rtol=1.0e-3
+            @test sum(results["CST"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 19708.99 rtol=1.0e-3
             @test results["CST"]["size_kw"] ≈ 10000.0 atol=0.001
             @test results["CST"]["size_mmbtu_per_hour"] ≈ 10000.0 / REopt.KWH_PER_MMBTU atol=1.0e-3
-            @test results["ExistingBoiler"]["annual_thermal_production_mmbtu"] ≈ 386.4 rtol=1.0e-3
+            @test results["ExistingBoiler"]["annual_thermal_production_mmbtu"] ≈ 356.56 rtol=1.0e-3
             @test results["HighTempThermalStorage"]["size_kwh"] ≈ 10000.0 atol=0.1
             @test results["HotThermalStorage"]["size_gal"] ≈ 1000.0 atol=0.1
 

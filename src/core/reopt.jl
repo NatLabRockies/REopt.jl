@@ -203,6 +203,9 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             for t in p.techs.elec, u in p.export_bins_by_tech[t]
                 fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
             end
+			for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]
+                fix(m[:dvStorageToGrid][b, u, ts], 0.0, force=true)
+            end
         end
 	end
 	for b in p.s.storage.types.all
@@ -509,7 +512,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	initial_capex_no_incentives(m, p)
 	if !isnothing(p.s.financial.min_initial_capital_costs_before_incentives) || !isnothing(p.s.financial.max_initial_capital_costs_before_incentives)
 		add_capex_constraints(m, p)
-	end
+	end 
 
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
@@ -694,6 +697,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 
     if !isempty(p.s.electric_tariff.export_bins)
         @variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvStorageToGrid[p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
     end
 
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
