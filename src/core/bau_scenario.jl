@@ -131,11 +131,13 @@ function BAUScenario(s::Scenario)
     =#
     site = bau_site(s.site)
 
-    # set CHP.max_kw to existing_kw
+    # Include only CHPs with existing capacity; no new capacity or supplementary firing in BAU
     chps = CHP[]
     for chp in s.chps
         if chp.existing_kw > 0
             bau_chp = deepcopy(chp)
+            bau_chp.min_kw = 0.0
+            bau_chp.max_kw = 0.0
             bau_chp.supplementary_firing_capital_cost_per_kw = 0.0
             push!(chps, bau_chp)
         end

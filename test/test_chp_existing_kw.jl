@@ -145,3 +145,11 @@ micro = first(filter(c -> c["name"] == "CHP_micro_turbine", chp_results))
 @test micro["initial_capital_costs"] > 0.0
 @test recip["annual_electric_production_kwh"] > 0
 @test micro["annual_electric_production_kwh"] > 0
+
+###############   BAU Results Propagation   ###################
+@test r_full_existing["CHP"]["size_kw_bau"] ≈ 100.0 atol=0.1
+@test r_full_existing["CHP"]["annual_fuel_consumption_mmbtu_bau"] > 0
+@test r_full_existing["CHP"]["annual_electric_production_kwh_bau"] > 0
+@test r_full_existing["CHP"]["annual_thermal_production_mmbtu_bau"] > 0
+@test r_full_existing["CHP"]["year_one_fuel_cost_before_tax_bau"] > 0
+@test r_full_existing["CHP"]["lifecycle_fuel_cost_after_tax_bau"] > 0

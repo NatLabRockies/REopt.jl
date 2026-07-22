@@ -318,6 +318,40 @@ function setup_bau_emissions_inputs(p::REoptInputs, s_bau::BAUScenario, generato
         bau_grid_to_load_critical .-= p.levelization_factor[pv.name] * pv.existing_kw * p.production_factor[pv.name, :].data
     end end
 
+    ## Existing CHP net emissions estimate. Accounts for: fuel-burn emissions, displaced boiler fuel, displaced grid electricity
+    bau_chp_fuel_emissions_lb_CO2_per_year = 0.0
+    for chp in p.s.chps
+        if chp.existing_kw > 0
+            avg_prod_factor = sum(p.production_factor[chp.name, :].data) / length(p.time_steps)
+            annual_elec_kwh = chp.existing_kw * avg_prod_factor * 8760.0
+
+            # Fuel consumption and associated emissions
+            annual_fuel_kwh = annual_elec_kwh / chp.electric_efficiency_full_load
+            annual_fuel_mmbtu = annual_fuel_kwh / KWH_PER_MMBTU
+            bau_chp_fuel_emissions_lb_CO2_per_year += annual_fuel_mmbtu * chp.emissions_factor_lb_CO2_per_mmbtu
+
+            # Credit for displaced boiler fuel (capped at total heating load)
+            annual_thermal_mmbtu = annual_fuel_mmbtu * chp.thermal_efficiency_full_load
+            if !isnothing(p.s.existing_boiler)
+                total_heating_load_mmbtu = sum(
+                    getproperty(p.s, Symbol("$(ht)_load")).annual_mmbtu 
+                    for ht in ["space_heating", "dhw", "process_heat"]
+                    if hasproperty(p.s, Symbol("$(ht)_load")) && !isnothing(getproperty(p.s, Symbol("$(ht)_load")))
+                )
+                boiler_fuel_displaced_mmbtu = min(
+                    annual_thermal_mmbtu / p.s.existing_boiler.efficiency,
+                    total_heating_load_mmbtu / p.s.existing_boiler.efficiency
+                )
+                bau_chp_fuel_emissions_lb_CO2_per_year -= boiler_fuel_displaced_mmbtu * p.s.existing_boiler.emissions_factor_lb_CO2_per_mmbtu
+            end
+
+            # Credit for displaced grid electricity (capped at total electric load)
+            chp_elec_displacement_kwh = min(annual_elec_kwh, sum(s_bau.electric_load.loads_kw) * p.hours_per_time_step)
+            avg_grid_ef = sum(p.s.electric_utility.emissions_factor_series_lb_CO2_per_kwh) / length(p.time_steps)
+            bau_chp_fuel_emissions_lb_CO2_per_year -= chp_elec_displacement_kwh * avg_grid_ef
+        end
+    end
+
     #No grid emissions, or pv exporting to grid, during an outage
     if p.s.electric_utility.outage_start_time_step != 0 && p.s.electric_utility.outage_end_time_step != 0
         for i in range(p.s.electric_utility.outage_start_time_step, stop=p.s.electric_utility.outage_end_time_step)
@@ -347,6 +381,9 @@ function setup_bau_emissions_inputs(p::REoptInputs, s_bau::BAUScenario, generato
                                                 p.s.existing_boiler.emissions_factor_lb_CO2_per_mmbtu
         end
     end
+
+    ## Existing CHP net emissions
+    bau_emissions_lb_CO2_per_year += bau_chp_fuel_emissions_lb_CO2_per_year
 
     p.s.site.bau_emissions_lb_CO2_per_year = bau_emissions_lb_CO2_per_year
     p.s.site.bau_grid_emissions_lb_CO2_per_year = bau_grid_emissions_lb_CO2_per_year
