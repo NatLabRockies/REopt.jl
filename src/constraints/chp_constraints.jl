@@ -219,6 +219,56 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     )
 end
 
+"""
+    add_chp_heating_load_following_constraints(m, p; _n="")
+
+Used in function add_chp_constraints to add constraints that restrict output of CHP to serve full eligible heating load or 
+run at capacity otherwise in dispatch (without regard to electrical flows).
+"""
+function add_chp_heating_load_following_constraints(m, p; _n="")
+    heat_to_electric_ratio = p.s.chp.thermal_efficiency_full_load / p.s.chp.electric_efficiency_full_load
+    chp_eligible_heat_load = zeros(length(p.s.electric_load.loads_kw))
+    heating_loads_served_by_chp = []
+    if p.s.chp.can_serve_dhw
+        chp_eligible_heat_load .+= p.heating_loads_kw["DomesticHotWater"]
+        push!(heating_loads_served_by_chp, "DomesticHotWater")
+    end
+    if p.s.chp.can_serve_space_heating
+        chp_eligible_heat_load .+= p.heating_loads_kw["SpaceHeating"]
+        push!(heating_loads_served_by_chp, "SpaceHeating")
+    end
+    if p.s.chp.can_serve_process_heat
+        chp_eligible_heat_load .+= p.heating_loads_kw["ProcessHeat"]
+        push!(heating_loads_served_by_chp, "ProcessHeat")
+    end
+    dv = "binCHPSizeExceedsHeatingLoad"*_n
+    m[Symbol(dv)] = @variable(m, [p.time_steps], binary=true, base_name=dv)
+    # binary variable enforcement for size >= load
+    max_diff_size_bigM = 2*max(p.max_sizes["CHP"] * heat_to_electric_ratio, maximum(chp_eligible_heat_load))  
+    #Constraints set binCHPSizeExceedsHeatingLoad to 1 if capacity to provide heat without supplemental heating is greater than the eligible loads served in time ts and 0 otherwise. 
+    println("max_diff_size_bigM: ", max_diff_size_bigM)
+    println('p.max_sizes["CHP"] * heat_to_electric_ratio: ', p.max_sizes["CHP"] * heat_to_electric_ratio)
+    println("maximum(chp_eligible_heat_load): ", maximum(chp_eligible_heat_load))
+    println('maximum(p.production_factor["CHP"][:]): ', maximum(p.production_factor["CHP"][:]))
+    println('minimum(p.production_factor["CHP"][:]): ', minimum(p.production_factor["CHP"][:]))
+    println("max_diff_size_bigM: ", max_diff_size_bigM)
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][ts] >= (p.production_factor["CHP",ts]*heat_to_electric_ratio*m[Symbol("dvSize"*_n)]["CHP"] - chp_eligible_heat_load[ts]) / max_diff_size_bigM
+    )
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][ts] <= 1 - (chp_eligible_heat_load[ts] - p.production_factor["CHP",ts]*heat_to_electric_ratio*m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
+    )
+    #Constraint sets minimum heating of the system to the capacity without supplemental firing if the size of the system is less than the load.
+    @constraint(m, [ts in p.time_steps],
+        sum(m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts] for q in heating_loads_served_by_chp) >= p.production_factor["CHP",ts]*heat_to_electric_ratio*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][ts]
+    )
+    #Heating load following dispatch: existing boiler output for eligble = 0 if size exceeds load, i.e., CHP must dispatch to load-follow after accounting for storage and other onsite heating resources.
+    @constraint(m, [q in heating_loads_served_by_chp, ts in p.time_steps],
+        m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] <= max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][ts])
+    )
+end
+
+
 
 """
     add_chp_constraints(m, p; _n="")
@@ -267,6 +317,10 @@ function add_chp_constraints(m, p; _n="")
 
     if p.s.chp.follow_electrical_load
         add_chp_electrical_load_following_constraints(m, p; _n=_n)
+    end
+
+    if p.s.chp.follow_heating_load
+        add_chp_heating_load_following_constraints(m, p; _n=_n)
     end
 end
 
