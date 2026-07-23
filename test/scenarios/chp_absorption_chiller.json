@@ -1,0 +1,62 @@
+{
+    "Settings": {
+        "solver_name": "HiGHS",
+        "time_steps_per_hour": 1
+    },
+    "Site": {
+        "latitude": 33.4484,
+        "longitude": -112.0740,
+        "include_exported_renewable_electricity_in_total": true
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "Hospital",
+        "annual_kwh": 5000000.0
+    },
+    "CoolingLoad": {
+        "doe_reference_name": "Hospital",
+        "annual_tonhour": 500000.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "Hospital",
+        "annual_mmbtu": 3000.0
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "Hospital",
+        "annual_mmbtu": 2000.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.15,
+        "blended_annual_demand_rate": 20.0
+    },
+    "Financial": {
+        "analysis_years": 10,
+        "offtaker_discount_rate_fraction": 0.05
+    },
+    "CHP": {
+        "prime_mover": "recip_engine",
+        "size_class": 2,
+        "fuel_cost_per_mmbtu": 8.0,
+        "min_kw": 600.0,
+        "max_kw": 600.0,
+        "min_allowable_kw": 600.0,
+        "min_turn_down_fraction": 0.0,
+        "federal_itc_fraction": 0.3,
+        "can_serve_dhw": true,
+        "can_serve_space_heating": true,
+        "serve_absorption_chiller_only": true,
+        "months_serving_absorption_chiller_only": [5, 6, 7, 8, 9]
+    },
+    "AbsorptionChiller": {
+        "min_ton": 300.0,
+        "max_ton": 300.0,
+        "installed_cost_per_ton": 1500.0,
+        "om_cost_per_ton": 20.0,
+        "cop_thermal": 0.7
+    },
+    "ExistingChiller": {
+        "cop": 3.5
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 12.0
+    }
+}

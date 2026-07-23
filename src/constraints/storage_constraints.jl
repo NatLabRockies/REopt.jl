@@ -33,7 +33,6 @@ function add_storage_size_constraints(m, p, b; _n="")
         )
     end    
 
-
 end
 
 
@@ -74,12 +73,21 @@ end
 
 function add_elec_storage_dispatch_constraints(m, p, b; _n="")
 				
-	# Constraint (4g)-1: state-of-charge for electrical storage - with grid
+    # Constraint (4d): Storage export must be less than total storage dispatch
+    if !isempty(p.export_bins_by_storage[b])
+        @constraint(m, [ts in p.time_steps_with_grid],
+            sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b])
+            <= 
+            m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
+        )
+    end 
+    
+    # Constraint (4g)-1: state-of-charge for electrical storage - with grid
 	@constraint(m, [ts in p.time_steps_with_grid],
         m[Symbol("dvStoredEnergy"*_n)][b, ts] == m[Symbol("dvStoredEnergy"*_n)][b, ts-1] + p.hours_per_time_step * (  
             sum(p.s.storage.attr[b].charge_efficiency * m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) 
             + p.s.storage.attr[b].grid_charge_efficiency * m[Symbol("dvGridToStorage"*_n)][b, ts] 
-            - m[Symbol("dvDischargeFromStorage"*_n)][b,ts] / p.s.storage.attr[b].discharge_efficiency
+            - (m[Symbol("dvDischargeFromStorage"*_n)][b,ts] / p.s.storage.attr[b].discharge_efficiency)
         )
 	)
 	# Constraint (4g)-2: state-of-charge for electrical storage - no grid
@@ -105,36 +113,37 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
         )
     )
 
-	# Constraint (4i)-1: Dispatch to electrical storage is no greater than power capacity
-	@constraint(m, [ts in p.time_steps],
-        m[Symbol("dvStoragePower"*_n)][b] >= 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) + m[Symbol("dvGridToStorage"*_n)][b, ts]
-    )
-	
-	#Constraint (4k)-alt: Dispatch to and from electrical storage is no greater than power capacity
-	@constraint(m, [ts in p.time_steps_with_grid],
-        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts] + 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec) + m[Symbol("dvGridToStorage"*_n)][b, ts]
-    )
-
-	#Constraint (4l)-alt: Dispatch from electrical storage is no greater than power capacity (no grid connection)
-	@constraint(m, [ts in p.time_steps_without_grid],
-        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b,ts] + 
-            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec)
+    # Constraint (4i): Dispatch to and from electrical storage is no greater than power capacity
+    @constraint(m, [ts in p.time_steps],
+        m[Symbol("dvStoragePower"*_n)][b] >= m[Symbol("dvDischargeFromStorage"*_n)][b, ts] 
+            + sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in p.techs.elec)
+            + m[Symbol("dvGridToStorage"*_n)][b, ts]
     )
     	
-    # Remove grid-to-storage as an option if option to grid charge is turned off
+    # Constraint (4j): Remove grid-to-storage as an option if option to grid charge is turned off
     if !(p.s.storage.attr[b].can_grid_charge)
         for ts in p.time_steps_with_grid
             fix(m[Symbol("dvGridToStorage"*_n)][b, ts], 0.0, force=true)
         end
 	end
 
+    # Constraint (4k): Constrain average state of charge
     if p.s.storage.attr[b].minimum_avg_soc_fraction > 0
         avg_soc = sum(m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps) /
                    (8760. / p.hours_per_time_step)
         @constraint(m, avg_soc >= p.s.storage.attr[b].minimum_avg_soc_fraction * 
             sum(m[Symbol("dvStorageEnergy"*_n)][b])
+        )
+    end
+
+    # Constraint (4l): Constrain to fixed_soc_series_fraction
+    if hasproperty(p.s.storage.attr[b], :fixed_soc_series_fraction) && !isnothing(p.s.storage.attr[b].fixed_soc_series_fraction)
+        # Allow for a percentage point (fractional) buffer on user-provided fixed_soc_series_fraction 
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] <= (p.s.storage.attr[b].fixed_soc_series_fraction_tolerance + p.s.storage.attr[b].fixed_soc_series_fraction[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvStoredEnergy"*_n)][b, ts] >= (-p.s.storage.attr[b].fixed_soc_series_fraction_tolerance + p.s.storage.attr[b].fixed_soc_series_fraction[ts]) * m[Symbol("dvStorageEnergy"*_n)][b]
         )
     end
 end
@@ -152,7 +161,7 @@ function add_hot_thermal_storage_dispatch_constraints(m, p, b; _n="")
 			m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts] <=  m[Symbol("dvHeatingProduction"*_n)][t,q,ts]
 			)
         @constraint(m, [q in p.heating_loads, ts in p.time_steps],
-            m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
+            m[Symbol("dvHeatFromStorageToTurbine"*_n)][b,q,ts] + m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
         )
         if !p.s.storage.attr[b].can_supply_steam_turbine
             for q in p.heating_loads
@@ -167,6 +176,23 @@ function add_hot_thermal_storage_dispatch_constraints(m, p, b; _n="")
             for t in p.techs.steam_turbine
                 for ts in p.time_steps, q in p.heating_loads
                     fix(m[Symbol("dvHeatToStorage"*_n)][b,t,q,ts], 0.0, force=true)
+                end
+            end
+        end
+    else
+        if !isempty(p.techs.absorption_chiller)
+            @constraint(m, [q in [p.s.absorption_chiller.heating_load_input], ts in p.time_steps],
+                m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts] <= m[Symbol("dvHeatFromStorage"*_n)][b,q,ts]
+            )
+            for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts], 0.0, force=true)
+                end
+            end
+        else
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[Symbol("dvHeatFromStorageToAbsorptionChiller"*_n)][b,q,ts], 0.0, force=true)
                 end
             end
         end

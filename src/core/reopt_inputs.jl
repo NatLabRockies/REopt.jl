@@ -33,8 +33,10 @@ struct REoptInputs <: AbstractInputs
     maxsize_pv_locations::DenseAxisArray{<:Real, 1}  # indexed on pvlocations
     pv_to_location::Dict{String, Dict{Symbol, Int64}}  # (techs.pv, pvlocations)
     ratchets::UnitRange
-    techs_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :CUR]
+    techs_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :EXC]
     export_bins_by_tech::Dict
+    storage_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :EXC]
+    export_bins_by_storage::Dict
     n_segs_by_tech::Dict{String, Int}
     seg_min_size::Dict{String, Dict{Int, <:Real}}
     seg_max_size::Dict{String, Dict{Int, <:Real}}
@@ -98,8 +100,10 @@ struct REoptInputs{ScenarioType <: AbstractScenario} <: AbstractInputs
     maxsize_pv_locations::DenseAxisArray{<:Real, 1}  # indexed on pvlocations
     pv_to_location::Dict{String, Dict{Symbol, Int64}}  # (techs.pv, pvlocations)
     ratchets::UnitRange
-    techs_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :CUR]
+    techs_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :EXC]
     export_bins_by_tech::Dict
+    storage_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL, :EXC]
+    export_bins_by_storage::Dict
     n_segs_by_tech::Dict{String, Int}
     seg_min_size::Dict{String, Dict{Int, Real}}
     seg_max_size::Dict{String, Dict{Int, Real}}
@@ -170,7 +174,8 @@ function REoptInputs(s::AbstractScenario)
     hours_per_time_step = 1 / s.settings.time_steps_per_hour
     techs, pv_to_location, maxsize_pv_locations, pvlocations, 
         production_factor, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw, n_segs_by_tech, 
-        seg_min_size, seg_max_size, seg_yint, techs_by_exportbin, export_bins_by_tech, boiler_efficiency,
+        seg_min_size, seg_max_size, seg_yint, techs_by_exportbin, export_bins_by_tech, 
+        storage_by_exportbin, export_bins_by_storage, boiler_efficiency,
         tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, 
         tech_emissions_factors_PM25, techs_operating_reserve_req_fraction, thermal_cop, fuel_cost_per_kwh, 
         heating_cop, cooling_cop, heating_cf, cooling_cf, avoided_capex_by_ashp_present_value, 
@@ -231,6 +236,15 @@ function REoptInputs(s::AbstractScenario)
             absorption_chillers_using_heating_load["ProcessHeat"] = Vector{String}()
         end
     end
+    
+    if !isnothing(s.absorption_chiller) && (
+            isempty(absorption_chillers_using_heating_load) 
+            || (s.absorption_chiller.heating_load_input == "SpaceHeating" && isempty(techs.can_serve_space_heating))
+            || (s.absorption_chiller.heating_load_input == "DomesticHotWater" && isempty(techs.can_serve_dhw))
+            || (s.absorption_chiller.heating_load_input == "ProcessHeat" && isempty(techs.can_serve_process_heat))
+        )
+            reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load, s, techs)
+    end
 
     if sum(heating_loads_kw["SpaceHeating"]) > 0.0 && isempty(techs.can_serve_space_heating) 
         throw(@error("SpaceHeating load is nonzero and no techs can serve the load."))
@@ -290,6 +304,8 @@ function REoptInputs(s::AbstractScenario)
         1:length(s.electric_tariff.tou_demand_ratchet_time_steps),  # ratchets
         techs_by_exportbin,
         export_bins_by_tech,
+        storage_by_exportbin,
+        export_bins_by_storage,
         n_segs_by_tech,
         seg_min_size,
         seg_max_size,
@@ -374,6 +390,8 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     # export related inputs
     techs_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in s.electric_tariff.export_bins)
     export_bins_by_tech = Dict{String, Array{Symbol, 1}}()
+    storage_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in s.electric_tariff.export_bins)
+    export_bins_by_storage = Dict{String, Array{Symbol, 1}}()
 
     # REoptInputs indexed on techs.segmented
     n_segs_by_tech = Dict{String, Int}()
@@ -487,13 +505,20 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
         export_bins_by_tech[t] = [bin for (bin, ts) in techs_by_exportbin if t in ts]
     end
 
+    for b in s.storage.types.elec
+        #TODO: wrap setting storage_by_exportbin and export_bins_by_storage into one function (don't need to separate like techs)
+        fillin_storage_by_exportbin(s, storage_by_exportbin, b)
+        export_bins_by_storage[b] = [bin for (bin, ts) in storage_by_exportbin if b in ts]
+    end
+
     if s.settings.off_grid_flag
         setup_operating_reserve_fraction(s, techs_operating_reserve_req_fraction)
     end
 
     return techs, pv_to_location, maxsize_pv_locations, pvlocations, 
     production_factor, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw, n_segs_by_tech, 
-    seg_min_size, seg_max_size, seg_yint, techs_by_exportbin, export_bins_by_tech, boiler_efficiency,
+    seg_min_size, seg_max_size, seg_yint, techs_by_exportbin, export_bins_by_tech, 
+    storage_by_exportbin, export_bins_by_storage, boiler_efficiency,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, 
     tech_emissions_factors_PM25, techs_operating_reserve_req_fraction, thermal_cop, fuel_cost_per_kwh, 
     heating_cop, cooling_cop, heating_cf, cooling_cf, avoided_capex_by_ashp_present_value,
@@ -756,7 +781,6 @@ end
 Update tech-indexed data arrays necessary to build the JuMP model with the values for existing boiler.
 This version of this function, used in BAUInputs(), doesn't update renewable energy and emissions arrays.
 """
-
 function setup_existing_boiler_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, boiler_efficiency,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
     heating_cf)
@@ -1279,6 +1303,21 @@ function fillin_techs_by_exportbin(techs_by_exportbin::Dict, tech::AbstractTech,
     return nothing
 end
 
+function fillin_storage_by_exportbin(s::AbstractScenario, storage_by_exportbin::Dict, b::String)
+    # TODO: Consider modifying this function's args to align with fillin_techs_by_exportbin (passing in storage struct instead of scenario)
+    if s.storage.attr[b].can_net_meter && :NEM in keys(storage_by_exportbin)
+        push!(storage_by_exportbin[:NEM], b)
+        if s.storage.attr[b].can_export_beyond_nem_limit && :EXC in keys(storage_by_exportbin)
+            push!(storage_by_exportbin[:EXC], b)
+        end
+    end
+    
+    if s.storage.attr[b].can_wholesale && :WHL in keys(storage_by_exportbin)
+        push!(storage_by_exportbin[:WHL], b)
+    end
+    return nothing
+end
+
 function setup_ghp_inputs(s::AbstractScenario, time_steps, time_steps_without_grid)
     # GHP parameters for REopt model
     num = length(s.ghp_option_list)
@@ -1403,4 +1442,33 @@ function get_unavailability_by_tech(s::AbstractScenario, techs::Techs, time_step
         unavailability = Dict(""=>Float64[])
     end
     return unavailability
+end
+
+"""
+reset_absorption_chiller_heat_input!(s::AbstractScenario, techs::Techs)
+    overrides the absorption chiller's heating load input as needed, using the first available heat input for which a technology
+    exists.
+"""
+function reset_absorption_chiller_heat_input!(absorption_chillers_using_heating_load::Dict{String, Vector{String}}, s::AbstractScenario, techs::Techs)
+    if !isempty(techs.can_serve_space_heating)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to SpaceHeating.")
+        s.absorption_chiller.heating_load_input = "SpaceHeating"
+        absorption_chillers_using_heating_load["SpaceHeating"] = ["AbsorptionChiller"]
+        absorption_chillers_using_heating_load["DomesticHotWater"] = []
+        absorption_chillers_using_heating_load["ProcessHeat"] = []
+    elseif !isempty(techs.can_serve_dhw)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to DomesticHotWater.")
+        s.absorption_chiller.heating_load_input = "DomesticHotWater"
+        absorption_chillers_using_heating_load["SpaceHeating"] = []
+        absorption_chillers_using_heating_load["DomesticHotWater"] = ["AbsorptionChiller"]
+        absorption_chillers_using_heating_load["ProcessHeat"] = []
+    elseif !isempty(techs.can_serve_process_heat)
+        @warn("No techs are compatible with the provided or default heating load input for AbsorptionChiller, so the heating load input has been changed to ProcessHeat.")
+        s.absorption_chiller.heating_load_input = "ProcessHeat"
+        absorption_chillers_using_heating_load["SpaceHeating"] = []
+        absorption_chillers_using_heating_load["DomesticHotWater"] = []
+        absorption_chillers_using_heating_load["ProcessHeat"] = ["AbsorptionChiller"]
+    else
+       throw(@error("Absorption Chiller is selected as a technology, but there are no heating technologies to supply any heat.")) 
+    end
 end

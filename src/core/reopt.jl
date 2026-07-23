@@ -5,7 +5,6 @@
 
 Return REoptInputs(s) where s in `Scenario` defined in dict `d`.
 """
-
 function REoptInputs(d::Dict)
 
 	# Keep try catch to support API v3 call to `REoptInputs`
@@ -135,7 +134,6 @@ end
 
 Solve the `Scenario` and `BAUScenario` in parallel using the first two (empty) models in `ms` and inputs from `p`.
 """
-
 function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.AbstractModel
 
 	try
@@ -194,13 +192,16 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 			fix(m[:dvGridPurchase][ts, tier] , 0.0, force=true)
 		end
 
-		for t in p.s.storage.types.elec
-			fix(m[:dvGridToStorage][t, ts], 0.0, force=true)
+		for b in p.s.storage.types.elec
+			fix(m[:dvGridToStorage][b, ts], 0.0, force=true)
 		end
 
         if !isempty(p.s.electric_tariff.export_bins)
             for t in p.techs.elec, u in p.export_bins_by_tech[t]
                 fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
+            end
+			for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]
+                fix(m[:dvStorageToGrid][b, u, ts], 0.0, force=true)
             end
         end
 	end
@@ -276,6 +277,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_gen_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalGenPerUnitProdOMCosts]
             m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+			m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
         end
 
         if !isempty(p.techs.chp)
@@ -423,7 +425,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 		degr_bool = p.s.storage.attr[b].model_degradation
 		if degr_bool
-			@info "Battery energy capacity degradation costs for $b are being modeled using REopt's Degradation model. ElectricStorageOMCost will include costs to be incurred for power electronics and the cost constant."
+			@info "Battery energy capacity degradation costs for $b are being modeled using REopt's Degradation model. ElectricStorageOMCost will include costs incurred for power electronics [per kW] and the cost constant, but not for the per kWh components."
             add_to_expression!(
 				m[:ElectricStorageOMCost], -1.0 * p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * p.s.storage.attr[b].installed_cost_per_kwh * m[:dvStorageEnergy][b]
 			)
@@ -501,7 +503,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	initial_capex_no_incentives(m, p)
 	if !isnothing(p.s.financial.min_initial_capital_costs_before_incentives) || !isnothing(p.s.financial.max_initial_capital_costs_before_incentives)
 		add_capex_constraints(m, p)
-	end
+	end 
 
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
@@ -683,6 +685,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 
     if !isempty(p.s.electric_tariff.export_bins)
         @variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvStorageToGrid[p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
     end
 
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
@@ -693,6 +696,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(union(p.techs.heating, p.techs.chp))
         @variable(m, dvHeatingProduction[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
 		@variable(m, dvProductionToWaste[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
+		@variable(m, dvHeatToAbsorptionChiller[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
         if !isempty(p.techs.chp)
 			@variables m begin
 				dvSupplementaryThermalProduction[p.techs.chp, p.time_steps] >= 0
@@ -706,11 +710,21 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			if !isempty(p.techs.steam_turbine)
 				@variable(m, dvHeatFromStorageToTurbine[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
 			end
+			@variable(m, dvHeatFromStorageToAbsorptionChiller[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
     	end
 	end
 
 	if !isempty(p.techs.cooling)
 		@variable(m, dvCoolingProduction[p.techs.cooling, p.time_steps] >= 0)
+		add_absorption_chiller_load_constraints(m, p)
+	else
+		for t in union(p.techs.heating, p.techs.chp)
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[:dvHeatToAbsorptionChiller][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
 	end
 
     if !isempty(p.techs.steam_turbine)
