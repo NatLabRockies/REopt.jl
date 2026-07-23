@@ -293,6 +293,23 @@ function CHP(d::Dict;
         @warn "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced."
         chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
     end 
+
+    # Validate CHP doesn't follow both electrical and thermal loads
+    if chp.follow_electrical_load && chp.follow_heating_load
+        throw(@error(
+                "CHP cannot follow both electrical load and thermal load. Update" *
+                "either CHP.follow_electrical_load or CHP.follow_heating_load to false."
+            ))
+    end 
+
+    # Validate CHP doesn't follow thermal load and only send to absorption chiller
+    if chp.follow_heating_load && chp.serve_absorption_chiller_only
+        throw(@error(
+                "CHP cannot both follow thermal heating load and serve only the " *
+                "absorption chiller. Update either CHP.serve_absoprtion_chiller_only " *
+                "or CHP.follow_heating_load to false."
+            ))
+    end 
     
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
