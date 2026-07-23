@@ -1274,7 +1274,7 @@ else  # run HiGHS tests
                 empty!(m)
                 GC.gc()
 
-                # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
+                # part 2: enable electric load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 d["CHP"]["serve_absorption_chiller_only"] = false
@@ -1395,6 +1395,26 @@ else  # run HiGHS tests
                 @test value(m[:dvRatedProduction]["CHP",4045]) < p.s.electric_load.loads_kw[4045]
                 @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4045]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4045]) rtol=1e-4
                 @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4
+            
+                #Part 5: CHP Thermal Load Following
+                d = JSON.parsefile("./scenarios/chp-abschl-flow.json")
+                delete!(d, "AbsorptionChiller")
+                d["CHP"]["follow_heating_load"] = true
+                d["CHP"]["can_curtail"] = true
+                d["CHP"]["follow_electrical_load"] = false
+                d["CHP"]["serve_absorption_chiller_only"] = false
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer))
+                results = run_reopt(m, p)
+                CHP_thermal_capacity = results["CHP"]["size_kw"]*p.s.chp.thermal_efficiency_full_load / p.s.chp.electric_efficiency_full_load
+                
+                # if CHP capacity > eligible heat load, boiler output is zero
+                @test CHP_thermal_capacity > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
+                @test results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"][50] ≈ 0.0 atol=1e-2
+                # if CHP heating capacity < eligible heat load, boiler output is zero
+                @test CHP_thermal_capacity < p.heating_loads_kw["DomesticHotWater"][1] + p.heating_loads_kw["SpaceHeating"][1]
+                @test results["CHP"]["thermal_to_load_series_mmbtu_per_hour"][1] ≈ CHP_thermal_capacity / REopt.KWH_PER_MMBTU atol=1e-2
             end
 
             @testset "CHP Proforma Metrics" begin
