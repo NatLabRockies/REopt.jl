@@ -90,7 +90,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
     # Check that only PV and electric storage are selected when a SAM battery dispatch strategy is specified
-    if haskey(d["ElectricStorage"], "dispatch_strategy")
+    if haskey(d, "ElectricStorage") && haskey(d["ElectricStorage"], "dispatch_strategy")
         if d["ElectricStorage"]["dispatch_strategy"] in ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
             sam_dispatch_allowed_keys = ["PV", "ElectricStorage", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
             unallowed_keys = setdiff(keys(d), sam_dispatch_allowed_keys) 
