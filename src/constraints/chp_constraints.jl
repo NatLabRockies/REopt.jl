@@ -246,12 +246,6 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
     # binary variable enforcement for size >= load
     max_diff_size_bigM = 2*max(p.max_sizes["CHP"] * heat_to_electric_ratio, maximum(chp_eligible_heat_load))  
     #Constraints set binCHPSizeExceedsHeatingLoad to 1 if capacity to provide heat without supplemental heating is greater than the eligible loads served in time ts and 0 otherwise. 
-    println("max_diff_size_bigM: ", max_diff_size_bigM)
-    println('p.max_sizes["CHP"] * heat_to_electric_ratio: ', p.max_sizes["CHP"] * heat_to_electric_ratio)
-    println("maximum(chp_eligible_heat_load): ", maximum(chp_eligible_heat_load))
-    println('maximum(p.production_factor["CHP"][:]): ', maximum(p.production_factor["CHP"][:]))
-    println('minimum(p.production_factor["CHP"][:]): ', minimum(p.production_factor["CHP"][:]))
-    println("max_diff_size_bigM: ", max_diff_size_bigM)
     @constraint(m, [ts in p.time_steps],
         m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][ts] >= (p.production_factor["CHP",ts]*heat_to_electric_ratio*m[Symbol("dvSize"*_n)]["CHP"] - chp_eligible_heat_load[ts]) / max_diff_size_bigM
     )
