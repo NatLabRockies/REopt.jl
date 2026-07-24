@@ -66,6 +66,7 @@ function build_mpc!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 				@constraint(m, [ts in p.time_steps], m[Symbol("dvDischargeFromStorage"*_n)][b, ts] == 0)
 				if b in p.s.storage.types.elec
 					@constraint(m, [ts in p.time_steps], m[Symbol("dvGridToStorage"*_n)][b, ts] == 0)
+					@constraint(m, [u in p.export_bins_by_storage[b], ts in p.time_steps], m[Symbol("dvStorageToGrid"*_n)][b, u, ts] == 0)
 				end
 			else
 				add_general_storage_dispatch_constraints(m, p, b; _n=_n)
@@ -200,6 +201,8 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
         if !isempty(p.s.electric_tariff.export_bins)
             dv = "dvProductionToGrid"*_n
             m[Symbol(dv)] = @variable(m, [p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
+			dv = "dvStorageToGrid"*_n
+            m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
         end
 
         ex_name = "TotalPerUnitProdOMCosts"*_n
