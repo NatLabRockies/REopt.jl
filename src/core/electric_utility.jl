@@ -138,9 +138,8 @@ struct ElectricUtility
     outage_time_steps::Union{Nothing, UnitRange} 
     scenarios::Union{Nothing, UnitRange} 
     net_metering_limit_kw::Real 
-    interconnection_limit_kw::Real 
+    interconnection_limit_kw::Real
     transmission_limit_kw::Real
-
 
     function ElectricUtility(;
 
@@ -198,9 +197,9 @@ struct ElectricUtility
 
         ### Grid Clean Energy Fraction Inputs ###
         cambium_cef_metric::String = "cef_load", # Options = ["cef_load", "cef_gen"] # cef_load is the fraction of generation that is clean, for the generation that is allocated to a region’s end-use load; cef_gen is the fraction of generation that is clean within a region
-        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[], # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
-        )
-
+        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[] # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
+    )
+    
         is_MPC = isnothing(latitude) || isnothing(longitude)
         cambium_region = "NA - Cambium data not used" # will be overwritten if Cambium is used
         

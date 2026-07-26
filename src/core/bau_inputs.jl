@@ -42,6 +42,8 @@ function BAUInputs(p::REoptInputs)
     # export related inputs
     techs_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in p.s.electric_tariff.export_bins)
     export_bins_by_tech = Dict{String, Array{Symbol, 1}}()
+    storage_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in p.s.electric_tariff.export_bins) # Empty for BAU since cannot model "existing storage"
+    export_bins_by_storage = Dict{String, Array{Symbol, 1}}()
 
     # REoptInputs indexed on techs.segmented
     n_segs_by_tech = Dict{String, Int}()
@@ -197,6 +199,8 @@ function BAUInputs(p::REoptInputs)
         p.ratchets,
         techs_by_exportbin,
         export_bins_by_tech,
+        storage_by_exportbin,
+        export_bins_by_storage,
         n_segs_by_tech,
         seg_min_size,
         seg_max_size,
