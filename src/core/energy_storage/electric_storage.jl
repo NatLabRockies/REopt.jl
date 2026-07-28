@@ -172,7 +172,7 @@ end
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
+    can_grid_charge::Bool = off_grid_flag ? false : true
     can_net_meter::Bool = false
     can_wholesale::Bool = false
     can_export_beyond_nem_limit::Bool = false
@@ -232,7 +232,7 @@ Base.@kwdef struct ElectricStorageDefaults
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    can_grid_charge::Bool = off_grid_flag ? false : true # TODO: is this relevant for all dispatch strategies?
+    can_grid_charge::Bool = off_grid_flag ? false : true
     can_net_meter::Bool = false
     can_wholesale::Bool = false
     can_export_beyond_nem_limit::Bool = false
