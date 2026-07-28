@@ -393,6 +393,7 @@ struct ElectricStorage <: AbstractElectricStorage
         grid_charge_efficiency = stor.grid_charge_efficiency
         fixed_soc_series_fraction = stor.fixed_soc_series_fraction
         fixed_soc_series_fraction_tolerance = stor.fixed_soc_series_fraction_tolerance
+        model_degradation = stor.model_degradation
 
         # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
         if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
@@ -466,6 +467,11 @@ struct ElectricStorage <: AbstractElectricStorage
             if fixed_soc_series_fraction_tolerance < 0
                 throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
             end
+            # Set model_degradation to false if fixed_soc_series_fraction is used
+            if model_degradation
+                @warn "ElectricStorage is using a fixed SOC series (SAM dispatch strategies or custom_soc); setting model_degradation to false."
+                model_degradation = false
+            end
             soc_init_fraction = fixed_soc_series_fraction[1]
             soc_min_fraction = 0.0
             optimize_soc_init_fraction = false
@@ -537,7 +543,7 @@ struct ElectricStorage <: AbstractElectricStorage
         replace_cost_per_kw = stor.replace_cost_per_kw
         replace_cost_per_kwh = stor.replace_cost_per_kwh
         replace_cost_constant = stor.replace_cost_constant
-        if stor.model_degradation
+        if model_degradation
             if haskey(d, :replace_cost_per_kw) && d[:replace_cost_per_kw] != 0.0 || 
                 haskey(d, :replace_cost_per_kwh) && d[:replace_cost_per_kwh] != 0.0 ||
                 haskey(d, :replace_cost_constant) && d[:replace_cost_constant] != 0.0
@@ -582,7 +588,7 @@ struct ElectricStorage <: AbstractElectricStorage
             net_present_cost_per_kw,
             net_present_cost_per_kwh,
             net_present_cost_cost_constant,
-            stor.model_degradation,
+            model_degradation,
             degr,
             stor.min_duration_hours,
             stor.max_duration_hours,

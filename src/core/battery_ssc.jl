@@ -55,41 +55,21 @@ function run_ssc_battery(;
             end
         end
     end 
-    # ===== Setup SSC =====
-    # TODO: Update the MacOS and Linux files?
-    global hdl = nothing
-    ssc_module = C_NULL
-    libfiles = if Sys.isapple()
-        ["libssc.dylib"]
+    # Setup SSC 
+    # TODO: Update the MacOS and Linux files
+    if Sys.isapple()
+        libfile = "libssc.dylib"
     elseif Sys.islinux()
-        ["ssc.so", "libssc.so"]
+        libfile = "ssc.so"
     elseif Sys.iswindows()
-        ["ssc_battery.dll"]
-    else
-        String[]
+        libfile = "ssc_battery.dll"
     end
-    for libfile in libfiles
-        try
-            hdl_candidate = joinpath(@__DIR__, "..", "sam", libfile)
-            if !isfile(hdl_candidate)
-                continue
-            end
-            chmod(hdl_candidate, filemode(hdl_candidate) | 0o755)
-            global hdl = hdl_candidate
-            mod = @ccall hdl.ssc_module_create("battery"::Cstring)::Ptr{Cvoid}
-            if mod != C_NULL
-                ssc_module = mod
-                break
-            end
-        catch e
-            # Try next candidate library.
-            println("Failed to load SSC library: $libfile")
-            println("Error: ", sprint(showerror, e))
-            Base.show_backtrace(stdout, catch_backtrace())
-        end
-    end
-    if ssc_module == C_NULL || isnothing(hdl)
-        R["error"] = "Unable to create SAM SSC 'battery' module from available SSC binaries under src/sam."
+
+    global hdl = joinpath(@__DIR__, "..", "sam", libfile)
+    chmod(hdl, filemode(hdl) | 0o755)
+    ssc_module = @ccall hdl.ssc_module_create("battery"::Cstring)::Ptr{Cvoid}
+    if ssc_module == C_NULL
+        R["error"] = "Unable to create SAM SSC 'battery' module from src/sam/$libfile."
         R["soc_series_fraction"] = nothing
         return R
     end
@@ -101,7 +81,7 @@ function run_ssc_battery(;
     defaults = JSON.parsefile(defaults_file)
     set_ssc_data_from_dict(defaults, "battery", data)
 
-    # ----- Override with REopt-specific inputs -----
+    # REopt-specific inputs for SAM SSC
     reopt_overrides = Dict{String, Any}(
         "batt_ac_or_dc" => 1,                                   # 0 = DC_Connected, 1 = AC_Connected
 
@@ -145,16 +125,16 @@ function run_ssc_battery(;
     size_success = @ccall hdl.Size_battery(data::Ptr{Cvoid})::Cuchar
 
     # Outputs from Size_battery:
-        # **batt_computed_series	        ceil(desired_voltage / batt_Vnom_default)
-        # **batt_computed_strings	        ceil(desired_capacity·1000 / (batt_Qfull·batt_Vnom_default·num_series))
-        # **batt_computed_bank_capacity	    Sized bank capacity (overwrites the reference you set)
-        # **batt_power_discharge_max_kwdc	DC discharge power limit
+        # batt_computed_series	            Number of cells in series, ceil(desired_voltage / batt_Vnom_default)
+        # batt_computed_strings	            Number of parallel strings, ceil(desired_capacity·1000 / (batt_Qfull·batt_Vnom_default·num_series))
+        # batt_computed_bank_capacity	    Sized bank capacity, batt_Qfull * computed_voltage * num_strings * 0.001
+        # batt_power_discharge_max_kwdc	    DC discharge power limit
         # batt_power_discharge_max_kwac	    AC discharge power limit
         # batt_power_charge_max_kwdc	    DC charge power limit
         # batt_power_charge_max_kwac	    AC charge power limit
-        # batt_current_charge_max	        charge_dc / computed_voltage · 1000
-        # batt_current_discharge_max	    discharge_dc / computed_voltage · 1000
-        # original_capacity	                The reference capacity it read in
+        # batt_current_charge_max	        batt_bank_power_charge_dc / computed_voltage · 1000
+        # batt_current_discharge_max	    batt_bank_power_discharge_dc / computed_voltage · 1000
+        # original_capacity	                Reference capacity
         # batt_mass	                        (via Calculate_thermal_params) scaled by desired_capacity/original_capacity
         # batt_surface_area	                (via Calculate_thermal_params) scaled by desired_capacity/original_capacity 
 
@@ -210,13 +190,12 @@ function run_ssc_battery(;
     if batt_soc_ptr == C_NULL || nout_soc == 0
         @ccall hdl.ssc_module_free(ssc_module::Ptr{Cvoid})::Cvoid
         @ccall hdl.ssc_data_free(data::Ptr{Cvoid})::Cvoid
-        R["error"] = "SAM battery module ran but did not return batt_SOC array."
+        R["error"] = "SAM battery module ran but did not return a batt_SOC array."
         R["soc_series_fraction"] = nothing
         return R
     end
 
     soc_series_pct = Vector{Float64}(undef, nout_soc)
-
     for i in 1:nout_soc
         soc_series_pct[i] = unsafe_load(batt_soc_ptr, i)
     end
