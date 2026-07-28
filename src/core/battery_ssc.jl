@@ -3,7 +3,7 @@
     run_ssc_battery(;
         batt_kw, batt_kwh, dispatch_strategy, soc_init_fraction, soc_min_fraction, 
         inverter_efficiency_fraction, rectifier_efficiency_fraction, internal_efficiency_fraction,
-        can_grid_charge, loads_kw, pvs, time_steps_per_hour, soc_max_fraction=1.0
+        can_grid_charge, loads_kw, pvs, time_steps_per_hour, pv_levelization_factor, soc_max_fraction=1.0
     )
 
 Run the SAM SSC "battery" module
@@ -23,6 +23,7 @@ function run_ssc_battery(;
     time_steps_per_hour::Int,
     can_net_meter::Bool,
     can_wholesale::Bool,
+    pv_levelization_factor::Dict{String,<:Real},
     soc_max_fraction::Real=1.0
 )
     R = Dict{String, Any}()
@@ -50,7 +51,7 @@ function run_ssc_battery(;
                 if pv.min_kw == pv.max_kw
                     pv_size_kw += Float64(pv.max_kw)
                 end
-                generation_series_kw .+= pv_size_kw .* pf
+                generation_series_kw .+= pv_size_kw .* pf .* pv_levelization_factor[pv.name]
             end
         end
     end 

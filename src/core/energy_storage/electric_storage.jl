@@ -406,6 +406,18 @@ struct ElectricStorage <: AbstractElectricStorage
                     end
                 end
             end
+
+            # Calculate PV levelization factors 
+            pv_levelization_factor = Dict{String, Float64}(
+                pv.name => levelization_factor(
+                    f.analysis_years,
+                    f.elec_cost_escalation_rate_fraction,
+                    f.offtaker_discount_rate_fraction,
+                    pv.degradation_fraction
+                ) for pv in pvs
+            )
+
+            # Run SAM SSC to get battery dispatch 
             ssc_battery_response = run_ssc_battery(;
                 batt_kw = stor.max_kw,
                 batt_kwh = stor.max_kwh,
@@ -420,7 +432,8 @@ struct ElectricStorage <: AbstractElectricStorage
                 pvs = pvs,
                 time_steps_per_hour = time_steps_per_hour,
                 can_net_meter = can_net_meter,
-                can_wholesale = can_wholesale
+                can_wholesale = can_wholesale,
+                pv_levelization_factor = pv_levelization_factor
             )
             if ssc_battery_response["error"] != ""
                 throw(@error("SAM battery dispatch failed: $(ssc_battery_response["error"])"))
