@@ -58,9 +58,9 @@ function run_ssc_battery(;
     # Setup SSC 
     # TODO: Update the MacOS and Linux files
     if Sys.isapple()
-        libfile = "libssc.dylib"
+        libfile = "ssc_battery.dylib"
     elseif Sys.islinux()
-        libfile = "ssc.so"
+        libfile = "ssc_battery.so"
     elseif Sys.iswindows()
         libfile = "ssc_battery.dll"
     end
