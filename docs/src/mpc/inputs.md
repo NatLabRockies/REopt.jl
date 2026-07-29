@@ -70,7 +70,8 @@ Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examp
             0.0,
             0.0,
             0.0
-        ]
+        ],
+        "can_net_meter": false
     },
     "ElectricStorage": {
         "size_kw": 30.0,
@@ -140,9 +141,11 @@ Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examp
             [16, 17, 18, 19, 20, 21, 22, 23, 24]
         ],
         "tou_previous_peak_demands": [98.0, 97.0],
-        "net_metering": false,
         "wholesale_rate": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
             0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+    },
+    "ElectricUtility" : {
+        "net_metering_limit_kw": 0.0
     }
 }
 ```

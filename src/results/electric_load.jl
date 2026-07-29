@@ -9,9 +9,9 @@
 - `offgrid_load_met_fraction` # percentage of total electric load met on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_required_series_kwh` # total operating reserves required (for load and techs) on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_provided_series_kwh` # total operating reserves provided on an annual basis, for off-grid scenarios only
-- `monthly_calculated_kwh` # vector of monthly energy consumption at a site
-- `monthly_peaks_kw` # vector of monthly peak demand
-- `annual_peak_kw` # annual peak electricity demand
+- `monthly_calculated_kwh` # vector of BAU monthly energy consumption at a site
+- `monthly_peaks_kw` # vector of BAU monthly peak demand
+- `annual_peak_kw` # annual BAU peak electricity demand
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
