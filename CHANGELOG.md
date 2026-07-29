@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-follow-thermal-load
+### Added
+- Added attribute `CHP.follow_heating_load` which, when set to `true`, adds new constraints via function `add_chp_heating_load_following_constraints` to enforce a policy in which CHP runs at capacity if the CHP size is less than the heating load, and restricts the `ExistingBoiler` from serving the load when CHP size is greater than the heating load in each time period (this allows for other heating techs like CST to contribute potentially).
+
 ## bugfix-chp-to-abschl-flow
 ### Fixed
 - Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
