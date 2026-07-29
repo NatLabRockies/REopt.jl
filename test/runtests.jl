@@ -1474,7 +1474,7 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
-            @testset "CHP expansion (multiple, off-grid, ramp rate etc)" begin
+            @testset verbose=true "CHP expansion (multiple, off-grid, ramp rate, etc)" begin
                 include("test_chp.jl")
             end
 
