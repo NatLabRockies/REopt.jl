@@ -1474,27 +1474,11 @@ else  # run HiGHS tests
                 GC.gc()
             end
 
-            @testset "Multiple CHPs" begin
-                include("test_multiple_chps.jl")
+            @testset verbose=true "CHP expansion (multiple, off-grid, ramp rate, etc)" begin
+                include("test_chp.jl")
             end
 
-            @testset "Avoid CHP Binary" begin
-                include("test_avoid_chp_binary.jl")
-            end
-
-            @testset "Off-Grid CHP" begin
-                include("test_chp_offgrid.jl")
-            end
-
-            @testset "CHP Ramp Rate" begin
-                include("test_ramp.jl")
-            end
-
-            @testset "CHP Production Factor" begin
-                include("test_chp_prodfactor.jl")
-            end
-
-            @testset "CHP Existing KW" begin
+            @testset verbose=true "CHP Existing KW" begin
                 include("test_chp_existing_kw.jl")
             end
                         
@@ -2539,6 +2523,26 @@ else  # run HiGHS tests
             empty!(m2)
             GC.gc()
         end
+
+        @testset "Boiler SteamTurbine Simple Inputs" begin
+            # This test uses the simpler SteamTurbine setup with electric_produced_to_thermal_consumed_ratio
+            # and thermal_produced_to_thermal_consumed_ratio instead of detailed steam parameters
+            input_data = JSON.parsefile("./scenarios/boiler_steamturbine.json")
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.001, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.001, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt([m1,m2], inputs)
+
+            @test results["Boiler"]["size_mmbtu_per_hour"] > 0.0
+            @test results["SteamTurbine"]["size_kw"] > 0.0
+
+            # Boiler thermal delivered to the SteamTurbine should match what the SteamTurbine consumes
+            boiler_to_st = sum(results["Boiler"]["thermal_to_steamturbine_series_mmbtu_per_hour"])
+            st_thermal_in = results["SteamTurbine"]["annual_thermal_consumption_mmbtu"]
+            @test boiler_to_st ≈ st_thermal_in rtol=0.01
+        end        
 
         @testset "OffGrid" begin
             ## Scenario 1: Solar, Storage, Fixed Generator
