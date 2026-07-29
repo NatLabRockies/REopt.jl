@@ -25,23 +25,17 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## bugfix-chp-to-abschl-flow
+## v0.59.3
 ### Fixed
 - Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
+- Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
 ### Changed
 - Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
-
-## bess-export
+- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
+- Added temporary backwards compatiability with old environment variable names and a warning for user to update
 ### Added 
 - Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
 - Add result **ElectricStorage** `storage_to_grid_series_kw` 
-### Fixed
-- Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
- 
-## v0.59.3
-### Changed
-- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
-- Added temporary backwards compatiability with old environment variable names and a warning for user to update
 
 ## v0.59.2
 ### Fixed
