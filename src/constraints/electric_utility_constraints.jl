@@ -30,14 +30,17 @@ function add_export_constraints(m, p; _n="")
     if !isempty(vcat(NEM_techs, NEM_storage))
         # Constraint (9c): Net metering only -- can't sell more than you purchase
         # hours_per_time_step is cancelled on both sides, but used for unit consistency (convert power to energy)
-        @constraint(m,
-            p.hours_per_time_step * (
-                sum( m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] for t in NEM_techs, ts in p.time_steps) + 
-                sum( m[Symbol("dvStorageToGrid"*_n)][b, :NEM, ts] for b in NEM_storage, ts in p.time_steps)
+        # Skip constraint for MPC to avoid over-constraining dispatch since this is an annual energy limit
+        if !isa(p, MPCInputs)
+            @constraint(m,
+                p.hours_per_time_step * (
+                    sum( m[Symbol("dvProductionToGrid"*_n)][t, :NEM, ts] for t in NEM_techs, ts in p.time_steps) + 
+                    sum( m[Symbol("dvStorageToGrid"*_n)][b, :NEM, ts] for b in NEM_storage, ts in p.time_steps)
+                )
+                <= p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier]
+                    for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
             )
-            <= p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier]
-                for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
-        )
+        end
 
         if p.s.electric_utility.net_metering_limit_kw == p.s.electric_utility.interconnection_limit_kw && isempty(vcat(WHL_techs, WHL_storage))
             # no need for binNEM nor binWHL
