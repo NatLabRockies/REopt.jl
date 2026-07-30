@@ -1,14 +1,15 @@
-using Revise
-using REopt
-using JSON
-using DelimitedFiles
-using PlotlyJS
-using Dates
-using Test
-using JuMP
-using HiGHS
-using DotEnv
-DotEnv.load!()
+# using Revise
+# using REopt
+# using JSON
+# using DelimitedFiles
+# using PlotlyJS
+# using Dates
+# using Test
+# using JuMP
+# using HiGHS
+# using DotEnv
+# DotEnv.load!()
+
 
 ###############   Multiple CHPs Test    ###################
 @testset "Multiple CHPs" begin
@@ -48,6 +49,10 @@ DotEnv.load!()
     npv_calculated = bau_cashflow_sum - optimal_cashflow_sum
     npv_reported = results["Financial"]["npv"]
     @test isapprox(npv_calculated, npv_reported, rtol=0.001)
+
+    finalize(backend(m1)); empty!(m1)
+    finalize(backend(m2)); empty!(m2)
+    GC.gc()
 end
 
 ###############   CHP Binary Creation Tests    ###################
@@ -264,6 +269,8 @@ end
                 f["lifecycle_outage_cost"] + f["lifecycle_MG_upgrade_and_fuel_cost"] -
                 f["lifecycle_production_incentive_after_tax"]
     @test lcc_check ≈ f["lcc"] atol=1.0
+
+    finalize(backend(m)); empty!(m); GC.gc()
 end
 
 ###############   CHP Ramp Rate Test    ###################
@@ -305,6 +312,8 @@ end
 
     # Battery must be sized to cover load changes CHP can't ramp fast enough to follow
     @test results["ElectricStorage"]["size_kw"] > 0.0
+
+    finalize(backend(m)); empty!(m); GC.gc()
 end
 
 ###########   CHP production_factor_series test   #############
@@ -348,4 +357,6 @@ end
     first_half_avg = sum(results["CHP"]["electric_production_series_kw"][1:4380]) / 4380
     second_half_avg = sum(results["CHP"]["electric_production_series_kw"][4381:8760]) / 4380
     @test second_half_avg > first_half_avg
+
+    finalize(backend(m)); empty!(m); GC.gc()
 end
