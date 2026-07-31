@@ -83,7 +83,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     # Check that only PV, wind, electric storage, and generator are modeled for off-grid
     if settings.off_grid_flag
         offgrid_allowed_keys = ["PV", "Wind", "ElectricStorage", "Generator", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
-        unallowed_keys = setdiff(keys(d), offgrid_allowed_keys) 
+        unallowed_keys = setdiff(keys(d), offgrid_allowed_keys)
         if !isempty(unallowed_keys)
             throw(@error("The following key(s) are not permitted when `off_grid_flag` is true: $unallowed_keys."))
         end
@@ -93,7 +93,14 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     if haskey(d, "ElectricStorage") && haskey(d["ElectricStorage"], "dispatch_strategy")
         if d["ElectricStorage"]["dispatch_strategy"] in ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
             sam_dispatch_allowed_keys = ["PV", "ElectricStorage", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
-            unallowed_keys = setdiff(keys(d), sam_dispatch_allowed_keys) 
+            unallowed_keys = setdiff(keys(d), sam_dispatch_allowed_keys)
+            # Ignore disallowed technologies that are explicitly disabled with max_kw = 0.
+            for key in copy(unallowed_keys)
+                val = get(d, key, nothing)
+                if val isa AbstractDict && haskey(val, "max_kw") && val["max_kw"] == 0
+                    setdiff!(unallowed_keys, [key])
+                end
+            end
             if !isempty(unallowed_keys)
                 throw(@error("The following key(s) are not permitted when the ElectricStorage `dispatch_strategy` is set to `peak_shaving_look_ahead`, `peak_shaving_look_behind`, or `self_consumption`: $unallowed_keys."))
             end
