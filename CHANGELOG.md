@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## Develop
+### Fixed
+- Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
+
 ## v0.59.3
 ### Fixed
 - Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
