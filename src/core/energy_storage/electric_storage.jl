@@ -324,7 +324,7 @@ struct ElectricStorage <: AbstractElectricStorage
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
     
     
-    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int)  
+    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int, net_metering_limit_kw::Real)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = ElectricStorageDefaults(;d...)
 
@@ -434,6 +434,7 @@ struct ElectricStorage <: AbstractElectricStorage
                 time_steps_per_hour = time_steps_per_hour,
                 can_net_meter = can_net_meter,
                 can_wholesale = can_wholesale,
+                net_metering_limit_kw = net_metering_limit_kw,
                 pv_levelization_factor = pv_levelization_factor
             )
             if ssc_battery_response["error"] != ""

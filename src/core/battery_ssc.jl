@@ -3,7 +3,8 @@
     run_ssc_battery(;
         batt_kw, batt_kwh, dispatch_strategy, soc_init_fraction, soc_min_fraction, 
         inverter_efficiency_fraction, rectifier_efficiency_fraction, internal_efficiency_fraction,
-        can_grid_charge, loads_kw, pvs, time_steps_per_hour, pv_levelization_factor, soc_max_fraction=1.0
+        can_grid_charge, loads_kw, pvs, time_steps_per_hour, can_net_meter, can_wholesale,
+        net_metering_limit_kw, pv_levelization_factor, soc_max_fraction=1.0
     )
 
 Run the SAM SSC "battery" module
@@ -23,6 +24,7 @@ function run_ssc_battery(;
     time_steps_per_hour::Int,
     can_net_meter::Bool,
     can_wholesale::Bool,
+    net_metering_limit_kw::Real,
     pv_levelization_factor::Dict{String,<:Real},
     soc_max_fraction::Real=1.0
 )
@@ -102,7 +104,7 @@ function run_ssc_battery(;
         "batt_minimum_SOC" => soc_min_fraction * 100.0,
         
         # BatteryDispatch Group
-        "batt_dispatch_auto_btm_can_discharge_to_grid" => Int(can_net_meter || can_wholesale),
+        "batt_dispatch_auto_btm_can_discharge_to_grid" => Int(can_wholesale || (can_net_meter && net_metering_limit_kw > 0)),
         "batt_dispatch_auto_can_gridcharge" => Int(can_grid_charge),
         "batt_dispatch_choice" => batt_dispatch_choice,
         "batt_dispatch_load_forecast_choice" => forecast_choice,
