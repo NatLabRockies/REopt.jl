@@ -1350,7 +1350,7 @@ else  # run HiGHS tests
                 empty!(m)
                 GC.gc()
 
-                # part 2: enable electric load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
+                # part 2: enable electric load following policy for CHP - even with free electricity the CHP system runs at either capacity or electric load.
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 d["CHP"]["serve_absorption_chiller_only"] = false
