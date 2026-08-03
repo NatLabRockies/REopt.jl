@@ -228,7 +228,7 @@ run at capacity otherwise in dispatch (without regard to electrical flows).
 function add_chp_heating_load_following_constraints(m, p; _n="")
     heat_to_electric_ratio = p.s.chp.thermal_efficiency_full_load / p.s.chp.electric_efficiency_full_load
     chp_eligible_heat_load = zeros(length(p.s.electric_load.loads_kw))
-    heating_loads_served_by_chp = []
+    heating_loads_served_by_chp = String[]
     if p.s.chp.can_serve_dhw
         chp_eligible_heat_load .+= p.heating_loads_kw["DomesticHotWater"]
         push!(heating_loads_served_by_chp, "DomesticHotWater")
