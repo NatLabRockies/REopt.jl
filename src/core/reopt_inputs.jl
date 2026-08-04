@@ -444,7 +444,7 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     end
 
     if !isempty(techs.chp)
-        setup_chp_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, 
+        setup_chp_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw, 
             production_factor, techs_by_exportbin, techs.segmented, n_segs_by_tech, seg_min_size, seg_max_size, 
             seg_yint, techs, tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, 
             tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
@@ -901,15 +901,16 @@ end
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for CHP.
 """
-function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw,  
+function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw,  
     production_factor, techs_by_exportbin, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint, techs,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
     heating_cf, pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh,
     chp_params
     )
     for chp in s.chps
-        max_sizes[chp.name] = chp.max_kw
-        min_sizes[chp.name] = chp.min_kw
+        max_sizes[chp.name] = chp.existing_kw + chp.max_kw
+        min_sizes[chp.name] = chp.existing_kw + chp.min_kw
+        existing_sizes[chp.name] = chp.existing_kw
         update_cost_curve!(chp, chp.name, s.financial,
             cap_cost_slope, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint
         )

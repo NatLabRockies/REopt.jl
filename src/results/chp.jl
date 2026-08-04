@@ -163,8 +163,8 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 	r["year_one_standby_cost_after_tax"] = r["year_one_standby_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
 	r["lifecycle_standby_cost_after_tax"] = round(r["year_one_standby_cost_before_tax"] * p.pwf_e * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=0)
 	
-	# Calculate individual CHP capital costs
-	size_kw = value(m[Symbol("dvSize"*_n)][chp_name])
+	# Calculate individual CHP capital costs using purchased CHP capacity (excluding existing_kw)
+	size_kw = value(m[Symbol("dvPurchaseSize"*_n)][chp_name])
 	suppl_firing_size = value(m[Symbol("dvSupplementaryFiringSize"*_n)][chp_name])
 	
 	# Base CHP capital cost using generalized function

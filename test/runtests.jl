@@ -1495,6 +1495,10 @@ else  # run HiGHS tests
                 include("test_chp.jl")
             end
 
+            @testset verbose=true "CHP Existing KW" begin
+                include("test_chp_existing_kw.jl")
+            end
+                        
         end
         
         @testset verbose=true "FlexibleHVAC" begin

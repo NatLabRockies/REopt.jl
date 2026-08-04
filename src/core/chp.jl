@@ -25,8 +25,9 @@ conflict_res_min_allowable_fraction_of_max = 0.25
 
     # Optional inputs:
     size_class::Union{Int, Nothing} = nothing # CHP size class for using appropriate default inputs, with size_class=0 using an average of all other size class data 
-    min_kw::Float64 = 0.0 # Minimum CHP size (based on electric) constraint for optimization 
-    max_kw::Float64 = NaN # Maximum CHP size (based on electric) constraint for optimization. Determined by heuristic sizing based on heating load or electric load.    
+    existing_kw::Float64 = 0.0 # Existing CHP electric capacity (based on rated electric power)
+    min_kw::Float64 = 0.0 # Minimum NEW CHP size (based on electric) to add beyond existing_kw 
+    max_kw::Float64 = NaN # Maximum NEW CHP size (based on electric) to add beyond existing_kw. Determined by heuristic sizing based on heating load or electric load.    
     fuel_type::String = "natural_gas" # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
     om_cost_per_kw::Float64 = 0.0 # Annual CHP fixed operations and maintenance costs in \$/kw-yr 
     om_cost_per_hr_per_kw_rated::Float64 = 0.0 # CHP non-fuel variable operations and maintenance costs in \$/hr/kw_rated
@@ -103,6 +104,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     # Optional inputs:
     prime_mover::Union{String, Nothing} = nothing
     size_class::Union{Int, Nothing} = nothing
+    existing_kw::Float64 = 0.0
     min_kw::Float64 = 0.0
     max_kw::Float64 = NaN
     fuel_type::String = "natural_gas"
