@@ -106,6 +106,11 @@ function Techs(s::Scenario)
         throw(@error("PV names must be unique, got $(pvtechs)"))
     end
 
+    chp_names = String[chp.name for chp in s.chps]
+    if length(Base.Set(chp_names)) != length(chp_names)
+        throw(@error("CHP names must be unique, got $(chp_names)"))
+    end
+
     all_techs = copy(pvtechs)
     elec = copy(pvtechs)
     techs_no_turndown = copy(pvtechs)
