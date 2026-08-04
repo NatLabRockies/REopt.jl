@@ -2108,7 +2108,8 @@ else  # run HiGHS tests
                 ground_pv = results["PV"][findfirst(pv -> pv["name"] == "ground", results["PV"])]
                 roof_west = results["PV"][findfirst(pv -> pv["name"] == "roof_west", results["PV"])]
                 roof_east = results["PV"][findfirst(pv -> pv["name"] == "roof_east", results["PV"])]
-
+                
+                @test results["Financial"]["initial_capital_costs"]  ≈ results["Financial"]["initial_capital_costs_after_incentives"] atol=0.1
                 @test ground_pv["size_kw"] ≈ 15 atol=0.1
                 @test roof_west["size_kw"] ≈ 7 atol=0.1
                 @test roof_east["size_kw"] ≈ 4 atol=0.1
