@@ -48,7 +48,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
             p.s.storage.attr[b].installed_cost_constant
 
         if p.s.storage.attr[b].model_degradation
-            r["state_of_health_series_fraction"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
+            r["state_of_health_series_fraction"] = round.(results_array(value.(m[:SOH])) / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
             if p.s.storage.attr[b].degradation.maintenance_strategy == "replacement"
                 r["replacement_month"] = round(Int, value(
@@ -84,6 +84,8 @@ end
 """
 MPC `ElectricStorage` results keys:
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over time horizon
+- `storage_to_load_series_kw` Vector of power used to meet load
+- `storage_to_grid_series_kw` Vector of power exported to the grid
 """
 function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict, b::String; _n="")
     r = Dict{String, Any}()
@@ -92,7 +94,14 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     r["soc_series_fraction"] = round.(value.(soc) ./ p.s.storage.attr[b].size_kwh, digits=3)
 
     discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
-    r["to_load_series_kw"] = round.(value.(discharge), digits=3)
+    r["storage_to_load_series_kw"] = round.(value.(discharge), digits=3)
+
+    r["storage_to_grid_series_kw"] = zeros(size(r["soc_series_fraction"]))
+    if !isempty(p.s.electric_tariff.export_bins)
+        StorageToGrid = @expression(m, [ts in p.time_steps],
+            sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]))
+        r["storage_to_grid_series_kw"] = round.(value.(StorageToGrid), digits=3).data
+    end
 
     d[b] = r
     nothing

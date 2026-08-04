@@ -256,6 +256,10 @@ MPC `ElectricTariff` results keys:
 - `energy_cost`
 - `demand_cost`
 - `export_benefit`
+
+Prefix net_metering or wholesale (export categories) for following outputs, included when export bins are active:
+- `_export_rate_series` export rate timeseries for type of export category in \\\$/kWh (negative values for site compensation for export)
+- `_electric_to_grid_series_kw` exported electricity timeseries for type of export category in kW
 """
 function add_electric_tariff_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
     r = Dict{String, Any}()
@@ -267,6 +271,21 @@ function add_electric_tariff_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dic
     r["demand_cost"] = round(value(m[Symbol("TotalDemandCharges"*_n)]), digits=2)
                                 
     r["export_benefit"] = -1 * round(value(m[Symbol("TotalExportBenefit"*_n)]), digits=0)
+
+    # Export rate and exported electricity timeseries by export category (mirrors the main
+    # ElectricTariff results). MPC does not model the :EXC bin.
+    binmap = Dict(Symbol("WHL") => "wholesale", Symbol("NEM") => "net_metering", Symbol("EXC") => "net_metering_excess")
+    if !isempty(p.s.electric_tariff.export_bins) && (!isempty(p.techs.elec) || !isempty(p.s.storage.types.elec))
+        for bin in p.s.electric_tariff.export_bins
+            r[string(binmap[bin], "_export_rate_series")] = collect(p.s.electric_tariff.export_rates[bin])
+
+            r[string(binmap[bin], "_electric_to_grid_series_kw")] = collect(value.([
+                sum((m[Symbol("dvProductionToGrid"*_n)][t, bin, ts] for t in p.techs.elec); init=0.0) +
+                sum((m[Symbol("dvStorageToGrid"*_n)][b, bin, ts] for b in p.s.storage.types.elec); init=0.0)
+                for ts in p.time_steps
+            ]))
+        end
+    end
     
     d["ElectricTariff"] = r
     nothing

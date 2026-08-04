@@ -25,6 +25,20 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## dispatch-options
+### Changed
+- All MPC dispatch series to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 (instead of **ElectricTariff.net_metering**)
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+
+## bugfix-chp-to-abschl-flow
+### Fixed
+- Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
+### Changed
+- Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
+
 ## bess-export
 ### Added 
 - Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**

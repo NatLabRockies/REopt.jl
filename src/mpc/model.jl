@@ -38,11 +38,11 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
 		@objective(m, Min, m[:Costs])
 	else # Keep SOC high
 		@objective(m, Min, m[:Costs] - sum(m[:dvStoredEnergy]["ElectricStorage", ts] for ts in p.time_steps) /
-									   (8760. / p.hours_per_time_step)
+									   (1000. / p.hours_per_time_step)
 		)
 	end
 
-	@info "Model built. Optimizing..."
+	#@info "Model built. Optimizing..."
 	tstart = time()
 	optimize!(m)
 	opt_time = round(time() - tstart, digits=3)
@@ -55,13 +55,13 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
 		@warn "MPC solved with " termination_status(m), ", returning the model."
 		return m
 	end
-	@info "MPC solved with " termination_status(m)
-	@info "Solving took $(opt_time) seconds."
+	#@info "MPC solved with " termination_status(m)
+	#@info "Solving took $(opt_time) seconds."
 
 	tstart = time()
 	results = mpc_results(m, p)
 	time_elapsed = time() - tstart
-	@info "Results processing took $(round(time_elapsed, digits=3)) seconds."
+	#@info "Results processing took $(round(time_elapsed, digits=3)) seconds."
 	results["status"] = status
 	results["solver_seconds"] = opt_time
 	return results

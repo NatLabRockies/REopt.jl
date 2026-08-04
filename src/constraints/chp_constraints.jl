@@ -231,7 +231,7 @@ function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
     chp_with_ac_only = filter(chp -> chp.serve_absorption_chiller_only, p.s.chps)
     months_to_restrict = unique(vcat([chp.months_serving_absorption_chiller_only for chp in chp_with_ac_only]...))
     for mth in months_to_restrict
-        @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
+        m[Symbol("CHPToAbsFlowCon_month"*string(mth)*_n)] = @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
             m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
         )
         # During restricted months, CHP cannot serve other heating loads (space heating, DHW)
@@ -255,32 +255,22 @@ run at capacity otherwise in dispatch (without regard to heat flows).
 function add_chp_electrical_load_following_constraints(m, p; _n="")
     dv = "binCHPSizeExceedsElectricLoad"*_n
     m[Symbol(dv)] = @variable(m, [p.time_steps], binary=true, base_name=dv)
-    dv = "dvCHPSizeTimesExcess"*_n
-    m[Symbol(dv)] = @variable(m, [p.time_steps], lower_bound=0, base_name=dv)
     # binary variable enforcement for size >= load
     max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads))  #exclude heating electrification but include elec cooling? 
     )
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
+        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
     )
     @constraint(m, [ts in p.time_steps],
         m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - (p.s.electric_load.loads_kw[ts] - m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
     )
-    # set dvCHPSizeTimesExcess = binCHPSizeExceedsElectricLoad * dvSize
     # big-M is min CF times heat load
-    
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts])  
+        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
     )
+    #enforce dispatch: grid purchase = 0 if size exceeds load, i.e., CHP must dispatch to load-follow after accounting for PV, Batteries and other onsite resources.
     @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"]
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
-    )
-    #Enforce dispatch: output = system size - (overage)
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] + p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
+        sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) <= max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts])
     )
 end
 

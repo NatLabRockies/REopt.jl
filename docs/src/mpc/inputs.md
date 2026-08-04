@@ -37,6 +37,9 @@ The simplest scenario does not have any dispatch optimization and is essentially
 !!! note
     The `ElectricLoad.loads_kw` can have an arbitrary length, but its length must be the same lengths as many other inputs such as the `MPCElectricTariff.energy_rates` and the `PV.production_factor_series`.
 
+!!! note
+    Net metering or net billing (wholesale) can be applied in MPC in the same manner they are applied in a typical REopt run. To utilize net metering in MPC, set `ElectricUtility.net_metering_limit_kw` > 0, and specify which MPC techs can_net_meter. Note that under net metering, REopt MPC will not export more than grid consumption within the defined horizon (rather than within a year, as in src/core). Note also that MPC will choose between the NEM and WHL bins for each horizon iteration.
+
 Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examples):
 ```javascript
 {
@@ -67,7 +70,8 @@ Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examp
             0.0,
             0.0,
             0.0
-        ]
+        ],
+        "can_net_meter": false
     },
     "ElectricStorage": {
         "size_kw": 30.0,
@@ -137,9 +141,11 @@ Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examp
             [16, 17, 18, 19, 20, 21, 22, 23, 24]
         ],
         "tou_previous_peak_demands": [98.0, 97.0],
-        "net_metering": false,
-        "export_rates": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
+        "wholesale_rate": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
             0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+    },
+    "ElectricUtility" : {
+        "net_metering_limit_kw": 0.0
     }
 }
 ```
