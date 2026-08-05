@@ -70,7 +70,7 @@ end
 Constructs the BAUScenario (used to create the Business-as-usual inputs) based on the Scenario for the optimized case.
 
 The following assumptions are made for the BAU scenario: 
-- sets the `PV`, `Generator`, and `CHP` min_kw and max_kw values to the existing_kw values
+- sets the `PV` and `Generator` min_kw and max_kw values to the existing_kw values
 - sets wind and storage max_kw values to zero (existing wind and storage cannot be modeled)
 - only includes `PV`, `Generator`, and `CHP` systems that have existing_kw > 0
 """
@@ -131,13 +131,10 @@ function BAUScenario(s::Scenario)
     =#
     site = bau_site(s.site)
 
-    # Include only CHPs with existing capacity; no new capacity or supplementary firing in BAU
     chps = CHP[]
     for chp in s.chps
         if chp.existing_kw > 0
             bau_chp = deepcopy(chp)
-            bau_chp.min_kw = 0.0
-            bau_chp.max_kw = 0.0
             bau_chp.supplementary_firing_capital_cost_per_kw = 0.0
             push!(chps, bau_chp)
         end
