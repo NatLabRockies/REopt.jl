@@ -1483,7 +1483,7 @@ else  # run HiGHS tests
                 p = REoptInputs(s)
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer))
                 results = run_reopt(m, p)
-                CHP_thermal_capacity = results["CHP"]["size_kw"]*p.s.chp.thermal_efficiency_full_load / p.s.chp.electric_efficiency_full_load
+                CHP_thermal_capacity = results["CHP"]["size_kw"]*p.s.chps[1].thermal_efficiency_full_load / p.s.chps[1].electric_efficiency_full_load
                 
                 # if CHP capacity > eligible heat load, boiler output is zero
                 @test CHP_thermal_capacity > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
