@@ -522,21 +522,10 @@ function irr(cashflows::AbstractArray{<:Real, 1})
         return 0.0
     end
     f(r) = npv(cashflows, r)
-    a, b = 0.0, 0.99
-    fa = f(a)
-    fb = f(b)
-
-    # Only use bracketed solve when endpoint signs differ.
-    # Otherwise return 0.0 instead of throwing an ArgumentError from Roots.
-    if !(isfinite(fa) && isfinite(fb)) || fa * fb >= 0
-        return 0.0
+    rate = 0.0
+    try
+        rate = fzero(f, [0.0, 0.99])
+    finally
+        return round(rate, digits=3)
     end
-
-    rate = try
-        fzero(f, [a, b])
-    catch
-        return 0.0
-    end
-
-    return round(rate, digits=3)
 end
