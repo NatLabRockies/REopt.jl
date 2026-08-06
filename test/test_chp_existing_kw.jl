@@ -41,8 +41,8 @@ chp_name = s_existing.chps[1].name
 @test p_existing.min_sizes[chp_name] == 100.0
 @test p_existing.max_sizes[chp_name] == 300.0
 
-m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
-r_existing = run_reopt(m2, p_existing)
+m = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
+r_existing = run_reopt(m, p_existing)
 
 new_purchase = r_existing["CHP"]["size_kw"] - 100.0
 expected_capex = REopt.get_tech_initial_capex(s_existing.chps[1], new_purchase) +
@@ -61,3 +61,6 @@ bau_inputs = REopt.BAUInputs(p_existing)
 @test bau_inputs.max_sizes[chp_name] == 100.0
 @test bau_inputs.min_sizes[chp_name] == 100.0
 @test bau_inputs.cap_cost_slope[chp_name] == 0.0
+
+finalize(backend(m)); empty!(m)
+GC.gc()
