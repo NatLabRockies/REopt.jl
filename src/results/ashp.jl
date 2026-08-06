@@ -33,7 +33,8 @@ function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         sum(m[:dvHeatingProduction]["ASHPSpaceHeater",q,ts] for q in p.heating_loads)) # TODO add cooling
 	r["thermal_production_series_mmbtu_per_hour"] = 
         round.(value.(ASHPThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
-	r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
+    # series is a rate (MMBtu/hr); integrate by hours_per_time_step to get annual energy
+	r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, ASHPToHotTESKW[ts in p.time_steps],
@@ -100,9 +101,10 @@ function add_ashp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r["electric_consumption_series_kw"] = round.(value.(ASHPElectricConsumptionSeries .+ ASHPColdElectricConsumptionSeries), digits=3)
     r["electric_consumption_for_cooling_series_kw"] = round.(value.(ASHPColdElectricConsumptionSeries), digits=3)
     r["electric_consumption_for_heating_series_kw"] = round.(value.(ASHPElectricConsumptionSeries), digits=3)
-    r["annual_electric_consumption_kwh"] = p.hours_per_time_step * sum(r["electric_consumption_series_kw"])
-    r["annual_electric_consumption_for_cooling_kwh"] = p.hours_per_time_step * sum(r["electric_consumption_for_cooling_series_kw"])
-    r["annual_electric_consumption_for_heating_kwh"] = p.hours_per_time_step * sum(r["electric_consumption_for_heating_series_kw"])
+    # series already includes hours_per_time_step (kWh per time step), so annual is a plain sum
+    r["annual_electric_consumption_kwh"] = sum(r["electric_consumption_series_kw"])
+    r["annual_electric_consumption_for_cooling_kwh"] = sum(r["electric_consumption_for_cooling_series_kw"])
+    r["annual_electric_consumption_for_heating_kwh"] = sum(r["electric_consumption_for_heating_series_kw"])
     r["heating_cop"] = p.heating_cop["ASHPSpaceHeater"]
     r["heating_cf"] = p.heating_cf["ASHPSpaceHeater"]
 
@@ -139,7 +141,8 @@ function add_ashp_wh_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n=
         sum(m[:dvHeatingProduction][t,q,ts] for q in p.heating_loads, t in p.techs.ashp_wh))
 	r["thermal_production_series_mmbtu_per_hour"] = 
         round.(value.(ASHPWHThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
-	r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
+    # series is a rate (MMBtu/hr); integrate by hours_per_time_step to get annual energy
+	r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, ASHPWHToHotTESKW[ts in p.time_steps],
@@ -174,7 +177,8 @@ function add_ashp_wh_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n=
     r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(value.(ASHPWHToDHWKW ./ KWH_PER_MMBTU), digits=5)
     
     r["electric_consumption_series_kw"] = round.(value.(ASHPWHElectricConsumptionSeries), digits=3)
-    r["annual_electric_consumption_kwh"] = p.hours_per_time_step * sum(r["electric_consumption_series_kw"])
+    # series already includes hours_per_time_step (kWh per time step), so annual is a plain sum
+    r["annual_electric_consumption_kwh"] = sum(r["electric_consumption_series_kw"])
     r["heating_cop"] = p.heating_cop["ASHPSpaceHeater"]
     r["heating_cf"] = p.heating_cf["ASHPSpaceHeater"]
 
