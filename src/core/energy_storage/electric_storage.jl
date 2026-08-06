@@ -202,7 +202,6 @@ end
     
     # Dispatch-related inputs
     dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
-    # SOC inputs relevant if dispatch_strategy = "optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", or "backup" #TODO: confirm this. 
     soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
     soc_min_applies_during_outages::Bool = false
     soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
