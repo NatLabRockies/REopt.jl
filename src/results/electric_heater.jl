@@ -30,7 +30,8 @@ function add_electric_heater_results(m::JuMP.AbstractModel, p::REoptInputs, d::D
         sum(m[:dvHeatingProduction][t,q,ts] for q in p.heating_loads, t in p.techs.electric_heater))
 	r["thermal_production_series_mmbtu_per_hour"] = 
         round.(value.(ElectricHeaterThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
-	r["annual_thermal_production_mmbtu"] = round(sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
+    # series is a rate (MMBtu/hr); integrate by hours_per_time_step to get annual energy
+	r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
 	if !isempty(p.s.storage.types.hot)
         @expression(m, ElectricHeaterToHotTESKW[ts in p.time_steps],
