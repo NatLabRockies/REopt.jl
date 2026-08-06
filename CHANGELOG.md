@@ -25,10 +25,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-
 ## chp-follow-thermal-load
 ### Added
 - Added attribute `CHP.follow_heating_load` which, when set to `true`, adds new constraints via function `add_chp_heating_load_following_constraints` to enforce a policy in which CHP runs at capacity if the CHP size is less than the heating load, and restricts the `ExistingBoiler` from serving the load when CHP size is greater than the heating load in each time period (this allows for other heating techs like CST to contribute potentially).
+
+## Develop
+### Fixed
+- Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
 
 ## v0.59.3
 ### Fixed
