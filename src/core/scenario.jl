@@ -137,7 +137,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     latitude = site.latitude,
                     electric_load_annual_kwh = electric_load_annual_kwh,
                     site_land_acres = site.land_acres,
-                    site_roof_squarefeet = site.roof_squarefeet
+                    site_roof_squarefeet = site.roof_squarefeet,
+                    time_steps_per_hour = settings.time_steps_per_hour
                 ))
             end
         elseif typeof(d["PV"]) <: AbstractDict
@@ -149,7 +150,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 latitude = site.latitude,
                 electric_load_annual_kwh = electric_load_annual_kwh,
                 site_land_acres = site.land_acres,
-                site_roof_squarefeet = site.roof_squarefeet
+                site_roof_squarefeet = site.roof_squarefeet,
+                time_steps_per_hour = settings.time_steps_per_hour
             ))
         else
             throw(@error("PV input must be Dict or Dict[]."))
