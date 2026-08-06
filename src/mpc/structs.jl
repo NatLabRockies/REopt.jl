@@ -176,9 +176,6 @@ function MPCElectricTariff(d::Dict; net_metering::Bool=false)
     end
     # wholesale_rate can be a <:Real or Array{<:Real, 1}, or not provided
     wholesale_rate = get(d, "wholesale_rate", nothing)
-    if !isnothing(wholesale_rate)
-        wholesale_rate = convert(Vector{Real}, wholesale_rate)
-    end
     whl_rate = create_export_rate(wholesale_rate, length(energy_rates[:,1]), 1) # makes whl_rate negative
 
     if !NEM & (sum(whl_rate) >= 0)

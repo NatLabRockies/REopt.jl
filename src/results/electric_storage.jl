@@ -35,7 +35,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
         if !isempty(p.s.electric_tariff.export_bins)
             StorageToGrid = @expression(m, [ts in p.time_steps],
                 sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]))
-            r["storage_to_grid_series_kw"] = round.(value.(StorageToGrid), digits=3).data
+            r["storage_to_grid_series_kw"] = results_array(round.(value.(StorageToGrid), digits=3))
         end
 
         StorageToLoad = ( m[Symbol("dvDischargeFromStorage"*_n)][b, ts] 
@@ -100,7 +100,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     if !isempty(p.s.electric_tariff.export_bins)
         StorageToGrid = @expression(m, [ts in p.time_steps],
             sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]))
-        r["storage_to_grid_series_kw"] = round.(value.(StorageToGrid), digits=3).data
+        r["storage_to_grid_series_kw"] = results_array(round.(value.(StorageToGrid), digits=3))
     end
 
     d[b] = r
