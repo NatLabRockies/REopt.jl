@@ -3567,6 +3567,108 @@ else  # run HiGHS tests
             GC.gc()
         end
 
+        @testset "Sub-hourly thermal tech annual output consistency" begin
+            #= Regression tests for the sub-hourly annual-vs-series integration fix in the
+               ExistingBoiler, Boiler, ElectricHeater, ASHPSpaceHeater, and ASHPWaterHeater
+               results. Previously, annual_thermal_production_mmbtu summed a rate (MMBtu/hr)
+               series without integrating by hours_per_time_step, and the ASHP annual electric
+               kWh double-applied hours_per_time_step. Both regressions would fail at
+               time_steps_per_hour = 4 but silently pass at hourly resolution.
+               CST is omitted because its SSC path is hard-coded to 8760 hourly steps; the fix
+               follows the identical code pattern as the boilers above.=#
+            tol = 1e-4
+
+            @testset "ExistingBoiler and Boiler (15-minute)" begin
+                d = JSON.parsefile("./scenarios/boiler_new_inputs.json")
+                d["Settings"] = Dict("time_steps_per_hour" => 4)
+                d["SpaceHeatingLoad"]["annual_mmbtu"] = 0.5 * 8760
+                d["DomesticHotWaterLoad"]["annual_mmbtu"] = 0.5 * 8760
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt([m1, m2], p)
+                for (tech, eff) in (("ExistingBoiler", s.existing_boiler.efficiency), ("Boiler", s.boiler.efficiency))
+                    r = results[tech]
+                    @test r["annual_thermal_production_mmbtu"] ≈ p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]) rtol=tol
+                    if r["annual_thermal_production_mmbtu"] > 1.0
+                        @test r["annual_fuel_consumption_mmbtu"] ≈ r["annual_thermal_production_mmbtu"] / eff rtol=tol
+                    end
+                end
+                finalize(backend(m1))
+                empty!(m1)
+                finalize(backend(m2))
+                empty!(m2)
+                GC.gc()
+            end
+
+            @testset "ElectricHeater (15-minute)" begin
+                d = JSON.parsefile("./scenarios/electric_heater.json")
+                d["Settings"] = Dict("time_steps_per_hour" => 4)
+                d["SpaceHeatingLoad"]["annual_mmbtu"] = 0.4 * 8760
+                d["DomesticHotWaterLoad"]["annual_mmbtu"] = 0.4 * 8760
+                d["ProcessHeatLoad"]["annual_mmbtu"] = 0.2 * 8760
+                d["ExistingBoiler"]["retire_in_optimal"] = true # Ensure the electric heater is deployed
+                d["ElectricTariff"]["monthly_energy_rates"] = [0,0,0,0,0,0,0,0,0,0,0,0]
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, p)
+                r = results["ElectricHeater"]
+                @test r["annual_thermal_production_mmbtu"] ≈ p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]) rtol=tol
+                @test r["annual_electric_consumption_kwh"] ≈ sum(r["electric_consumption_series_kw"]) rtol=tol
+                @test r["annual_electric_consumption_kwh"] ≈ r["annual_thermal_production_mmbtu"] * REopt.KWH_PER_MMBTU / d["ElectricHeater"]["cop"] rtol=tol
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+            end
+
+            @testset "ASHP Space Heater (15-minute)" begin
+                d = JSON.parsefile("./scenarios/ashp.json")
+                d["Settings"] = Dict("time_steps_per_hour" => 4)
+                d["SpaceHeatingLoad"]["annual_mmbtu"] = 0.8 * 8760
+                d["ExistingBoiler"]["retire_in_optimal"] = false
+                d["ExistingBoiler"]["fuel_cost_per_mmbtu"] = 20
+                d["ASHPSpaceHeater"]["installed_cost_per_ton"] = 300
+                d["ASHPSpaceHeater"]["min_allowable_ton"] = 80.0
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, p)
+                r = results["ASHPSpaceHeater"]
+                @test r["annual_thermal_production_mmbtu"] ≈ p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]) rtol=tol
+                # regression against the double-hours_per_time_step bug: annual kWh is a plain sum of the (kWh-per-time-step) series
+                @test r["annual_electric_consumption_kwh"] ≈ sum(r["electric_consumption_series_kw"]) rtol=tol
+                expected_electric_kwh = p.hours_per_time_step * sum(0.8 * REopt.KWH_PER_MMBTU / p.heating_cop["ASHPSpaceHeater"][ts] for ts in p.time_steps)
+                @test r["annual_electric_consumption_kwh"] ≈ expected_electric_kwh rtol=tol
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+            end
+
+            @testset "ASHP Water Heater (15-minute)" begin
+                d = JSON.parsefile("./scenarios/ashp_wh.json")
+                d["Settings"] = Dict("time_steps_per_hour" => 4)
+                d["SpaceHeatingLoad"]["annual_mmbtu"] = 0.5 * 8760
+                d["DomesticHotWaterLoad"]["annual_mmbtu"] = 0.5 * 8760
+                d["ExistingBoiler"]["retire_in_optimal"] = false
+                d["ExistingBoiler"]["fuel_cost_per_mmbtu"] = 20
+                d["ASHPWaterHeater"]["installed_cost_per_ton"] = 300
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, p)
+                r = results["ASHPWaterHeater"]
+                @test r["annual_thermal_production_mmbtu"] ≈ p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]) rtol=tol
+                @test r["annual_electric_consumption_kwh"] ≈ sum(r["electric_consumption_series_kw"]) rtol=tol
+                expected_electric_kwh = p.hours_per_time_step * sum(0.4 * REopt.KWH_PER_MMBTU / p.heating_cop["ASHPWaterHeater"][ts] for ts in p.time_steps)
+                @test r["annual_electric_consumption_kwh"] ≈ expected_electric_kwh rtol=tol
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+            end
+        end
+
         @testset "Custom REopt logger" begin
             
             # Throw a handled error
