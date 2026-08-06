@@ -4788,5 +4788,9 @@ else  # run HiGHS tests
             GC.gc()
         end
 
+        @testset verbose=true "Battery heuristic dispatch tests" begin
+            include("battery_dispatch_tests.jl")
+        end
+
     end
 end
