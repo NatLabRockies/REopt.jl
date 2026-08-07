@@ -1,9 +1,37 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
+
+function outage_effective_production_factors(p)
+    factors = Dict{String, Vector{Float64}}()
+    chp_series_by_name = Dict(chp.name => chp.production_factor_series for chp in p.s.chps)
+
+    for t in p.techs.elec
+        base_factor = collect(p.production_factor[t, :].data)
+        unavailability = p.unavailability[t]
+
+        if t in p.techs.chp
+            chp_series = get(chp_series_by_name, t, nothing)
+            if isnothing(chp_series)
+                # For default CHP production factors, adding unavailability restores outage availability.
+                factors[t] = base_factor .+ unavailability
+            else
+                # For user-provided CHP production_factor_series, ignore unavailability during outages
+                # while preserving the user-provided production factor profile.
+                factors[t] = base_factor .+ unavailability .* chp_series
+            end
+        else
+            factors[t] = base_factor .+ unavailability
+        end
+    end
+
+    return factors
+end
+
 function add_dv_UnservedLoad_constraints(m,p)
+    outage_factors = outage_effective_production_factors(p)
     # Effective load balance
     @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
         m[:dvUnservedLoad][s, tz, ts] == p.s.electric_load.critical_loads_kw[time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)]
-        - sum(  m[:dvMGRatedProduction][t, s, tz, ts] * (p.production_factor[t, time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] + p.unavailability[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)]) * p.levelization_factor[t]
+        - sum(  m[:dvMGRatedProduction][t, s, tz, ts] * outage_factors[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * p.levelization_factor[t]
               - m[:dvMGProductionToStorage][t, s, tz, ts] - m[:dvMGCurtail][t, s, tz, ts]
             for t in p.techs.elec
         )
@@ -113,11 +141,12 @@ end
 
 
 function add_MG_production_constraints(m,p)
+    outage_factors = outage_effective_production_factors(p)
 
 	# Electrical production sent to storage or export must be less than technology's rated production
 	@constraint(m, [t in p.techs.elec, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
 		m[:dvMGProductionToStorage][t, s, tz, ts] + m[:dvMGCurtail][t, s, tz, ts] <=
-		(p.production_factor[t, time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] + p.unavailability[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)]) * p.levelization_factor[t] * m[:dvMGRatedProduction][t, s, tz, ts]
+        outage_factors[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * p.levelization_factor[t] * m[:dvMGRatedProduction][t, s, tz, ts]
     )
 
     @constraint(m, [t in p.techs.elec, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps], 

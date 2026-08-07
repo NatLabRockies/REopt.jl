@@ -307,6 +307,9 @@ function get_production_factor(chp::AbstractCHP, year::Int=2017, outage_start_ti
         prod_factor .= prod_factor .* unavailability_factor
     end
 
+    # For multiple/stochastic outages, unavailability handling during outages is applied in outage_constraints.jl
+    # to avoid changing normal grid-tied economics.
+
     return prod_factor
 end
 
