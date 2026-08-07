@@ -31,14 +31,17 @@ end
 Base.@kwdef struct MPCPV
     name::String="PV"
     size_kw::Real = 0
-    production_factor_series::Union{Nothing, Array{Real,1}} = nothing
+    production_factor_series::Union{Nothing, Array{Real,1}} = nothing # production factor DOES NOT get levelized in MPC. 
 end
 ```
 """
-Base.@kwdef struct MPCPV
+Base.@kwdef struct MPCPV <: AbstractTech
     name::String="PV"
     size_kw::Real = 0
     production_factor_series::Union{Nothing, Array{Real,1}} = nothing
+    can_net_meter::Bool = true
+    can_wholesale::Bool = true
+    can_export_beyond_nem_limit::Bool = false
 end
 
 
@@ -136,16 +139,20 @@ Keys for `d` include:
 
     - boolean, if `true` then customer DER export is compensated at the `energy_rates`
 
-  - `export_rates`
+  - `wholesale_rate`
 
     - can be a <:Real or Array{<:Real, 1}, or not provided
-    - if provided, customer DER export is compensated at the `export_rates`
+    - if provided, customer DER export is compensated at the `wholesale_rate`
 
-NOTE: if both `net_metering=true` and `export_rates` are provided then the model can choose from either option.
+NOTE: if both `net_metering=true` and `wholesale_rate` are provided then the model can choose from either option.
+
+`net_metering` is passed in from the `MPCScenario` constructor based on `ElectricUtility.net_metering_limit_kw > 0`
+(mirroring how `src/core` determines the `NEM` export bin).
 """
-function MPCElectricTariff(d::Dict)
+function MPCElectricTariff(d::Dict; net_metering::Bool=false)
 
     energy_rates = d["energy_rates"]
+    NEM = net_metering
 
     monthly_demand_rates = get(d, "monthly_demand_rates", [0.0])
     time_steps_monthly = get(d, "time_steps_monthly", [collect(eachindex(energy_rates))])
@@ -164,16 +171,15 @@ function MPCElectricTariff(d::Dict)
     # TODO handle tiered rates
     export_bins = [:NEM, :WHL]
     nem_rate = []
-    NEM = get(d, "net_metering", false)
     if NEM
         nem_rate = [-0.999 * x for x in energy_rates]
     end
-    # export_rates can be a <:Real or Array{<:Real, 1}, or not provided
-    export_rates = get(d, "export_rates", nothing)
-    if !isnothing(export_rates)
-        export_rates = convert(Vector{Real}, export_rates)
+    # wholesale_rate can be a <:Real or Array{<:Real, 1}, or not provided
+    wholesale_rate = get(d, "wholesale_rate", nothing)
+    if !isnothing(wholesale_rate) && !(wholesale_rate isa Real)
+        wholesale_rate = convert(Vector{Real}, wholesale_rate)
     end
-    whl_rate = create_export_rate(export_rates, length(energy_rates[:,1]), 1)
+    whl_rate = create_export_rate(wholesale_rate, length(energy_rates[:,1]), 1) # makes whl_rate negative
 
     if !NEM & (sum(whl_rate) >= 0)
         export_rates = DenseAxisArray{Array{Float64,1}}(undef, [])
@@ -218,15 +224,17 @@ end
     MPCElectricStorage
 
 ```julia
-Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
+Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     size_kw::Float64
     size_kwh::Float64
-    charge_efficiency::Float64 =  0.96 * 0.975^2
-    discharge_efficiency::Float64 =  0.96 * 0.975^2
+    charge_efficiency::Float64 =  0.96 * 0.975^0.5
+    discharge_efficiency::Float64 =  0.96 * 0.975^0.5
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
-    grid_charge_efficiency::Float64 = 0.96 * 0.975^2
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
 end
@@ -235,12 +243,14 @@ end
 Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     size_kw::Float64
     size_kwh::Float64
-    charge_efficiency::Float64 = 0.96 * 0.975^2
-    discharge_efficiency::Float64 = 0.96 * 0.975^2
+    charge_efficiency::Float64 = 0.96 * 0.975^0.5
+    discharge_efficiency::Float64 = 0.96 * 0.975^0.5
     soc_min_fraction::Float64 = 0.2
     soc_init_fraction::Float64 = 0.5
     can_grid_charge::Bool = true
-    grid_charge_efficiency::Float64 = 0.96 * 0.975^2
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     max_kw::Float64 = size_kw
     max_kwh::Float64 = size_kwh
     minimum_avg_soc_fraction::Float64 = 0.0
@@ -282,6 +292,9 @@ struct MPCGenerator <: AbstractGenerator
     sells_energy_back_to_grid
     om_cost_per_kwh
     om_cost_per_hr_per_kw_rated
+    can_net_meter
+    can_wholesale
+    can_export_beyond_nem_limit # not used in MPC but must implement it for model building
 
     function MPCGenerator(;
         size_kw::Real,
@@ -295,6 +308,9 @@ struct MPCGenerator <: AbstractGenerator
         sells_energy_back_to_grid::Bool = false,
         om_cost_per_kwh::Real=0.0,
         om_cost_per_hr_per_kw_rated::Real=0.0,
+        can_net_meter::Bool = false,
+        can_wholesale::Bool = false,
+        can_export_beyond_nem_limit::Bool = false,
         )
 
         max_kw = size_kw
@@ -311,7 +327,10 @@ struct MPCGenerator <: AbstractGenerator
             only_runs_during_grid_outage,
             sells_energy_back_to_grid,
             om_cost_per_kwh,
-            om_cost_per_hr_per_kw_rated
+            om_cost_per_hr_per_kw_rated,
+            can_net_meter,
+            can_wholesale,
+            can_export_beyond_nem_limit
         )
     end
 end
@@ -327,6 +346,39 @@ end
 Base.@kwdef struct MPCCoolingLoad
     loads_kw_thermal::Array{Real,1}
     cop::Union{Real, Nothing}
+end
+
+"""
+    MPCSpaceHeatingLoad
+
+    Base.@kwdef struct MPCSpaceHeatingLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCSpaceHeatingLoad
+    loads_kw::Array{Real,1}
+end
+
+"""
+    MPCDomesticHotWaterLoad
+
+    Base.@kwdef struct MPCDomesticHotWaterLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCDomesticHotWaterLoad
+    loads_kw::Array{Real,1}
+end
+
+"""
+    MPCProcessHeatLoad
+
+    Base.@kwdef struct MPCProcessHeatLoad
+        loads_kw::Array{Real,1}
+    end
+"""
+Base.@kwdef struct MPCProcessHeatLoad
+    loads_kw::Array{Real,1}
 end
 
 
