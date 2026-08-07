@@ -568,7 +568,7 @@ end
 """
     get_load_metrics(load_profile; time_steps_per_hour=1, year=2025, print_to_console=false)
 
-Analyze the timeseries load profile data to get monthly and annual metrics. 
+Analyze the timeseries load profile data to get BAU monthly and annual metrics. 
 The units of the returned metrics are dependent on the units of the load_profile input
 E.g. if load_profile is in kW, the energy metrics will be in kWh. if MMBtu/hr, then MMBtu.
 # Arguments
@@ -577,10 +577,10 @@ E.g. if load_profile is in kW, the energy metrics will be in kWh. if MMBtu/hr, t
 - `year`: The year of the load profile, used to determine the number of days in each month (e.g., leap years). Default is 2025.
 - `print_to_console`: Boolean flag to print the results to the console. Default is false.
 # Returns
-- `monthly_energy`: Array of 12 values representing the total energy usage (e.g. kWh) for each month.
-- `monthly_peaks`: Array of 12 values representing the peak demand (e.g. kW) for each month.
-- `annual_energy`: Total annual energy usage (e.g. kWh).
-- `annual_peak`: Maximum peak demand (e.g. kW) for the year.
+- `monthly_energy`: Array of 12 values representing the total BAU energy usage (e.g. kWh) for each month.
+- `monthly_peaks`: Array of 12 values representing the BAU peak demand (e.g. kW) for each month.
+- `annual_energy`: Total annual BAU energy usage (e.g. kWh).
+- `annual_peak`: Maximum BAU peak demand (e.g. kW) for the year.
 
 """
 function get_load_metrics(load_profile; time_steps_per_hour=1, year=2025, print_to_console=false)
@@ -907,7 +907,7 @@ Checks and adjusts the length of a user-provided load series to ensure it matche
 - `Array{<:Real,1}`: The adjusted load series if modifications are required, or the original load series if it already matches the expected length.
 """
 function check_and_adjust_load_length(load_series::Array{<:Real,1}, time_steps_per_hour::Int, load_type::String)
-            # Timestep checks for custom loads
+        # Timestep checks for custom loads
         if length(load_series) > 0 && length(load_series) / time_steps_per_hour != 8760 # user provided load with incorrect time_steps_per_hour
             if length(load_series) < 8760 * time_steps_per_hour && length(load_series) % 8760 == 0 # loads_kw is lower resolution than time_steps_per_hour and is an integer multiple of 8760
                 load_series = repeat(load_series, inner=Int(time_steps_per_hour / (length(load_series)/8760)))

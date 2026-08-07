@@ -80,12 +80,30 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     
     site = Site(;dictkeys_tosymbols(d["Site"])...)
 
-    # Check that only PV, electric storage, and generator are modeled for off-grid
+    # Check that only PV, wind, electric storage, and generator are modeled for off-grid
     if settings.off_grid_flag
         offgrid_allowed_keys = ["PV", "Wind", "ElectricStorage", "Generator", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
-        unallowed_keys = setdiff(keys(d), offgrid_allowed_keys) 
+        unallowed_keys = setdiff(keys(d), offgrid_allowed_keys)
         if !isempty(unallowed_keys)
             throw(@error("The following key(s) are not permitted when `off_grid_flag` is true: $unallowed_keys."))
+        end
+    end
+
+    # Check that only PV and electric storage are selected when a SAM battery dispatch strategy is specified
+    if haskey(d, "ElectricStorage") && haskey(d["ElectricStorage"], "dispatch_strategy")
+        if d["ElectricStorage"]["dispatch_strategy"] in ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
+            sam_dispatch_allowed_keys = ["PV", "ElectricStorage", "Settings", "Site", "Financial", "ElectricLoad", "ElectricTariff", "ElectricUtility"]
+            unallowed_keys = setdiff(keys(d), sam_dispatch_allowed_keys)
+            # Ignore disallowed technologies that are explicitly disabled with max_kw = 0.
+            for key in copy(unallowed_keys)
+                val = get(d, key, nothing)
+                if val isa AbstractDict && haskey(val, "max_kw") && val["max_kw"] == 0
+                    setdiff!(unallowed_keys, [key])
+                end
+            end
+            if !isempty(unallowed_keys)
+                throw(@error("The following key(s) are not permitted when the ElectricStorage `dispatch_strategy` is set to `peak_shaving_look_ahead`, `peak_shaving_look_behind`, or `self_consumption`: $unallowed_keys."))
+            end
         end
     end
 
@@ -119,7 +137,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     latitude = site.latitude,
                     electric_load_annual_kwh = electric_load_annual_kwh,
                     site_land_acres = site.land_acres,
-                    site_roof_squarefeet = site.roof_squarefeet
+                    site_roof_squarefeet = site.roof_squarefeet,
+                    time_steps_per_hour = settings.time_steps_per_hour
                 ))
             end
         elseif typeof(d["PV"]) <: AbstractDict
@@ -131,7 +150,8 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                 latitude = site.latitude,
                 electric_load_annual_kwh = electric_load_annual_kwh,
                 site_land_acres = site.land_acres,
-                site_roof_squarefeet = site.roof_squarefeet
+                site_roof_squarefeet = site.roof_squarefeet,
+                time_steps_per_hour = settings.time_steps_per_hour
             ))
         else
             throw(@error("PV input must be Dict or Dict[]."))
@@ -207,7 +227,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     else
         storage_dict = Dict(:max_kw => 0.0)
     end
-    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site, settings.time_steps_per_hour)
+    storage_structs["ElectricStorage"] = ElectricStorage(storage_dict, financial, site, electric_load, pvs, settings.time_steps_per_hour, electric_utility.net_metering_limit_kw)
     # TODO stop building ElectricStorage when it is not modeled by user 
     #       (requires significant changes to constraints, variables)
     if haskey(d, "HotThermalStorage")

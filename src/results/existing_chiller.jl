@@ -24,12 +24,12 @@ function add_existing_chiller_results(m::JuMP.AbstractModel, p::REoptInputs, d::
 		sum(m[:dvCoolingProduction]["ExistingChiller", ts])
 			- ELECCHLtoTES[ts]
     )
-	r["thermal_to_load_series_ton"] = round.(value.(ELECCHLtoLoad / KWH_THERMAL_PER_TONHOUR).data, digits=3)
+	r["thermal_to_load_series_ton"] = round.(results_array(value.(ELECCHLtoLoad / KWH_THERMAL_PER_TONHOUR)), digits=3)
 
 	@expression(m, ELECCHLElecConsumptionSeries[ts in p.time_steps],
 		sum(m[:dvCoolingProduction]["ExistingChiller", ts] / p.cooling_cop["ExistingChiller"][ts])
     )
-	r["electric_consumption_series_kw"] = round.(value.(ELECCHLElecConsumptionSeries).data, digits=3)
+	r["electric_consumption_series_kw"] = round.(results_array(value.(ELECCHLElecConsumptionSeries)), digits=3)
 
 	@expression(m, Year1ELECCHLElecConsumption,
 		p.hours_per_time_step * sum(m[:dvCoolingProduction]["ExistingChiller", ts] / p.cooling_cop["ExistingChiller"][ts]

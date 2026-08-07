@@ -18,9 +18,9 @@ struct MPCInputs <: AbstractInputs
     pwf_fuel::Dict{String, Float64}
     third_party_factor::Float64
     ratchets::UnitRange
-    techs_by_exportbin::DenseAxisArray{Array{String,1}}  # indexed on [:NEM, :WHL]
+    techs_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL]
     export_bins_by_tech::Dict{String, Array{Symbol, 1}}
-    storage_by_exportbin::DenseAxisArray{Array{String,1}}  # indexed on [:NEM, :WHL]
+    storage_by_exportbin::Dict{Symbol, AbstractArray}  # keys can include [:NEM, :WHL]
     export_bins_by_storage::Dict{String, Array{Symbol, 1}} 
     cooling_cop::Dict{String, Array{Float64,1}}  # (techs.cooling, time_steps)
     thermal_cop::Dict{String, Float64}  # (techs.absorption_chiller)
@@ -49,33 +49,33 @@ function MPCInputs(s::MPCScenario)
     techs, production_factor, existing_sizes, fuel_cost_per_kwh = setup_tech_inputs(s)
     months = 1:length(s.electric_tariff.monthly_demand_rates)
 
-    techs_by_exportbin = DenseAxisArray([ techs.all, techs.all, techs.all], s.electric_tariff.export_bins)
-    # TODO account for which techs have access to export bins (when we add more techs than PV)
-
+    # export related inputs (mirrors src/core `setup_tech_inputs`)
+    # The bins a tech/storage can access are determined by its `can_net_meter`, `can_wholesale`,
+    # and `can_export_beyond_nem_limit` attributes. MPC does not model the :EXC bin.
+    techs_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in s.electric_tariff.export_bins)
     export_bins_by_tech = Dict{String, Array{Symbol, 1}}()
-    for t in techs.elec
-        export_bins_by_tech[t] = s.electric_tariff.export_bins
-    end
-    # TODO implement export bins by tech (rather than assuming that all techs share the export_bins)
-    
-    storage_by_exportbin = Dict{Symbol, Array{String, 1}}(k => [] for k in s.electric_tariff.export_bins)
+    storage_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in s.electric_tariff.export_bins)
     export_bins_by_storage = Dict{String, Array{Symbol, 1}}()
-    for b in s.storage.types.elec
-        if s.storage.attr[b].can_net_meter && :NEM in keys(storage_by_exportbin)
-            push!(storage_by_exportbin[:NEM], b)
-            if s.storage.attr[b].can_export_beyond_nem_limit && :EXC in keys(storage_by_exportbin)
-                push!(storage_by_exportbin[:EXC], b)
-            end
-        end
-        if s.storage.attr[b].can_wholesale && :WHL in keys(storage_by_exportbin)
-            push!(storage_by_exportbin[:WHL], b)
-        end
 
+    for pv in s.pvs
+        fillin_techs_by_exportbin(techs_by_exportbin, pv, pv.name)
+    end
+    if "Generator" in techs.all
+        fillin_techs_by_exportbin(techs_by_exportbin, s.generator, "Generator")
+    end
+    # filling export_bins_by_tech MUST be done after techs_by_exportbin has been filled in
+    for t in techs.elec
+        export_bins_by_tech[t] = [bin for (bin, ts) in techs_by_exportbin if t in ts]
+    end
+
+    for b in s.storage.types.elec
+        fillin_storage_by_exportbin(s, storage_by_exportbin, b)
+    end
+    for b in s.storage.types.elec
         export_bins_by_storage[b] = [bin for (bin, ts) in storage_by_exportbin if b in ts]
     end
-    storage_by_exportbin = DenseAxisArray(collect(values(storage_by_exportbin)), collect(keys(storage_by_exportbin)))
  
-    levelization_factor = Dict(t => 1.0 for t in techs.all)
+    levelization_factor = Dict(t => 1.0 for t in techs.all) # production not levelized in MPC
     pwf_e = 1.0
     pwf_om = 1.0
     pwf_fuel = Dict{String, Float64}()

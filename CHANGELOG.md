@@ -25,6 +25,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## dispatch-options
+### Changed
+- MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core` 
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+- **ElectricStorage** inputs field **dispatch_options** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
 ## Develop
 ### Fixed
 - Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
