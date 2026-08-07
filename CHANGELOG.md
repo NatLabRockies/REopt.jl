@@ -25,7 +25,7 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## dispatch-options
+## v0.60.0
 ### Changed
 - MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
 - Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
