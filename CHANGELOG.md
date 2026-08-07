@@ -32,10 +32,10 @@ Classify the change according to the following categories:
 - MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core` 
 - Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
 - Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
-- Added temporary backwards compatiability with old environment variable names and a warning for user to update
+- Added temporary backwards compatibility with old environment variable names and a warning for user to update
 ### Added
 - `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
-- **ElectricStorage** inputs field **dispatch_options** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+- **ElectricStorage** input field **dispatch_strategy** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
 - Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
 - Add result **ElectricStorage** `storage_to_grid_series_kw` 
 ### Fixed

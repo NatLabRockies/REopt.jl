@@ -224,7 +224,7 @@ end
     MPCElectricStorage
 
 ```julia
-Base.@kwdef struct MPCElectricStorage < AbstractElectricStorage
+Base.@kwdef struct MPCElectricStorage <: AbstractElectricStorage
     size_kw::Float64
     size_kwh::Float64
     charge_efficiency::Float64 =  0.96 * 0.975^0.5
