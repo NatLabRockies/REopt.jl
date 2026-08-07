@@ -360,3 +360,52 @@ end
 
     finalize(backend(m)); empty!(m); GC.gc()
 end
+
+@testset "CHP production_factor_series with unavailability and outage" begin
+    production_factor_series = fill(1.0, 8760)
+    production_factor_series[121] = 0.8
+    production_factor_series[122] = 0.9
+    production_factor_series[123] = 0.7
+
+    input_data = Dict(
+        "Site" => Dict(
+            "latitude" => 39.7,
+            "longitude" => -104.9
+        ),
+        "ElectricLoad" => Dict(
+            "loads_kw" => repeat([100.0], 8760),
+            "year" => 2025
+        ),
+        "ElectricTariff" => Dict(
+            "urdb_label" => "5ed6c1a15457a3367add15ae"
+        ),
+        "ElectricUtility" => Dict(
+            "outage_start_time_step" => 121,
+            "outage_end_time_step" => 122
+        ),
+        "CHP" => Dict(
+            "is_electric_only" => true,
+            "fuel_cost_per_mmbtu" => 4.0,
+            "max_kw" => 100.0,
+            "min_kw" => 100.0,
+            "production_factor_series" => production_factor_series,
+            "unavailability_periods" => [Dict(
+                "month" => 1,
+                "start_week_of_month" => 2,
+                "start_day_of_week" => 1,
+                "start_hour" => 1,
+                "duration_hours" => 3
+            )]
+        )
+    )
+
+    s = Scenario(input_data)
+    p = REoptInputs(s)
+    chp_name = s.chps[1].name
+    prod_factor = p.production_factor[chp_name, :].data
+
+    @test prod_factor[121] ≈ 0.8 atol=0.001
+    @test prod_factor[122] ≈ 0.9 atol=0.001
+    @test prod_factor[123] ≈ 0.0 atol=0.001
+    @test prod_factor[124] ≈ 1.0 atol=0.001
+end
