@@ -14,7 +14,7 @@ input_net["ElectricLoad"]["loads_kw_is_net"] = true
 s_net = Scenario(input_net)
 orig_load = copy(s_net.electric_load.loads_kw)
 REoptInputs(s_net)
-@test s_net.electric_load.loads_kw ≈ orig_load .- min.(orig_load, 100.0)
+@test s_net.electric_load.loads_kw ≈ orig_load .+ min.(orig_load, 100.0)
 
 input_crit = deepcopy(input_net)
 input_crit["ElectricLoad"]["critical_loads_kw_is_net"] = true
@@ -22,7 +22,7 @@ input_crit["ElectricLoad"]["critical_loads_kw_is_net"] = true
 s_crit = Scenario(input_crit)
 orig_crit = copy(s_crit.electric_load.critical_loads_kw)
 REoptInputs(s_crit)
-@test s_crit.electric_load.critical_loads_kw ≈ orig_crit .- min.(orig_crit, 100.0)
+@test s_crit.electric_load.critical_loads_kw ≈ orig_crit .+ min.(orig_crit, 100.0)
 
 ###############   Existing CHP Sizing   ###################
 

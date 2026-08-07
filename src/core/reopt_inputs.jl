@@ -1267,8 +1267,7 @@ function adjust_load_profile(s::AbstractScenario, production_factor::DenseAxisAr
         for chp in s.chps
             if chp.existing_kw > 0
                 chp_available_kw = chp.existing_kw .* production_factor[chp.name, :].data
-                chp_dispatch = min.(s.electric_load.loads_kw, chp_available_kw)
-                s.electric_load.loads_kw .-= chp_dispatch
+                s.electric_load.loads_kw .+= chp_available_kw
             end
         end
     end
@@ -1282,8 +1281,7 @@ function adjust_load_profile(s::AbstractScenario, production_factor::DenseAxisAr
         for chp in s.chps
             if chp.existing_kw > 0
                 chp_available_kw = chp.existing_kw .* production_factor[chp.name, :].data
-                chp_dispatch = min.(s.electric_load.critical_loads_kw, chp_available_kw)
-                s.electric_load.critical_loads_kw .-= chp_dispatch
+                s.electric_load.critical_loads_kw .+= chp_available_kw
             end
         end
     end
