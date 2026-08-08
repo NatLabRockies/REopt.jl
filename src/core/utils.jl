@@ -227,10 +227,10 @@ function dictkeys_tosymbols(d::Dict)
             "off_grid_flag", "add_soc_incentive", "include_climate_in_objective", 
             "include_health_in_objective", "include_export_cost_series_in_results"
         ] && !isnothing(v) && !(typeof(v) <: Bool)
-            try
-                v = Bool(v)
-            catch
-                throw(@error("Unable to convert $k to Bool. Expected boolean or 0/1, got: $v"))
+            if v isa Real && (v == 0 || v == 1)
+                v = v == 1
+            else
+                throw(ArgumentError("Unable to convert $k to Bool. Expected boolean or 0/1, got: $v"))
             end
         end
         if k in [
