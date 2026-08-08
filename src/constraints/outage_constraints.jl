@@ -206,12 +206,14 @@ function add_MG_CHP_fuel_burn_constraints(m, p; _n="")
     outage_factors = outage_effective_production_factors(p)
 
     for t in p.techs.chp
+        # Calculate the load-dependent fuel burn slope and on-size intercept for this CHP.
         fuel_burn_slope, fuel_burn_intercept = fuel_slope_and_intercept(;
             electric_efficiency_full_load = p.chp_params[t][:electric_efficiency_full_load],
             electric_efficiency_half_load = p.chp_params[t][:electric_efficiency_half_load],
             fuel_higher_heating_value_kwh_per_unit = 1
         )
 
+        # Total CHP fuel burn for each outage includes both production-dependent and on-size intercept terms.
         @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
             m[Symbol("dvMGFuelUsed"*_n)][t,s,tz] == p.hours_per_time_step *
                 sum(
@@ -223,6 +225,7 @@ function add_MG_CHP_fuel_burn_constraints(m, p; _n="")
                 )
         )
 
+        # Linearize dvMGCHPOnSize = dvMGsize * binMGCHPIsOnInTS.
         @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
             m[Symbol("dvMGCHPOnSize"*_n)][t,s,tz,ts] <= m[Symbol("dvMGsize"*_n)][t]
         )

@@ -147,10 +147,12 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
 end
 
 function add_binCHPIsOnInTS_constraints(m, p; _n="")
+    # Force rated production to zero when the CHP is off in every timestep.
     @constraint(m, [t in p.techs.chp, ts in p.time_steps],
         m[Symbol("dvRatedProduction"*_n)][t, ts] <= p.max_sizes[t] * m[Symbol("binCHPIsOnInTS"*_n)][t, ts]
     )
 
+    # Enforce minimum turndown during grid availability, or across all off-grid timesteps.
     min_turn_down_time_steps = p.s.settings.off_grid_flag ? p.time_steps_without_grid : p.time_steps_with_grid
     @constraint(m, [t in p.techs.chp, ts in min_turn_down_time_steps],
         p.chp_params[t][:min_turn_down_fraction] * m[Symbol("dvSize"*_n)][t] - m[Symbol("dvRatedProduction"*_n)][t, ts] <=
@@ -268,6 +270,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
 
     for t in load_following_chps
         max_diff_size_bigM = 2 * max(p.max_sizes[t], maximum(p.s.electric_load.loads_kw))
+        # Identify timesteps where available CHP capacity exceeds electrical load.
         @constraint(m, [ts in p.time_steps],
             m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts] >=
             (p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
@@ -278,6 +281,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
             1 - (p.s.electric_load.loads_kw[ts] -
                 p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
         )
+        # Linearize available CHP capacity times binCHPSizeExceedsElectricLoad.
         @constraint(m, [ts in p.time_steps],
             m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] >=
             p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
@@ -291,6 +295,7 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
             m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] <=
             max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
         )
+        # Dispatch at available capacity when it is below load and exactly at load otherwise.
         @constraint(m, [ts in p.time_steps],
             p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] ==
             p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
