@@ -203,38 +203,40 @@ function add_MG_Gen_fuel_burn_constraints(m,p)
 end
 
 function add_MG_CHP_fuel_burn_constraints(m, p; _n="")
-    # Fuel burn slope and intercept
-    fuel_burn_slope, fuel_burn_intercept = fuel_slope_and_intercept(; 
-        electric_efficiency_full_load = p.s.chps[1].electric_efficiency_full_load, 
-        electric_efficiency_half_load = p.s.chps[1].electric_efficiency_half_load, 
-        fuel_higher_heating_value_kwh_per_unit=1
-    )
-  
-    # Conditionally add dvFuelBurnYIntercept if coefficient p.FuelBurnYIntRate is greater than ~zero
-    if abs(fuel_burn_intercept) > 1.0E-7
-        #Constraint (1c1): Total Fuel burn for CHP **with** y-intercept fuel burn and supplementary firing
-        @constraint(m, MGCHPFuelBurnCon[t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-            m[Symbol("dvMGFuelUsed"*_n)][t,s,tz]  == p.hours_per_time_step * (
-                m[Symbol("dvMGCHPFuelBurnYIntercept"*_n)][s,tz] +
-                sum(fuel_burn_slope * m[Symbol("dvMGRatedProduction"*_n)][t,s,tz,ts]
-                    for ts in 1:p.s.electric_utility.outage_durations[s]))
+    outage_factors = outage_effective_production_factors(p)
+
+    for t in p.techs.chp
+        fuel_burn_slope, fuel_burn_intercept = fuel_slope_and_intercept(;
+            electric_efficiency_full_load = p.chp_params[t][:electric_efficiency_full_load],
+            electric_efficiency_half_load = p.chp_params[t][:electric_efficiency_half_load],
+            fuel_higher_heating_value_kwh_per_unit = 1
         )
 
-        #Constraint (1d): Y-intercept fuel burn for CHP across the scenario outage time steps
-        @constraint(m, MGCHPFuelBurnYIntCon[t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-            m[Symbol("binMGCHPIsOnInTS"*_n)][s,tz,ts] => 
-                {m[Symbol("dvMGCHPFuelBurnYIntercept"*_n)][s,tz] >= sum(fuel_burn_intercept * m[Symbol("dvMGsize"*_n)][t] 
-                    for _ in 1:p.s.electric_utility.outage_durations[s])}
+        @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
+            m[Symbol("dvMGFuelUsed"*_n)][t,s,tz] == p.hours_per_time_step *
+                sum(
+                    fuel_burn_slope *
+                        outage_factors[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] *
+                        m[Symbol("dvMGRatedProduction"*_n)][t,s,tz,ts] +
+                    fuel_burn_intercept * m[Symbol("dvMGCHPOnSize"*_n)][t,s,tz,ts]
+                    for ts in 1:p.s.electric_utility.outage_durations[s]
+                )
         )
-    else
-        #Constraint (1c2): Total Fuel burn for CHP **without** y-intercept fuel burn
-        @constraint(m, MGCHPFuelBurnConLinear[t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-            m[Symbol("dvMGFuelUsed"*_n)][t,s,tz]  == p.hours_per_time_step *
-                sum(fuel_burn_slope * m[Symbol("dvMGRatedProduction"*_n)][t,s,tz,ts]
-                for ts in 1:p.s.electric_utility.outage_durations[s])
+
+        @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
+            m[Symbol("dvMGCHPOnSize"*_n)][t,s,tz,ts] <= m[Symbol("dvMGsize"*_n)][t]
         )
-    end 
-    
+        @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
+            m[Symbol("dvMGCHPOnSize"*_n)][t,s,tz,ts] <=
+                p.max_sizes[t] * m[Symbol("binMGCHPIsOnInTS"*_n)][t,s,tz,ts]
+        )
+        @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
+            m[Symbol("dvMGCHPOnSize"*_n)][t,s,tz,ts] >=
+                m[Symbol("dvMGsize"*_n)][t] -
+                p.max_sizes[t] * (1 - m[Symbol("binMGCHPIsOnInTS"*_n)][t,s,tz,ts])
+        )
+    end
+
     @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
         m[:dvMGCHPMaxFuelUsage][s] >= sum( m[:dvMGFuelUsed][t, s, tz] for t in p.techs.chp )
     )
@@ -290,17 +292,16 @@ function add_binMGCHPIsOnInTS_constraints(m, p; _n="")
     # i.e. binMGCHPIsOnInTS = 1 for dvMGRatedProd > min_turn_down_fraction * dvMGsize, and binMGCHPIsOnInTS = 0 for dvMGRatedProd = 0
     if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
         @constraint(m, [t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-            !m[:binMGCHPIsOnInTS][s, tz, ts] => { m[:dvMGRatedProduction][t, s, tz, ts] <= 0 }
+            !m[:binMGCHPIsOnInTS][t, s, tz, ts] => { m[:dvMGRatedProduction][t, s, tz, ts] <= 0 }
         )
     else
         @constraint(m, [t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-            m[:dvMGRatedProduction][t, s, tz, ts] <= p.max_sizes[t] * m[:binMGCHPIsOnInTS][s, tz, ts] 
+            m[:dvMGRatedProduction][t, s, tz, ts] <= p.max_sizes[t] * m[:binMGCHPIsOnInTS][t, s, tz, ts]
         )
     end
     @constraint(m, [t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-        m[:binMGTechUsed][t] >= m[:binMGCHPIsOnInTS][s, tz, ts]
+        m[:binMGTechUsed][t] >= m[:binMGCHPIsOnInTS][t, s, tz, ts]
     )
-    # TODO? make binMGCHPIsOnInTS indexed on p.techs.chp    
 end
 
 function add_MG_storage_dispatch_constraints(m,p)
