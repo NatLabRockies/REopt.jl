@@ -63,8 +63,14 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 			for ts in p.time_steps)
 	r["annual_electric_production_kwh"] = round(Year1CHPElecProd, digits=3)
 	
-	CHPThermalProdKW = [sum(value(m[Symbol("dvHeatingProduction"*_n)][chp_name,q,ts]) - value(m[Symbol("dvProductionToWaste"*_n)][chp_name,q,ts]) for q in p.heating_loads) + 
-		value(m[Symbol("dvSupplementaryThermalProduction"*_n)][chp_name,ts]) for ts in p.time_steps]
+	CHPThermalProdKW = [
+        sum(
+            value(m[Symbol("dvHeatingProduction"*_n)][chp_name,q,ts]) -
+            value(m[Symbol("dvProductionToWaste"*_n)][chp_name,q,ts])
+            for q in p.heating_loads
+        )
+        for ts in p.time_steps
+    ]
 
 	r["thermal_production_series_mmbtu_per_hour"] = round.(CHPThermalProdKW / KWH_PER_MMBTU, digits=5)
 	
@@ -125,7 +131,7 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 		CHPtoAbsorptionChillerByQualityKW = Dict(q => zeros(length(p.time_steps)) for q in p.heating_loads)
 	end
 	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(CHPtoAbsorptionChillerKW / KWH_PER_MMBTU, digits=5)
-    CHPThermalToLoadKW = [sum(value(m[Symbol("dvHeatingProduction"*_n)][chp_name,q,ts]) for q in p.heating_loads) + value(m[Symbol("dvSupplementaryThermalProduction"*_n)][chp_name,ts]) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts] - CHPtoAbsorptionChillerKW[ts] for ts in p.time_steps]
+    CHPThermalToLoadKW = [sum(value(m[Symbol("dvHeatingProduction"*_n)][chp_name,q,ts]) for q in p.heating_loads) - CHPToHotTES[ts] - CHPToSteamTurbineKW[ts] - CHPThermalToWasteKW[ts] - CHPtoAbsorptionChillerKW[ts] for ts in p.time_steps]
     r["thermal_to_load_series_mmbtu_per_hour"] = round.(CHPThermalToLoadKW ./ KWH_PER_MMBTU, digits=5)
     
     if "DomesticHotWater" in p.heating_loads && chp.can_serve_dhw && sum(p.heating_loads_kw["DomesticHotWater"]) > 0.0

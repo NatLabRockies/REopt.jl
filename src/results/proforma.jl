@@ -400,7 +400,10 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     if tech_name in [chp.name for chp in p.s.chps]
         escalate_fuel(val, esc_rate) = [val * (1 + esc_rate)^yr for yr in 1:years]
         fuel_cost = results[tech_name]["year_one_fuel_cost_before_tax"]
-        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, p.s.financial.chp_fuel_cost_escalation_rate_fraction)
+        escalation_rate = isnothing(tech.fuel_cost_escalation_rate_fraction) ?
+            p.s.financial.chp_fuel_cost_escalation_rate_fraction :
+            tech.fuel_cost_escalation_rate_fraction
+        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, escalation_rate)
     end
 
     # incentive calculations, in the spreadsheet utility incentives are applied first
