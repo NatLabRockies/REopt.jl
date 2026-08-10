@@ -4,6 +4,9 @@
 
 Create a dictionary of results with string keys for each Scenario structure modeled.
 """
+results_array(x) = x
+results_array(x::DenseAxisArray) = x.data
+
 function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 	tstart = time()
     d = Dict{String, Any}()
