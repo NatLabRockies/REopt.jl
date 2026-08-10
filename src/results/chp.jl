@@ -6,6 +6,7 @@
 - `annual_fuel_consumption_mmbtu` Fuel consumed in a year [MMBtu]
 - `annual_electric_production_kwh` Electric energy produced in a year [kWh]
 - `annual_thermal_production_mmbtu` Thermal energy produced in a year (not including curtailed thermal) [MMBtu]
+- `annual_thermal_curtailed_mmbtu` Thermal energy curtailed in a year [MMBtu]
 - `electric_production_series_kw` Electric power production time-series array [kW]
 - `electric_to_grid_series_kw` Electric power exported time-series array [kW]
 - `electric_to_storage_series_kw` Electric power to charge the battery storage time-series array [kW]
@@ -115,6 +116,7 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 	CHPThermalToWasteKW = [sum(value(m[Symbol("dvProductionToWaste"*_n)][chp_name,q,ts]) for q in p.heating_loads) for ts in p.time_steps]
 	CHPThermalToWasteByQualityKW = Dict(q => [value(m[Symbol("dvProductionToWaste"*_n)][chp_name,q,ts]) for ts in p.time_steps] for q in p.heating_loads)
 	r["thermal_curtailed_series_mmbtu_per_hour"] = round.(CHPThermalToWasteKW / KWH_PER_MMBTU, digits=5)
+    r["annual_thermal_curtailed_mmbtu"] = round(p.hours_per_time_step * sum(CHPThermalToWasteKW) / KWH_PER_MMBTU, digits=3)
     if !isempty(p.techs.steam_turbine) && chp.can_supply_steam_turbine
         CHPToSteamTurbineKW = [sum(value(m[Symbol("dvThermalToSteamTurbine"*_n)][chp_name,q,ts]) for q in p.heating_loads) for ts in p.time_steps]
 		CHPToSteamTurbineByQualityKW = Dict(q => [value(m[Symbol("dvThermalToSteamTurbine"*_n)][chp_name,q,ts]) for ts in p.time_steps] for q in p.heating_loads)

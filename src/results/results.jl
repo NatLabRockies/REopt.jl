@@ -253,6 +253,7 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("CHP", "annual_fuel_consumption_mmbtu"),
         ("CHP", "annual_electric_production_kwh"),
         ("CHP", "annual_thermal_production_mmbtu"),
+        ("CHP", "annual_thermal_curtailed_mmbtu"),
         ("CHP", "year_one_fuel_cost_before_tax"),
         ("CHP", "year_one_fuel_cost_after_tax"),
         ("CHP", "lifecycle_fuel_cost_after_tax"),
