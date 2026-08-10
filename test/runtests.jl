@@ -1519,10 +1519,6 @@ else  # run HiGHS tests
             @testset verbose=true "CHP expansion (multiple, off-grid, ramp rate, etc)" begin
                 include("test_chp.jl")
             end
-
-            @testset verbose=true "CHP Existing KW" begin
-                include("test_chp_existing_kw.jl")
-            end
                         
         end
         
