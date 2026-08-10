@@ -56,6 +56,74 @@ end
     npv_reported = results["Financial"]["npv"]
     @test isapprox(npv_calculated, npv_reported, rtol=0.001)
 
+    thermal_follow_data = JSON.parsefile("./scenarios/multiple_chps.json")
+    for chp in thermal_follow_data["CHP"]
+        chp["follow_heating_load"] = true
+        chp["can_curtail"] = true
+    end
+    thermal_follow_s = Scenario(thermal_follow_data)
+    thermal_follow_inputs = REoptInputs(thermal_follow_s)
+    thermal_follow_model = Model(optimizer_with_attributes(
+        HiGHS.Optimizer,
+        "output_flag" => false,
+        "log_to_console" => false
+    ))
+    build_reopt!(thermal_follow_model, thermal_follow_inputs)
+    for chp in thermal_follow_s.chps
+        fix(
+            thermal_follow_model[:dvSize][chp.name],
+            thermal_follow_inputs.max_sizes[chp.name];
+            force=true
+        )
+    end
+    optimize!(thermal_follow_model)
+    @test termination_status(thermal_follow_model) == MOI.OPTIMAL
+
+    # Each load-following CHP gets independent policy variables. The capacity expression
+    # excludes supplementary firing so it cannot substitute for prime-mover dispatch.
+    for chp in thermal_follow_s.chps
+        @test thermal_follow_model[:binCHPSizeExceedsHeatingLoad][chp.name, 1] isa VariableRef
+        @test JuMP.coefficient(
+            thermal_follow_model[:CHPUnfiredThermalCapacity][chp.name, 1],
+            thermal_follow_model[:dvSupplementaryThermalProduction][chp.name, 1]
+        ) == 0.0
+
+        eligible_heat_load = zeros(length(thermal_follow_inputs.time_steps))
+        chp.can_serve_dhw &&
+            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["DomesticHotWater"])
+        chp.can_serve_space_heating &&
+            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["SpaceHeating"])
+        chp.can_serve_process_heat &&
+            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["ProcessHeat"])
+        unfired_capacity = value.(
+            thermal_follow_model[:CHPUnfiredThermalCapacity][
+                chp.name,
+                thermal_follow_inputs.time_steps
+            ]
+        )
+        capacity_limited_time_steps = [
+            ts for ts in thermal_follow_inputs.time_steps
+            if thermal_follow_inputs.production_factor[chp.name,ts] > 0.0 &&
+                unfired_capacity[ts] < eligible_heat_load[ts] - 1.0e-4
+        ]
+        @test !isempty(capacity_limited_time_steps)
+        if !isempty(capacity_limited_time_steps)
+            ts = first(capacity_limited_time_steps)
+            @test value(thermal_follow_model[:dvRatedProduction][chp.name,ts]) ≈
+                value(thermal_follow_model[:dvSize][chp.name]) atol=1.0e-4
+        end
+
+        unavailable_time_steps = [
+            ts for ts in thermal_follow_inputs.time_steps
+            if thermal_follow_inputs.production_factor[chp.name,ts] == 0.0
+        ]
+        @test !isempty(unavailable_time_steps)
+        if !isempty(unavailable_time_steps)
+            ts = first(unavailable_time_steps)
+            @test value(thermal_follow_model[:dvRatedProduction][chp.name,ts]) ≈ 0.0 atol=1.0e-6
+        end
+    end
+
     outage_data = JSON.parsefile("./scenarios/multiple_chps.json")
     outage_data["ElectricUtility"] = Dict(
         "outage_start_time_steps" => [1],
@@ -73,6 +141,7 @@ end
 
     finalize(backend(m1)); empty!(m1)
     finalize(backend(m2)); empty!(m2)
+    finalize(backend(thermal_follow_model)); empty!(thermal_follow_model)
     finalize(backend(outage_model)); empty!(outage_model)
     GC.gc()
 end

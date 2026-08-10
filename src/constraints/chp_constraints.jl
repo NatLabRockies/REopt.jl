@@ -305,6 +305,104 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     end
 end
 
+"""
+    add_chp_heating_load_following_constraints(m, p; _n="")
+
+Used in function add_chp_constraints to add constraints that restrict output of CHP to serve full eligible heating load or
+run at capacity otherwise in dispatch (without regard to electrical flows).
+"""
+function add_chp_heating_load_following_constraints(m, p; _n="")
+    load_following_chps = [chp for chp in p.s.chps if chp.follow_heating_load]
+    load_following_chp_names = [chp.name for chp in load_following_chps]
+    heating_loads_served_by_chp = Dict{String, Vector{String}}()
+    chp_eligible_heat_load = Dict{String, Vector{Float64}}()
+    thermal_prod_slope = Dict{String, Float64}()
+    thermal_prod_intercept = Dict{String, Float64}()
+    max_diff_size_bigM = Dict{String, Float64}()
+
+    for chp in load_following_chps
+        t = chp.name
+        heating_loads_served_by_chp[t] = String[]
+        chp_eligible_heat_load[t] = zeros(length(p.time_steps))
+        for (can_serve, heating_load) in [
+            (chp.can_serve_dhw, "DomesticHotWater"),
+            (chp.can_serve_space_heating, "SpaceHeating"),
+            (chp.can_serve_process_heat, "ProcessHeat")
+        ]
+            if can_serve && heating_load in p.heating_loads
+                push!(heating_loads_served_by_chp[t], heating_load)
+                chp_eligible_heat_load[t] .+= p.heating_loads_kw[heating_load]
+            end
+        end
+
+        thermal_prod_full_load = chp.thermal_efficiency_full_load / chp.electric_efficiency_full_load
+        thermal_prod_half_load = 0.5 * chp.thermal_efficiency_half_load / chp.electric_efficiency_half_load
+        thermal_prod_slope[t] = (thermal_prod_full_load - thermal_prod_half_load) / 0.5
+        thermal_prod_intercept[t] = thermal_prod_full_load - thermal_prod_slope[t]
+        max_unfired_thermal_capacity = p.max_sizes[t] * (
+            abs(thermal_prod_slope[t]) + abs(thermal_prod_intercept[t])
+        )
+        max_diff_size_bigM[t] = 2 * max(
+            max_unfired_thermal_capacity,
+            maximum(chp_eligible_heat_load[t]),
+            1.0
+        )
+    end
+
+    dv = "binCHPSizeExceedsHeatingLoad"*_n
+    m[Symbol(dv)] = @variable(
+        m,
+        [load_following_chp_names, p.time_steps],
+        binary=true,
+        base_name=dv
+    )
+    capacity = "CHPUnfiredThermalCapacity"*_n
+    m[Symbol(capacity)] = @expression(
+        m,
+        [t in load_following_chp_names, ts in p.time_steps],
+        (
+            p.production_factor[t,ts] * thermal_prod_slope[t] +
+            (p.production_factor[t,ts] > 0.0 ? thermal_prod_intercept[t] : 0.0)
+        ) * m[Symbol("dvSize"*_n)][t]
+    )
+
+    # Identify when unfired CHP thermal capacity exceeds the eligible heating load.
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts] >=
+        (
+            m[Symbol(capacity)][t,ts] -
+            chp_eligible_heat_load[t][ts]
+        ) / max_diff_size_bigM[t]
+    )
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts] <=
+        1 - (
+            chp_eligible_heat_load[t][ts] -
+            m[Symbol(capacity)][t,ts]
+        ) / max_diff_size_bigM[t]
+    )
+
+    # If unfired thermal capacity is below load, run the prime mover at capacity.
+    # Supplementary thermal production remains available only as incremental heat.
+    rated_prod_con = "CHPHeatingLoadFollowingRatedProductionCon"*_n
+    m[Symbol(rated_prod_con)] = @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] >=
+        p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+        p.max_sizes[t] * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts]
+    )
+
+    if "ExistingBoiler" in p.techs.boiler
+        for t in load_following_chp_names
+            @constraint(m, [q in heating_loads_served_by_chp[t], ts in p.time_steps],
+                m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] <=
+                max_diff_size_bigM[t] *
+                (1 - m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts])
+            )
+        end
+    end
+end
+
+
 
 """
     add_chp_constraints(m, p; _n="")
@@ -398,5 +496,9 @@ function add_chp_constraints(m, p; _n="")
 
     if any(chp.follow_electrical_load for chp in p.s.chps)
         add_chp_electrical_load_following_constraints(m, p; _n=_n)
+    end
+
+    if any(chp.follow_heating_load for chp in p.s.chps)
+        add_chp_heating_load_following_constraints(m, p; _n=_n)
     end
 end

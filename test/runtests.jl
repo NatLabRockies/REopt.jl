@@ -468,10 +468,10 @@ else  # run HiGHS tests
         @testset "MPC" begin
             model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             r = run_mpc(model, "./scenarios/mpc.json")
-            @test maximum(r["ElectricUtility"]["to_load_series_kw"][1:15]) <= 98.0 
-            @test maximum(r["ElectricUtility"]["to_load_series_kw"][16:24]) <= 97.0
-            @test sum(r["PV"]["to_grid_series_kw"]) ≈ 0
-            grid_draw = r["ElectricUtility"]["to_load_series_kw"] .+ r["ElectricUtility"]["to_battery_series_kw"]
+            @test maximum(r["ElectricUtility"]["electric_to_load_series_kw"][1:15]) <= 98.0 
+            @test maximum(r["ElectricUtility"]["electric_to_load_series_kw"][16:24]) <= 97.0
+            @test sum(r["PV"]["electric_to_grid_series_kw"]) ≈ 0
+            grid_draw = r["ElectricUtility"]["electric_to_load_series_kw"] .+ r["ElectricUtility"]["electric_to_storage_series_kw"]
             # the grid draw limit in the 10th time step is set to 90
             # without the 90 limit the grid draw is 98 in the 10th time step
             @test grid_draw[10] <= 90
@@ -1350,7 +1350,7 @@ else  # run HiGHS tests
                 empty!(m)
                 GC.gc()
 
-                # part 2: enable load following policy for CHP - even with free electricity the CHP system run at either capacity or electric load.
+                # part 2: enable electric load following policy for CHP - even with free electricity the CHP system runs at either capacity or electric load.
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.02, "presolve" => "on"))
                 d = JSON.parsefile("./scenarios/chp_waste.json")
                 d["CHP"]["serve_absorption_chiller_only"] = false
@@ -1451,6 +1451,48 @@ else  # run HiGHS tests
                                                 if !(get_month_from_timestep(ts) in restricted_months))
                 @test non_restricted_heating > 1.0
 
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
+
+                # CHP load-following and absorption chiller flow simultaneously
+                d = JSON.parsefile("./scenarios/chp-abschl-flow.json")
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+                results = run_reopt(m, p)
+                @test sum(results["CHP"]["thermal_to_absorption_chiller_series_mmbtu_per_hour"]) ≈ 3756.73 rtol=1e-2
+                @test sum(results["CHP"]["thermal_curtailed_series_mmbtu_per_hour"]) ≈ 269.35 rtol=1e-2
+                #test individual hour 4040 - CHP runs at size, and sends to abschl (not waste)
+                @test value(m[:dvRatedProduction]["CHP",4040]) ≈ value(m[:dvSize]["CHP"]) rtol=1e-4
+                @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4040]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4040]) rtol=1e-4
+                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4040]) ≈ 0.0 atol=1e-4
+                #test individual hour 4045 - CHP runs at load-following, and sends to abschl (not waste) so electric load is reduced
+                @test value(m[:dvRatedProduction]["CHP",4045]) < p.s.electric_load.loads_kw[4045]
+                @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4045]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4045]) rtol=1e-4
+                @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4
+
+                #Part 5: CHP Thermal Load Following
+                d = JSON.parsefile("./scenarios/chp-abschl-flow.json")
+                delete!(d, "AbsorptionChiller")
+                d["CHP"]["follow_heating_load"] = true
+                d["CHP"]["can_curtail"] = true
+                d["CHP"]["follow_electrical_load"] = false
+                d["CHP"]["serve_absorption_chiller_only"] = false
+                s = Scenario(d)
+                p = REoptInputs(s)
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer))
+                results = run_reopt(m, p)
+                CHP_thermal_capacity_at_50 = value(m[:CHPUnfiredThermalCapacity]["CHP", 50])
+                CHP_thermal_capacity_at_1 = value(m[:CHPUnfiredThermalCapacity]["CHP", 1])
+
+                # if CHP capacity > eligible heat load, boiler output is zero
+                @test CHP_thermal_capacity_at_50 > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
+                @test results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"][50] ≈ 0.0 atol=1e-2
+                # if CHP heating capacity < eligible heat load, CHP runs at capacity
+                @test CHP_thermal_capacity_at_1 < p.heating_loads_kw["DomesticHotWater"][1] + p.heating_loads_kw["SpaceHeating"][1]
+                @test value(m[:dvRatedProduction]["CHP", 1]) ≈ value(m[:dvSize]["CHP"]) atol=1e-4
+                @test results["CHP"]["thermal_to_load_series_mmbtu_per_hour"][1] ≈ CHP_thermal_capacity_at_1 / REopt.KWH_PER_MMBTU atol=1e-2
                 finalize(backend(m))
                 empty!(m)
                 GC.gc()
@@ -2095,7 +2137,8 @@ else  # run HiGHS tests
                 ground_pv = results["PV"][findfirst(pv -> pv["name"] == "ground", results["PV"])]
                 roof_west = results["PV"][findfirst(pv -> pv["name"] == "roof_west", results["PV"])]
                 roof_east = results["PV"][findfirst(pv -> pv["name"] == "roof_east", results["PV"])]
-
+                
+                @test results["Financial"]["initial_capital_costs"]  ≈ results["Financial"]["initial_capital_costs_after_incentives"] atol=0.1
                 @test ground_pv["size_kw"] ≈ 15 atol=0.1
                 @test roof_west["size_kw"] ≈ 7 atol=0.1
                 @test roof_east["size_kw"] ≈ 4 atol=0.1
@@ -4797,6 +4840,10 @@ else  # run HiGHS tests
             finalize(backend(m))
             empty!(m)
             GC.gc()
+        end
+
+        @testset verbose=true "Battery heuristic dispatch tests" begin
+            include("battery_dispatch_tests.jl")
         end
 
     end

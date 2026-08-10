@@ -139,22 +139,24 @@ function set_ssc_data_from_dict(D,model,data)
             @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid},key::Cstring,D[key]::Cdouble)::Cvoid
             j += 1
         elseif typeof(D[key]) == Vector{Any} || typeof(D[key]) == Vector{Float64} || typeof(D[key]) == Vector{Int64}
-            nrows, ncols = length(D[key]), length(D[key][1])
-            c_matrix = []
-            for k in 1:nrows
-                for l in 1:ncols
-                    push!(c_matrix,D[key][k][l])
+            # Distinguish flat arrays (elements are scalars) from matrices (elements are arrays)
+            if D[key][1] isa AbstractArray
+                # Matrix: each element is a row
+                nrows = length(D[key])
+                ncols = length(D[key][1])
+                c_matrix = Float64[]
+                for k in 1:nrows
+                    for l in 1:ncols
+                        push!(c_matrix, Float64(D[key][k][l]))
+                    end
                 end
-            end
-            if ncols == 1 && (nrows > 2 || model == "mst")
-                c_matrix = convert(Array{Float64},c_matrix)
-                @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid},key::Cstring,c_matrix::Ptr{Cdouble},length(D[key])::Cint)::Cvoid
-                j += 1
-            else
-                c_matrix = convert(Array{Float64},c_matrix)
                 @ccall hdl.ssc_data_set_matrix(data::Ptr{Cvoid},key::Cstring,c_matrix::Ptr{Cdouble},Cint(nrows)::Cint,Cint(ncols)::Cint)::Cvoid
-                j += 1
+            else
+                # Flat array of scalars
+                c_array = convert(Array{Float64}, D[key])
+                @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid},key::Cstring,c_array::Ptr{Cdouble},length(c_array)::Cint)::Cvoid
             end
+            j += 1
         elseif typeof(D[key]) == Dict{Any,Any}
             table = @ccall hdl.ssc_data_create()::Ptr{Cvoid}  # data pointer
             set_ssc_data_from_dict(D[key],model,table)

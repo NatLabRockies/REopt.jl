@@ -127,8 +127,8 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                     pv.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
                 )
             end
-            add_to_expression!(m[:InitialCapexNoIncentives], m[:PVCapexNoIncentives])
         end
+        add_to_expression!(m[:InitialCapexNoIncentives], m[:PVCapexNoIncentives])
     end
 
     for b in p.s.storage.types.elec

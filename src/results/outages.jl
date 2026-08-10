@@ -58,8 +58,8 @@ function add_outage_results(m, p, d::Dict)
 	r = Dict{String, Any}()
 	outage_factors = outage_effective_production_factors(p)
 	r["expected_outage_cost"] = value(m[:ExpectedOutageCost])
-	r["max_outage_cost_per_outage_duration"] = value.(m[:dvMaxOutageCost]).data
-	r["unserved_load_series_kw"] = value.(m[:dvUnservedLoad]).data
+	r["max_outage_cost_per_outage_duration"] = results_array(value.(m[:dvMaxOutageCost]))
+	r["unserved_load_series_kw"] = results_array(value.(m[:dvUnservedLoad]))
 	S = length(p.s.electric_utility.scenarios)
 	T = length(p.s.electric_utility.outage_start_time_steps)
 	TS = length(p.s.electric_utility.outage_time_steps)
@@ -78,9 +78,9 @@ function add_outage_results(m, p, d::Dict)
 	r["storage_microgrid_upgrade_cost"] = value(m[:dvMGStorageUpgradeCost])
 	r["microgrid_upgrade_capital_cost"] = r["storage_microgrid_upgrade_cost"]
 	if !isempty(p.s.storage.types.elec) && r["electric_storage_microgrid_upgraded"]
-		r["storage_discharge_series_kw"] = value.(m[:dvMGDischargeFromStorage]).data
+		r["storage_discharge_series_kw"] = results_array(value.(m[:dvMGDischargeFromStorage]))
         electric_storage_energy_capacity_kwh = round(sum(value(m[Symbol("dvStorageEnergy")][b]) for b in p.s.storage.types.elec), digits=2)
-        r["soc_series_fraction"] = round.(value.(m[:dvMGStoredEnergy][:,:,1:end]).data ./ electric_storage_energy_capacity_kwh, digits=3)
+        r["soc_series_fraction"] = round.(results_array(value.(m[:dvMGStoredEnergy][:,:,1:end])) ./ electric_storage_energy_capacity_kwh, digits=3)
 	else
 		r["storage_discharge_series_kw"] = []
         r["soc_series_fraction"] = []
@@ -174,7 +174,7 @@ function add_outage_results(m, p, d::Dict)
             end
             r[tech_type_name*"_fuel_used_per_outage_"*fuel_unit] = round.(
                 sum(
-                    [value.(m[:dvMGFuelUsed][t, :, :]).data ./ unit_conversion for t in tech_set]
+					[results_array(value.(m[:dvMGFuelUsed][t, :, :])) ./ unit_conversion for t in tech_set]
                 ), 
                 digits=4
             )

@@ -47,6 +47,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     serve_absorption_chiller_only::Bool = false # If CHP produced heat either serves absorption chiller or sends it to waste; only applies to the months specified in months_serving_absorption_chiller_only if true
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which CHP only sevres the absorption chiller, with 1=January and 12=December; only applied when serve_absorption_chiller_only = true
     follow_electrical_load::Bool = false # If CHP follows the electrical load by running at capacity or meeting the load only.
+    follow_heating_load::Bool = false # If CHP follows eligible heating load by running at unfired thermal capacity or meeting the load.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -128,6 +129,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     serve_absorption_chiller_only::Bool = false
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[]
     follow_electrical_load::Bool = false
+    follow_heating_load::Bool = false
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -324,8 +326,33 @@ function CHP(d::Dict;
     if chp.serve_absorption_chiller_only && isempty(chp.months_serving_absorption_chiller_only)
         @warn "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced."
         chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
-    end 
-    
+    end
+
+    # Validate CHP doesn't follow both electrical and thermal loads
+    if chp.follow_electrical_load && chp.follow_heating_load
+        throw(ArgumentError(
+            "CHP cannot follow both electrical load and thermal load. Update " *
+            "either CHP.follow_electrical_load or CHP.follow_heating_load to false."
+        ))
+    end
+
+    # Validate CHP doesn't follow thermal load and only send to absorption chiller
+    if chp.follow_heating_load && chp.serve_absorption_chiller_only
+        throw(ArgumentError(
+            "CHP cannot both follow thermal heating load and serve only the " *
+            "absorption chiller. Update either CHP.serve_absorption_chiller_only " *
+            "or CHP.follow_heating_load to false."
+        ))
+    end
+
+    # Warn if load-following policies could lead to an infeasibility due to lack of curtailment
+    if chp.follow_heating_load && !chp.can_curtail
+        @warn(
+            "CHP following the thermal load without ability to curtail may lead to infeasibilities or " *
+            "additional storage to adhere to either minimum turndown requirements or high heating loads."
+        )
+    end
+
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
         # Check if even the minimum CHP size would cause infeasibility
