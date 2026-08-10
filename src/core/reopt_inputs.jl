@@ -893,10 +893,7 @@ end
         production_factor, techs_by_exportbin, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint, techs,
         tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
         heating_cf, pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh,
-        chp_electric_efficiency_full_load, chp_electric_efficiency_half_load,
-        chp_thermal_efficiency_full_load, chp_thermal_efficiency_half_load,
-        chp_min_turn_down_fraction, chp_supplementary_firing_efficiency, chp_supplementary_firing_max_steam_ratio,
-        chp_om_cost_per_kwh
+        chp_params
         )
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for CHP.

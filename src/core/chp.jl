@@ -42,7 +42,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
-    operating_reserve_required_fraction::Real = off_grid_flag ? 0.0 : 0.0 # If off grid, 10%, else 0%. Applied to each time_step as a % of CHP generation. When positive, CHP requires reserves from Generator or Battery; when 0, CHP can provide reserves.
+    operating_reserve_required_fraction::Real = 0.0 # Applied to each time_step as a fraction of CHP generation in off-grid analyses. When positive, CHP requires reserves from Generator or Battery; when 0, CHP can provide reserves.
     production_factor_series::Union{Nothing, Vector{<:Real}} = nothing # Optional user-provided production factor time-series (length of time_steps_per_hour * 8760). If provided, this will override the production factor calculated from unavailability.
     serve_absorption_chiller_only::Bool = false # If CHP produced heat either serves absorption chiller or sends it to waste; only applies to the months specified in months_serving_absorption_chiller_only if true
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which CHP only sevres the absorption chiller, with 1=January and 12=December; only applied when serve_absorption_chiller_only = true
@@ -167,6 +167,7 @@ function CHP(d::Dict;
             absorption_chiller_cop::Union{Float64, Nothing}=nothing,
             include_cooling_in_chp_size::Bool=false,
             year::Int64=2017,
+            time_steps_per_hour::Int=1,
             sector::String,
             federal_procurement_type::String,
             off_grid_flag::Bool=false)
@@ -189,6 +190,17 @@ function CHP(d::Dict;
     chp = CHP(; d...)
 
     @assert chp.fuel_type in FUEL_TYPES
+
+    if !isnothing(chp.production_factor_series)
+        isempty(chp.production_factor_series) &&
+            throw(ArgumentError("CHP.production_factor_series cannot be empty when provided."))
+        error_if_series_vals_not_0_to_1(chp.production_factor_series, "CHP", "production_factor_series")
+        chp.production_factor_series = check_and_adjust_load_length(
+            chp.production_factor_series,
+            time_steps_per_hour,
+            "CHP.production_factor_series"
+        )
+    end
 
     # These inputs are set based on prime_mover and size_class
     custom_chp_inputs = Dict{Symbol, Any}(
@@ -316,17 +328,26 @@ function CHP(d::Dict;
     
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
-        min_load_kw = round(minimum(electric_load_series_kw), digits=1)
-        
         # Check if even the minimum CHP size would cause infeasibility
         if chp.min_kw > 0.0
-            min_threshold_kw = round(chp.min_turn_down_fraction * chp.min_kw, digits=1)
-            if min_load_kw < min_threshold_kw
-                throw(@error(
+            production_factors = if isnothing(chp.production_factor_series)
+                repeat(1.0 .- chp.unavailability_hourly, inner=time_steps_per_hour)
+            else
+                chp.production_factor_series
+            end
+            minimum_output_kw = chp.min_turn_down_fraction * chp.min_kw .* production_factors
+            infeasible_time_step = findfirst(
+                (electric_load_series_kw .> 0.0) .&
+                (electric_load_series_kw .< minimum_output_kw)
+            )
+            if !isnothing(infeasible_time_step)
+                load_kw = round(electric_load_series_kw[infeasible_time_step], digits=1)
+                min_output_kw = round(minimum_output_kw[infeasible_time_step], digits=1)
+                throw(ArgumentError(
                     "CHP load-following will cause infeasibility: " *
-                    "minimum electric load ($min_load_kw kW) is less than " *
-                    "min_turn_down_fraction * min_kw ($min_threshold_kw kW). " *
-                    "Set min_turn_down_fraction to 0.0 or reduce min_kw below $(min_load_kw / chp.min_turn_down_fraction) kW."
+                    "electric load at time step $infeasible_time_step ($load_kw kW) is less than " *
+                    "the effective minimum CHP output ($min_output_kw kW). " *
+                    "Set min_turn_down_fraction to 0.0 or reduce min_kw."
                 ))
             end
         end
@@ -645,5 +666,7 @@ end
 
 # Get a specific CHP by name from an array of CHPs
 function get_chp_by_name(name::String, chps::AbstractArray{CHP, 1})
-    chps[findfirst(chp -> chp.name == name, chps)]
+    index = findfirst(chp -> chp.name == name, chps)
+    isnothing(index) && throw(ArgumentError("CHP named \"$name\" was not found."))
+    return chps[index]
 end

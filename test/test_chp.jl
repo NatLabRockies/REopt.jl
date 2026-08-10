@@ -10,6 +10,12 @@
 # using DotEnv
 # DotEnv.load!()
 
+@testset "Numeric boolean inputs" begin
+    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 0.0))[:off_grid_flag] === false
+    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 1.0))[:off_grid_flag] === true
+    @test_throws ArgumentError REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 2.0))
+end
+
 
 ###############   Multiple CHPs Test    ###################
 @testset "Multiple CHPs" begin
@@ -50,13 +56,35 @@
     npv_reported = results["Financial"]["npv"]
     @test isapprox(npv_calculated, npv_reported, rtol=0.001)
 
+    outage_data = JSON.parsefile("./scenarios/multiple_chps.json")
+    outage_data["ElectricUtility"] = Dict(
+        "outage_start_time_steps" => [1],
+        "outage_durations" => [2],
+        "outage_probabilities" => [1.0]
+    )
+    outage_s = Scenario(outage_data)
+    outage_inputs = REoptInputs(outage_s)
+    outage_model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    build_reopt!(outage_model, outage_inputs)
+    for chp in outage_s.chps
+        @test outage_model[:binMGCHPIsOnInTS][chp.name, 1, 1, 1] isa VariableRef
+        @test outage_model[:dvMGCHPOnSize][chp.name, 1, 1, 1] isa VariableRef
+    end
+
     finalize(backend(m1)); empty!(m1)
     finalize(backend(m2)); empty!(m2)
+    finalize(backend(outage_model)); empty!(outage_model)
     GC.gc()
 end
 
 ###############   CHP Binary Creation Tests    ###################
 # Tests to verify that binCHPIsOnInTS is only created when needed
+
+function chp_binary_test_data()
+    data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+    data["PV"]["production_factor_series"] = zeros(8760)
+    return data
+end
 
 @testset verbose=true "CHP Binary Creation Tests" begin
     # These only need the model built (variables + constraints), not solved, since
@@ -64,7 +92,7 @@ end
 
     @testset "CHP with min_turn_down_fraction > 0 (binary SHOULD be created)" begin
         # Test that binCHPIsOnInTS gets created when min_turn_down_fraction > 0
-        data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+        data = chp_binary_test_data()
 
         # Set min_turn_down_fraction to a non-zero value
         data["CHP"]["min_turn_down_fraction"] = 0.5
@@ -87,7 +115,7 @@ end
 
     @testset "CHP with min_turn_down_fraction = 0 (binary should NOT be created)" begin
         # Test that binCHPIsOnInTS is NOT created when all conditions are zero/equal
-        data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+        data = chp_binary_test_data()
 
         # Set min_turn_down_fraction to zero
         data["CHP"]["min_turn_down_fraction"] = 0.0
@@ -120,7 +148,7 @@ end
 
     @testset "CHP with fuel_burn_intercept > 0 (binary SHOULD be created)" begin
         # Test that binary is created when fuel burn has non-zero intercept
-        data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+        data = chp_binary_test_data()
 
         # Set min_turn_down_fraction to zero
         data["CHP"]["min_turn_down_fraction"] = 0.0
@@ -151,7 +179,7 @@ end
 
     @testset "CHP with thermal_prod_intercept > 0 (binary SHOULD be created)" begin
         # Test that binary is created when thermal production has non-zero intercept
-        data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+        data = chp_binary_test_data()
 
         # Set min_turn_down_fraction to zero
         data["CHP"]["min_turn_down_fraction"] = 0.0
@@ -182,7 +210,7 @@ end
 
     @testset "CHP with om_cost_per_hr_per_kw_rated > 0 (binary SHOULD be created)" begin
         # Test that binary is created when hourly O&M cost is non-zero
-        data = JSON.parsefile("./scenarios/chp_unavailability_outage.json")
+        data = chp_binary_test_data()
 
         # Set min_turn_down_fraction to zero
         data["CHP"]["min_turn_down_fraction"] = 0.0
@@ -210,6 +238,29 @@ end
         finalize(backend(m))
         empty!(m)
     end
+
+    @testset "CHP with supplementary firing (binary SHOULD be created)" begin
+        data = chp_binary_test_data()
+        data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["electric_efficiency_full_load"] = 0.35
+        data["CHP"]["electric_efficiency_half_load"] = 0.35
+        data["CHP"]["thermal_efficiency_full_load"] = 0.45
+        data["CHP"]["thermal_efficiency_half_load"] = 0.45
+        data["CHP"]["om_cost_per_hr_per_kw_rated"] = 0.0
+        data["CHP"]["supplementary_firing_max_steam_ratio"] = 1.2
+        delete!(data, "ElectricUtility")
+        data["ElectricUtility"] = Dict("net_metering_limit_kw" => 0.0, "co2_from_avert" => true)
+
+        s = Scenario(data)
+        inputs = REoptInputs(s)
+        m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        build_reopt!(m, inputs)
+
+        @test haskey(m.obj_dict, :binCHPIsOnInTS)
+
+        finalize(backend(m))
+        empty!(m)
+    end
 end
 
 ###############   Off-Grid CHP with Operating Reserves Test    ###################
@@ -220,7 +271,6 @@ end
     input_data = JSON.parsefile("./scenarios/chp_offgrid.json")
     input_data["ElectricLoad"]["min_load_met_annual_fraction"] = 0.999
     input_data["ElectricLoad"]["operating_reserve_required_fraction"] = 0.0
-    # TODO see if no battery shows up when below is set to 0 so CHP can provide SR
     input_data["CHP"]["operating_reserve_required_fraction"] = 0.2
 
     # Create scenario and run optimization
@@ -348,6 +398,26 @@ end
     @test length(s.chps[1].production_factor_series) == 8760
     @test s.chps[1].production_factor_series[1] ≈ 0.5 atol=0.001
     @test s.chps[1].production_factor_series[8760] ≈ 1.0 atol=0.001
+    @test_throws ArgumentError REopt.get_chp_by_name("missing", s.chps)
+
+    subhourly_input_data = deepcopy(input_data)
+    subhourly_input_data["Settings"] = Dict("time_steps_per_hour" => 2)
+    subhourly_s = Scenario(subhourly_input_data)
+    @test length(subhourly_s.chps[1].production_factor_series) == 17520
+    @test subhourly_s.chps[1].production_factor_series[1:2] == [0.5, 0.5]
+
+    empty_series_input_data = deepcopy(input_data)
+    empty_series_input_data["CHP"]["production_factor_series"] = Float64[]
+    @test_throws ArgumentError Scenario(empty_series_input_data)
+
+    load_following_input_data = deepcopy(input_data)
+    load_following_input_data["ElectricLoad"]["loads_kw"] = fill(40.0, 8760)
+    load_following_input_data["CHP"]["min_kw"] = 100.0
+    load_following_input_data["CHP"]["max_kw"] = 100.0
+    load_following_input_data["CHP"]["min_turn_down_fraction"] = 0.5
+    load_following_input_data["CHP"]["follow_electrical_load"] = true
+    load_following_input_data["CHP"]["production_factor_series"] = fill(0.5, 8760)
+    @test Scenario(load_following_input_data).chps[1].follow_electrical_load
 
     # Run the optimization
     m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
@@ -359,4 +429,53 @@ end
     @test second_half_avg > first_half_avg
 
     finalize(backend(m)); empty!(m); GC.gc()
+end
+
+@testset "CHP production_factor_series with unavailability and outage" begin
+    production_factor_series = fill(1.0, 8760)
+    production_factor_series[121] = 0.8
+    production_factor_series[122] = 0.9
+    production_factor_series[123] = 0.7
+
+    input_data = Dict(
+        "Site" => Dict(
+            "latitude" => 39.7,
+            "longitude" => -104.9
+        ),
+        "ElectricLoad" => Dict(
+            "loads_kw" => repeat([100.0], 8760),
+            "year" => 2025
+        ),
+        "ElectricTariff" => Dict(
+            "urdb_label" => "5ed6c1a15457a3367add15ae"
+        ),
+        "ElectricUtility" => Dict(
+            "outage_start_time_step" => 121,
+            "outage_end_time_step" => 122
+        ),
+        "CHP" => Dict(
+            "is_electric_only" => true,
+            "fuel_cost_per_mmbtu" => 4.0,
+            "max_kw" => 100.0,
+            "min_kw" => 100.0,
+            "production_factor_series" => production_factor_series,
+            "unavailability_periods" => [Dict(
+                "month" => 1,
+                "start_week_of_month" => 2,
+                "start_day_of_week" => 1,
+                "start_hour" => 1,
+                "duration_hours" => 3
+            )]
+        )
+    )
+
+    s = Scenario(input_data)
+    p = REoptInputs(s)
+    chp_name = s.chps[1].name
+    prod_factor = p.production_factor[chp_name, :].data
+
+    @test prod_factor[121] ≈ 0.8 atol=0.001
+    @test prod_factor[122] ≈ 0.9 atol=0.001
+    @test prod_factor[123] ≈ 0.0 atol=0.001
+    @test prod_factor[124] ≈ 1.0 atol=0.001
 end

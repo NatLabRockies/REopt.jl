@@ -105,6 +105,8 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
     has_y_intercept = haskey(m, Symbol("dvHeatingProductionYIntercept"*_n))
     
     for t in p.techs.chp
+        p.chp_params[t][:supplementary_firing_max_steam_ratio] <= 1.0 && continue
+
         thermal_prod_full_load = 1.0 / p.chp_params[t][:electric_efficiency_full_load] * p.chp_params[t][:thermal_efficiency_full_load]  # [kWt/kWe]
         thermal_prod_half_load = 0.5 / p.chp_params[t][:electric_efficiency_half_load] * p.chp_params[t][:thermal_efficiency_half_load]   # [kWt/kWe]
         thermal_prod_slope = (thermal_prod_full_load - thermal_prod_half_load) / (1.0 - 0.5)  # [kWt/kWe]
@@ -145,11 +147,14 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
 end
 
 function add_binCHPIsOnInTS_constraints(m, p; _n="")
-    # Note, min_turn_down_fraction for CHP is only enforced in p.time_steps_with_grid
-    @constraint(m, [t in p.techs.chp, ts in p.time_steps_with_grid],
+    # Force rated production to zero when the CHP is off in every timestep.
+    @constraint(m, [t in p.techs.chp, ts in p.time_steps],
         m[Symbol("dvRatedProduction"*_n)][t, ts] <= p.max_sizes[t] * m[Symbol("binCHPIsOnInTS"*_n)][t, ts]
     )
-    @constraint(m, [t in p.techs.chp, ts in p.time_steps_with_grid],
+
+    # Enforce minimum turndown during grid availability, or across all off-grid timesteps.
+    min_turn_down_time_steps = p.s.settings.off_grid_flag ? p.time_steps_without_grid : p.time_steps_with_grid
+    @constraint(m, [t in p.techs.chp, ts in min_turn_down_time_steps],
         p.chp_params[t][:min_turn_down_fraction] * m[Symbol("dvSize"*_n)][t] - m[Symbol("dvRatedProduction"*_n)][t, ts] <=
         p.max_sizes[t] * (1 - m[Symbol("binCHPIsOnInTS"*_n)][t, ts])
     )
@@ -229,17 +234,21 @@ load or send to waste in dispatch.
 function add_chp_to_absorption_chiller_only_constraints(m, p; _n="")
     monthly_timesteps = get_monthly_time_steps(p.s.electric_load.year; time_steps_per_hour=p.s.settings.time_steps_per_hour)
     chp_with_ac_only = filter(chp -> chp.serve_absorption_chiller_only, p.s.chps)
-    months_to_restrict = unique(vcat([chp.months_serving_absorption_chiller_only for chp in chp_with_ac_only]...))
-    for mth in months_to_restrict
-        @constraint(m, [t in p.techs.chp, q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]], 
-            m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts] + m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts] == m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts]
-        )
-        # During restricted months, CHP cannot serve other heating loads (space heating, DHW)
-        for q in setdiff(p.heating_loads,[p.s.absorption_chiller.heating_load_input])
-            for ts in monthly_timesteps[mth]
-                fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)]["CHP",q,ts], 0.0, force=true)
-                fix(m[Symbol("dvHeatingProduction"*_n)]["CHP",q,ts], 0.0, force=true)
-                fix(m[Symbol("dvProductionToWaste"*_n)]["CHP",q,ts], 0.0, force=true)
+
+    for chp in chp_with_ac_only
+        for mth in chp.months_serving_absorption_chiller_only
+            @constraint(m, [q in [p.s.absorption_chiller.heating_load_input], ts in monthly_timesteps[mth]],
+                m[Symbol("dvProductionToWaste"*_n)][chp.name,q,ts] +
+                m[Symbol("dvHeatToAbsorptionChiller"*_n)][chp.name,q,ts] ==
+                m[Symbol("dvHeatingProduction"*_n)][chp.name,q,ts]
+            )
+            # During restricted months, this CHP cannot serve other heating loads.
+            for q in setdiff(p.heating_loads, [p.s.absorption_chiller.heating_load_input])
+                for ts in monthly_timesteps[mth]
+                    fix(m[Symbol("dvHeatToAbsorptionChiller"*_n)][chp.name,q,ts], 0.0, force=true)
+                    fix(m[Symbol("dvHeatingProduction"*_n)][chp.name,q,ts], 0.0, force=true)
+                    fix(m[Symbol("dvProductionToWaste"*_n)][chp.name,q,ts], 0.0, force=true)
+                end
             end
         end
     end
@@ -253,35 +262,47 @@ Used in function add_chp_constraints to add constraints that restrict output of 
 run at capacity otherwise in dispatch (without regard to heat flows).
 """
 function add_chp_electrical_load_following_constraints(m, p; _n="")
+    load_following_chps = [chp.name for chp in p.s.chps if chp.follow_electrical_load]
     dv = "binCHPSizeExceedsElectricLoad"*_n
-    m[Symbol(dv)] = @variable(m, [p.time_steps], binary=true, base_name=dv)
+    m[Symbol(dv)] = @variable(m, [load_following_chps, p.time_steps], binary=true, base_name=dv)
     dv = "dvCHPSizeTimesExcess"*_n
-    m[Symbol(dv)] = @variable(m, [p.time_steps], lower_bound=0, base_name=dv)
-    # binary variable enforcement for size >= load
-    max_diff_size_bigM = 2*max(p.max_sizes["CHP"], maximum(p.s.electric_load.loads_kw) #+ sum(p.heating_loads_kw[q][ts] for q in p.heating_loads))  #exclude heating electrification but include elec cooling? 
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] >= (m[Symbol("dvSize"*_n)]["CHP"] - p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts] <= 1 - (p.s.electric_load.loads_kw[ts] - m[Symbol("dvSize"*_n)]["CHP"]) / max_diff_size_bigM
-    )
-    # set dvCHPSizeTimesExcess = binCHPSizeExceedsElectricLoad * dvSize
-    # big-M is min CF times heat load
-    
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - max_diff_size_bigM * (1-m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts])  
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"]
-    )
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] <= max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
-    )
-    #Enforce dispatch: output = system size - (overage)
-    @constraint(m, [ts in p.time_steps],
-        m[Symbol("dvRatedProduction"*_n)]["CHP",ts] >= p.production_factor["CHP",ts]*m[Symbol("dvSize"*_n)]["CHP"] - m[Symbol("dvCHPSizeTimesExcess"*_n)][ts] + p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][ts]
-    )
+    m[Symbol(dv)] = @variable(m, [load_following_chps, p.time_steps], lower_bound=0, base_name=dv)
+
+    for t in load_following_chps
+        max_diff_size_bigM = 2 * max(p.max_sizes[t], maximum(p.s.electric_load.loads_kw))
+        # Identify timesteps where available CHP capacity exceeds electrical load.
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts] >=
+            (p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+                p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts] <=
+            1 - (p.s.electric_load.loads_kw[ts] -
+                p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
+        )
+        # Linearize available CHP capacity times binCHPSizeExceedsElectricLoad.
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] >=
+            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+            max_diff_size_bigM * (1 - m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts])
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] <=
+            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]
+        )
+        @constraint(m, [ts in p.time_steps],
+            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] <=
+            max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
+        )
+        # Dispatch at available capacity when it is below load and exactly at load otherwise.
+        @constraint(m, [ts in p.time_steps],
+            p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] ==
+            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] +
+            p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
+        )
+    end
 end
 
 
@@ -314,7 +335,8 @@ function add_chp_constraints(m, p; _n="")
         if (abs(fuel_burn_intercept) > 1.0E-7) || 
            (abs(thermal_prod_intercept) > 1.0E-7) || 
            (p.chp_params[t][:min_turn_down_fraction] > 1.0E-7) ||
-           (p.s.chps[chp_idx].om_cost_per_hr_per_kw_rated > 1.0E-7)
+           (p.s.chps[chp_idx].om_cost_per_hr_per_kw_rated > 1.0E-7) ||
+           (p.chp_params[t][:supplementary_firing_max_steam_ratio] > 1.0)
             binary_needed = true
             break
         end
@@ -342,8 +364,8 @@ function add_chp_constraints(m, p; _n="")
     add_chp_thermal_production_constraints(m, p; _n=_n)
     add_chp_rated_prod_constraint(m, p; _n=_n)
     
-    # Add ramp rate constraints if any CHP has ramp_rate_fraction_per_hour < 1.0
-    if any(p.chp_params[t][:ramp_rate_fraction_per_hour] < 1.0 / p.s.settings.time_steps_per_hour for t in p.techs.chp)
+    # The constraint is non-binding when the per-timestep ramp allowance is at least the CHP size.
+    if any(p.chp_params[t][:ramp_rate_fraction_per_hour] < p.s.settings.time_steps_per_hour for t in p.techs.chp)
         add_chp_ramp_rate_constraints(m, p; _n=_n)
     end
 
@@ -378,4 +400,3 @@ function add_chp_constraints(m, p; _n="")
         add_chp_electrical_load_following_constraints(m, p; _n=_n)
     end
 end
-

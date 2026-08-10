@@ -472,14 +472,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		if !isempty(p.techs.chp)
 			add_MG_CHP_fuel_burn_constraints(m,p)
 			add_binMGCHPIsOnInTS_constraints(m,p)
-		else
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:binMGCHPIsOnInTS][s, tz, ts] == 0
-			)
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:dvMGCHPFuelBurnYIntercept][s, tz] == 0
-			)            
-		end        
+		end
 		
 		if p.s.site.min_resil_time_steps > 0
 			add_min_hours_crit_ld_met_constraint(m,p)
@@ -775,8 +768,8 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binMGStorageUsed, Bin # 1 if MG storage battery used, 0 otherwise
 			binMGTechUsed[p.techs.elec], Bin # 1 if MG tech used, 0 otherwise
 			binMGGenIsOnInTS[S, tZeros, outage_time_steps], Bin
-            binMGCHPIsOnInTS[S, tZeros, outage_time_steps], Bin
-            dvMGCHPFuelBurnYIntercept[S, tZeros] >= 0
+            binMGCHPIsOnInTS[p.techs.chp, S, tZeros, outage_time_steps], Bin
+            dvMGCHPOnSize[p.techs.chp, S, tZeros, outage_time_steps] >= 0
 		end
 	end
 
