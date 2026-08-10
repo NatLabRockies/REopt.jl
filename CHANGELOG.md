@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-follow-thermal-load
+### Added
+- Added attribute `CHP.follow_heating_load` which, when set to `true`, adds new constraints via function `add_chp_heating_load_following_constraints` to enforce a policy in which CHP runs at capacity if the CHP size is less than the heating load, and restricts the `ExistingBoiler` from serving the load when CHP size is greater than the heating load in each time period (this allows for other heating techs like CST to contribute potentially).
+
 ## v0.60.0
 ### Changed
 - MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
