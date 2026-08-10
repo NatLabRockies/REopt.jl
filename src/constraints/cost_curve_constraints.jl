@@ -123,8 +123,9 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                         seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
                 )
             else            
+                pv_installed_cost_per_kw = pv.installed_cost_per_kw isa AbstractVector ? pv.installed_cost_per_kw[1] : pv.installed_cost_per_kw
                 add_to_expression!(m[:PVCapexNoIncentives], 
-                    pv.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
+                    pv_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
                 )
             end
         end
@@ -187,7 +188,8 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                         seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
                 )
             else
-                add_to_expression!(m[:CHPCapexNoIncentives], cost_list * m[Symbol("dvPurchaseSize"*_n)][t])
+                chp_installed_cost_per_kw = cost_list isa AbstractVector ? cost_list[1] : cost_list
+                add_to_expression!(m[:CHPCapexNoIncentives], chp_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][t])
             end
             
             if chp.supplementary_firing_capital_cost_per_kw > 0
