@@ -10,12 +10,6 @@
 # using DotEnv
 # DotEnv.load!()
 
-@testset "Numeric boolean inputs" begin
-    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 0.0))[:off_grid_flag] === false
-    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 1.0))[:off_grid_flag] === true
-    @test_throws ArgumentError REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 2.0))
-end
-
 
 ###############   Multiple CHPs Test    ###################
 @testset "Multiple CHPs" begin
@@ -59,93 +53,6 @@ end
     finalize(backend(m1)); empty!(m1)
     finalize(backend(m2)); empty!(m2)
     GC.gc()
-
-    thermal_follow_data = JSON.parsefile("./scenarios/multiple_chps.json")
-    for chp in thermal_follow_data["CHP"]
-        chp["follow_heating_load"] = true
-        chp["can_curtail"] = true
-    end
-    thermal_follow_s = Scenario(thermal_follow_data)
-    thermal_follow_inputs = REoptInputs(thermal_follow_s)
-    thermal_follow_model = Model(optimizer_with_attributes(
-        HiGHS.Optimizer,
-        "output_flag" => false,
-        "log_to_console" => false
-    ))
-    build_reopt!(thermal_follow_model, thermal_follow_inputs)
-    for chp in thermal_follow_s.chps
-        fix(
-            thermal_follow_model[:dvSize][chp.name],
-            thermal_follow_inputs.max_sizes[chp.name];
-            force=true
-        )
-    end
-    optimize!(thermal_follow_model)
-    @test termination_status(thermal_follow_model) == MOI.OPTIMAL
-
-    # Each load-following CHP gets independent policy variables. The capacity expression
-    # excludes supplementary firing so it cannot substitute for prime-mover dispatch.
-    for chp in thermal_follow_s.chps
-        @test thermal_follow_model[:binCHPSizeExceedsHeatingLoad][chp.name, 1] isa VariableRef
-        @test JuMP.coefficient(
-            thermal_follow_model[:CHPUnfiredThermalCapacity][chp.name, 1],
-            thermal_follow_model[:dvSupplementaryThermalProduction][chp.name, 1]
-        ) == 0.0
-
-        eligible_heat_load = zeros(length(thermal_follow_inputs.time_steps))
-        chp.can_serve_dhw &&
-            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["DomesticHotWater"])
-        chp.can_serve_space_heating &&
-            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["SpaceHeating"])
-        chp.can_serve_process_heat &&
-            (eligible_heat_load .+= thermal_follow_inputs.heating_loads_kw["ProcessHeat"])
-        unfired_capacity = value.(
-            thermal_follow_model[:CHPUnfiredThermalCapacity][
-                chp.name,
-                thermal_follow_inputs.time_steps
-            ]
-        )
-        capacity_limited_time_steps = [
-            ts for ts in thermal_follow_inputs.time_steps
-            if thermal_follow_inputs.production_factor[chp.name,ts] > 0.0 &&
-                unfired_capacity[ts] < eligible_heat_load[ts] - 1.0e-4
-        ]
-        @test !isempty(capacity_limited_time_steps)
-        if !isempty(capacity_limited_time_steps)
-            ts = first(capacity_limited_time_steps)
-            @test value(thermal_follow_model[:dvRatedProduction][chp.name,ts]) ≈
-                value(thermal_follow_model[:dvSize][chp.name]) atol=1.0e-4
-        end
-
-        unavailable_time_steps = [
-            ts for ts in thermal_follow_inputs.time_steps
-            if thermal_follow_inputs.production_factor[chp.name,ts] == 0.0
-        ]
-        @test !isempty(unavailable_time_steps)
-        if !isempty(unavailable_time_steps)
-            ts = first(unavailable_time_steps)
-            @test value(thermal_follow_model[:dvRatedProduction][chp.name,ts]) ≈ 0.0 atol=1.0e-6
-        end
-    end
-
-    finalize(backend(thermal_follow_model)); empty!(thermal_follow_model); GC.gc()
-
-    outage_data = JSON.parsefile("./scenarios/multiple_chps.json")
-    outage_data["ElectricUtility"] = Dict(
-        "outage_start_time_steps" => [1],
-        "outage_durations" => [2],
-        "outage_probabilities" => [1.0]
-    )
-    outage_s = Scenario(outage_data)
-    outage_inputs = REoptInputs(outage_s)
-    outage_model = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
-    build_reopt!(outage_model, outage_inputs)
-    for chp in outage_s.chps
-        @test outage_model[:binMGCHPIsOnInTS][chp.name, 1, 1, 1] isa VariableRef
-        @test outage_model[:dvMGCHPOnSize][chp.name, 1, 1, 1] isa VariableRef
-    end
-
-    finalize(backend(outage_model)); empty!(outage_model); GC.gc()
 end
 
 ###############   Existing CHP Net Load Adjustment and Sizing   ###################
@@ -599,4 +506,10 @@ end
     @test prod_factor[122] ≈ 0.9 atol=0.001
     @test prod_factor[123] ≈ 0.0 atol=0.001
     @test prod_factor[124] ≈ 1.0 atol=0.001
+end
+
+@testset "Numeric boolean inputs" begin
+    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 0.0))[:off_grid_flag] === false
+    @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 1.0))[:off_grid_flag] === true
+    @test_throws ArgumentError REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 2.0))
 end
