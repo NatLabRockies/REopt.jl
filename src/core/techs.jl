@@ -58,6 +58,27 @@ function Techs(p::REoptInputs, s::BAUScenario)
         push!(electric_chillers, "ExistingChiller")
     end
 
+    for chp in s.chps
+        push!(all_techs, chp.name)
+        push!(chp_techs, chp.name)
+        push!(elec, chp.name)
+        if !chp.is_electric_only
+            push!(heating_techs, chp.name)
+        end
+        if chp.can_serve_space_heating
+            push!(techs_can_serve_space_heating, chp.name)
+        end
+        if chp.can_serve_dhw
+            push!(techs_can_serve_dhw, chp.name)
+        end
+        if chp.can_serve_process_heat
+            push!(techs_can_serve_process_heat, chp.name)
+        end
+        if chp.can_supply_steam_turbine
+            push!(techs_can_supply_steam_turbine, chp.name)
+        end
+    end
+
     cooling_techs = union(electric_chillers, absorption_chillers)
     fuel_burning_techs = union(gentechs, boiler_techs, chp_techs)
     thermal_techs = union(heating_techs, boiler_techs, cooling_techs)

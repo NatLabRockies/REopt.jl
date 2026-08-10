@@ -203,7 +203,7 @@ function REoptInputs(s::AbstractScenario)
         ghp_installed_cost, ghp_om_cost_year_one, avoided_capex_by_ghp_present_value,
         ghx_useful_life_years, ghx_residual_value = setup_ghp_inputs(s, time_steps, time_steps_without_grid)
 
-    if any(pv.existing_kw > 0 for pv in s.pvs)
+    if any(pv.existing_kw > 0 for pv in s.pvs) || any(chp.existing_kw > 0 for chp in s.chps)
         adjust_load_profile(s, production_factor)
     end
 
@@ -444,7 +444,7 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     end
 
     if !isempty(techs.chp)
-        setup_chp_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, 
+        setup_chp_inputs(s, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw, 
             production_factor, techs_by_exportbin, techs.segmented, n_segs_by_tech, seg_min_size, seg_max_size, 
             seg_yint, techs, tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, 
             tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
@@ -898,15 +898,16 @@ end
 
 Update tech-indexed data arrays necessary to build the JuMP model with the values for CHP.
 """
-function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw,  
+function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes, cap_cost_slope, om_cost_per_kw,  
     production_factor, techs_by_exportbin, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint, techs,
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, tech_emissions_factors_PM25, fuel_cost_per_kwh,
     heating_cf, pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh,
     chp_params
     )
     for chp in s.chps
-        max_sizes[chp.name] = chp.max_kw
-        min_sizes[chp.name] = chp.min_kw
+        max_sizes[chp.name] = chp.existing_kw + chp.max_kw
+        min_sizes[chp.name] = chp.existing_kw + chp.min_kw
+        existing_sizes[chp.name] = chp.existing_kw
         update_cost_curve!(chp, chp.name, s.financial,
             cap_cost_slope, segmented_techs, n_segs_by_tech, seg_min_size, seg_max_size, seg_yint
         )
@@ -1249,19 +1250,37 @@ end
 """
     adjust_load_profile(s::AbstractScenario, production_factor::DenseAxisArray)
 
-Adjust the (critical_)loads_kw based off of (critical_)loads_kw_is_net
+Adjust the electric load series when the provided load is already net of on-site generation.
+Existing PV is applied from its production factor series. Existing CHP is treated as flat-out
+dispatch capped by the remaining load in each hour.
 """
 function adjust_load_profile(s::AbstractScenario, production_factor::DenseAxisArray)
     if s.electric_load.loads_kw_is_net
-        for pv in s.pvs if pv.existing_kw > 0
-            s.electric_load.loads_kw .+= pv.existing_kw * production_factor[pv.name, :].data
-        end end
+        for pv in s.pvs
+            if pv.existing_kw > 0
+                s.electric_load.loads_kw .+= pv.existing_kw * production_factor[pv.name, :].data
+            end
+        end
+        for chp in s.chps
+            if chp.existing_kw > 0
+                chp_available_kw = chp.existing_kw .* production_factor[chp.name, :].data
+                s.electric_load.loads_kw .+= chp_available_kw
+            end
+        end
     end
     
     if s.electric_load.critical_loads_kw_is_net
-        for pv in s.pvs if pv.existing_kw > 0
-            s.electric_load.critical_loads_kw .+= pv.existing_kw * production_factor[pv.name, :].data
-        end end
+        for pv in s.pvs
+            if pv.existing_kw > 0
+                s.electric_load.critical_loads_kw .+= pv.existing_kw * production_factor[pv.name, :].data
+            end
+        end
+        for chp in s.chps
+            if chp.existing_kw > 0
+                chp_available_kw = chp.existing_kw .* production_factor[chp.name, :].data
+                s.electric_load.critical_loads_kw .+= chp_available_kw
+            end
+        end
     end
 end
 
