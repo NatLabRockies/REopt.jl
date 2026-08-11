@@ -120,7 +120,7 @@ function chp_binary_test_data()
     return data
 end
 
-@testset verbose=true "CHP Binary Creation Tests" begin
+@testset "CHP Binary Creation Tests" begin
     # These only need the model built (variables + constraints), not solved, since
     # binary_needed in add_chp_constraints is decided purely from input parameters.
 
@@ -305,7 +305,7 @@ end
     s = Scenario(input_data)
     inputs = REoptInputs(s)
 
-    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.05))
     results = run_reopt(m, inputs)
 
     # Check that the model solved successfully

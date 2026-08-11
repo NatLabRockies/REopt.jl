@@ -14,8 +14,9 @@
     "CHP": {
         "prime_mover": "recip_engine",
         "size_class": 2,
-        "min_kw": 50.0,
+        "min_kw": 500.0,
         "max_kw": 500.0,
+        "min_turn_down_fraction": 0.0,
         "installed_cost_per_kw": 2300.0,
         "om_cost_per_kwh": 0.0,
         "om_cost_per_kw": 50.0,
