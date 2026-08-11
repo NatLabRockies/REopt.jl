@@ -279,14 +279,8 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
             1 - (p.s.electric_load.loads_kw[ts] -
                 p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
         )
-        # Big-M is min CF times electric load. This lower bound is fully non-binding once CHP capacity
-        # exceeds load (bin=1); the actual dispatch level in that regime is then determined by cost
-        # minimization together with the grid-purchase constraint below, which forces CHP (rather than
-        # the grid) to serve electric demand net of whatever other technologies already displace (e.g.
-        # AbsorptionChiller serving cooling thermally instead of via the electric ExistingChiller).
-        # An exact equality here (forcing dvRatedProduction to match electric_load.loads_kw precisely)
-        # would ignore that displacement and force CHP to over-produce -- and waste the excess
-        # co-produced heat -- whenever cooling (or other loads) are served by non-electric means.
+        # Require CHP production at available capacity when capacity does not exceed electric load;
+        # relax the lower bound when capacity exceeds load.
         @constraint(m, [ts in p.time_steps],
             m[Symbol("dvRatedProduction"*_n)][t,ts] >=
             p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
