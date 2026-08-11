@@ -87,8 +87,8 @@ end
 Method for use with Threads when running BAU in parallel with optimal scenario.
 """
 function run_reopt(t::Tuple{JuMP.AbstractModel, AbstractInputs})
-	run_reopt(t[1], t[2]; organize_pvs=false)
-	# must organize_pvs after adding proforma results
+	run_reopt(t[1], t[2]; organize_pvs=false, organize_chps=false)
+# must organize_pvs/chps after adding proforma results
 end
 
 
@@ -150,6 +150,9 @@ function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.Abst
 
 			if !isempty(p.techs.pv)
 				organize_multiple_pv_results(p, results_dict)
+			end
+			if !isempty(p.techs.chp)
+				organize_multiple_chp_results(p, results_dict)
 			end
 			return results_dict
 		else
@@ -286,11 +289,17 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             m[:TotalFuelCosts] += m[:TotalCHPFuelCosts]        
             m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyCHPOMCosts]
 
-			if p.s.chp.standby_rate_per_kw_per_month > 1.0e-7
-				m[:TotalCHPStandbyCharges] += sum(p.pwf_e * 12 * p.s.chp.standby_rate_per_kw_per_month * m[:dvSize][t] for t in p.techs.chp)
+			# Add standby charges for each CHP
+			for chp in p.s.chps
+				if chp.standby_rate_per_kw_per_month > 1.0e-7
+					m[:TotalCHPStandbyCharges] += p.pwf_e * 12 * chp.standby_rate_per_kw_per_month * m[:dvSize][chp.name]
+				end
 			end
 
-			m[:TotalTechCapCosts] += sum(p.s.chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][t] for t in p.techs.chp)
+			# Add supplementary firing capital costs for each CHP
+			for chp in p.s.chps
+				m[:TotalTechCapCosts] += chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][chp.name]
+			end
         end
 
         if !isempty(setdiff(p.techs.heating, p.techs.elec))
@@ -463,14 +472,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		if !isempty(p.techs.chp)
 			add_MG_CHP_fuel_burn_constraints(m,p)
 			add_binMGCHPIsOnInTS_constraints(m,p)
-		else
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:binMGCHPIsOnInTS][s, tz, ts] == 0
-			)
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:dvMGCHPFuelBurnYIntercept][s, tz] == 0
-			)            
-		end        
+		end
 		
 		if p.s.site.min_resil_time_steps > 0
 			add_min_hours_crit_ld_met_constraint(m,p)
@@ -591,7 +593,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 end
 
 
-function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
 
 	try
 		build_reopt!(m, p)
@@ -621,6 +623,9 @@ function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 
 		if organize_pvs && !isempty(p.techs.pv)  # do not want to organize_pvs when running BAU case in parallel b/c then proform code fails
 			organize_multiple_pv_results(p, results)
+		end
+		if organize_chps && !isempty(p.techs.chp)  # same logic as PV
+			organize_multiple_chp_results(p, results)
 		end
 
 		# add error messages (if any) and warnings to results dict
@@ -763,8 +768,8 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binMGStorageUsed, Bin # 1 if MG storage battery used, 0 otherwise
 			binMGTechUsed[p.techs.elec], Bin # 1 if MG tech used, 0 otherwise
 			binMGGenIsOnInTS[S, tZeros, outage_time_steps], Bin
-            binMGCHPIsOnInTS[S, tZeros, outage_time_steps], Bin
-            dvMGCHPFuelBurnYIntercept[S, tZeros] >= 0
+            binMGCHPIsOnInTS[p.techs.chp, S, tZeros, outage_time_steps], Bin
+            dvMGCHPOnSize[p.techs.chp, S, tZeros, outage_time_steps] >= 0
 		end
 	end
 

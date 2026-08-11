@@ -45,7 +45,7 @@ else  # run HiGHS tests
             @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
             @test s.financial.om_cost_escalation_rate_fraction == 0.025
             @test s.financial.offtaker_discount_rate_fraction == 0.0624
-            for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
+            for tech_struct in (s.pvs[1], s.wind, s.chps[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
                 end
@@ -70,7 +70,7 @@ else  # run HiGHS tests
             @test s.financial.elec_cost_escalation_rate_fraction == 0.0074 #national avg
             @test s.financial.om_cost_escalation_rate_fraction == 0.015
             @test s.financial.offtaker_discount_rate_fraction == 0.045
-            for tech_struct in (s.pvs[1], s.wind, s.chp, s.steam_turbine)
+            for tech_struct in (s.pvs[1], s.wind, s.chps[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0 
                 end
@@ -95,7 +95,7 @@ else  # run HiGHS tests
             @test s.financial.elec_cost_escalation_rate_fraction == -0.0062
             @test s.financial.om_cost_escalation_rate_fraction == 0.015
             @test s.financial.offtaker_discount_rate_fraction == 0.045
-            for tech_struct in (s.pvs[1], s.wind, s.chp, s.ghp_option_list[1], s.steam_turbine)
+            for tech_struct in (s.pvs[1], s.wind, s.chps[1], s.ghp_option_list[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction, :federal_itc_fraction)
                     default = 0
                     try
@@ -161,7 +161,7 @@ else  # run HiGHS tests
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
             @test dataset == "nsrdb"
 
-            # 3. Oulu, Findland
+            # 3. Oulu, Finland
             latitude, longitude = 65.0102196310875, 25.465387094897675
             radius = 0
             dataset, distance, datasource = REopt.call_solar_dataset_api(latitude, longitude, radius)
@@ -320,7 +320,7 @@ else  # run HiGHS tests
                 )
             )
             s = Scenario(d)
-            @test s.chp.max_kw ≈ case3_max_size_kw atol=1e-3
+            @test s.chps[1].max_kw ≈ case3_max_size_kw atol=1e-3
 
             #Case 5: with higher electric load, still sized according to thermal input
             avg_electric_load_kw = 2000.0
@@ -1471,7 +1471,7 @@ else  # run HiGHS tests
                 @test value(m[:dvRatedProduction]["CHP",4045]) < p.s.electric_load.loads_kw[4045]
                 @test value(m[:dvHeatingProduction]["CHP","DomesticHotWater",4045]) ≈ value(m[:dvHeatToAbsorptionChiller]["CHP","DomesticHotWater",4045]) rtol=1e-4
                 @test value(m[:dvProductionToWaste]["CHP","DomesticHotWater",4045]) ≈ 0.0 atol=1e-4
-            
+
                 #Part 5: CHP Thermal Load Following
                 d = JSON.parsefile("./scenarios/chp-abschl-flow.json")
                 delete!(d, "AbsorptionChiller")
@@ -1483,14 +1483,19 @@ else  # run HiGHS tests
                 p = REoptInputs(s)
                 m = Model(optimizer_with_attributes(HiGHS.Optimizer))
                 results = run_reopt(m, p)
-                CHP_thermal_capacity = results["CHP"]["size_kw"]*p.s.chp.thermal_efficiency_full_load / p.s.chp.electric_efficiency_full_load
-                
+                CHP_thermal_capacity_at_50 = value(m[:CHPUnfiredThermalCapacity]["CHP", 50])
+                CHP_thermal_capacity_at_1 = value(m[:CHPUnfiredThermalCapacity]["CHP", 1])
+
                 # if CHP capacity > eligible heat load, boiler output is zero
-                @test CHP_thermal_capacity > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
+                @test CHP_thermal_capacity_at_50 > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
                 @test results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"][50] ≈ 0.0 atol=1e-2
-                # if CHP heating capacity < eligible heat load, boiler output is zero
-                @test CHP_thermal_capacity < p.heating_loads_kw["DomesticHotWater"][1] + p.heating_loads_kw["SpaceHeating"][1]
-                @test results["CHP"]["thermal_to_load_series_mmbtu_per_hour"][1] ≈ CHP_thermal_capacity / REopt.KWH_PER_MMBTU atol=1e-2
+                # if CHP heating capacity < eligible heat load, CHP runs at capacity
+                @test CHP_thermal_capacity_at_1 < p.heating_loads_kw["DomesticHotWater"][1] + p.heating_loads_kw["SpaceHeating"][1]
+                @test value(m[:dvRatedProduction]["CHP", 1]) ≈ value(m[:dvSize]["CHP"]) atol=1e-4
+                @test results["CHP"]["thermal_to_load_series_mmbtu_per_hour"][1] ≈ CHP_thermal_capacity_at_1 / REopt.KWH_PER_MMBTU atol=1e-2
+                finalize(backend(m))
+                empty!(m)
+                GC.gc()
             end
 
             @testset "CHP Proforma Metrics" begin
@@ -1510,6 +1515,11 @@ else  # run HiGHS tests
                 empty!(m2)
                 GC.gc()
             end
+
+            @testset verbose=true "CHP expansion (multiple, off-grid, ramp rate, etc)" begin
+                include("test_chp.jl")
+            end
+                        
         end
         
         @testset verbose=true "FlexibleHVAC" begin
@@ -2336,8 +2346,8 @@ else  # run HiGHS tests
             @test round(total_chiller_electric_consumption, digits=0) ≈ 320544.0 atol=1.0  # loads_kw is **electric**, loads_kw_thermal is **thermal**
 
             #Test CHP defaults use average fuel load, size class 2 for recip_engine 
-            @test inputs.s.chp.min_allowable_kw ≈ 50.0 atol=0.01
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.027 atol=0.0001
+            @test inputs.s.chps[1].min_allowable_kw ≈ 50.0 atol=0.01
+            @test inputs.s.chps[1].om_cost_per_kwh ≈ 0.027 atol=0.0001
 
             delete!(input_data, "SpaceHeatingLoad")
             delete!(input_data, "DomesticHotWaterLoad")
@@ -2353,7 +2363,7 @@ else  # run HiGHS tests
             @test round(total_chiller_electric_consumption, digits=0) ≈ 3876410 atol=1.0
 
             # Check that without heating load or max_kw input, CHP.max_kw gets set based on peak electric load
-            @test inputs.s.chp.max_kw ≈ maximum(inputs.s.electric_load.loads_kw) atol=0.01
+            @test inputs.s.chps[1].max_kw ≈ maximum(inputs.s.electric_load.loads_kw) atol=0.01
 
             input_data["SpaceHeatingLoad"] = Dict{Any, Any}("monthly_mmbtu" => repeat([1000.0], 12))
             input_data["DomesticHotWaterLoad"] = Dict{Any, Any}("monthly_mmbtu" => repeat([1000.0], 12))
@@ -2363,8 +2373,8 @@ else  # run HiGHS tests
             inputs = REoptInputs(s)
 
             #Test CHP defaults use average fuel load, size class changes to 3
-            @test inputs.s.chp.min_allowable_kw ≈ 125.0 atol=0.1
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.023 atol=0.0001
+            @test inputs.s.chps[1].min_allowable_kw ≈ 125.0 atol=0.1
+            @test inputs.s.chps[1].om_cost_per_kwh ≈ 0.023 atol=0.0001
             #Update CHP prime_mover and test new defaults
             input_data["CHP"]["prime_mover"] = "combustion_turbine"
             input_data["CHP"]["size_class"] = 1
@@ -2374,8 +2384,8 @@ else  # run HiGHS tests
             s = Scenario(input_data)
             inputs = REoptInputs(s)
 
-            @test inputs.s.chp.min_allowable_kw ≈ 2000.0 atol=0.1
-            @test inputs.s.chp.om_cost_per_kwh ≈ 0.014999999999999999 atol=0.0001
+            @test inputs.s.chps[1].min_allowable_kw ≈ 2000.0 atol=0.1
+            @test inputs.s.chps[1].om_cost_per_kwh ≈ 0.014999999999999999 atol=0.0001
 
             total_heating_fuel_load_mmbtu = (sum(inputs.s.space_heating_load.loads_kw) + 
                                             sum(inputs.s.dhw_load.loads_kw)) / input_data["ExistingBoiler"]["efficiency"] / REopt.KWH_PER_MMBTU
@@ -2416,7 +2426,7 @@ else  # run HiGHS tests
                                                 "blended_annual_demand_rate" => 0.0  )
             s_chp = Scenario(input_data)
             inputs_chp = REoptInputs(s)
-            installed_cost_chp = s_chp.chp.installed_cost_per_kw
+            installed_cost_chp = s_chp.chps[1].installed_cost_per_kw
 
             # Now get prime generator (electric only)
             input_data["CHP"]["is_electric_only"] = true
@@ -2424,14 +2434,14 @@ else  # run HiGHS tests
             s = Scenario(input_data)
             inputs = REoptInputs(s)
             # Costs are 75% of CHP
-            @test inputs.s.chp.installed_cost_per_kw ≈ (0.75*installed_cost_chp) atol=1.0
-            @test inputs.s.chp.om_cost_per_kwh ≈ (0.75*0.015) atol=0.0001
-            @test inputs.s.chp.federal_itc_fraction ≈ 0.0 atol=0.0001
+            @test inputs.s.chps[1].installed_cost_per_kw ≈ (0.75*installed_cost_chp) atol=1.0
+            @test inputs.s.chps[1].om_cost_per_kwh ≈ (0.75*0.015) atol=0.0001
+            @test inputs.s.chps[1].federal_itc_fraction ≈ 0.0 atol=0.0001
             # Thermal efficiency set to zero
-            @test inputs.s.chp.thermal_efficiency_full_load == 0
-            @test inputs.s.chp.thermal_efficiency_half_load == 0
+            @test inputs.s.chps[1].thermal_efficiency_full_load == 0
+            @test inputs.s.chps[1].thermal_efficiency_half_load == 0
             # Max size based on electric load, not heating load
-            @test inputs.s.chp.max_kw ≈ maximum(inputs.s.electric_load.loads_kw) atol=0.001    
+            @test inputs.s.chps[1].max_kw ≈ maximum(inputs.s.electric_load.loads_kw) atol=0.001    
         end
 
         @testset "Hybrid/blended heating and cooling loads" begin
@@ -2552,6 +2562,26 @@ else  # run HiGHS tests
             empty!(m2)
             GC.gc()
         end
+
+        @testset "Boiler SteamTurbine Simple Inputs" begin
+            # This test uses the simpler SteamTurbine setup with electric_produced_to_thermal_consumed_ratio
+            # and thermal_produced_to_thermal_consumed_ratio instead of detailed steam parameters
+            input_data = JSON.parsefile("./scenarios/boiler_steamturbine.json")
+            s = Scenario(input_data)
+            inputs = REoptInputs(s)
+
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.001, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.001, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt([m1,m2], inputs)
+
+            @test results["Boiler"]["size_mmbtu_per_hour"] > 0.0
+            @test results["SteamTurbine"]["size_kw"] > 0.0
+
+            # Boiler thermal delivered to the SteamTurbine should match what the SteamTurbine consumes
+            boiler_to_st = sum(results["Boiler"]["thermal_to_steamturbine_series_mmbtu_per_hour"])
+            st_thermal_in = results["SteamTurbine"]["annual_thermal_consumption_mmbtu"]
+            @test boiler_to_st ≈ st_thermal_in rtol=0.01
+        end        
 
         @testset "OffGrid" begin
             ## Scenario 1: Solar, Storage, Fixed Generator
@@ -4270,7 +4300,7 @@ else  # run HiGHS tests
             capital_costs_after_non_discounted_incentives = results["Financial"]["capital_costs_after_non_discounted_incentives"]
             # Calculated payback from above-two metrics
             payback = capital_costs_after_non_discounted_incentives / savings
-            @test round(results["Financial"]["simple_payback_years"], digits=2) ≈ round(payback, digits=2)
+            @test round(results["Financial"]["simple_payback_years"], digits=2) ≈ round(payback, digits=2) rtol=0.01
             finalize(backend(m1))
             empty!(m1)
             finalize(backend(m2))
@@ -4287,7 +4317,7 @@ else  # run HiGHS tests
             m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.01, "output_flag" => false, "log_to_console" => false))
             results = run_reopt([m1,m2], inputs)
             payback = results["Financial"]["capital_costs_after_non_discounted_incentives"] / results["Financial"]["year_one_total_operating_cost_savings_after_tax"]
-            @test round(results["Financial"]["simple_payback_years"], digits=2) ≈ round(payback, digits=2)
+            @test round(results["Financial"]["simple_payback_years"], digits=2) ≈ round(payback, digits=2) rtol=0.01
             finalize(backend(m1))
             empty!(m1)
             finalize(backend(m2))

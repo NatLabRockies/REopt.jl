@@ -246,13 +246,16 @@ If the monthly demand rate is tiered than also adds binMonthlyDemandTier and con
 function add_monthly_peak_constraint(m, p; _n="")
 
 	## Constraint (11d): Monthly peak demand is >= demand at each hour in the month
-    if (!isempty(p.techs.chp)) && !(p.s.chp.reduces_demand_charges)
+    # Get CHPs that do NOT reduce demand charges
+    chps_not_reducing_demand = String[chp.name for chp in p.s.chps if !chp.reduces_demand_charges]
+    
+    if !isempty(chps_not_reducing_demand)
         @constraint(m, [mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
             sum(m[Symbol("dvPeakDemandMonth"*_n)][mth, t] for t in 1:p.s.electric_tariff.n_monthly_demand_tiers) 
             >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) + 
-            sum(p.production_factor[t, ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t, ts] for t in p.techs.chp) - 
-            sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) for t in p.techs.chp) -
-            sum(sum(m[Symbol("dvProductionToGrid")][t,u,ts] for u in p.export_bins_by_tech[t]) for t in p.techs.chp)
+            sum(p.production_factor[t, ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t, ts] for t in chps_not_reducing_demand) - 
+            sum(sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for b in p.s.storage.types.elec) for t in chps_not_reducing_demand) -
+            sum(sum(m[Symbol("dvProductionToGrid")][t,u,ts] for u in p.export_bins_by_tech[t]) for t in chps_not_reducing_demand)
         )
     else
         @constraint(m, [mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
