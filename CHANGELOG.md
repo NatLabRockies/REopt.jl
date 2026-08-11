@@ -25,11 +25,15 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-follow-thermal-load
+### Added
+- Added attribute `CHP.follow_heating_load` which, when set to `true`, independently enforces thermal-load-following for each CHP. A CHP runs at unfired thermal capacity when that capacity is below its eligible heating load; otherwise, `ExistingBoiler` is restricted from serving those loads so the CHP and other onsite heating resources can contribute. Supplementary firing remains available only as incremental heat.
+
 ## v0.60.0
 ### Changed
 - MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
 - Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
-- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core` 
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
 - Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
 - Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
 - Added temporary backwards compatibility with old environment variable names and a warning for user to update

@@ -38,7 +38,7 @@ function add_pv_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
             r["installed_cost_per_kw"] = pv_tech.installed_cost_per_kw
         else
             # Get cost from cost curve
-            r["installed_cost_per_kw"] = get_pv_initial_capex(p, pv_tech, r["size_kw"]) / r["size_kw"]
+            r["installed_cost_per_kw"] = get_tech_initial_capex(pv_tech, r["size_kw"]) / r["size_kw"]
         end
 
         if !isnothing(pv_tech.size_class) && !isempty(pv_tech.tech_sizes_for_cost_curve)

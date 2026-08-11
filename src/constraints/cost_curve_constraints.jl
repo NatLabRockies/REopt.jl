@@ -123,8 +123,9 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                         seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
                 )
             else            
+                pv_installed_cost_per_kw = pv.installed_cost_per_kw isa AbstractVector ? pv.installed_cost_per_kw[1] : pv.installed_cost_per_kw
                 add_to_expression!(m[:PVCapexNoIncentives], 
-                    pv.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
+                    pv_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name]
                 )
             end
         end
@@ -159,38 +160,45 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
         )
     end
 
-    if "CHP" in p.techs.all
+    if !isempty(p.techs.chp)
         m[:CHPCapexNoIncentives] = JuMP.GenericAffExpr{Float64, JuMP.VariableRef}()
-        cost_list = p.s.chp.installed_cost_per_kw
-        size_list = p.s.chp.tech_sizes_for_cost_curve
+        
+        # Loop through each CHP and apply its specific cost curve
+        for chp in p.s.chps
+            t = chp.name
+            cost_list = chp.installed_cost_per_kw
+            size_list = chp.tech_sizes_for_cost_curve
 
-        t="CHP"
-        if t in p.techs.segmented && !isempty(size_list)
-            # Use "no incentives" version of p.cap_cost_slope and p.seg_yint
-            cost_slope_no_inc = [cost_list[1]]
-            seg_yint_no_inc = [0.0]
-            for s in range(2, stop=length(size_list))
-                tmp_slope = round((cost_list[s] * size_list[s] - cost_list[s-1] * size_list[s-1]) /
-                                (size_list[s] - size_list[s-1]), digits=0)
-                tmp_y_int = round(cost_list[s-1] * size_list[s-1] - tmp_slope * size_list[s-1], digits=0)
-                append!(cost_slope_no_inc, tmp_slope)
-                append!(seg_yint_no_inc, tmp_y_int)
+            if t in p.techs.segmented && !isempty(size_list)
+                # Use "no incentives" version of p.cap_cost_slope and p.seg_yint
+                cost_slope_no_inc = [cost_list[1]]
+                seg_yint_no_inc = [0.0]
+                for s in range(2, stop=length(size_list))
+                    tmp_slope = round((cost_list[s] * size_list[s] - cost_list[s-1] * size_list[s-1]) /
+                                    (size_list[s] - size_list[s-1]), digits=0)
+                    tmp_y_int = round(cost_list[s-1] * size_list[s-1] - tmp_slope * size_list[s-1], digits=0)
+                    append!(cost_slope_no_inc, tmp_slope)
+                    append!(seg_yint_no_inc, tmp_y_int)
+                end
+                append!(cost_slope_no_inc, cost_list[end])
+                append!(seg_yint_no_inc, 0.0)
+
+                add_to_expression!(m[:CHPCapexNoIncentives],
+                    sum(cost_slope_no_inc[s] * m[Symbol("dvSegmentSystemSize"*t)][s] + 
+                        seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
+                )
+            else
+                chp_installed_cost_per_kw = cost_list isa AbstractVector ? cost_list[1] : cost_list
+                add_to_expression!(m[:CHPCapexNoIncentives], chp_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][t])
             end
-            append!(cost_slope_no_inc, cost_list[end])
-            append!(seg_yint_no_inc, 0.0)
-
-            add_to_expression!(m[:CHPCapexNoIncentives],
-                sum(cost_slope_no_inc[s] * m[Symbol("dvSegmentSystemSize"*t)][s] + 
-                    seg_yint_no_inc[s] * m[Symbol("binSegment"*t)][s] for s in eachindex(cost_slope_no_inc))
-            )
-        else
-            add_to_expression!(m[:CHPCapexNoIncentives], cost_list * m[Symbol("dvPurchaseSize"*_n)]["CHP"])
+            
+            if chp.supplementary_firing_capital_cost_per_kw > 0
+                add_to_expression!(m[:CHPCapexNoIncentives], 
+                    chp.supplementary_firing_capital_cost_per_kw * m[Symbol("dvSupplementaryFiringSize"*_n)][t]
+                )
+            end
         end
-        if p.s.chp.supplementary_firing_capital_cost_per_kw > 0
-            add_to_expression!(m[:CHPCapexNoIncentives], 
-                p.s.chp.supplementary_firing_capital_cost_per_kw * m[Symbol("dvSupplementaryFiringSize"*_n)]["CHP"]
-            )
-        end
+        
         add_to_expression!(m[:InitialCapexNoIncentives], m[:CHPCapexNoIncentives])
     end
 

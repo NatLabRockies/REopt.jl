@@ -56,6 +56,7 @@ function add_outage_results(m, p, d::Dict)
 	# function to optionally get the outage dispatch values so that we don't slow down returning the
 	# other results.
 	r = Dict{String, Any}()
+	outage_factors = outage_effective_production_factors(p)
 	r["expected_outage_cost"] = value(m[:ExpectedOutageCost])
 	r["max_outage_cost_per_outage_duration"] = results_array(value.(m[:dvMaxOutageCost]))
 	r["unserved_load_series_kw"] = results_array(value.(m[:dvUnservedLoad]))
@@ -147,7 +148,7 @@ function add_outage_results(m, p, d::Dict)
 				sum(
 					(
 						value.(
-							m[:dvMGRatedProduction][t, s, tz, ts] * (p.production_factor[t, time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] + p.unavailability[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)]) * p.levelization_factor[t]
+							m[:dvMGRatedProduction][t, s, tz, ts] * outage_factors[t][time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * p.levelization_factor[t]
 							- m[:dvMGCurtail][t, s, tz, ts]
 							- m[:dvMGProductionToStorage][t, s, tz, ts]
 							for s in p.s.electric_utility.scenarios,

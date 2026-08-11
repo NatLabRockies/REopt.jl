@@ -14,6 +14,7 @@ struct MPCScenario <: AbstractScenario
     process_heat_load::MPCProcessHeatLoad
     limits::MPCLimits
     node::Int
+    chps::Array{CHP, 1}  # Empty array for MPC scenarios (no CHP modeled)
 end
 
 
@@ -37,6 +38,7 @@ Method for creating the MPCScenario struct:
         process_heat_load::MPCProcessHeatLoad
         limits::MPCLimits
         node::Int
+        chps::Array{CHP, 1}
     end
 ```
 
@@ -138,6 +140,7 @@ function MPCScenario(d::Dict)
         dhw_load,
         process_heat_load,
         limits,
-        node
+        node,
+        CHP[]  # Empty array - no CHP in MPC scenarios
     )
 end

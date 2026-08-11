@@ -47,7 +47,7 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
         add_wind_results(m, p, d; _n)
     end
     
-    if "CHP" in p.techs.all
+    if !isempty(p.techs.chp)
         add_chp_results(m, p, d; _n)
     end
 	
@@ -248,9 +248,19 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
         ("Site", "lifecycle_emissions_from_fuelburn_tonnes_CO2"),
         ("Site", "lifecycle_emissions_from_fuelburn_tonnes_NOx"),
         ("Site", "lifecycle_emissions_from_fuelburn_tonnes_SO2"),
-        ("Site", "lifecycle_emissions_from_fuelburn_tonnes_PM25")
+        ("Site", "lifecycle_emissions_from_fuelburn_tonnes_PM25"),
+        ("CHP", "size_kw"),
+        ("CHP", "annual_fuel_consumption_mmbtu"),
+        ("CHP", "annual_electric_production_kwh"),
+        ("CHP", "annual_thermal_production_mmbtu"),
+        ("CHP", "annual_thermal_curtailed_mmbtu"),
+        ("CHP", "year_one_fuel_cost_before_tax"),
+        ("CHP", "year_one_fuel_cost_after_tax"),
+        ("CHP", "lifecycle_fuel_cost_after_tax"),
+        ("CHP", "year_one_standby_cost_before_tax"),
+        ("CHP", "year_one_standby_cost_after_tax"),
+        ("CHP", "lifecycle_standby_cost_after_tax")
     )
-
     for t in bau_outputs
         if t[1] in keys(opt) && t[1] in keys(bau)
             if t[2] in keys(bau[t[1]])
@@ -261,6 +271,14 @@ function combine_results(p::REoptInputs, bau::Dict, opt::Dict, bau_scenario::BAU
                 if pvname in keys(opt) && pvname in keys(bau)
                     if t[2] in keys(bau[pvname])
                         opt[pvname][t[2] * "_bau"] = bau[pvname][t[2]]
+                    end
+                end
+            end
+        elseif t[1] == "CHP" && !isempty(p.techs.chp)
+            for chpname in p.techs.chp
+                if chpname in keys(opt) && chpname in keys(bau)
+                    if t[2] in keys(bau[chpname])
+                        opt[chpname][t[2] * "_bau"] = bau[chpname][t[2]]
                     end
                 end
             end
