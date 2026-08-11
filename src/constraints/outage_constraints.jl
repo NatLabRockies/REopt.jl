@@ -14,9 +14,9 @@ function outage_effective_production_factors(p)
                 # For default CHP production factors, adding unavailability restores outage availability.
                 factors[t] = base_factor .+ unavailability
             else
-                # For user-provided CHP production_factor_series, ignore unavailability during outages
-                # while preserving the user-provided production factor profile.
-                factors[t] = base_factor .+ unavailability .* chp_series
+                # For user-provided CHP production_factor_series, restore the user series (avoid unavailability)
+                # without inflating timesteps where unavailability was already ignored (e.g. deterministic outage window).
+                factors[t] = max.(base_factor, Float64.(chp_series))
             end
         else
             factors[t] = base_factor .+ unavailability
