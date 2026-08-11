@@ -265,8 +265,6 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
     load_following_chps = [chp.name for chp in p.s.chps if chp.follow_electrical_load]
     dv = "binCHPSizeExceedsElectricLoad"*_n
     m[Symbol(dv)] = @variable(m, [load_following_chps, p.time_steps], binary=true, base_name=dv)
-    dv = "dvCHPSizeTimesExcess"*_n
-    m[Symbol(dv)] = @variable(m, [load_following_chps, p.time_steps], lower_bound=0, base_name=dv)
 
     for t in load_following_chps
         max_diff_size_bigM = 2 * max(p.max_sizes[t], maximum(p.s.electric_load.loads_kw))
@@ -281,26 +279,24 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
             1 - (p.s.electric_load.loads_kw[ts] -
                 p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
         )
-        # Linearize available CHP capacity times binCHPSizeExceedsElectricLoad.
+        # Big-M is min CF times electric load. This lower bound is fully non-binding once CHP capacity
+        # exceeds load (bin=1); the actual dispatch level in that regime is then determined by cost
+        # minimization together with the grid-purchase constraint below, which forces CHP (rather than
+        # the grid) to serve electric demand net of whatever other technologies already displace (e.g.
+        # AbsorptionChiller serving cooling thermally instead of via the electric ExistingChiller).
+        # An exact equality here (forcing dvRatedProduction to match electric_load.loads_kw precisely)
+        # would ignore that displacement and force CHP to over-produce -- and waste the excess
+        # co-produced heat -- whenever cooling (or other loads) are served by non-electric means.
         @constraint(m, [ts in p.time_steps],
-            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] >=
+            m[Symbol("dvRatedProduction"*_n)][t,ts] >=
             p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
-            max_diff_size_bigM * (1 - m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts])
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] <=
-            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]
-        )
-        @constraint(m, [ts in p.time_steps],
-            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] <=
             max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
         )
-        # Dispatch at available capacity when it is below load and exactly at load otherwise.
+        # Enforce dispatch: grid purchase forced to 0 if this CHP's size exceeds load, i.e. CHP must
+        # dispatch to load-follow after accounting for storage and other onsite resources.
         @constraint(m, [ts in p.time_steps],
-            p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] ==
-            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
-            m[Symbol("dvCHPSizeTimesExcess"*_n)][t,ts] +
-            p.s.electric_load.loads_kw[ts] * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
+            sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) <=
+            max_diff_size_bigM * (1 - m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts])
         )
     end
 end
