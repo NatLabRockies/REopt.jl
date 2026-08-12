@@ -63,7 +63,10 @@
     if every higher-priority PV is at least as large as the size that priority chose for itself. If `priority` is unset on 
     any PV in a multi-PV scenario, prioritization is disabled and a single solve is performed (legacy behavior). All `priority` 
     values across PVs must be unique and form the contiguous set 1..N (no ties, no gaps). Note that a staged solve performs 
-    one optimization per priority level and therefore takes roughly N times as long as a non-priority solve.
+    up to one optimization per priority level and therefore takes at most roughly N times as long as a non-priority solve. 
+    As an optimisation, if the priority-`k` PV does not build out to its effective upper bound, every lower-priority PV is 
+    left at its `existing_kw` and no further stages are solved (production from any `existing_kw` is still dispatched using 
+    that PV's PVWatts-derived production factor).
 
 !!! note "PV tilt and aziumth"
     If `tilt` is not provided, then it is set to the absolute value of `Site.latitude` for ground-mount systems and is set to 10 degrees for rooftop systems.

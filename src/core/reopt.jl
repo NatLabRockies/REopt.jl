@@ -593,15 +593,23 @@ end
     run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 
 Solve a multi-PV scenario in stages, sizing higher-priority PV systems before lower-
-priority ones. For N PV systems with priorities 1..N, this performs N sequential MILP
-solves, where stage `k` sizes the priority-`k` PV. PVs with priority > k are locked at
-their `existing_kw` (so they cannot grow yet), and an implication constraint forbids the
-priority-`k` PV from building beyond its `existing_kw` unless every higher-priority PV
-has already reached its previously-found stage-optimal size.
+priority ones. For N PV systems with priorities 1..N, this performs up to N sequential
+MILP solves, where stage `k` sizes the priority-`k` PV. PVs with priority > k are locked
+at their `existing_kw` (so they cannot grow yet), and an implication constraint forbids
+the priority-`k` PV from building beyond its `existing_kw` unless every higher-priority
+PV has already reached its previously-found stage-optimal size.
+
+As an optimisation, if stage `k` does not build the priority-`k` PV out to its effective
+upper bound (`p.max_sizes[pv_k.name]`), the priority ordering guarantees no lower-priority
+PV can be built either, so all remaining stages are skipped: their PVs are already locked
+to `existing_kw` in stage `k`'s solved model, so its results are the final results. Each
+skipped stage still gets a `PriorityStages` record with `status = "skipped"` and
+`size_kw = existing_kw`. Production from any `existing_kw` on locked PVs is still
+dispatched using that PV's PVWatts-derived production factor.
 
 The model `m` is reused (and `JuMP.empty!`'ed) between stages, so the optimizer attached
-to `m` is preserved. The final stage's solved model is the source of the returned
-results dict; a `PriorityStages` entry summarises every stage.
+to `m` is preserved. The last solved stage's model is the source of the returned results
+dict; a `PriorityStages` entry summarises every stage (solved or skipped).
 
 This function is dispatched automatically by `run_reopt(m, p)` when
 `pv_priority_active(p.s.pvs)` is `true`. Users typically do not call it directly.
@@ -673,16 +681,36 @@ function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organ
         end
 
         S_k = JuMP.value(m[:dvSize][pvs_by_priority[k].name])
+        stage_objective = JuMP.objective_value(m)
         push!(stage_records, Dict(
             "stage" => k,
             "pv_name" => pvs_by_priority[k].name,
             "size_kw" => S_k,
-            "objective_value" => JuMP.objective_value(m),
+            "objective_value" => stage_objective,
             "solver_seconds" => opt_time,
             "status" => stage_status,
         ))
-        @info "PV priority stage $(k) complete: $(pvs_by_priority[k].name) sized to $(round(S_k, digits=3)) kW (LCC = $(round(JuMP.objective_value(m), digits=2)))."
+        @info "PV priority stage $(k) complete: $(pvs_by_priority[k].name) sized to $(round(S_k, digits=3)) kW (LCC = $(round(stage_objective, digits=2)))."
         final_status = stage_status
+
+        # If priority-k PV did not hit its effective upper bound, no lower-priority PV can grow either.
+        pv_k = pvs_by_priority[k]
+        if k < n_stages && S_k < p.max_sizes[pv_k.name] - 1e-6
+            skipped_names = [pvs_by_priority[j].name for j in (k+1):n_stages]
+            @info "PV priority stage $(k) ($(pv_k.name)) did not reach its effective upper bound ($(round(p.max_sizes[pv_k.name], digits=3)) kW); skipping remaining stages for $(join(skipped_names, ", "))."
+            for j in (k+1):n_stages
+                pv_j = pvs_by_priority[j]
+                push!(stage_records, Dict(
+                    "stage" => j,
+                    "pv_name" => pv_j.name,
+                    "size_kw" => pv_j.existing_kw,
+                    "objective_value" => stage_objective,
+                    "solver_seconds" => 0.0,
+                    "status" => "skipped",
+                ))
+            end
+            break
+        end
     end
 
     tstart = time()
