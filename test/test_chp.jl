@@ -438,22 +438,24 @@ end
     empty_series_input_data["CHP"]["production_factor_series"] = Float64[]
     @test_throws ArgumentError Scenario(empty_series_input_data)
 
-    input_data["ElectricLoad"]["loads_kw"] = fill(200.0, 8760)
-    input_data["CHP"]["min_turn_down_fraction"] = 0.0
-    input_data["CHP"]["follow_electrical_load"] = true
-    input_data["CHP"]["production_factor_series"] = vcat(repeat([0.5], 4380), repeat([1.0], 4380))
-    load_following_s = Scenario(input_data)
+load_following_input_data = deepcopy(input_data)
+load_following_input_data["ElectricLoad"]["loads_kw"] = fill(200.0, 8760)
+load_following_input_data["CHP"]["min_turn_down_fraction"] = 0.0
+load_following_input_data["CHP"]["follow_electrical_load"] = true
+load_following_input_data["CHP"]["production_factor_series"] = vcat(repeat([0.5], 4380), repeat([1.0], 4380))
+load_following_s = Scenario(load_following_input_data)
     load_following_p = REoptInputs(load_following_s)
     @test load_following_s.chps[1].follow_electrical_load
 
     m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
     load_following_results = run_reopt(m, load_following_p)
-    chp_name = load_following_s.chps[1].name
-    expected_chp_output = [
-        input_data["CHP"]["max_kw"] * load_following_p.production_factor[chp_name, ts]
-        for ts in load_following_p.time_steps
-    ]
-    actual_chp_output = load_following_results["CHP"]["electric_production_series_kw"]
+chp_name = load_following_s.chps[1].name
+chp_size_kw = load_following_results[chp_name]["size_kw"]
+expected_chp_output = [
+    chp_size_kw * load_following_p.production_factor[chp_name, ts]
+    for ts in load_following_p.time_steps
+]
+actual_chp_output = load_following_results[chp_name]["electric_production_series_kw"]
     @test maximum(abs.(actual_chp_output .- expected_chp_output)) <= 1.0e-3
 
     first_half_avg = sum(actual_chp_output[1:4380]) / 4380
