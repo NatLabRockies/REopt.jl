@@ -438,29 +438,31 @@ end
     empty_series_input_data["CHP"]["production_factor_series"] = Float64[]
     @test_throws ArgumentError Scenario(empty_series_input_data)
 
-load_following_input_data = deepcopy(input_data)
-load_following_input_data["ElectricLoad"]["loads_kw"] = fill(200.0, 8760)
-load_following_input_data["CHP"]["min_turn_down_fraction"] = 0.0
-load_following_input_data["CHP"]["follow_electrical_load"] = true
-load_following_input_data["CHP"]["production_factor_series"] = vcat(repeat([0.5], 4380), repeat([1.0], 4380))
-load_following_s = Scenario(load_following_input_data)
-    load_following_p = REoptInputs(load_following_s)
-    @test load_following_s.chps[1].follow_electrical_load
+    prod_matching_input_data = deepcopy(input_data)
+    prod_matching_input_data["ElectricLoad"]["loads_kw"] = fill(200.0, 8760)
+    prod_matching_input_data["CHP"]["min_turn_down_fraction"] = 0.0
+    prod_matching_input_data["CHP"]["follow_electrical_load"] = true
+    prod_matching_input_data["CHP"]["production_factor_series"] = vcat(repeat([0.5], 4380), repeat([1.0], 4380))
+    prod_matching_s = Scenario(prod_matching_input_data)
+    prod_matching_p = REoptInputs(prod_matching_s)
+    @test prod_matching_s.chps[1].follow_electrical_load
 
     m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
-    load_following_results = run_reopt(m, load_following_p)
-chp_name = load_following_s.chps[1].name
-chp_size_kw = load_following_results[chp_name]["size_kw"]
-expected_chp_output = [
-    chp_size_kw * load_following_p.production_factor[chp_name, ts]
-    for ts in load_following_p.time_steps
-]
-actual_chp_output = load_following_results[chp_name]["electric_production_series_kw"]
+    prod_matching_results = run_reopt(m, prod_matching_p)
+    chp_name = prod_matching_s.chps[1].name
+    chp_size_kw = prod_matching_results[chp_name]["size_kw"]
+    expected_chp_output = [
+        chp_size_kw * prod_matching_p.production_factor[chp_name, ts]
+        for ts in prod_matching_p.time_steps
+    ]
+    actual_chp_output = prod_matching_results[chp_name]["electric_production_series_kw"]
     @test maximum(abs.(actual_chp_output .- expected_chp_output)) <= 1.0e-3
 
     first_half_avg = sum(actual_chp_output[1:4380]) / 4380
     second_half_avg = sum(actual_chp_output[4381:8760]) / 4380
-    @test second_half_avg > first_half_avg
+    # Avg output is less than average of prod factor because of unavailability from maintenance periods
+    @test first_half_avg < 0.5 * chp_size_kw
+    @test second_half_avg < 1.0 * chp_size_kw
 
     finalize(backend(m)); empty!(m); GC.gc()
 end
