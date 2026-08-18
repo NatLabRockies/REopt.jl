@@ -282,8 +282,8 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
         # Require CHP production at available capacity when capacity does not exceed electric load;
         # relax the lower bound when capacity exceeds load.
         @constraint(m, [ts in p.time_steps],
-            p.production_factor[t,ts] * m[Symbol("dvRatedProduction"*_n)][t,ts] >=
-            p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+            m[Symbol("dvRatedProduction"*_n)][t,ts] >=
+            m[Symbol("dvSize"*_n)][t] -
             max_diff_size_bigM * m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts]
         )
         # Enforce dispatch: grid purchase forced to 0 if this CHP's size exceeds load, i.e. CHP must
