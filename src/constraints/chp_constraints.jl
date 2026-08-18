@@ -271,13 +271,13 @@ function add_chp_electrical_load_following_constraints(m, p; _n="")
         # Identify timesteps where available CHP capacity exceeds electrical load.
         @constraint(m, [ts in p.time_steps],
             m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts] >=
-            (p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t] -
+            (p.production_factor[t,ts] * p.levelization_factor[t] * m[Symbol("dvSize"*_n)][t] -
                 p.s.electric_load.loads_kw[ts]) / max_diff_size_bigM
         )
         @constraint(m, [ts in p.time_steps],
             m[Symbol("binCHPSizeExceedsElectricLoad"*_n)][t,ts] <=
             1 - (p.s.electric_load.loads_kw[ts] -
-                p.production_factor[t,ts] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
+                p.production_factor[t,ts] * p.levelization_factor[t] * m[Symbol("dvSize"*_n)][t]) / max_diff_size_bigM
         )
         # Require CHP production at available capacity when capacity does not exceed electric load;
         # relax the lower bound when capacity exceeds load.
