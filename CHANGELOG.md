@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## v0.61.1
+### Fixed
+- Avoid double-multiplication of production_factor_series with electrical load-following
+
 ## v0.61.0
 ### Added
 - Expanded **CHP** modeling to support multiple independently-configured CHPs, existing capacity (i.e. in BAU scenario), off-grid operation including the option for CHP to either require or supply operating reserves, user-defined production factors, ramp-rate limits, and heating load following thermal dispatch.
