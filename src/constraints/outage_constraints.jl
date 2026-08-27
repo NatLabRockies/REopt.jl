@@ -49,8 +49,8 @@ function add_min_hours_crit_ld_met_constraint(m,p)
 end
 
 function add_outage_cost_constraints(m,p)
-    @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMaxOutageCost][s] >= p.pwf_e * sum(p.value_of_lost_load_per_kwh[time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * m[:dvUnservedLoad][s, tz, ts] for ts in 1:p.s.electric_utility.outage_durations[s])
+    @constraint(m, [s in p.s.electric_utility.scenarios],
+        m[:dvMaxOutageCost][s] >= p.pwf_e * sum(p.value_of_lost_load_per_kwh[time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * m[:dvUnservedLoad][s, tz, ts] for tz in p.s.electric_utility.outage_start_time_steps, ts in 1:p.s.electric_utility.outage_durations[s])
     )
 
     @expression(m, ExpectedOutageCost,
@@ -178,8 +178,8 @@ function add_MG_Gen_fuel_burn_constraints(m,p)
         m[:dvMGFuelUsed][t, s, tz] <= p.s.generator.fuel_avail_gal
     )
     
-    @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGGenMaxFuelUsage][s] >= sum( m[:dvMGFuelUsed][t, s, tz] for t in p.techs.gen )
+    @constraint(m, [s in p.s.electric_utility.scenarios],
+        m[:dvMGGenMaxFuelUsage][s] >= sum( m[:dvMGFuelUsed][t, s, tz] for t in p.techs.gen, tz in p.s.electric_utility.outage_start_time_steps )
     )
     
     @expression(m, ExpectedMGGenFuelUsed, 
@@ -188,11 +188,11 @@ function add_MG_Gen_fuel_burn_constraints(m,p)
 
     # fuel cost = gallons * $/gal for each tech, outage
     @expression(m, MGFuelCost[t in p.techs.gen, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGFuelUsed][t, s, tz] * p.s.generator.fuel_cost_per_gallon # why not: * p.pwf_fuel[t] ?
+        m[:dvMGFuelUsed][t, s, tz] * p.s.generator.fuel_cost_per_gallon * p.pwf_fuel[t]
     )
     
-    @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGGenMaxFuelCost][s] >= sum( MGFuelCost[t, s, tz] for t in p.techs.gen )
+    @constraint(m, [s in p.s.electric_utility.scenarios],
+        m[:dvMGGenMaxFuelCost][s] >= sum( MGFuelCost[t, s, tz] for t in p.techs.gen, tz in p.s.electric_utility.outage_start_time_steps )
     )
     
     @expression(m, ExpectedMGGenFuelCost,
@@ -240,8 +240,8 @@ function add_MG_CHP_fuel_burn_constraints(m, p; _n="")
         )
     end
 
-    @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGCHPMaxFuelUsage][s] >= sum( m[:dvMGFuelUsed][t, s, tz] for t in p.techs.chp )
+    @constraint(m, [s in p.s.electric_utility.scenarios],
+        m[:dvMGCHPMaxFuelUsage][s] >= sum( m[:dvMGFuelUsed][t, s, tz] for t in p.techs.chp, tz in p.s.electric_utility.outage_start_time_steps )
     )
     
     @expression(m, ExpectedMGCHPFuelUsed, 
@@ -250,11 +250,11 @@ function add_MG_CHP_fuel_burn_constraints(m, p; _n="")
 
     # fuel cost = kWh * $/kWh
     @expression(m, MGCHPFuelCost[t in p.techs.chp, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGFuelUsed][t, s, tz] * p.fuel_cost_per_kwh[t][tz] # why not: * p.pwf_fuel[t] ?
+        m[:dvMGFuelUsed][t, s, tz] * p.fuel_cost_per_kwh[t][tz] * p.pwf_fuel[t]
     )
     
-    @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
-        m[:dvMGCHPMaxFuelCost][s] >= sum( MGCHPFuelCost[t, s, tz] for t in p.techs.chp )
+    @constraint(m, [s in p.s.electric_utility.scenarios],
+        m[:dvMGCHPMaxFuelCost][s] >= sum( MGCHPFuelCost[t, s, tz] for t in p.techs.chp, tz in p.s.electric_utility.outage_start_time_steps )
     )
     
     @expression(m, ExpectedMGCHPFuelCost,
