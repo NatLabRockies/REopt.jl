@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
-- Use `code` markup for  REopt-specific file names, classes and endpoints (e.g. `src/REopt.jl`)
+- Use `code` markup for  REopt-specific file names, functions, and endpoints (e.g. `src/REopt.jl`)
 - Use _italic_ for code terms (i.e. _list_)
 - Prepend change with tag(s) directing where it is in the repository:  
 `src`,`constraints`,`*.jl`
@@ -24,6 +24,104 @@ Classify the change according to the following categories:
     ### Fixed
     ### Deprecated
     ### Removed
+
+## v0.61.1
+### Fixed
+- Avoid double-multiplication of production_factor_series with electrical load-following
+
+## v0.61.0
+### Added
+- Expanded **CHP** modeling to support multiple independently-configured CHPs, existing capacity (i.e. in BAU scenario), off-grid operation including the option for CHP to either require or supply operating reserves, user-defined production factors, ramp-rate limits, and heating load following thermal dispatch.
+- Added **CHP** inputs **name** (to label the type of system you are modeling), **existing_kw**, **ramp_rate_fraction_per_hour**, **operating_reserve_required_fraction**, **production_factor_series**, **fuel_cost_escalation_rate_fraction**, and **follow_heating_load**. When **follow_heating_load** is `true`, each CHP independently follows its eligible heating load at unfired thermal capacity; **ExistingBoiler** is restricted when CHP capacity exceeds that load, while other onsite heating resources can contribute and supplementary firing remains available only as incremental heat.
+- Added **CHP** outputs **name**, **electric_curtailed_series_kw**, and **annual_thermal_curtailed_mmbtu**. Multiple CHP systems are returned as a list of per-unit results under **CHP**, identified by **name**.
+- Added **CHP** BAU outputs **size_kw_bau**, **annual_fuel_consumption_mmbtu_bau**, **annual_electric_production_kwh_bau**, **annual_thermal_production_mmbtu_bau**, **annual_thermal_curtailed_mmbtu_bau**, **year_one_fuel_cost_before_tax_bau**, **year_one_fuel_cost_after_tax_bau**, **lifecycle_fuel_cost_after_tax_bau**, **year_one_standby_cost_before_tax_bau**, **year_one_standby_cost_after_tax_bau**, and **lifecycle_standby_cost_after_tax_bau**.
+
+## v0.60.0
+### Changed
+- MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
+- Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
+- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
+- Added temporary backwards compatibility with old environment variable names and a warning for user to update
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+- **ElectricStorage** input field **dispatch_strategy** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+- Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
+- Add result **ElectricStorage** `storage_to_grid_series_kw` 
+### Fixed
+- Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
+- Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
+- Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
+
+## v0.59.2
+### Fixed
+- Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
+- Zeroed out arbitrary non-zero `thermal_to_load` results
+
+## v0.59.1
+### Fixed
+- `constraints/thermal_tech_constraints.jl`: In `add_heating_tech_constraints`, updated waste heat constraints to include **dvHeatToAbsorptionChiller** in the total heat output, so that `dvProductionToWaste + dvHeatToAbsorptionChiller <= dvHeatingProduction`. Previously, heat dispatched to the absorption chiller was unconstrained by total production.
+- `core/techs.jl`: In `Techs(s::Scenario)`, prevented zeroing out `can_serve_dhw`, `can_serve_space_heating`, and `can_serve_process_heat` technology lists when the corresponding direct load is zero, if an **AbsorptionChiller** is using that heating quality as its heat source. This ensures heating technologies remain available to supply heat to the absorption chiller even when no direct heating load exists.
+### Changed
+- Renamed argument `include_cooling_in_chp_size` to `include_cooling_in_chp_size` within a few methods in `CHP`
+
+## v0.59.0
+### Added
+- Added two new size classes for **SteamTurbine** tech with new tech size ranges.
+- Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
+### Changed
+- **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+- Updated **CHP.installed_cost_per_kw** and **CHP.om_cost_per_kwh** default values for size classes for recip_engine, combustion turbine, and microturbine prime mover types.
+- Updated default values for **SteamTurbine** size classes.
+- Reduced the number of size classes in **AbsorptionChiller** technology to five for single effect and four for double effect and updated installed and O&M costs accordingly.
+
+## v0.58.2
+### Added
+- **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
+  
+### Changed
+- Refactored some results expressions so that `value.` isn't called within them.
+
+### Fixed
+- Fixed an error creating results for flows from hot TES to the steam turbine.
+- Fixed an bug preventing `include_cooling_in_chp_size` from being included in CHP inputs.
+
+## v0.58.1 
+### Fixed
+- Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
+- Switched to use maximum value of **dvCoolingProduction** for **ExistingChiller**'s size instead of **dvSize**. This fixed the issue with **ExistingChiller**'s size being applied **max_thermal_factor_on_peak_load** twice in some cases.
+
+## v0.58.0
+### Added
+- New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
+- New result **thermal_to_absorption_chiller_series_mmbtu_per_hour** added to heating technologies and new result **storage_to_absorption_chiller_series_mmbtu_per_hour** for hot thermal storage technologies.  This result is included as a part of the thermal site loads served, i.e., the adding this result does not change the existing results.
+- Added results fields to **HighTempThermalStorage** to match those of **HotThermalStorage**.
+
+### Changed
+- Updated heating dispatch results by separating heat flows to absorption chiller from heating load served (formerly, these were aggregated).
+- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
+
+### Fixed
+- Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
+- Fixed a bug in which the storage to steam turbine flow was included in the thermal heating load served.
+
+## v0.57.0
+### Fixed
+- Include boiler emissions in emissions calculations
+- Update links that broke with NLR domain change and update other references to NREL
+### Changed
+- Updated defaults for **Financial** inputs **elec_cost_escalation_rate_fraction**, **boiler_fuel_cost_escalation_rate_fraction**, **existing_boiler_fuel_cost_escalation_rate_fraction**, **chp_fuel_cost_escalation_rate_fraction**, **generator_fuel_cost_escalation_rate_fraction**, **om_cost_escalation_rate_fraction**, and **offtaker_discount_rate_fraction** when **sector** is "federal" (based on the 2025 NIST Handbook and Annual Supplement)
+- Changed expected best dataset determined from Solar Dataset Query API in response to addition of Polar data to NSRDB
+### Added
+- Created a default PR template
+
+## v0.56.4
+### Fixed
+- Bug where storage input with only _Int_ values restricted _Dict_ subtype passed into `set_sector_defaults!` and caused _InexactError_
+- Bug where **ElectricStorage** input with only _Real_ values restricted _Dict_ subtype, causing **off_grid_flag** to be added as an _Int_ instead of _Bool_, leading to a conversion error in **ElectricStorageDefaults**
+- Fixed a bug in the type handling of **emissions_factor_series_lb_XXX_per_kwh** in which `xxx` is in the group **[CO2, SO2, NOx, PM25]**.
+- Handle "HIMS" region incorrectly named "HI" in avert_102008.shp
 
 ## v0.56.3
 ### Fixed

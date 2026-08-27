@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `PV` is an optional REopt input with the following keys and default values:
 ```julia
@@ -157,6 +157,7 @@ mutable struct PV <: AbstractTech
         inv_eff::Real=0.96,
         dc_ac_ratio::Real=1.2,
         production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing,
+        time_steps_per_hour::Int = 1,
         federal_itc_fraction::Real = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="PV"), "federal_itc_fraction", 0.3),
         federal_rebate_per_kw::Real = 0.0,
         state_ibi_fraction::Real = 0.0,
@@ -229,6 +230,7 @@ mutable struct PV <: AbstractTech
         end
         if !isnothing(production_factor_series)
             error_if_series_vals_not_0_to_1(production_factor_series, "PV", "production_factor_series")
+            production_factor_series = check_and_adjust_load_length(production_factor_series, time_steps_per_hour, "PV.production_factor_series")
         end
         if !isnothing(priority) && priority < 1
             push!(invalid_args, "priority must be a positive integer (>= 1) when set, got $(priority)")

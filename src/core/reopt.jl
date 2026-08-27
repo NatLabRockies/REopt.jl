@@ -1,11 +1,10 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     REoptInputs(d::Dict)
 
 Return REoptInputs(s) where s in `Scenario` defined in dict `d`.
 """
-
 function REoptInputs(d::Dict)
 
 	# Keep try catch to support API v3 call to `REoptInputs`
@@ -88,8 +87,8 @@ end
 Method for use with Threads when running BAU in parallel with optimal scenario.
 """
 function run_reopt(t::Tuple{JuMP.AbstractModel, AbstractInputs})
-	run_reopt(t[1], t[2]; organize_pvs=false)
-	# must organize_pvs after adding proforma results
+	run_reopt(t[1], t[2]; organize_pvs=false, organize_chps=false)
+# must organize_pvs/chps after adding proforma results
 end
 
 
@@ -135,7 +134,6 @@ end
 
 Solve the `Scenario` and `BAUScenario` in parallel using the first two (empty) models in `ms` and inputs from `p`.
 """
-
 function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.AbstractModel
 
 	try
@@ -152,6 +150,9 @@ function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.Abst
 
 			if !isempty(p.techs.pv)
 				organize_multiple_pv_results(p, results_dict)
+			end
+			if !isempty(p.techs.chp)
+				organize_multiple_chp_results(p, results_dict)
 			end
 			return results_dict
 		else
@@ -194,13 +195,16 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 			fix(m[:dvGridPurchase][ts, tier] , 0.0, force=true)
 		end
 
-		for t in p.s.storage.types.elec
-			fix(m[:dvGridToStorage][t, ts], 0.0, force=true)
+		for b in p.s.storage.types.elec
+			fix(m[:dvGridToStorage][b, ts], 0.0, force=true)
 		end
 
         if !isempty(p.s.electric_tariff.export_bins)
             for t in p.techs.elec, u in p.export_bins_by_tech[t]
                 fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
+            end
+			for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]
+                fix(m[:dvStorageToGrid][b, u, ts], 0.0, force=true)
             end
         end
 	end
@@ -276,6 +280,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_gen_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalGenPerUnitProdOMCosts]
             m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+			m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
         end
 
         if !isempty(p.techs.chp)
@@ -284,11 +289,17 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             m[:TotalFuelCosts] += m[:TotalCHPFuelCosts]        
             m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyCHPOMCosts]
 
-			if p.s.chp.standby_rate_per_kw_per_month > 1.0e-7
-				m[:TotalCHPStandbyCharges] += sum(p.pwf_e * 12 * p.s.chp.standby_rate_per_kw_per_month * m[:dvSize][t] for t in p.techs.chp)
+			# Add standby charges for each CHP
+			for chp in p.s.chps
+				if chp.standby_rate_per_kw_per_month > 1.0e-7
+					m[:TotalCHPStandbyCharges] += p.pwf_e * 12 * chp.standby_rate_per_kw_per_month * m[:dvSize][chp.name]
+				end
 			end
 
-			m[:TotalTechCapCosts] += sum(p.s.chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][t] for t in p.techs.chp)
+			# Add supplementary firing capital costs for each CHP
+			for chp in p.s.chps
+				m[:TotalTechCapCosts] += chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][chp.name]
+			end
         end
 
         if !isempty(setdiff(p.techs.heating, p.techs.elec))
@@ -423,7 +434,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 		degr_bool = p.s.storage.attr[b].model_degradation
 		if degr_bool
-			@info "Battery energy capacity degradation costs for $b are being modeled using REopt's Degradation model. ElectricStorageOMCost will include costs to be incurred for power electronics and the cost constant."
+			@info "Battery energy capacity degradation costs for $b are being modeled using REopt's Degradation model. ElectricStorageOMCost will include costs incurred for power electronics [per kW] and the cost constant, but not for the per kWh components."
             add_to_expression!(
 				m[:ElectricStorageOMCost], -1.0 * p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * p.s.storage.attr[b].installed_cost_per_kwh * m[:dvStorageEnergy][b]
 			)
@@ -461,14 +472,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		if !isempty(p.techs.chp)
 			add_MG_CHP_fuel_burn_constraints(m,p)
 			add_binMGCHPIsOnInTS_constraints(m,p)
-		else
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:binMGCHPIsOnInTS][s, tz, ts] == 0
-			)
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:dvMGCHPFuelBurnYIntercept][s, tz] == 0
-			)            
-		end        
+		end
 		
 		if p.s.site.min_resil_time_steps > 0
 			add_min_hours_crit_ld_met_constraint(m,p)
@@ -501,7 +505,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	initial_capex_no_incentives(m, p)
 	if !isnothing(p.s.financial.min_initial_capital_costs_before_incentives) || !isnothing(p.s.financial.max_initial_capital_costs_before_incentives)
 		add_capex_constraints(m, p)
-	end
+	end 
 
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
@@ -763,6 +767,9 @@ function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 		if organize_pvs && !isempty(p.techs.pv)  # do not want to organize_pvs when running BAU case in parallel b/c then proform code fails
 			organize_multiple_pv_results(p, results)
 		end
+		if organize_chps && !isempty(p.techs.chp)  # same logic as PV
+			organize_multiple_chp_results(p, results)
+		end
 
 		# add error messages (if any) and warnings to results dict
 		results["Messages"] = logger_to_dict()
@@ -826,6 +833,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 
     if !isempty(p.s.electric_tariff.export_bins)
         @variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvStorageToGrid[p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
     end
 
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
@@ -836,6 +844,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(union(p.techs.heating, p.techs.chp))
         @variable(m, dvHeatingProduction[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
 		@variable(m, dvProductionToWaste[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
+		@variable(m, dvHeatToAbsorptionChiller[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
         if !isempty(p.techs.chp)
 			@variables m begin
 				dvSupplementaryThermalProduction[p.techs.chp, p.time_steps] >= 0
@@ -849,11 +858,21 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			if !isempty(p.techs.steam_turbine)
 				@variable(m, dvHeatFromStorageToTurbine[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
 			end
+			@variable(m, dvHeatFromStorageToAbsorptionChiller[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
     	end
 	end
 
 	if !isempty(p.techs.cooling)
 		@variable(m, dvCoolingProduction[p.techs.cooling, p.time_steps] >= 0)
+		add_absorption_chiller_load_constraints(m, p)
+	else
+		for t in union(p.techs.heating, p.techs.chp)
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[:dvHeatToAbsorptionChiller][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
 	end
 
     if !isempty(p.techs.steam_turbine)
@@ -892,8 +911,8 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binMGStorageUsed, Bin # 1 if MG storage battery used, 0 otherwise
 			binMGTechUsed[p.techs.elec], Bin # 1 if MG tech used, 0 otherwise
 			binMGGenIsOnInTS[S, tZeros, outage_time_steps], Bin
-            binMGCHPIsOnInTS[S, tZeros, outage_time_steps], Bin
-            dvMGCHPFuelBurnYIntercept[S, tZeros] >= 0
+            binMGCHPIsOnInTS[p.techs.chp, S, tZeros, outage_time_steps], Bin
+            dvMGCHPOnSize[p.techs.chp, S, tZeros, outage_time_steps] >= 0
 		end
 	end
 

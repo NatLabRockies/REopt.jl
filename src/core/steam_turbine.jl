@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `SteamTurbine` is an optional REopt input with the following keys and default values:
@@ -79,9 +79,10 @@ end
 
 
 function SteamTurbine(d::Dict; avg_boiler_fuel_load_mmbtu_per_hour::Union{Float64, Nothing}=nothing, sector::String, federal_procurement_type::String)
+    d = dictkeys_tosymbols(d)
     set_sector_defaults!(d; struct_name="SteamTurbine", sector=sector, federal_procurement_type=federal_procurement_type)
-    pop!(d, "federal_itc_fraction", nothing)  #gets added in set_sector_defaults but not an input option for SteamTurbine
-    st = SteamTurbine(; dictkeys_tosymbols(d)...)
+    pop!(d, :federal_itc_fraction, nothing)  #gets added in set_sector_defaults but not an input option for SteamTurbine
+    st = SteamTurbine(; d...)
 
     # Must provide prime_mover or all of custom_chp_inputs
     custom_st_inputs = Dict{Symbol, Any}(
@@ -222,13 +223,13 @@ Depending on the set of inputs, different sets of outputs are determine in addit
 """
 function get_steam_turbine_defaults_size_class(;avg_boiler_fuel_load_mmbtu_per_hour::Union{Float64, Nothing}=nothing, size_class::Union{Int64, Nothing}=nothing)
     defaults = JSON.parsefile(joinpath(dirname(@__FILE__), "..", "..", "data", "steam_turbine", "steam_turbine_default_data.json"))
-    class_bounds = [(0.0, 25000.0), (0, 1000.0), (1000.0, 5000.0), (5000.0, 25000.0)]
+    class_bounds = [(0.0, 40000.0), (0, 400.0), (400.0, 1000.0), (1000.0, 5000.0), (5000.0, 15000.0), (15000.0, 40000.0)]
     n_classes = length(class_bounds)
     steam_turbine_electric_efficiency = 0.07 # Typical, steam_turbine_kwe / boiler_fuel_kwt
     st_elec_size_heuristic_kw = nothing
     if !isnothing(size_class)
         if size_class < 0 || size_class > (n_classes-1)
-            throw(@error("Invalid size_class $size_class given for steam_turbine, must be in [0,1,2,3]"))
+            throw(@error("Invalid size_class $size_class given for steam_turbine, must be in [0,1,2,3,4,5]"))
         end
         if !isnothing(avg_boiler_fuel_load_mmbtu_per_hour)
             thermal_power_in_kw = avg_boiler_fuel_load_mmbtu_per_hour * KWH_PER_MMBTU

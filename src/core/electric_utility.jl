@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricUtility` is an optional REopt input with the following keys and default values:
 ```julia
@@ -25,7 +25,7 @@
     cambium_grid_level::String = "enduse", # Options: ["enduse", "busbar"]. Busbar refers to point where bulk generating stations connect to grid; enduse refers to point of consumption (includes distribution loss rate). 
 
     ### Grid Climate Emissions Inputs ### 
-    # Climate Option 1 (Default): Use levelized emissions data from NREL's Cambium database by specifying the following fields:
+    # Climate Option 1 (Default): Use levelized emissions data from NLR's Cambium database by specifying the following fields:
     cambium_co2_metric::String = "lrmer_co2e", # Emissions metric used. Default: "lrmer_co2e" - Long-run marginal emissions rate for CO2-equivalant, combined combustion and pre-combustion emissions rates. Options: See metric definitions and names in the Cambium documentation
 
     # Climate Option 2: Use CO2 emissions data from the EPA's AVERT based on the AVERT emissions region and specify annual percent decrease
@@ -90,7 +90,7 @@
 
     **Climate Emissions**
     - For sites in the contiguous United States (CONUS): 
-        - Default climate-related emissions factors come from NREL's Cambium database (Current version: 2022)
+        - Default climate-related emissions factors come from NLR's Cambium database (Current version: 2022)
             - By default, REopt uses *levelized long-run marginal emission rates for CO2-equivalent (CO2e) emissions* for the region in which the site is located. 
                 By default, the emissions rates are levelized over the analysis period (e.g., from 2025 through 2049 for a 25-year analysis)
             - The inputs to the Cambium API request can be modified by the user based on emissions accounting needs (e.g., can change "lifetime" to 1 to analyze a single year's emissions)
@@ -109,7 +109,7 @@
 
     **Grid Clean Energy Fraction**
     - For sites in CONUS: 
-        - Default clean energy fraction data comes from NREL's Cambium database (Current version: 2022)
+        - Default clean energy fraction data comes from NLR's Cambium database (Current version: 2022)
             - By default, REopt uses *clean energy fraction* for the region in which the site is located.
     - For sites outside of CONUS: REopt does not have default grid clean energy fraction data. Users must supply a custom `renewable_energy_fraction_series`
 
@@ -138,9 +138,8 @@ struct ElectricUtility
     outage_time_steps::Union{Nothing, UnitRange} 
     scenarios::Union{Nothing, UnitRange} 
     net_metering_limit_kw::Real 
-    interconnection_limit_kw::Real 
+    interconnection_limit_kw::Real
     transmission_limit_kw::Real
-
 
     function ElectricUtility(;
 
@@ -198,9 +197,9 @@ struct ElectricUtility
 
         ### Grid Clean Energy Fraction Inputs ###
         cambium_cef_metric::String = "cef_load", # Options = ["cef_load", "cef_gen"] # cef_load is the fraction of generation that is clean, for the generation that is allocated to a region’s end-use load; cef_gen is the fraction of generation that is clean within a region
-        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[], # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
-        )
-
+        renewable_energy_fraction_series::Union{Real,Array{<:Real,1}} = Float64[] # Fraction of energy supplied by the grid that is renewable. Can be scalar or timeseries (aligned with time_steps_per_hour)
+    )
+    
         is_MPC = isnothing(latitude) || isnothing(longitude)
         cambium_region = "NA - Cambium data not used" # will be overwritten if Cambium is used
         
@@ -354,7 +353,7 @@ struct ElectricUtility
             is_MPC ? Float64[] : emissions_and_cef_series_dict["NOx"],
             is_MPC ? Float64[] : emissions_and_cef_series_dict["SO2"],
             is_MPC ? Float64[] : emissions_and_cef_series_dict["PM25"],
-            emissions_factor_CO2_decrease_fraction,
+            is_MPC ? 0.0 : emissions_factor_CO2_decrease_fraction,
             emissions_factor_NOx_decrease_fraction,
             emissions_factor_SO2_decrease_fraction,
             emissions_factor_PM25_decrease_fraction,
@@ -444,7 +443,9 @@ function avert_region_abbreviation(latitude, longitude)
             @warn "Your site location ($(latitude), $(longitude)) is more than 5 miles from the nearest AVERT region. Cannot calculate emissions."
             return abbr, meters_to_region #nothing, #
         else
-            return ArchGDAL.getfield(feature,"AVERT"), meters_to_region
+            abbr = ArchGDAL.getfield(feature,"AVERT")
+            abbr = abbr == "HI" ? "HIMS" : abbr
+            return abbr, meters_to_region
         end
     end
 end
@@ -578,7 +579,7 @@ function cambium_profile(; scenario::String,
                         profile_year::Int=2017
                         )
 
-    url = "https://scenarioviewer.nrel.gov/api/get-levelized/" # Production 
+    url = "https://scenarioviewer.nlr.gov/api/get-levelized/" # Production 
     project_uuid = "0f92fe57-3365-428a-8fe8-0afc326b3b43" # Cambium 2023 
     
 

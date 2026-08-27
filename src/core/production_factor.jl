@@ -103,7 +103,7 @@ function get_production_factor(wind::Wind, latitude::Real, longitude::Real, time
 
         for height in heights_for_sam
             url = string("https://developer.nlr.gov/api/wind-toolkit/v2/wind/wtk-srw-download", 
-                "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+                "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
                 "&lat=", latitude , "&lon=", longitude, 
                 "&hubheight=", Int(height), "&year=", 2012
             )
@@ -358,16 +358,37 @@ end
 production_factor for CHP accounts for unavailability (`unavailability_periods`) of CHP due to 
 scheduled (mostly off-peak) and "unscheduled" (on-peak) maintenance. 
 Note: this same prod_factor should be applied to electric and thermal production
+
+If the user provides their own production_factor_series, it is used as the base profile and then masked by
+unavailability outside outage intervals.
 """
 function get_production_factor(chp::AbstractCHP, year::Int=2017, outage_start_time_step::Int=0, outage_end_time_step::Int=0, ts_per_hour::Int=1)
-    
-    prod_factor = [1.0 - chp.unavailability_hourly[i] for i in 1:8760 for _ in 1:ts_per_hour]
-
-    # Ignore unavailability in time_step if it intersects with an outage interval(s)
-    # This is handled differently with multiple/stochastic outages to preserve economic-impact of
-    if outage_start_time_step != 0 && outage_end_time_step != 0
-        prod_factor[outage_start_time_step:outage_end_time_step] .= ones(outage_end_time_step - outage_start_time_step + 1)
+    prod_factor = if isnothing(chp.production_factor_series)
+        ones(8760 * ts_per_hour)
+    else
+        copy(chp.production_factor_series)
     end
+
+    unavailability_factor = [1.0 - chp.unavailability_hourly[i] for i in 1:8760 for _ in 1:ts_per_hour]
+
+    # Ignore unavailability in time_step if it intersects with an outage interval(s).
+    # This is handled differently with multiple/stochastic outages to preserve economic-impact.
+    if outage_start_time_step != 0 && outage_end_time_step != 0
+        outage_idx = outage_start_time_step:outage_end_time_step
+        apply_unavailability_idx = trues(length(prod_factor))
+        apply_unavailability_idx[outage_idx] .= false
+
+        prod_factor[apply_unavailability_idx] .= prod_factor[apply_unavailability_idx] .* unavailability_factor[apply_unavailability_idx]
+
+        if isnothing(chp.production_factor_series)
+            prod_factor[outage_idx] .= 1.0
+        end
+    else
+        prod_factor .= prod_factor .* unavailability_factor
+    end
+
+    # For multiple/stochastic outages, unavailability handling during outages is applied in outage_constraints.jl
+    # to avoid changing normal grid-tied economics.
 
     return prod_factor
 end

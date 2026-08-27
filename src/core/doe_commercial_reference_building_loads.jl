@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 const DEFAULT_BUILDINGS = [
     "FastFoodRest",
     "FullServiceRest",
@@ -118,7 +118,6 @@ end
     )
 Scale a normalized Commercial Reference Building according to inputs provided and return the 8760.
 """
-
 function built_in_load(
     type::String, 
     city::String, 
@@ -220,7 +219,6 @@ Given `blended_doe_reference_names` and `blended_doe_reference_percents` use the
     - BuiltInHeatingLoad
     - BuiltInCoolingLoad
 """
-
 function blend_and_scale_doe_profiles(
     constructor,
     latitude::Real,

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricLoad` results keys:
 - `load_series_kw` # vector of BAU site load in every time step. Does not include electric load for any new heating or cooling techs.
@@ -9,9 +9,9 @@
 - `offgrid_load_met_fraction` # percentage of total electric load met on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_required_series_kwh` # total operating reserves required (for load and techs) on an annual basis, for off-grid scenarios only
 - `offgrid_annual_oper_res_provided_series_kwh` # total operating reserves provided on an annual basis, for off-grid scenarios only
-- `monthly_calculated_kwh` # vector of monthly energy consumption at a site
-- `monthly_peaks_kw` # vector of monthly peak demand
-- `annual_peak_kw` # annual peak electricity demand
+- `monthly_calculated_kwh` # vector of BAU monthly energy consumption at a site
+- `monthly_peaks_kw` # vector of BAU monthly peak demand
+- `annual_peak_kw` # annual BAU peak electricity demand
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -46,7 +46,7 @@ function add_electric_load_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dic
 
     if p.s.settings.off_grid_flag
         @expression(m, LoadMet[ts in p.time_steps_without_grid], p.s.electric_load.critical_loads_kw[ts] * m[Symbol("dvOffgridLoadServedFraction"*_n)][ts])
-        r["offgrid_load_met_series_kw"] =  round.(value.(LoadMet).data, digits=6)
+        r["offgrid_load_met_series_kw"] = round.(results_array(value.(LoadMet)), digits=6)
         @expression(m, LoadMetPct, sum(p.s.electric_load.critical_loads_kw[ts] * m[Symbol("dvOffgridLoadServedFraction"*_n)][ts] for ts in p.time_steps_without_grid) /
                 sum(p.s.electric_load.critical_loads_kw))
         r["offgrid_load_met_fraction"] = round(value(LoadMetPct), digits=6)

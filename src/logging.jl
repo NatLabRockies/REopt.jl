@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     REoptLogger
@@ -79,7 +79,13 @@ function Logging.handle_message(logger::REoptLogger, lvl, msg, _mod, group, id, 
         end
         
         splt = split(file, splitter)
-        f = join([splt[end-1], splt[end], line], "_")
+        # Guard against short paths; Julia arrays are 1-based so end-1 can underflow
+        if length(splt) >= 2
+            f = join([splt[end-1], splt[end], line], "_")
+        else
+            # Use just the filename when no parent directory is present
+            f = join([splt[end], line], "_")
+        end
 
         if f ∉ keys(logger.d[string(lvl)]) #file name doesnt exists
             logger.d[string(lvl)][f] = Any[]

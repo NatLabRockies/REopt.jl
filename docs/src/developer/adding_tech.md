@@ -7,6 +7,7 @@ REopt can be used in many ways, but its primary use is to evaluate the techno-ec
 3. Map the input values to the sets and coefficients needed in the mathematical model
 4. Create an adapter function to output the desired results from the mathematical model
 5. Test the new technology
+6. Document the new inputs and outputs functions
 All steps are not necessarily executed in this order and in fact most likely must be done in concert. For example, in order to define a model constraint one must define the input parameters. Also, it is good practice to think of how you will test the new technology from the very beginning of the design process and incrementally test your additions to the model as well as make sure that no existing tests fail due to your modifications to REopt.
 
 ## 1. Mathematical Model
@@ -122,3 +123,6 @@ Finally, you can test the full work-flow with something like:
     @test results["mynewtech"]["some_result"] ≈ 78.9 atol=0.1
 end
 ```
+
+## 6. Documenting
+See [Documenting the Code](@ref)

@@ -1,5 +1,5 @@
-# MPC Inputs
-The input structure for MPC models is very similar to the structure for [REopt Inputs](@ref). The primary differences are 
+# [Inputs](@id mpc-inputs)
+The input structure for MPC models is very similar to the structure for [REopt Inputs](@ref reopt-inputs). The primary differences are 
 
 1. The [MPCElectricTariff](@ref) requires specifying individual rate components (and does not parse URDB rates like [ElectricTariff](@ref)).
 
@@ -7,7 +7,7 @@ The input structure for MPC models is very similar to the structure for [REopt I
 
 3. The load profile for each time step must be provided
 
-Just like [REopt Inputs](@ref), inputs to `run_mpc` can be provided in one of three formats:
+Just like [REopt Inputs](@ref reopt-inputs), inputs to `run_mpc` can be provided in one of three formats:
 1. a file path (string) to a JSON file,
 2. a `Dict`, or
 3. using the `MPCInputs` struct
@@ -37,7 +37,10 @@ The simplest scenario does not have any dispatch optimization and is essentially
 !!! note
     The `ElectricLoad.loads_kw` can have an arbitrary length, but its length must be the same lengths as many other inputs such as the `MPCElectricTariff.energy_rates` and the `PV.production_factor_series`.
 
-Here is a more complex `MPCScenario`, which is used in [MPC Examples](@ref):
+!!! note
+    Net metering or net billing (wholesale) can be applied in MPC in the same manner they are applied in a typical REopt run. To utilize net metering in MPC, set `ElectricUtility.net_metering_limit_kw` > 0, and specify which MPC techs can_net_meter. Note that MPC will choose between the NEM and WHL bins for each horizon iteration, if both NEM and WHL are available.
+
+Here is a more complex `MPCScenario`, which is used in [Examples](@ref mpc-examples):
 ```javascript
 {
     "PV": {
@@ -67,7 +70,8 @@ Here is a more complex `MPCScenario`, which is used in [MPC Examples](@ref):
             0.0,
             0.0,
             0.0
-        ]
+        ],
+        "can_net_meter": false
     },
     "ElectricStorage": {
         "size_kw": 30.0,
@@ -137,9 +141,11 @@ Here is a more complex `MPCScenario`, which is used in [MPC Examples](@ref):
             [16, 17, 18, 19, 20, 21, 22, 23, 24]
         ],
         "tou_previous_peak_demands": [98.0, 97.0],
-        "net_metering": false,
-        "export_rates": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
+        "wholesale_rate": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 
             0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+    },
+    "ElectricUtility" : {
+        "net_metering_limit_kw": 0.0
     }
 }
 ```

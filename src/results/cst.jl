@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
 `CST` results keys:
@@ -12,14 +12,17 @@
 - `thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour`  # Thermal power production to TES (HotThermalStorage) series [MMBtu/hr]
 - `thermal_to_steamturbine_series_mmbtu_per_hour`  # Thermal power production to SteamTurbine series [MMBtu/hr]
 - `thermal_curtailed_series_mmbtu_per_hour` Thermal power wasted/unused/vented time-series array [MMBtu/hr]
-- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series [MMBtu/hr]
+- `thermal_to_load_series_mmbtu_per_hour`  # Thermal power production to serve the heating load series \\[MMBtu/hr\\] (superset of "to_absorption_chiller", "to_space_heating_load", "to_dhw_load", and "to_process_heat_load")
+- `thermal_to_absorption_chiller_series_mmbtu_per_hour`  # Thermal power production to serve absorption chiller load series [MMBtu/hr]
+- `thermal_to_dhw_load_series_mmbtu_per_hour`  # Thermal power production to serve domestic hot water load series [MMBtu/hr]
+- `thermal_to_space_heating_load_series_mmbtu_per_hour`  # Thermal power production to serve space heating load series [MMBtu/hr]
+- `thermal_to_process_heat_load_series_mmbtu_per_hour`  # Thermal power production to serve process heat load series [MMBtu/hr]
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
 
 """
-
 function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
     r = Dict{String, Any}()
     r["size_kw"] = round(value(m[Symbol("dvSize"*_n)]["CST"]), digits=3)
@@ -30,17 +33,16 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     r["electric_consumption_series_kw"] = round.(value.(CSTElectricConsumptionSeries), digits=3)
     r["annual_electric_consumption_kwh"] = sum(r["electric_consumption_series_kw"])
 
-    @expression(m, CSTThermalProductionSeries[ts in p.time_steps],
-        sum(m[:dvHeatingProduction]["CST",q,ts] for q in p.heating_loads))
-	r["thermal_production_series_mmbtu_per_hour"] = 
-        round.(value.(CSTThermalProductionSeries) / KWH_PER_MMBTU, digits=5)
-    # series is a rate (MMBtu/hr); integrate by hours_per_time_step to get annual energy
-	r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
+
 
 	if !isempty(p.s.storage.types.hot)
-        @expression(m, CSTToHotTESKW[ts in p.time_steps],
-		    sum(m[:dvHeatToStorage][b,"CST",q,ts] for b in p.s.storage.types.hot, q in p.heating_loads)
-            )
+		if "HotThermalStorage" in p.s.storage.types.hot
+			@expression(m, CSTToHotTESKW[ts in p.time_steps],
+				sum(m[:dvHeatToStorage]["HotThermalStorage","CST",q,ts] for q in p.heating_loads)
+				)
+		else
+			@expression(m, CSTToHotTESKW[ts in p.time_steps], 0.0)
+		end
         @expression(m, CSTToHotTESByQualityKW[q in p.heating_loads, ts in p.time_steps], 
             sum(m[:dvHeatToStorage][b,"CST",q,ts] for b in p.s.storage.types.hot)
             )
@@ -68,6 +70,15 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     end
     r["thermal_to_steamturbine_series_mmbtu_per_hour"] = round.(value.(CSTToSteamTurbine) / KWH_PER_MMBTU, digits=3)
 
+    if "AbsorptionChiller" in p.techs.cooling
+		@expression(m, CSTtoAbsorptionChillerKW[ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller]["CST",q,ts] for q in p.heating_loads))
+		@expression(m, CSTtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], sum(m[:dvHeatToAbsorptionChiller]["CST",q,ts]))
+	else
+		@expression(m, CSTtoAbsorptionChillerKW[ts in p.time_steps], 0.0)
+		@expression(m, CSTtoAbsorptionChillerByQualityKW[q in p.heating_loads, ts in p.time_steps], 0.0)
+	end
+	r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] = round.(value.(CSTtoAbsorptionChillerKW) / KWH_PER_MMBTU, digits=5)
+
     @expression(m, CSTToWaste[ts in p.time_steps],
 		sum(m[:dvProductionToWaste]["CST", q, ts] for q in p.heating_loads)
     )
@@ -76,37 +87,39 @@ function add_concentrating_solar_results(m::JuMP.AbstractModel, p::REoptInputs, 
     )
     r["thermal_curtailed_series_mmbtu_per_hour"] = round.(value.(CSTToWaste) / KWH_PER_MMBTU, digits=3)
 
-	@expression(m, CSTToLoad[ts in p.time_steps],
-		sum(m[:dvHeatingProduction]["CST", q, ts] for q in p.heating_loads) - CSTToHotTESKW[ts] - CSTToSteamTurbine[ts] - CSTToWaste[ts]
-    )
-	r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(CSTToLoad) / KWH_PER_MMBTU, digits=3)
-
-    if "DomesticHotWater" in p.heating_loads && p.s.cst.can_serve_dhw
+    if "DomesticHotWater" in p.heating_loads && p.s.cst.can_serve_dhw && sum(p.heating_loads_kw["DomesticHotWater"]) > 0.0
         @expression(m, CSTToDHWKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","DomesticHotWater",ts] - CSTToHotTESByQualityKW["DomesticHotWater",ts] - CSTToSteamTurbineByQuality["DomesticHotWater",ts] - CSTToWasteByQualityKW["DomesticHotWater",ts]
+			- CSTtoAbsorptionChillerByQualityKW["DomesticHotWater",ts]
         )
     else
         @expression(m, CSTToDHWKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(value.(CSTToDHWKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_dhw_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CSTToDHWKW ./ KWH_PER_MMBTU)), digits=5)
     
-    if "SpaceHeating" in p.heating_loads && p.s.cst.can_serve_space_heating
+    if "SpaceHeating" in p.heating_loads && p.s.cst.can_serve_space_heating && sum(p.heating_loads_kw["SpaceHeating"]) > 0.0
         @expression(m, CSTToSpaceHeatingKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","SpaceHeating",ts] - CSTToHotTESByQualityKW["SpaceHeating",ts] - CSTToSteamTurbineByQuality["SpaceHeating",ts] - CSTToWasteByQualityKW["SpaceHeating",ts]
+			- CSTtoAbsorptionChillerByQualityKW["SpaceHeating",ts]
         )
     else
         @expression(m, CSTToSpaceHeatingKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(value.(CSTToSpaceHeatingKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CSTToSpaceHeatingKW ./ KWH_PER_MMBTU)), digits=5)
     
-    if "ProcessHeat" in p.heating_loads && p.s.cst.can_serve_process_heat
+    if "ProcessHeat" in p.heating_loads && p.s.cst.can_serve_process_heat && sum(p.heating_loads_kw["ProcessHeat"]) > 0.0
         @expression(m, CSTToProcessHeatKW[ts in p.time_steps], 
             m[:dvHeatingProduction]["CST","ProcessHeat",ts] - CSTToHotTESByQualityKW["ProcessHeat",ts] - CSTToSteamTurbineByQuality["ProcessHeat",ts] - CSTToWasteByQualityKW["ProcessHeat",ts]
+			- CSTtoAbsorptionChillerByQualityKW["ProcessHeat",ts]
         )
     else
         @expression(m, CSTToProcessHeatKW[ts in p.time_steps], 0.0)
     end
-    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(value.(CSTToProcessHeatKW ./ KWH_PER_MMBTU), digits=5)
+    r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(max.(0.0, value.(CSTToProcessHeatKW ./ KWH_PER_MMBTU)), digits=5)
+
+    r["thermal_to_load_series_mmbtu_per_hour"] = r["thermal_to_dhw_load_series_mmbtu_per_hour"] .+ r["thermal_to_space_heating_load_series_mmbtu_per_hour"] .+ r["thermal_to_process_heat_load_series_mmbtu_per_hour"]
+    r["thermal_production_series_mmbtu_per_hour"] = r["thermal_to_load_series_mmbtu_per_hour"] .+ r["thermal_to_absorption_chiller_series_mmbtu_per_hour"] .+ r["thermal_to_storage_series_mmbtu_per_hour"] .+ r["thermal_to_high_temp_thermal_storage_series_mmbtu_per_hour"] .+ r["thermal_to_steamturbine_series_mmbtu_per_hour"]
+    r["annual_thermal_production_mmbtu"] = round(p.hours_per_time_step * sum(r["thermal_production_series_mmbtu_per_hour"]), digits=3)
 
     d["CST"] = r
 	nothing
