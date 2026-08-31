@@ -139,22 +139,24 @@ function set_ssc_data_from_dict(D,model,data)
             @ccall hdl.ssc_data_set_number(data::Ptr{Cvoid},key::Cstring,D[key]::Cdouble)::Cvoid
             j += 1
         elseif typeof(D[key]) == Vector{Any} || typeof(D[key]) == Vector{Float64} || typeof(D[key]) == Vector{Int64}
-            nrows, ncols = length(D[key]), length(D[key][1])
-            c_matrix = []
-            for k in 1:nrows
-                for l in 1:ncols
-                    push!(c_matrix,D[key][k][l])
+            # Distinguish flat arrays (elements are scalars) from matrices (elements are arrays)
+            if D[key][1] isa AbstractArray
+                # Matrix: each element is a row
+                nrows = length(D[key])
+                ncols = length(D[key][1])
+                c_matrix = Float64[]
+                for k in 1:nrows
+                    for l in 1:ncols
+                        push!(c_matrix, Float64(D[key][k][l]))
+                    end
                 end
-            end
-            if ncols == 1 && (nrows > 2 || model == "mst")
-                c_matrix = convert(Array{Float64},c_matrix)
-                @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid},key::Cstring,c_matrix::Ptr{Cdouble},length(D[key])::Cint)::Cvoid
-                j += 1
-            else
-                c_matrix = convert(Array{Float64},c_matrix)
                 @ccall hdl.ssc_data_set_matrix(data::Ptr{Cvoid},key::Cstring,c_matrix::Ptr{Cdouble},Cint(nrows)::Cint,Cint(ncols)::Cint)::Cvoid
-                j += 1
+            else
+                # Flat array of scalars
+                c_array = convert(Array{Float64}, D[key])
+                @ccall hdl.ssc_data_set_array(data::Ptr{Cvoid},key::Cstring,c_array::Ptr{Cdouble},length(c_array)::Cint)::Cvoid
             end
+            j += 1
         elseif typeof(D[key]) == Dict{Any,Any}
             table = @ccall hdl.ssc_data_create()::Ptr{Cvoid}  # data pointer
             set_ssc_data_from_dict(D[key],model,table)
@@ -173,9 +175,9 @@ function get_weatherdata(lat::Float64,lon::Float64,debug::Bool)
     check_api_key()
     check_api_email()
     attributes_tmy_updated = "ghi,dhi,dni,wind_speed,wind_direction,air_temperature,surface_pressure,dew_point" #for tmy
-    url = string("http://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-tmy-v4-0-0-download.csv?api_key=",ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("http://developer.nlr.gov/api/nsrdb/v2/solar/nsrdb-GOES-tmy-v4-0-0-download.csv?api_key=",ENV["NLR_DEVELOPER_API_KEY"],
         "&wkt=POINT(",lon,"%20",lat,")&attributes=",attributes_tmy_updated,
-        "&names=tmy&utc=false&leap_day=true&interval=60&email=",ENV["NREL_DEVELOPER_EMAIL"])
+        "&names=tmy&utc=false&leap_day=true&interval=60&email=",ENV["NLR_DEVELOPER_EMAIL"])
     r = HTTP.request("GET", url)
     s = String(r.body)
     lead_df = DataFrame(CSV.File(IOBuffer(s), silencewarnings = true, delim=",", header=1, limit=1))
