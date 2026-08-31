@@ -333,7 +333,7 @@ struct ElectricStorage <: AbstractElectricStorage
     electric_load_annual_peak::Real
     electric_load_average::Real
 
-    function ElectricStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)  
+    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int, net_metering_limit_kw::Real)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = ElectricStorageDefaults(;d...)
 
