@@ -615,7 +615,7 @@ struct ElectricStorage <: AbstractElectricStorage
             minimum_avg_soc_fraction,
             optimize_soc_init_fraction,
             fixed_soc_series_fraction,
-            stor.fixed_soc_series_fraction_tolerance,
+            fixed_soc_series_fraction_tolerance,
             size_class,
             size_class_bounds_kw,
             stor.electric_load_annual_peak,
