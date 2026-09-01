@@ -60,8 +60,8 @@
                 "duration_hours": 0
             }
         ],
-        "supplementary_firing_capital_cost_per_kw": 10,
-        "supplementary_firing_max_steam_ratio": 5.0,
+        "supplementary_firing_installed_cost_per_mmbtu_per_hour": 2930.7107,
+        "supplementary_firing_max_ratio": 5.0,
         "supplementary_firing_efficiency": 0.9
     },
     "PV": {
