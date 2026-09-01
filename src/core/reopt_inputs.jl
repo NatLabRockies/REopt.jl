@@ -936,7 +936,7 @@ function setup_chp_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_si
             :thermal_efficiency_half_load => chp.thermal_efficiency_half_load,
             :min_turn_down_fraction => chp.min_turn_down_fraction,
             :supplementary_firing_efficiency => chp.supplementary_firing_efficiency,
-            :supplementary_firing_max_steam_ratio => chp.supplementary_firing_max_steam_ratio,
+            :supplementary_firing_max_ratio => chp.supplementary_firing_max_ratio,
             :om_cost_per_kwh => chp.om_cost_per_kwh,
             :ramp_rate_fraction_per_hour => chp.ramp_rate_fraction_per_hour
         )
