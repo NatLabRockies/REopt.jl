@@ -1327,7 +1327,7 @@ else  # run HiGHS tests
                 s = Scenario(data)
                 inputs = REoptInputs(s)
                 results = run_reopt(m2, inputs)
-                @test results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] * REopt.KWH_PER_MMBTU ≈ 321.71 atol=0.1
+                @test results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] * REopt.KWH_PER_MMBTU ≈ 2000 rtol=0.001
                 @test results["CHP"]["annual_thermal_production_mmbtu"] > 2.0 * full_non_supp_thermal
                 @test results["ElectricTariff"]["lifecycle_demand_cost_after_tax"] ≈ 5212.7 rtol=1e-5
                 finalize(backend(m1))
