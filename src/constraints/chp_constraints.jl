@@ -359,11 +359,15 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         [t in load_following_chp_names, ts in p.time_steps],
         max_thermal_coeff[t][ts] * m[Symbol("dvSize"*_n)][t]
     )
-    total_heat_output = "CHPTotalHeatingOutput"*_n
-    m[Symbol(total_heat_output)] = @expression(
+    net_heat_output = "CHPNetHeatingOutput"*_n
+    m[Symbol(net_heat_output)] = @expression(
         m,
         [t in load_following_chp_names, ts in p.time_steps],
-        sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in heating_loads_served_by_chp[t])
+        sum(
+            m[Symbol("dvHeatingProduction"*_n)][t,q,ts] -
+            m[Symbol("dvProductionToWaste"*_n)][t,q,ts]
+            for q in heating_loads_served_by_chp[t]
+        )
     )
 
     # Identify when CHP thermal capacity exceeds the eligible heating load.
@@ -382,21 +386,21 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         ) / max_diff_size_bigM[t]
     )
 
-    # Force total CHP heat output to equal the lower of eligible load and available capacity.
+    # Force net CHP heat output (after waste) to equal the lower of eligible load and available capacity.
     @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
-        m[Symbol(total_heat_output)][t,ts] >=
+        m[Symbol(net_heat_output)][t,ts] >=
         m[Symbol(capacity)][t,ts] - max_diff_size_bigM[t] * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts]
     )
     @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
-        m[Symbol(total_heat_output)][t,ts] <=
+        m[Symbol(net_heat_output)][t,ts] <=
         m[Symbol(capacity)][t,ts] + max_diff_size_bigM[t] * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts]
     )
     @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
-        m[Symbol(total_heat_output)][t,ts] >=
+        m[Symbol(net_heat_output)][t,ts] >=
         chp_eligible_heat_load[t][ts] - max_diff_size_bigM[t] * (1 - m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts])
     )
     @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
-        m[Symbol(total_heat_output)][t,ts] <=
+        m[Symbol(net_heat_output)][t,ts] <=
         chp_eligible_heat_load[t][ts] + max_diff_size_bigM[t] * (1 - m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts])
     )
 
@@ -413,7 +417,7 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         for t in load_following_chp_names
             @constraint(m, [ts in p.time_steps],
                 sum(m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] for q in heating_loads_served_by_chp[t]) <=
-                chp_eligible_heat_load[t][ts] - m[Symbol(total_heat_output)][t,ts]
+                chp_eligible_heat_load[t][ts] - m[Symbol(net_heat_output)][t,ts]
             )
             @constraint(m, [q in heating_loads_served_by_chp[t], ts in p.time_steps],
                 m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] <=

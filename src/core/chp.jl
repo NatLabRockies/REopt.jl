@@ -345,14 +345,6 @@ function CHP(d::Dict;
         ))
     end
 
-    # Warn if load-following policies could lead to an infeasibility due to lack of curtailment
-    if chp.follow_heating_load && !chp.can_curtail
-        @warn(
-            "CHP following the thermal load without ability to curtail may lead to infeasibilities or " *
-            "additional storage to adhere to either minimum turndown requirements or high heating loads."
-        )
-    end
-
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
         # Check if even the minimum CHP size would cause infeasibility

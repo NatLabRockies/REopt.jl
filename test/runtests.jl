@@ -1481,10 +1481,10 @@ else  # run HiGHS tests
                 d["CHP"]["serve_absorption_chiller_only"] = false
                 s = Scenario(d)
                 p = REoptInputs(s)
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer))
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
                 results = run_reopt(m, p)
-                CHP_thermal_capacity_at_50 = value(m[:CHPUnfiredThermalCapacity]["CHP", 50])
-                CHP_thermal_capacity_at_1 = value(m[:CHPUnfiredThermalCapacity]["CHP", 1])
+                CHP_thermal_capacity_at_50 = value(m[:CHPThermalCapacity]["CHP", 50])
+                CHP_thermal_capacity_at_1 = value(m[:CHPThermalCapacity]["CHP", 1])
 
                 # if CHP capacity > eligible heat load, boiler output is zero
                 @test CHP_thermal_capacity_at_50 > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]
