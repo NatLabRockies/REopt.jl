@@ -516,11 +516,10 @@ end
     @test prod_factor[124] ≈ 1.0 atol=0.001
 end
 
-# TODO commit a new inputs.json file for this instead of "cleaned.json"
 @testset "CHP Supplementary firing framework" begin
-	function run_cleaned_chp_case(label; supplementary_efficiency, follow_heating_load, supplementary_ratio=1 + 2.66,
+    function run_supplementary_following_case(label; supplementary_efficiency, follow_heating_load, supplementary_ratio=1 + 2.66,
             supplementary_installed_cost_per_mmbtu_per_hour=10 * REopt.KWH_PER_MMBTU)
-		data = JSON.parsefile("./scenarios/cleaned.json")
+        data = JSON.parsefile("./scenarios/supplementary_following.json")
         data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = supplementary_installed_cost_per_mmbtu_per_hour
         data["CHP"]["supplementary_firing_max_ratio"] = supplementary_ratio
 		data["CHP"]["supplementary_firing_efficiency"] = supplementary_efficiency
@@ -544,19 +543,19 @@ end
 		return (; results, thermal_full_load_kw_per_kw, supplementary_ratio)
 	end
 
-	economic_below = run_cleaned_chp_case(
+    economic_below = run_supplementary_following_case(
 		"Economic supplementary sizing below boiler efficiency";
 		supplementary_efficiency=0.88,
 		follow_heating_load=false
 	)
 
-	economic_above = run_cleaned_chp_case(
+    economic_above = run_supplementary_following_case(
 		"Economic supplementary sizing above boiler efficiency";
 		supplementary_efficiency=0.95,
 		follow_heating_load=false
 	)
 
-	follow_heating = run_cleaned_chp_case(
+    follow_heating = run_supplementary_following_case(
 		"Heating load following with supplementary sizing at ratio max";
 		supplementary_efficiency=0.88,
 		follow_heating_load=true
