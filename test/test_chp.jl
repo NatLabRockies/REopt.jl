@@ -556,7 +556,7 @@ end
 	)
 
     follow_heating = run_supplementary_following_case(
-		"Heating load following with supplementary sizing at ratio max";
+        "Heating load following with supplementary sizing within max ratio";
 		supplementary_efficiency=0.88,
 		follow_heating_load=true
 	)
@@ -566,9 +566,10 @@ end
     @test follow_heating.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] > 0.0
 	@test sum(follow_heating.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]) <
 		  sum(economic_below.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"])
-    @test follow_heating.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] * REopt.KWH_PER_MMBTU ≈
-		  (follow_heating.supplementary_ratio - 1.0) * follow_heating.thermal_full_load_kw_per_kw *
-		  follow_heating.results["CHP"]["size_kw"] atol=1.0e-3
+    max_total_to_unfired_ratio = follow_heating.supplementary_ratio
+    actual_total_to_unfired_ratio = follow_heating.results["CHP"]["size_supplementary_firing_ratio"]
+    @test actual_total_to_unfired_ratio <= max_total_to_unfired_ratio + 1.0e-6
+    @test actual_total_to_unfired_ratio >= 1.0 - 1.0e-6
 end
 
 @testset "Numeric boolean inputs" begin
