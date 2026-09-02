@@ -97,51 +97,45 @@ end
     add_chp_supplementary_firing_constraints(m, p; _n="")
 
 Used by add_chp_constraints to add supplementary firing constraints if 
-    p.chp_params[t][:supplementary_firing_max_steam_ratio] > 1.0 to add CHP supplementary firing operating constraints.  
+    p.chp_params[t][:supplementary_firing_max_ratio] > 1.0 to add CHP supplementary firing operating constraints.
     Else, the supplementary firing dispatch and size decision variables are set to zero.
 """
 function add_chp_supplementary_firing_constraints(m, p; _n="")
-    # Check if the Y-intercept variable exists
-    has_y_intercept = haskey(m, Symbol("dvHeatingProductionYIntercept"*_n))
-    
     for t in p.techs.chp
-        p.chp_params[t][:supplementary_firing_max_steam_ratio] <= 1.0 && continue
+        p.chp_params[t][:supplementary_firing_max_ratio] <= 1.0 && continue
 
         thermal_prod_full_load = 1.0 / p.chp_params[t][:electric_efficiency_full_load] * p.chp_params[t][:thermal_efficiency_full_load]  # [kWt/kWe]
         thermal_prod_half_load = 0.5 / p.chp_params[t][:electric_efficiency_half_load] * p.chp_params[t][:thermal_efficiency_half_load]   # [kWt/kWe]
         thermal_prod_slope = (thermal_prod_full_load - thermal_prod_half_load) / (1.0 - 0.5)  # [kWt/kWe]
         thermal_prod_intercept = thermal_prod_full_load - thermal_prod_slope * 1.0  # [kWt/kWe_rated]
 
-        # Constrain upper limit of dvSupplementaryThermalProduction
-        if has_y_intercept && abs(thermal_prod_intercept) > 1.0E-7
-            @constraint(m, [ts in p.time_steps],
-                        m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
-                        (p.chp_params[t][:supplementary_firing_max_steam_ratio] - 1.0) * p.production_factor[t,ts] * (thermal_prod_slope * m[Symbol("dvSupplementaryFiringSize"*_n)][t] + m[Symbol("dvHeatingProductionYIntercept"*_n)][t,ts])
-                        )
-        else
-            @constraint(m, [ts in p.time_steps],
-                        m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
-                        (p.chp_params[t][:supplementary_firing_max_steam_ratio] - 1.0) * p.production_factor[t,ts] * thermal_prod_slope * m[Symbol("dvSupplementaryFiringSize"*_n)][t]
-                        )
-        end
-        
+        # Enforce supplementary firing max ratio against CHP unfired full-load thermal capacity.
+        @constraint(m,
+                    m[Symbol("dvSupplementaryFiringSize"*_n)][t] <=
+                    (p.chp_params[t][:supplementary_firing_max_ratio] - 1.0) *
+                    (thermal_prod_slope + thermal_prod_intercept) *
+                    m[Symbol("dvSize"*_n)][t]
+                    )
+
+        # dvSupplementaryFiringSize[t] is the max incremental thermal output (kWt) that
+        # supplementary firing can add on top of unfired CHP production; the per-timestep
+        # bound scales that capacity by the production factor.
+        @constraint(m, [ts in p.time_steps],
+                    m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
+                    p.production_factor[t,ts] * m[Symbol("dvSupplementaryFiringSize"*_n)][t]
+                    )
+
         if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
             # Constrain lower limit of 0 if CHP tech is off
             @constraint(m, [ts in p.time_steps],
                     !m[Symbol("binCHPIsOnInTS"*_n)][t,ts] => {m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= 0.0}
                     )
         else
-            #There's no upper bound specified for the CHP supplementary firing, so assume the entire heat load as a reasonable maximum that wouldn't be exceeded (but might not be the best possible value). 
+            #There's no upper bound specified for the CHP supplementary firing, so assume the entire heat load as a reasonable maximum that wouldn't be exceeded (but might not be the best possible value).
             max_supplementary_firing_size = maximum(p.s.dhw_load.loads_kw .+ p.s.space_heating_load.loads_kw)
-            if has_y_intercept && abs(thermal_prod_intercept) > 1.0E-7
-                @constraint(m, [ts in p.time_steps],
-                        m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= (p.chp_params[t][:supplementary_firing_max_steam_ratio] - 1.0) * p.production_factor[t,ts] * (thermal_prod_slope * max_supplementary_firing_size + m[Symbol("dvHeatingProductionYIntercept"*_n)][t,ts])
-                        )
-            else
-                @constraint(m, [ts in p.time_steps],
-                        m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= (p.chp_params[t][:supplementary_firing_max_steam_ratio] - 1.0) * p.production_factor[t,ts] * thermal_prod_slope * max_supplementary_firing_size
-                        )
-            end
+            @constraint(m, [ts in p.time_steps],
+                    m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= p.production_factor[t,ts] * max_supplementary_firing_size
+                    )
         end
     end
 end
@@ -308,7 +302,9 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
     chp_eligible_heat_load = Dict{String, Vector{Float64}}()
     thermal_prod_slope = Dict{String, Float64}()
     thermal_prod_intercept = Dict{String, Float64}()
+    max_thermal_coeff = Dict{String, Vector{Float64}}()
     max_diff_size_bigM = Dict{String, Float64}()
+    has_y_intercept = haskey(m, Symbol("dvHeatingProductionYIntercept"*_n))
 
     for chp in load_following_chps
         t = chp.name
@@ -329,11 +325,22 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         thermal_prod_half_load = 0.5 * chp.thermal_efficiency_half_load / chp.electric_efficiency_half_load
         thermal_prod_slope[t] = (thermal_prod_full_load - thermal_prod_half_load) / 0.5
         thermal_prod_intercept[t] = thermal_prod_full_load - thermal_prod_slope[t]
-        max_unfired_thermal_capacity = p.max_sizes[t] * (
-            abs(thermal_prod_slope[t]) + abs(thermal_prod_intercept[t])
-        )
+        # Thermal output per kW of rated electric size when the prime mover runs at capacity and
+        # supplementary firing runs at its limit (see add_chp_supplementary_firing_constraints).
+        # The supplementary firing limit scales the y-intercept term only when that variable is modeled.
+        sup_ratio = max(p.chp_params[t][:supplementary_firing_max_ratio], 1.0)
+        sup_boosts_intercept = has_y_intercept && abs(thermal_prod_intercept[t]) > 1.0E-7
+        max_thermal_coeff[t] = [
+            p.production_factor[t,ts] > 0.0 ?
+                sup_ratio * p.production_factor[t,ts] * thermal_prod_slope[t] +
+                (sup_boosts_intercept ? 1.0 + (sup_ratio - 1.0) * p.production_factor[t,ts] : 1.0) *
+                    thermal_prod_intercept[t] :
+                0.0
+            for ts in p.time_steps
+        ]
+        # TODO error check for negative max_thermal_coeff instead of just taking abs of each
         max_diff_size_bigM[t] = 2 * max(
-            max_unfired_thermal_capacity,
+            p.max_sizes[t] * maximum(abs, max_thermal_coeff[t]),
             maximum(chp_eligible_heat_load[t]),
             1.0
         )
@@ -346,17 +353,20 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         binary=true,
         base_name=dv
     )
-    capacity = "CHPUnfiredThermalCapacity"*_n
+    capacity = "CHPThermalCapacity"*_n
     m[Symbol(capacity)] = @expression(
         m,
         [t in load_following_chp_names, ts in p.time_steps],
-        (
-            p.production_factor[t,ts] * thermal_prod_slope[t] +
-            (p.production_factor[t,ts] > 0.0 ? thermal_prod_intercept[t] : 0.0)
-        ) * m[Symbol("dvSize"*_n)][t]
+        max_thermal_coeff[t][ts] * m[Symbol("dvSize"*_n)][t]
+    )
+    total_heat_output = "CHPTotalHeatingOutput"*_n
+    m[Symbol(total_heat_output)] = @expression(
+        m,
+        [t in load_following_chp_names, ts in p.time_steps],
+        sum(m[Symbol("dvHeatingProduction"*_n)][t,q,ts] for q in heating_loads_served_by_chp[t])
     )
 
-    # Identify when unfired CHP thermal capacity exceeds the eligible heating load.
+    # Identify when CHP thermal capacity exceeds the eligible heating load.
     @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
         m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts] >=
         (
@@ -372,6 +382,24 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
         ) / max_diff_size_bigM[t]
     )
 
+    # Force total CHP heat output to equal the lower of eligible load and available capacity.
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol(total_heat_output)][t,ts] >=
+        m[Symbol(capacity)][t,ts] - max_diff_size_bigM[t] * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts]
+    )
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol(total_heat_output)][t,ts] <=
+        m[Symbol(capacity)][t,ts] + max_diff_size_bigM[t] * m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts]
+    )
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol(total_heat_output)][t,ts] >=
+        chp_eligible_heat_load[t][ts] - max_diff_size_bigM[t] * (1 - m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts])
+    )
+    @constraint(m, [t in load_following_chp_names, ts in p.time_steps],
+        m[Symbol(total_heat_output)][t,ts] <=
+        chp_eligible_heat_load[t][ts] + max_diff_size_bigM[t] * (1 - m[Symbol("binCHPSizeExceedsHeatingLoad"*_n)][t,ts])
+    )
+
     # If unfired thermal capacity is below load, run the prime mover at capacity.
     # Supplementary thermal production remains available only as incremental heat.
     rated_prod_con = "CHPHeatingLoadFollowingRatedProductionCon"*_n
@@ -383,6 +411,10 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
 
     if "ExistingBoiler" in p.techs.boiler
         for t in load_following_chp_names
+            @constraint(m, [ts in p.time_steps],
+                sum(m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] for q in heating_loads_served_by_chp[t]) <=
+                chp_eligible_heat_load[t][ts] - m[Symbol(total_heat_output)][t,ts]
+            )
             @constraint(m, [q in heating_loads_served_by_chp[t], ts in p.time_steps],
                 m[Symbol("dvHeatingProduction"*_n)]["ExistingBoiler",q,ts] <=
                 max_diff_size_bigM[t] *
@@ -424,7 +456,7 @@ function add_chp_constraints(m, p; _n="")
            (abs(thermal_prod_intercept) > 1.0E-7) || 
            (p.chp_params[t][:min_turn_down_fraction] > 1.0E-7) ||
            (p.s.chps[chp_idx].om_cost_per_hr_per_kw_rated > 1.0E-7) ||
-           (p.chp_params[t][:supplementary_firing_max_steam_ratio] > 1.0)
+           (p.chp_params[t][:supplementary_firing_max_ratio] > 1.0)
             binary_needed = true
             break
         end
@@ -472,7 +504,7 @@ function add_chp_constraints(m, p; _n="")
     
     # Fix supplementary firing variables to zero for CHPs without supplementary firing
     for t in p.techs.chp
-        if p.chp_params[t][:supplementary_firing_max_steam_ratio] <= 1.0
+        if p.chp_params[t][:supplementary_firing_max_ratio] <= 1.0
             fix(m[Symbol("dvSupplementaryFiringSize"*_n)][t], 0.0, force=true)
             for ts in p.time_steps
                 fix(m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts], 0.0, force=true)
