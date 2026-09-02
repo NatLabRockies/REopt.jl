@@ -31,7 +31,7 @@ Classify the change according to the following categories:
 - `src`,`constraints`: Updated supplementary-firing and heating-load-following constraints to enforce the max fired-to-unfired ratio using incremental supplementary capacity limits tied to CHP unfired thermal capacity.
 ### Added
 - `src`,`results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
-- `src`,`results`: Added **CHP** output **supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
+- `src`,`results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
 
 ## v0.61.1
 ### Fixed
