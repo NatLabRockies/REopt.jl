@@ -24,3 +24,7 @@ jobs:
       # - uses: mxschmitt/action-tmate@v3  # for interactive debugging
       - run: julia --project=. -e 'using Pkg; Pkg.activate("test"); Pkg.rm("Xpress"); Pkg.activate("."); using TestEnv; TestEnv.activate(); Pkg.add(PackageSpec(name="GhpGhx", url="https://github.com/NatLabRockies/GhpGhx.jl.git")); using GhpGhx; cd("test"); include("runtests.jl")'
         shell: bash
+        env:
+          NLR_DEVELOPER_API_KEY: ${{ secrets.NLR_DEVELOPER_API_KEY }}
+          URDB_API_KEY: ${{ secrets.URDB_API_KEY }}
+          NLR_DEVELOPER_EMAIL: ${{ secrets.NLR_DEVELOPER_EMAIL }}

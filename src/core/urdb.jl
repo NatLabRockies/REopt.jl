@@ -3,7 +3,15 @@
 # 5d2360465457a3f77ddc131e has TOU demand
 # 59bc22705457a3372642da67 has monthly tiered demand (no TOU demand)
 
-const urdb_api_key = get(ENV, "URDB_API_KEY", "2qt5uihpKXdywTj3uMIhBewxY9K4eNjpRje1JUPL")
+function get_urdb_api_key()
+    urdb_api_key = get(ENV, "URDB_API_KEY", "")
+    if isempty(urdb_api_key)
+        throw(@error("No URDB API Key provided when trying to call the Utility Rate Database (URDB).
+                Within your Julia environment, specify ENV['URDB_API_KEY']='your API key'
+                See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
+    end
+    return urdb_api_key
+end
 
 """
     Base.@kwdef struct URDBrate
@@ -163,7 +171,7 @@ end
 
 #TODO: refactor two download_urdb to reduce duplicated code
 function download_urdb(urdb_label::String; version::Int=8)
-    url = string("https://api.openei.org/utility_rates", "?api_key=", urdb_api_key,
+    url = string("https://api.openei.org/utility_rates", "?api_key=", get_urdb_api_key(),
                 "&version=", version , "&format=json", "&detail=full",
                 "&getpage=", urdb_label
     )
@@ -192,7 +200,7 @@ end
 
 
 function download_urdb(util_name::String, rate_name::String; version::Int=8)
-    url = string("https://api.openei.org/utility_rates", "?api_key=", urdb_api_key,
+    url = string("https://api.openei.org/utility_rates", "?api_key=", get_urdb_api_key(),
                 "&version=", version , "&format=json", "&detail=full",
                 "&ratesforutility=", replace(util_name, "&" => "%26")
     )

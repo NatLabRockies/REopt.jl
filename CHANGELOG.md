@@ -25,6 +25,12 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## Develop
+### Changed
+- `src/core/urdb.jl` now reads the URDB API key from the **URDB_API_KEY** environment variable only, and throws a descriptive error if it is not set (the hardcoded fallback key was removed)
+### Removed
+- Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following
