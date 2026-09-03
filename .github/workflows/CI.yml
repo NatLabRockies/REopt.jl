@@ -23,6 +23,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@latest
       # - uses: mxschmitt/action-tmate@v3  # for interactive debugging
       - run: julia --project=. -e 'using Pkg; Pkg.activate("test"); Pkg.rm("Xpress"); Pkg.activate("."); using TestEnv; TestEnv.activate(); Pkg.add(PackageSpec(name="GhpGhx", url="https://github.com/NatLabRockies/GhpGhx.jl.git")); using GhpGhx; cd("test"); include("runtests.jl")'
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         shell: bash
         env:
           NLR_DEVELOPER_API_KEY: ${{ secrets.NLR_DEVELOPER_API_KEY }}
