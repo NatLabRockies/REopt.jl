@@ -1299,7 +1299,7 @@ else  # run HiGHS tests
                 correctly calculated when CHP is and is not allowed to reduce demand charges.
                 """
                 data = JSON.parsefile("./scenarios/chp_supplementary_firing.json")
-                data["CHP"]["supplementary_firing_capital_cost_per_kw"] = 10000
+                data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = 10000 * REopt.KWH_PER_MMBTU
                 data["ElectricLoad"]["loads_kw"] = repeat([800.0], 8760)
                 data["ElectricLoad"]["year"] = 2022
                 data["DomesticHotWaterLoad"]["fuel_loads_mmbtu_per_hour"] = repeat([6.0], 8760)
@@ -1310,7 +1310,7 @@ else  # run HiGHS tests
                 inputs = REoptInputs(s)
                 results = run_reopt(m1, inputs)
                 @test results["CHP"]["size_kw"] == 800
-                @test results["CHP"]["size_supplemental_firing_kw"] == 0
+                @test results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] == 0
                 @test results["CHP"]["annual_electric_production_kwh"] ≈ 800*8760 rtol=1e-5
                 full_non_supp_thermal = 800*(0.4418/0.3573)*8760/293.07107
                 @test results["CHP"]["annual_thermal_production_mmbtu"] ≈ full_non_supp_thermal rtol=1e-5
@@ -1320,14 +1320,14 @@ else  # run HiGHS tests
                 @test results["HeatingLoad"]["annual_calculated_space_heating_thermal_load_mmbtu"] == 6.0 * 8760 * data["ExistingBoiler"]["efficiency"]
 
                 #part 2: supplementary firing used when more efficient than the boiler and low-cost; demand charges not reduced by CHP
-                data["CHP"]["supplementary_firing_capital_cost_per_kw"] = 10
+                data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = 10 * REopt.KWH_PER_MMBTU
                 data["CHP"]["reduces_demand_charges"] = false
                 data["ExistingBoiler"]["efficiency"] = 0.85
                 m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
                 s = Scenario(data)
                 inputs = REoptInputs(s)
                 results = run_reopt(m2, inputs)
-                @test results["CHP"]["size_supplemental_firing_kw"] ≈ 321.71 atol=0.1
+                @test results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] * REopt.KWH_PER_MMBTU ≈ 2000 rtol=0.001
                 @test results["CHP"]["annual_thermal_production_mmbtu"] > 2.0 * full_non_supp_thermal
                 @test results["ElectricTariff"]["lifecycle_demand_cost_after_tax"] ≈ 5212.7 rtol=1e-5
                 finalize(backend(m1))
@@ -1481,10 +1481,10 @@ else  # run HiGHS tests
                 d["CHP"]["serve_absorption_chiller_only"] = false
                 s = Scenario(d)
                 p = REoptInputs(s)
-                m = Model(optimizer_with_attributes(HiGHS.Optimizer))
+                m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
                 results = run_reopt(m, p)
-                CHP_thermal_capacity_at_50 = value(m[:CHPUnfiredThermalCapacity]["CHP", 50])
-                CHP_thermal_capacity_at_1 = value(m[:CHPUnfiredThermalCapacity]["CHP", 1])
+                CHP_thermal_capacity_at_50 = value(m[:CHPThermalCapacity]["CHP", 50])
+                CHP_thermal_capacity_at_1 = value(m[:CHPThermalCapacity]["CHP", 1])
 
                 # if CHP capacity > eligible heat load, boiler output is zero
                 @test CHP_thermal_capacity_at_50 > p.heating_loads_kw["DomesticHotWater"][50] + p.heating_loads_kw["SpaceHeating"][50]

@@ -192,9 +192,10 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                 add_to_expression!(m[:CHPCapexNoIncentives], chp_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][t])
             end
             
-            if chp.supplementary_firing_capital_cost_per_kw > 0
+            if chp.supplementary_firing_installed_cost_per_mmbtu_per_hour > 0
                 add_to_expression!(m[:CHPCapexNoIncentives], 
-                    chp.supplementary_firing_capital_cost_per_kw * m[Symbol("dvSupplementaryFiringSize"*_n)][t]
+                    chp.supplementary_firing_installed_cost_per_mmbtu_per_hour *
+                    m[Symbol("dvSupplementaryFiringSize"*_n)][t] / KWH_PER_MMBTU
                 )
             end
         end
