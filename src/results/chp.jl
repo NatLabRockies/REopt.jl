@@ -2,7 +2,7 @@
 """
 `CHP` results keys:
 - `size_kw` Power capacity size of the CHP system [kW]
-- `size_supplemental_firing_mmbtu_per_hour` Power capacity of CHP supplementary firing system [MMBtu/hr]
+- `size_supplemental_firing_mmbtu_per_hour` Incremental thermal capacity of the CHP supplementary firing system [MMBtu/hr]
 - `size_supplementary_firing_ratio` Ratio of total fired thermal capacity (unfired + supplementary firing) to unfired CHP thermal capacity at full load [-]
 - `annual_supplementary_firing_thermal_production_mmbtu` Supplementary firing thermal energy produced in a year [MMBtu]
 - `annual_fuel_consumption_mmbtu` Fuel consumed in a year [MMBtu]
@@ -64,7 +64,7 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 
     thermal_full_load_kwt_per_kwe = chp.thermal_efficiency_full_load / chp.electric_efficiency_full_load
     unfired_thermal_capacity_kwt = thermal_full_load_kwt_per_kwe * r["size_kw"]
-    r["size_supplementary_firing_ratio"] = unfired_thermal_capacity_kwt > 1.0 ?
+    r["size_supplementary_firing_ratio"] = unfired_thermal_capacity_kwt > 1.0e-9 ?
         (unfired_thermal_capacity_kwt + supplementary_firing_size_kwt) / unfired_thermal_capacity_kwt : 0.0
 
     supplementary_firing_thermal_prod_kwh = p.hours_per_time_step *

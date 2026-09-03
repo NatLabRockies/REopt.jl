@@ -131,7 +131,9 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
                     !m[Symbol("binCHPIsOnInTS"*_n)][t,ts] => {m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= 0.0}
                     )
         else
-            #There's no upper bound specified for the CHP supplementary firing, so assume the entire heat load as a reasonable maximum that wouldn't be exceeded (but might not be the best possible value).
+            # Indicator constraints are unavailable with this solver, so the "off" state cannot be enforced
+            # directly. Apply an additional conservative big-M style bound on supplementary thermal production
+            # using the peak heating load, which supplementary firing would never need to exceed.
             max_supplementary_firing_size = maximum(p.s.dhw_load.loads_kw .+ p.s.space_heating_load.loads_kw)
             @constraint(m, [ts in p.time_steps],
                     m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= p.production_factor[t,ts] * max_supplementary_firing_size

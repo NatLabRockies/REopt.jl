@@ -522,50 +522,48 @@ end
         data = JSON.parsefile("./scenarios/supplementary_following.json")
         data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = supplementary_installed_cost_per_mmbtu_per_hour
         data["CHP"]["supplementary_firing_max_ratio"] = supplementary_ratio
-		data["CHP"]["supplementary_firing_efficiency"] = supplementary_efficiency
-		data["CHP"]["follow_heating_load"] = follow_heating_load
-		data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["supplementary_firing_efficiency"] = supplementary_efficiency
+        data["CHP"]["follow_heating_load"] = follow_heating_load
+        data["CHP"]["min_turn_down_fraction"] = 0.0
 
-		m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
-		m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
-		s = Scenario(data)
-		inputs = REoptInputs(s)
-		results = run_reopt([m1, m2], inputs)
+        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+        s = Scenario(data)
+        inputs = REoptInputs(s)
+        results = run_reopt([m1, m2], inputs)
 
-		thermal_full_load_kw_per_kw = data["CHP"]["thermal_efficiency_full_load"] / data["CHP"]["electric_efficiency_full_load"]
+        finalize(backend(m1))
+        empty!(m1)
+        finalize(backend(m2))
+        empty!(m2)
+        GC.gc()
 
-		finalize(backend(m1))
-		empty!(m1)
-		finalize(backend(m2))
-		empty!(m2)
-		GC.gc()
-
-		return (; results, thermal_full_load_kw_per_kw, supplementary_ratio)
-	end
+        return (; results, supplementary_ratio)
+    end
 
     economic_below = run_supplementary_following_case(
-		"Economic supplementary sizing below boiler efficiency";
-		supplementary_efficiency=0.88,
-		follow_heating_load=false
-	)
+        "Economic supplementary sizing below boiler efficiency";
+        supplementary_efficiency=0.88,
+        follow_heating_load=false
+    )
 
     economic_above = run_supplementary_following_case(
-		"Economic supplementary sizing above boiler efficiency";
-		supplementary_efficiency=0.95,
-		follow_heating_load=false
-	)
+        "Economic supplementary sizing above boiler efficiency";
+        supplementary_efficiency=0.95,
+        follow_heating_load=false
+    )
 
     follow_heating = run_supplementary_following_case(
         "Heating load following with supplementary sizing within max ratio";
-		supplementary_efficiency=0.88,
-		follow_heating_load=true
-	)
+        supplementary_efficiency=0.88,
+        follow_heating_load=true
+    )
 
     @test economic_above.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] > 0.0
     @test economic_below.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] <= economic_above.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] + 1.0e-6
     @test follow_heating.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] > 0.0
-	@test sum(follow_heating.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]) <
-		  sum(economic_below.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"])
+    @test sum(follow_heating.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]) <
+          sum(economic_below.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"])
     max_total_to_unfired_ratio = follow_heating.supplementary_ratio
     actual_total_to_unfired_ratio = follow_heating.results["CHP"]["size_supplementary_firing_ratio"]
     @test actual_total_to_unfired_ratio <= max_total_to_unfired_ratio + 1.0e-6
