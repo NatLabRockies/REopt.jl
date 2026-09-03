@@ -1297,6 +1297,10 @@
     },
     "ElectricUtility" : {
         "co2_from_avert" : true
+    },
+    "ElectricStorage": {
+        "max_kw": 10000000000,
+        "max_kwh": 10000000000
     }
 
 }

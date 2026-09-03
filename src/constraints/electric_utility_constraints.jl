@@ -540,12 +540,14 @@ end
 """
 function get_electric_demand_tiers_bigM(p::REoptInputs, tou::Bool)
     added_power = !isempty(p.s.storage.types.elec) ? sum(p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec) : 1.0e-3
-    bigM = 2 * maximum(100*p.s.electric_load.loads_kw  .+   #2 multiplier for heating/cooling loads in case of a low COP tech, like ASHP in cold temps
+    bigM_load = 2 * maximum(100*p.s.electric_load.loads_kw  .+   #2 multiplier for heating/cooling loads in case of a low COP tech, like ASHP in cold temps
             p.s.space_heating_load.loads_kw .+     #100 multiplier for electric load in case it is used for charging an inefficient, seasonal storage (e.g., H2)
             p.s.process_heat_load.loads_kw .+ 
             p.s.dhw_load.loads_kw .+ 
             p.s.cooling_load.loads_kw_thermal 
-            ) + added_power
+            ) 
+    added_power = min(added_power, bigM_load)
+    bigM = bigM_load + added_power
     if tou
         periods = 1:length(p.s.electric_tariff.tou_demand_ratchet_time_steps)
         num_tiers = p.s.electric_tariff.n_tou_demand_tiers
@@ -587,6 +589,7 @@ function get_electric_energy_tiers_bigM(p::REoptInputs)
                         p.s.dhw_load.loads_kw .+ 
                         p.s.cooling_load.loads_kw_thermal
                     )
+    added_energy = min(added_energy, sum(bigM_hourly_load))
     bigM_energy_tier_limits = zeros(12,p.s.electric_tariff.n_energy_tiers)
     for mth in p.months
         monthly_bigM = added_energy + sum(bigM_hourly_load[ts] for ts in p.s.electric_tariff.time_steps_monthly[mth])

@@ -25,6 +25,11 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+
+## fix-storage-contribution-to-bigm
+###Fixed 
+- Fixed a bug in which demand and energy charges are inaccurately calculated when large max storage system sizes are present.
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following
