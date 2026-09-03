@@ -1076,6 +1076,34 @@ else  # run HiGHS tests
             empty!(m)
             GC.gc()
 
+            # Case 6: fixed PV above the NEM limit must use the wholesale export bin (#609)
+            d = JSON.parsefile("./scenarios/net_metering.json")
+            d["ElectricUtility"]["net_metering_limit_kw"] = 210
+            d["ElectricTariff"]["wholesale_rate"] = 0.05
+            d["PV"]["min_kw"] = 220
+            d["PV"]["max_kw"] = 220
+            d["PV"]["can_wholesale"] = true
+            p = REoptInputs(d)
+            expected_wholesale_export_kwh = round(sum(
+                round(max(
+                    220 * p.production_factor["PV", ts] * p.levelization_factor["PV"] -
+                    p.s.electric_load.loads_kw[ts],
+                    0.0
+                ), digits=3)
+                for ts in p.time_steps
+            ) * p.hours_per_time_step, digits=0)
+
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt(m, p)
+
+            @test results["PV"]["size_kw"] ≈ 220.0 atol=1e-3
+            @test results["PV"]["annual_energy_exported_kwh"] ≈ expected_wholesale_export_kwh atol=1.0
+            @test value(m[:NEM_benefit]) ≈ 0.0 atol=1e-5
+            @test value(m[:WHL_benefit]) < 0
+            finalize(backend(m))
+            empty!(m)
+            GC.gc()
+
         end
 
         @testset "Heating loads and addressable load fraction" begin
