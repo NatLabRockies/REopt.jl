@@ -7,9 +7,7 @@
     "Site": {
         "longitude": -118.1164613,
         "latitude": 34.5794343,
-        "node": 1,
-        "land_acres": 30,
-        "roof_squarefeet": 5000
+        "node": 1
     },
     "PV": {
         "macrs_bonus_fraction": 0.4,
