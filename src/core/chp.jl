@@ -25,11 +25,13 @@ conflict_res_min_allowable_fraction_of_max = 0.25
 
     # Optional inputs:
     size_class::Union{Int, Nothing} = nothing # CHP size class for using appropriate default inputs, with size_class=0 using an average of all other size class data 
-    min_kw::Float64 = 0.0 # Minimum CHP size (based on electric) constraint for optimization 
-    max_kw::Float64 = NaN # Maximum CHP size (based on electric) constraint for optimization. Determined by heuristic sizing based on heating load or electric load.    
+    existing_kw::Float64 = 0.0 # Existing CHP electric capacity (based on rated electric power)
+    min_kw::Float64 = 0.0 # Minimum NEW CHP size (based on electric) to add beyond existing_kw 
+    max_kw::Float64 = NaN # Maximum NEW CHP size (based on electric) to add beyond existing_kw. Determined by heuristic sizing based on heating load or electric load.    
     fuel_type::String = "natural_gas" # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
     om_cost_per_kw::Float64 = 0.0 # Annual CHP fixed operations and maintenance costs in \$/kw-yr 
     om_cost_per_hr_per_kw_rated::Float64 = 0.0 # CHP non-fuel variable operations and maintenance costs in \$/hr/kw_rated
+    ramp_rate_fraction_per_hour::Float64 = 1.0 # Maximum rate of change in electric production per hour as a fraction of size_kw [kW/size_kw/hour].
     supplementary_firing_capital_cost_per_kw::Float64 = 150.0 # Installed CHP supplementary firing system cost in \$/kW (based on rated electric power)
     supplementary_firing_max_steam_ratio::Float64 = 1.0 # Ratio of max fired steam to un-fired steam production. Relevant only for combustion_turbine prime_mover 
     supplementary_firing_efficiency::Float64 = 0.92 # Thermal efficiency of the incremental steam production from supplementary firing. Relevant only for combustion_turbine prime_mover 
@@ -40,9 +42,12 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     can_serve_space_heating::Bool = true # If CHP can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If CHP can supply heat to the process heating load
     is_electric_only::Bool = false # If CHP is a prime generator that does not supply heat
+    operating_reserve_required_fraction::Real = 0.0 # Applied to each time_step as a fraction of CHP generation in off-grid analyses. When positive, CHP requires reserves from Generator or Battery; when 0, CHP can provide reserves.
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing # Optional user-provided production factor time-series (length of time_steps_per_hour * 8760). If provided, this will override the production factor calculated from unavailability.
     serve_absorption_chiller_only::Bool = false # If CHP produced heat either serves absorption chiller or sends it to waste; only applies to the months specified in months_serving_absorption_chiller_only if true
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which CHP only sevres the absorption chiller, with 1=January and 12=December; only applied when serve_absorption_chiller_only = true
     follow_electrical_load::Bool = false # If CHP follows the electrical load by running at capacity or meeting the load only.
+    follow_heating_load::Bool = false # If CHP follows eligible heating load by running at unfired thermal capacity or meeting the load.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -83,6 +88,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
 Base.@kwdef mutable struct CHP <: AbstractCHP
     # Required input
     fuel_cost_per_mmbtu::Union{<:Real, AbstractVector{<:Real}} = []    
+    name::String = "CHP"  # for use with multiple CHPs
     
     # Inputs which defaults vary depending on prime_mover and size_class
     installed_cost_per_kw::Union{Float64, AbstractVector{Float64}} = Float64[]
@@ -99,11 +105,13 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     # Optional inputs:
     prime_mover::Union{String, Nothing} = nothing
     size_class::Union{Int, Nothing} = nothing
+    existing_kw::Float64 = 0.0
     min_kw::Float64 = 0.0
     max_kw::Float64 = NaN
     fuel_type::String = "natural_gas"
     om_cost_per_kw::Float64 = 0.0
     om_cost_per_hr_per_kw_rated::Float64 = 0.0
+    ramp_rate_fraction_per_hour::Float64 = 1.0
     electric_efficiency_half_load::Float64 = NaN  # Assigned to electric_efficiency_full_load if not input
     thermal_efficiency_half_load::Float64 = NaN  # Assigned to thermal_efficiency_full_load if not input
     supplementary_firing_capital_cost_per_kw::Float64 = 150.0
@@ -116,9 +124,12 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     can_serve_space_heating::Bool = true
     can_serve_process_heat::Bool = true
     is_electric_only::Bool = false
+    operating_reserve_required_fraction::Real = 0.0
+    production_factor_series::Union{Nothing, Vector{<:Real}} = nothing
     serve_absorption_chiller_only::Bool = false
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[]
     follow_electrical_load::Bool = false
+    follow_heating_load::Bool = false
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -146,6 +157,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     emissions_factor_lb_NOx_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"],fuel_type,0)
     emissions_factor_lb_SO2_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"],fuel_type,0)
     emissions_factor_lb_PM25_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_PM25_per_mmbtu"],fuel_type,0)
+    fuel_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing
 end
 
 
@@ -157,8 +169,10 @@ function CHP(d::Dict;
             absorption_chiller_cop::Union{Float64, Nothing}=nothing,
             include_cooling_in_chp_size::Bool=false,
             year::Int64=2017,
+            time_steps_per_hour::Int=1,
             sector::String,
-            federal_procurement_type::String)
+            federal_procurement_type::String,
+            off_grid_flag::Bool=false)
     # If array inputs are coming from Julia JSON.parsefile (reader), they have type Vector{Any}; convert to expected type here
     for (k,v) in d
         if typeof(v) <: AbstractVector{Any} && k != "unavailability_periods"
@@ -178,6 +192,17 @@ function CHP(d::Dict;
     chp = CHP(; d...)
 
     @assert chp.fuel_type in FUEL_TYPES
+
+    if !isnothing(chp.production_factor_series)
+        isempty(chp.production_factor_series) &&
+            throw(ArgumentError("CHP.production_factor_series cannot be empty when provided."))
+        error_if_series_vals_not_0_to_1(chp.production_factor_series, "CHP", "production_factor_series")
+        chp.production_factor_series = check_and_adjust_load_length(
+            chp.production_factor_series,
+            time_steps_per_hour,
+            "CHP.production_factor_series"
+        )
+    end
 
     # These inputs are set based on prime_mover and size_class
     custom_chp_inputs = Dict{Symbol, Any}(
@@ -287,29 +312,74 @@ function CHP(d::Dict;
         setproperty!(chp, :thermal_efficiency_half_load, 0.0)
     end
 
+    # Set operating_reserve_required_fraction based on off_grid_flag
+    if haskey(d, "operating_reserve_required_fraction")
+        chp.operating_reserve_required_fraction = d["operating_reserve_required_fraction"]
+    end
+
+    # Validate operating_reserve_required_fraction for on-grid scenarios
+    if !off_grid_flag && !(chp.operating_reserve_required_fraction == 0.0)
+        @warn "CHP operating_reserve_required_fraction applies only when off_grid_flag is true. Setting operating_reserve_required_fraction to 0.0 for this on-grid analysis."
+        chp.operating_reserve_required_fraction = 0.0
+    end
+
     if chp.serve_absorption_chiller_only && isempty(chp.months_serving_absorption_chiller_only)
         @warn "CHP.serve_absorption_chiller_only is set to true, but no months are specified.  All months will be enforced."
         chp.months_serving_absorption_chiller_only = [1,2,3,4,5,6,7,8,9,10,11,12]
-    end 
-    
+    end
+
+    # Validate CHP doesn't follow both electrical and thermal loads
+    if chp.follow_electrical_load && chp.follow_heating_load
+        throw(ArgumentError(
+            "CHP cannot follow both electrical load and thermal load. Update " *
+            "either CHP.follow_electrical_load or CHP.follow_heating_load to false."
+        ))
+    end
+
+    # Validate CHP doesn't follow thermal load and only send to absorption chiller
+    if chp.follow_heating_load && chp.serve_absorption_chiller_only
+        throw(ArgumentError(
+            "CHP cannot both follow thermal heating load and serve only the " *
+            "absorption chiller. Update either CHP.serve_absorption_chiller_only " *
+            "or CHP.follow_heating_load to false."
+        ))
+    end
+
+    # Warn if load-following policies could lead to an infeasibility due to lack of curtailment
+    if chp.follow_heating_load && !chp.can_curtail
+        @warn(
+            "CHP following the thermal load without ability to curtail may lead to infeasibilities or " *
+            "additional storage to adhere to either minimum turndown requirements or high heating loads."
+        )
+    end
+
     # Validate load-following won't cause infeasibility with min_turn_down_fraction
     if chp.follow_electrical_load && chp.min_turn_down_fraction > 0.0 && !isempty(electric_load_series_kw)
-        min_load_kw = round(minimum(electric_load_series_kw), digits=1)
-        
         # Check if even the minimum CHP size would cause infeasibility
         if chp.min_kw > 0.0
-            min_threshold_kw = round(chp.min_turn_down_fraction * chp.min_kw, digits=1)
-            if min_load_kw < min_threshold_kw
-                throw(@error(
+            production_factors = if isnothing(chp.production_factor_series)
+                repeat(1.0 .- chp.unavailability_hourly, inner=time_steps_per_hour)
+            else
+                chp.production_factor_series
+            end
+            minimum_output_kw = chp.min_turn_down_fraction * chp.min_kw .* production_factors
+            infeasible_time_step = findfirst(
+                (electric_load_series_kw .> 0.0) .&
+                (electric_load_series_kw .< minimum_output_kw)
+            )
+            if !isnothing(infeasible_time_step)
+                load_kw = round(electric_load_series_kw[infeasible_time_step], digits=1)
+                min_output_kw = round(minimum_output_kw[infeasible_time_step], digits=1)
+                throw(ArgumentError(
                     "CHP load-following will cause infeasibility: " *
-                    "minimum electric load ($min_load_kw kW) is less than " *
-                    "min_turn_down_fraction * min_kw ($min_threshold_kw kW). " *
-                    "Set min_turn_down_fraction to 0.0 or reduce min_kw below $(min_load_kw / chp.min_turn_down_fraction) kW."
+                    "electric load at time step $infeasible_time_step ($load_kw kW) is less than " *
+                    "the effective minimum CHP output ($min_output_kw kW). " *
+                    "Set min_turn_down_fraction to 0.0 or reduce min_kw."
                 ))
             end
         end
     end
-    
+
     return chp
 end
 
@@ -619,4 +689,11 @@ function get_size_class_from_size(chp_elec_size_heuristic_kw, class_bounds, n_cl
         end
     end
     return size_class
+end
+
+# Get a specific CHP by name from an array of CHPs
+function get_chp_by_name(name::String, chps::AbstractArray{CHP, 1})
+    index = findfirst(chp -> chp.name == name, chps)
+    isnothing(index) && throw(ArgumentError("CHP named \"$name\" was not found."))
+    return chps[index]
 end

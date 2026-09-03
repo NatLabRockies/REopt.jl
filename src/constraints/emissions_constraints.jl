@@ -120,24 +120,35 @@ function calc_yr1_emissions_offset_from_elec_exports(m, p)
 		return 0.0, 0.0, 0.0, 0.0
 	end
 	yr1_emissions_offset_from_elec_exports_lbs_CO2 = @expression(m, p.hours_per_time_step *
-		sum(m[:dvProductionToGrid][t,u,ts] * (p.s.electric_utility.emissions_factor_series_lb_CO2_per_kwh[ts])
-		for t in p.techs.elec, ts in p.time_steps, u in p.export_bins_by_tech[t])
+		sum( p.s.electric_utility.emissions_factor_series_lb_CO2_per_kwh[ts] * (
+			sum(m[:dvProductionToGrid][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+			+ sum(m[:dvStorageToGrid][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
+			) for ts in p.time_steps
+		)
 	)
-		# if battery ends up being able to discharge to grid, need to incorporate here- might require complex tracking of what's charging battery
 
 	yr1_emissions_offset_from_elec_exports_lbs_NOx = @expression(m, p.hours_per_time_step *
-		sum(m[:dvProductionToGrid][t,u,ts] * (p.s.electric_utility.emissions_factor_series_lb_NOx_per_kwh[ts])
-		for t in p.techs.elec, ts in p.time_steps, u in p.export_bins_by_tech[t])
+		sum( p.s.electric_utility.emissions_factor_series_lb_NOx_per_kwh[ts] * (
+			sum(m[:dvProductionToGrid][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+			+ sum(m[:dvStorageToGrid][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
+			) for ts in p.time_steps
+		)
 	)
 
 	yr1_emissions_offset_from_elec_exports_lbs_SO2 = @expression(m, p.hours_per_time_step *
-		sum(m[:dvProductionToGrid][t,u,ts] * (p.s.electric_utility.emissions_factor_series_lb_SO2_per_kwh[ts])
-		for t in p.techs.elec, ts in p.time_steps, u in p.export_bins_by_tech[t])
+		sum( p.s.electric_utility.emissions_factor_series_lb_SO2_per_kwh[ts] * (
+			sum(m[:dvProductionToGrid][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+			+ sum(m[:dvStorageToGrid][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
+			) for ts in p.time_steps
+		)
 	)
 
 	yr1_emissions_offset_from_elec_exports_lbs_PM25 = @expression(m, p.hours_per_time_step *
-		sum(m[:dvProductionToGrid][t,u,ts] * (p.s.electric_utility.emissions_factor_series_lb_PM25_per_kwh[ts])
-		for t in p.techs.elec, ts in p.time_steps, u in p.export_bins_by_tech[t])
+		sum( p.s.electric_utility.emissions_factor_series_lb_PM25_per_kwh[ts] * (
+			sum(m[:dvProductionToGrid][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
+			+ sum(m[:dvStorageToGrid][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
+			) for ts in p.time_steps
+		)
 	)
 
 	return yr1_emissions_offset_from_elec_exports_lbs_CO2, 

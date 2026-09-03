@@ -9,8 +9,12 @@ struct MPCScenario <: AbstractScenario
     financial::MPCFinancial
     generator::MPCGenerator
     cooling_load::MPCCoolingLoad
+    space_heating_load::MPCSpaceHeatingLoad
+    dhw_load::MPCDomesticHotWaterLoad
+    process_heat_load::MPCProcessHeatLoad
     limits::MPCLimits
     node::Int
+    chps::Array{CHP, 1}  # Empty array for MPC scenarios (no CHP modeled)
 end
 
 
@@ -29,8 +33,12 @@ Method for creating the MPCScenario struct:
         financial::MPCFinancial
         generator::MPCGenerator
         cooling_load::MPCCoolingLoad
+        space_heating_load::MPCSpaceHeatingLoad
+        dhw_load::MPCDomesticHotWaterLoad
+        process_heat_load::MPCProcessHeatLoad
         limits::MPCLimits
         node::Int
+        chps::Array{CHP, 1}
     end
 ```
 
@@ -92,7 +100,7 @@ function MPCScenario(d::Dict)
 
     electric_load = MPCElectricLoad(; dictkeys_tosymbols(d["ElectricLoad"])...)
 
-    electric_tariff = MPCElectricTariff(d["ElectricTariff"])
+    electric_tariff = MPCElectricTariff(d["ElectricTariff"]; net_metering = electric_utility.net_metering_limit_kw > 0)
 
     if haskey(d, "Generator")
         generator = MPCGenerator(; dictkeys_tosymbols(d["Generator"])...)
@@ -100,8 +108,12 @@ function MPCScenario(d::Dict)
         generator = MPCGenerator(; size_kw=0)
     end
 
-    # Placeholder/dummy cooling load set to zeros
+    # Placeholder/dummy cooling and space heating loads set to zeros
     cooling_load = MPCCoolingLoad(; loads_kw_thermal = zeros(length(electric_load.loads_kw)), cop=1.0)
+    space_heating_load = MPCSpaceHeatingLoad(; loads_kw = zeros(length(electric_load.loads_kw)))
+    dhw_load = MPCDomesticHotWaterLoad(; loads_kw = zeros(length(electric_load.loads_kw)))
+    process_heat_load = MPCProcessHeatLoad(; loads_kw = zeros(length(electric_load.loads_kw)))
+
     if haskey(d, "Limits")
         limits = MPCLimits(; dictkeys_tosymbols(d["Limits"])...)
     else
@@ -124,7 +136,11 @@ function MPCScenario(d::Dict)
         financial,
         generator,
         cooling_load,
+        space_heating_load,
+        dhw_load,
+        process_heat_load,
         limits,
-        node
+        node,
+        CHP[]  # Empty array - no CHP in MPC scenarios
     )
 end

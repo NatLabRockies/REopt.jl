@@ -86,8 +86,8 @@ end
 """
 MPC `ElectricUtility` results keys:
 - `energy_supplied_kwh` 
-- `to_battery_series_kw`
-- `to_load_series_kw`
+- `electric_to_storage_series_kw`
+- `electric_to_load_series_kw`
 """
 function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
     r = Dict{String, Any}()
@@ -101,15 +101,16 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
         GridToBatt = @expression(m, [ts in p.time_steps], 
             sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) 
 		)
-        r["to_battery_series_kw"] = round.(value.(GridToBatt), digits=3).data
     else
         GridToBatt = zeros(length(p.time_steps))
     end
+    r["electric_to_storage_series_kw"] = results_array(round.(value.(GridToBatt), digits=3))
+
     GridToLoad = @expression(m, [ts in p.time_steps], 
         sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) - 
         GridToBatt[ts]
     )
-    r["to_load_series_kw"] = round.(value.(GridToLoad), digits=3).data
+    r["electric_to_load_series_kw"] = results_array(round.(value.(GridToLoad), digits=3))
 
     d["ElectricUtility"] = r
     nothing

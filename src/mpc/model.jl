@@ -38,11 +38,11 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
 		@objective(m, Min, m[:Costs])
 	else # Keep SOC high
 		@objective(m, Min, m[:Costs] - sum(m[:dvStoredEnergy]["ElectricStorage", ts] for ts in p.time_steps) /
-									   (8760. / p.hours_per_time_step)
+									   length(p.time_steps)
 		)
 	end
 
-	@info "Model built. Optimizing..."
+	#@info "Model built. Optimizing..."
 	tstart = time()
 	optimize!(m)
 	opt_time = round(time() - tstart, digits=3)
@@ -55,13 +55,13 @@ function run_mpc(m::JuMP.AbstractModel, p::MPCInputs)
 		@warn "MPC solved with " termination_status(m), ", returning the model."
 		return m
 	end
-	@info "MPC solved with " termination_status(m)
-	@info "Solving took $(opt_time) seconds."
+	#@info "MPC solved with " termination_status(m)
+	#@info "Solving took $(opt_time) seconds."
 
 	tstart = time()
 	results = mpc_results(m, p)
 	time_elapsed = time() - tstart
-	@info "Results processing took $(round(time_elapsed, digits=3)) seconds."
+	#@info "Results processing took $(round(time_elapsed, digits=3)) seconds."
 	results["status"] = status
 	results["solver_seconds"] = opt_time
 	return results
@@ -89,6 +89,10 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 		for t in p.techs.elec, u in p.export_bins_by_tech[t]
 			fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
 		end
+
+		for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]
+			fix(m[:dvStorageToGrid][b, u, ts], 0.0, force=true)
+		end
 	end
 
 	for b in p.s.storage.types.all
@@ -99,6 +103,7 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 			@constraint(m, [ts in p.time_steps], m[:dvDischargeFromStorage][b, ts] == 0)
 			if b in p.s.storage.types.elec
 				@constraint(m, [ts in p.time_steps], m[:dvGridToStorage][b, ts] == 0)
+				@constraint(m, [u in p.export_bins_by_storage[b], ts in p.time_steps], m[:dvStorageToGrid][b, u, ts] == 0)
 			end
 		else
 			add_general_storage_dispatch_constraints(m, p, b)
@@ -245,6 +250,7 @@ function add_variables!(m::JuMP.AbstractModel, p::MPCInputs)
 
 	if !isempty(p.s.electric_tariff.export_bins)
 		@variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvStorageToGrid[p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
 	end
 
     m[:dvSize] = p.existing_sizes

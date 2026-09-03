@@ -222,6 +222,17 @@ function dictkeys_tosymbols(d::Dict)
                 end
             end
         end
+        # Convert numeric boolean values (0.0/1.0) to proper Bool type
+        if k in [
+            "off_grid_flag", "add_soc_incentive", "include_climate_in_objective", 
+            "include_health_in_objective", "include_export_cost_series_in_results"
+        ] && !isnothing(v) && !(typeof(v) <: Bool)
+            if v isa Real && (v == 0 || v == 1)
+                v = v == 1
+            else
+                throw(ArgumentError("Unable to convert $k to Bool. Expected boolean or 0/1, got: $v"))
+            end
+        end
         if k in [
             "fuel_cost_per_mmbtu", "wholesale_rate", "export_rate_beyond_net_metering_limit",
             # for ERP
@@ -396,8 +407,7 @@ function call_solar_dataset_api(latitude::Real, longitude::Real, radius::Int)
     elseif longitude < -180 || longitude > 180
         throw(@error("Invalid coordinates: longitude of $longitude must be between -180 and 180 degrees."))
     end
-
-    url = string("https://developer.nlr.gov/api/solar/data_query/v2.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("https://developer.nlr.gov/api/solar/data_query/v2.json", "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
         "&lat=", latitude , "&lon=", longitude, "&radius=", radius, "&all=", 0 
         )
     try
@@ -468,7 +478,7 @@ function call_pvwatts_api(latitude::Real, longitude::Real; tilt=latitude, azimut
     # Determine resource dataset to use for this location
     dataset, dist_meters, datasource  = call_solar_dataset_api(latitude, longitude, radius)
 
-    url = string("https://developer.nlr.gov/api/pvwatts/v8.json", "?api_key=", ENV["NREL_DEVELOPER_API_KEY"],
+    url = string("https://developer.nlr.gov/api/pvwatts/v8.json", "?api_key=", ENV["NLR_DEVELOPER_API_KEY"],
         "&lat=", latitude , "&lon=", longitude, "&tilt=", tilt,
         "&system_capacity=1", "&azimuth=", azimuth, "&module_type=", module_type,
         "&array_type=", array_type, "&losses=", losses, "&dc_ac_ratio=", dc_ac_ratio,
@@ -569,7 +579,7 @@ end
 """
     get_load_metrics(load_profile; time_steps_per_hour=1, year=2025, print_to_console=false)
 
-Analyze the timeseries load profile data to get monthly and annual metrics. 
+Analyze the timeseries load profile data to get BAU monthly and annual metrics. 
 The units of the returned metrics are dependent on the units of the load_profile input
 E.g. if load_profile is in kW, the energy metrics will be in kWh. if MMBtu/hr, then MMBtu.
 # Arguments
@@ -578,10 +588,10 @@ E.g. if load_profile is in kW, the energy metrics will be in kWh. if MMBtu/hr, t
 - `year`: The year of the load profile, used to determine the number of days in each month (e.g., leap years). Default is 2025.
 - `print_to_console`: Boolean flag to print the results to the console. Default is false.
 # Returns
-- `monthly_energy`: Array of 12 values representing the total energy usage (e.g. kWh) for each month.
-- `monthly_peaks`: Array of 12 values representing the peak demand (e.g. kW) for each month.
-- `annual_energy`: Total annual energy usage (e.g. kWh).
-- `annual_peak`: Maximum peak demand (e.g. kW) for the year.
+- `monthly_energy`: Array of 12 values representing the total BAU energy usage (e.g. kWh) for each month.
+- `monthly_peaks`: Array of 12 values representing the BAU peak demand (e.g. kW) for each month.
+- `annual_energy`: Total annual BAU energy usage (e.g. kWh).
+- `annual_peak`: Maximum BAU peak demand (e.g. kW) for the year.
 
 """
 function get_load_metrics(load_profile; time_steps_per_hour=1, year=2025, print_to_console=false)
@@ -652,18 +662,32 @@ function convert_temp_degF_to_Kelvin(degF::Float64)
 end
 
 function check_api_key()
-    if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
-        throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
-                    Within your Julia environment, specify ENV['NREL_DEVELOPER_API_KEY']='your API key'
+    if isempty(get(ENV, "NLR_DEVELOPER_API_KEY", ""))
+        if isempty(get(ENV, "NREL_DEVELOPER_API_KEY", ""))
+            throw(@error("No NLR Developer API Key provided when trying to call PVWatts or Wind Toolkit.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_API_KEY']='your API key'
                     See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
+        else
+            ENV["NLR_DEVELOPER_API_KEY"] = ENV["NREL_DEVELOPER_API_KEY"]
+            @warn "The environment variable NREL_DEVELOPER_API_KEY will be discontinued. Use NLR_DEVELOPER_API_KEY instead.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_API_KEY']='your API key'
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."
+        end
     end
 end
 
 function check_api_email()
-    if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
-        throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
-                    Within your Julia environment, specify ENV['NREL_DEVELOPER_EMAIL']='your contact email'
+    if isempty(get(ENV, "NLR_DEVELOPER_EMAIL", ""))
+        if isempty(get(ENV, "NREL_DEVELOPER_EMAIL", ""))
+            throw(@error("No NLR Developer API Email provided when trying to call PVWatts or Wind Toolkit.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_EMAIL']='your contact email'
                     See https://natlabrockies.github.io/REopt.jl/dev/ for more information."))
+        else
+            ENV["NLR_DEVELOPER_EMAIL"] = ENV["NREL_DEVELOPER_EMAIL"]
+            @warn "The environment variable NREL_DEVELOPER_EMAIL will be discontinued. Use NLR_DEVELOPER_EMAIL instead.
+                    Within your Julia environment, specify ENV['NLR_DEVELOPER_EMAIL']='your contact email'
+                    See https://natlabrockies.github.io/REopt.jl/dev/ for more information."
+        end
     end
 end
 
@@ -894,7 +918,7 @@ Checks and adjusts the length of a user-provided load series to ensure it matche
 - `Array{<:Real,1}`: The adjusted load series if modifications are required, or the original load series if it already matches the expected length.
 """
 function check_and_adjust_load_length(load_series::Array{<:Real,1}, time_steps_per_hour::Int, load_type::String)
-            # Timestep checks for custom loads
+        # Timestep checks for custom loads
         if length(load_series) > 0 && length(load_series) / time_steps_per_hour != 8760 # user provided load with incorrect time_steps_per_hour
             if length(load_series) < 8760 * time_steps_per_hour && length(load_series) % 8760 == 0 # loads_kw is lower resolution than time_steps_per_hour and is an integer multiple of 8760
                 load_series = repeat(load_series, inner=Int(time_steps_per_hour / (length(load_series)/8760)))

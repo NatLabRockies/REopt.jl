@@ -58,36 +58,43 @@ function add_re_elec_calcs(m,p)
 		@warn("The presence of a steam turbine may cause the renewable energy fraction to be inaccurate.")
 	end
 
-	# Note: when we add capability for battery to discharge to grid, need to make sure only RE that is being consumed 
-	# 		onsite is counted so battery doesn't become a back door for RE to grid.
 	m[:AnnualOnsiteREEleckWh] = @expression(m, p.hours_per_time_step * (
+			#total RE elec generation, excl steam turbine
 			sum(p.production_factor[t,ts] * p.levelization_factor[t] * m[:dvRatedProduction][t,ts] * 
 				p.tech_renewable_energy_fraction[t] for t in setdiff(p.techs.elec, p.techs.steam_turbine), ts in p.time_steps
-			) - #total RE elec generation, excl steam turbine
-			sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t]*(
+			)
+			#minus battery efficiency losses
+			- sum(m[:dvProductionToStorage][b,t,ts]*p.tech_renewable_energy_fraction[t]*(
 				1-p.s.storage.attr[b].charge_efficiency*p.s.storage.attr[b].discharge_efficiency) 
 				for t in setdiff(p.techs.elec, p.techs.steam_turbine), b in p.s.storage.types.elec, ts in p.time_steps
-			) - #minus battery efficiency losses
-			sum(m[:dvCurtail][t,ts] * p.tech_renewable_energy_fraction[t] 
+			)
+			# minus curtailment
+			- sum(m[:dvCurtail][t,ts] * p.tech_renewable_energy_fraction[t] 
 				for t in setdiff(p.techs.elec, p.techs.steam_turbine), ts in p.time_steps
-			) - # minus curtailment
-			(1 - p.s.site.include_exported_renewable_electricity_in_total) *
+			)
+			# minus exported RE, if RE accounting method = 0.
+			- (1 - p.s.site.include_exported_renewable_electricity_in_total) *
 			sum(m[:dvProductionToGrid][t,u,ts]*p.tech_renewable_energy_fraction[t] 
 				for t in setdiff(p.techs.elec, p.techs.steam_turbine), u in p.export_bins_by_tech[t], ts in p.time_steps
-			) # minus exported RE, if RE accounting method = 0.
+			)
+			# TODO: battery can now discharge to the grid, but this export is not yet accounted for in the RE calculation. 
+			# 	This is only relevant if include_exported_renewable_electricity_in_total = false. If false, the 
+			# 	battery could become a "back door" for export of RE to the grid since it's not subtracted here. Will require tracking of onsite vs grid RE in BESS. 
 		)
 		# + SteamTurbineAnnualREEleckWh  # SteamTurbine RE Elec, already adjusted for p.hours_per_time_step
 	)		
 
-	# Note: when we add capability for battery to discharge to grid, need to subtract out *grid RE* discharged from battery 
-	# 		back to grid so that loop doesn't become a back door for increasing RE. This will require some careful thought!
 	m[:AnnualGridREEleckWh] = @expression(m, p.hours_per_time_step * (
+			# renewable energy from grid 
 			sum(m[:dvGridPurchase][ts, tier] * p.s.electric_utility.renewable_energy_fraction_series[ts] 
-				for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers) # renewable energy from grid 
+				for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers) 
+			# minus battery efficiency losses from grid charging storage (assumes all that is charged is discharged)
 			- sum(m[:dvGridToStorage][b, ts] * p.s.electric_utility.renewable_energy_fraction_series[ts] *
 				(1 - p.s.storage.attr[b].charge_efficiency * p.s.storage.attr[b].discharge_efficiency)
 				for ts in p.time_steps, b in p.s.storage.types.elec
-			) # minus battery efficiency losses from grid charging storage (assumes all that is charged is discharged)
+			)
+			# TODO: battery can now discharge to the grid, but this export is not yet accounted for in the RE calculation.
+			# 	Need to subtract out *grid RE* discharged from battery back to grid so that loop doesn't become a back door for increasing RE. Will require tracking of onsite vs grid RE in BESS.
 		) 
 	)
 
