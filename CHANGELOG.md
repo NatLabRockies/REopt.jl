@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## defaults-update-atb25
+### Changed
+- Updated default `PV` and `Wind` cost values per ATB 2025
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following
