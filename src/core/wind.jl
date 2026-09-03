@@ -104,7 +104,7 @@ struct Wind <: AbstractTech
         min_kw = 0.0,
         max_kw = 1.0e9,
         installed_cost_per_kw = nothing,
-        om_cost_per_kw = 42.0,
+        om_cost_per_kw = 43.0,
         production_factor_series = nothing,
         size_class = "",
         wind_meters_per_sec = [],
@@ -143,10 +143,10 @@ struct Wind <: AbstractTech
             "large"=> 80
         )
         size_class_to_installed_cost = Dict(
-            "residential"=> 7692.0,
-            "commercial"=> 5776.0,
-            "medium"=> 3807.0,
-            "large"=> 2896.0
+            "residential"=> 9592.0,
+            "commercial"=> 7202.0,
+            "medium"=> 4676.0,
+            "large"=> 3723.0
         )
         
         if size_class == ""
