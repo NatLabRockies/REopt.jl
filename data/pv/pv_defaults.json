@@ -5,8 +5,8 @@
       "name": "Residential",
       "tech_sizes_for_cost_curve": [3, 11],
       "roof": {
-        "installed_cost_per_kw": [6145, 2834],
-        "avg_installed_cost_per_kw": 3343,
+        "installed_cost_per_kw": [5954, 2746],
+        "avg_installed_cost_per_kw": 3239,
         "om_cost_per_kw": 32
       },
       "mount_premiums": {
@@ -22,8 +22,8 @@
       "name": "Small Commercial",
       "tech_sizes_for_cost_curve": [11, 100],
       "roof": {
-        "installed_cost_per_kw": [2834, 2000],
-        "avg_installed_cost_per_kw": 2417,
+        "installed_cost_per_kw": [2746, 1942],
+        "avg_installed_cost_per_kw": 2344,
         "om_cost_per_kw": 25
       },
       "mount_premiums": {
@@ -39,9 +39,9 @@
       "name": "Large Commercial",
       "tech_sizes_for_cost_curve": [100, 2000],
       "roof": {
-        "installed_cost_per_kw": [2000, 1661],
-        "avg_installed_cost_per_kw": 1825,
-        "om_cost_per_kw": 19
+        "installed_cost_per_kw": [1942, 1613],
+        "avg_installed_cost_per_kw": 1772,
+        "om_cost_per_kw": 18
       },
       "mount_premiums": {
         "ground": {
@@ -56,9 +56,9 @@
       "name": "Industrial",
       "tech_sizes_for_cost_curve": [2000, 10000],
       "roof": {
-        "installed_cost_per_kw": [1661, 1533],
-        "avg_installed_cost_per_kw": 1597,
-        "om_cost_per_kw": 20
+        "installed_cost_per_kw": [1613, 1480],
+        "avg_installed_cost_per_kw": 1546,
+        "om_cost_per_kw": 19
       },
       "mount_premiums": {
         "ground": {
@@ -73,9 +73,9 @@
       "name": "Utility",
       "tech_sizes_for_cost_curve": [10000, 100000],
       "roof": {
-        "installed_cost_per_kw": [1533, 1207],
-        "avg_installed_cost_per_kw": 1207,
-        "om_cost_per_kw": 20
+        "installed_cost_per_kw": [1480, 1165],
+        "avg_installed_cost_per_kw": 1165,
+        "om_cost_per_kw": 19
       },
       "mount_premiums": {
         "ground": {
