@@ -27,7 +27,7 @@ Classify the change according to the following categories:
 
 ## defaults-update-atb25
 ### Changed
-- Updated default `PV` and `Wind` cost values per ATB 2025
+- Updated default `PV` and `Wind` cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
 
 ## v0.61.1
 ### Fixed
