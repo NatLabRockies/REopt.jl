@@ -20,12 +20,21 @@
     },
     {
       "size_class": 3,
-      "name": "Large-Commercial",
-      "size_class_bounds_kw": [400,1.0e6],
+      "name": "Large Commercial",
+      "size_class_bounds_kw": [400,10000],
       "installed_cost_per_kw": 527,
       "installed_cost_per_kwh": 278,
       "installed_cost_constant": 0,
       "notes": "Based on ATB 2025 Commercial costs modeled for a 7200 kWh 1800 kW battery system in 2025 dollars"
+    },
+    {
+      "size_class": 4,
+      "name": "Utility",
+      "size_class_bounds_kw": [10000,1.0e6],
+      "installed_cost_per_kw": 236,
+      "installed_cost_per_kwh": 377,
+      "installed_cost_constant": 0,
+      "notes": "Based on ATB 2025 Commercial costs modeled for a 240000 kWh 60000 kW battery system in 2025 dollars"
     }
   ]
 }

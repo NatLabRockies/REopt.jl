@@ -527,7 +527,7 @@ struct ElectricStorage <: AbstractElectricStorage
 
         net_present_cost_per_kwh -= stor.total_rebate_per_kwh
 
-	    if (stor.installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
+	    if (installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
             net_present_cost_cost_constant = effective_cost(;
                 itc_basis = installed_cost_constant,
                 replacement_cost = stor.cost_constant_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_constant,
