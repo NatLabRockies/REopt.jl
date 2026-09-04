@@ -176,16 +176,16 @@ end
     can_net_meter::Bool = false
     can_wholesale::Bool = false
     can_export_beyond_nem_limit::Bool = false
-    installed_cost_per_kw::Real = 968.0 # Cost of power components (e.g., inverter and BOS) 
-    installed_cost_per_kwh::Real = 253.0 # Cost of energy components (e.g., battery pack)
-    installed_cost_constant::Real = 222115.0 # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
+    installed_cost_per_kw::Union{Real, Nothing} = nothing # defaults to average cost for determined size class.
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing # Cost of energy components (e.g., battery pack)
+    installed_cost_constant::Union{Real, Nothing} = nothing # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
     replace_cost_per_kw::Real = 0.0
     replace_cost_per_kwh::Real = 0.0
     replace_cost_constant::Real = 0.0
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
-    om_cost_fraction_of_installed_cost::Float64 = 0.025 # Annual O&M cost as a fraction of installed cost
+    om_cost_fraction_of_installed_cost::Float64 = 0.04 # Annual O&M cost as a fraction of installed cost
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_itc_reduction::Float64 = 0.5
@@ -210,6 +210,10 @@ end
     # SOC inputs relevant if dispatch_strategy = "custom_soc"
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance. Must be an array of values 0-1 with length equal to 8760*time_steps_per_hour.
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
+    size_class::Union{Int, Nothing} = nothing, # Size class for cost curve selection
+    electric_load_annual_peak::Real = 0.0, # Annual electric load peak (kW) for size class determination
+    electric_load_average::Real = 0.0, # Annual electric load average (kW) for size class determination
+```
     
 !!! note "Dispatch Strategy Options"
 	The following dispatch strategies are available via the `dispatch_strategy` input:
@@ -235,16 +239,16 @@ Base.@kwdef struct ElectricStorageDefaults
     can_net_meter::Bool = false
     can_wholesale::Bool = false
     can_export_beyond_nem_limit::Bool = false
-    installed_cost_per_kw::Real = 968.0
-    installed_cost_per_kwh::Real = 253.0
-    installed_cost_constant::Real = 222115.0
+    installed_cost_per_kw::Union{Real, Nothing} = nothing # defaults to average cost for determined size class. 
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing # Cost of energy components (e.g., battery pack)
+    installed_cost_constant::Union{Real, Nothing} = nothing # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
     replace_cost_per_kw::Real = 0.0
     replace_cost_per_kwh::Real = 0.0
     replace_cost_constant::Real = 0.0
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
     cost_constant_replacement_year::Int = 10
-    om_cost_fraction_of_installed_cost::Float64 = 0.025
+    om_cost_fraction_of_installed_cost::Float64 = 0.04
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
     macrs_itc_reduction::Float64 = 0.5
@@ -265,7 +269,10 @@ Base.@kwdef struct ElectricStorageDefaults
     minimum_avg_soc_fraction::Float64 = 0.0
     optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC.
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
-    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing 
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
+    size_class::Union{Int, Nothing} = nothing # Size class for cost curve selection
+    electric_load_annual_peak::Real = 0.0 # Annual electric load peak (kW) for size class determination
+    electric_load_average::Real = 0.0 # Annual electric load average (kW) for size class determination
 end
 
 
@@ -287,9 +294,9 @@ struct ElectricStorage <: AbstractElectricStorage
     can_net_meter::Bool
     can_wholesale::Bool
     can_export_beyond_nem_limit::Bool
-    installed_cost_per_kw::Real
-    installed_cost_per_kwh::Real
-    installed_cost_constant::Real
+    installed_cost_per_kw::Union{Real, Nothing}
+    installed_cost_per_kwh::Union{Real, Nothing}
+    installed_cost_constant::Union{Real, Nothing}
     replace_cost_per_kw::Real
     replace_cost_per_kwh::Real
     replace_cost_constant::Real
@@ -321,8 +328,11 @@ struct ElectricStorage <: AbstractElectricStorage
     optimize_soc_init_fraction::Bool
     fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}}
     fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
-    
-    
+    size_class::Union{Int, Nothing}
+    size_class_bounds_kw::AbstractVector
+    electric_load_annual_peak::Real
+    electric_load_average::Real
+
     function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int, net_metering_limit_kw::Real)  
         set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = ElectricStorageDefaults(;d...)
@@ -479,8 +489,20 @@ struct ElectricStorage <: AbstractElectricStorage
             throw(@error("ElectricStorage macrs_option_years must be 0, 5, or 7."))
         end
 
+        installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
+        size_kw_for_size_class, size_class_bounds_kw = get_electric_storage_cost_params(;
+            installed_cost_per_kw = stor.installed_cost_per_kw,
+            installed_cost_per_kwh = stor.installed_cost_per_kwh,
+            installed_cost_constant = stor.installed_cost_constant, 
+            size_class = stor.size_class,
+            electric_load_annual_peak = stor.electric_load_annual_peak,
+            electric_load_average = stor.electric_load_average,
+            min_kw = stor.min_kw,
+            max_kw = stor.max_kw
+        )
+
         net_present_cost_per_kw = effective_cost(;
-            itc_basis = stor.installed_cost_per_kw,
+            itc_basis = installed_cost_per_kw,
             replacement_cost = stor.inverter_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kw,
             replacement_year = stor.inverter_replacement_year,
             discount_rate = f.owner_discount_rate_fraction,
@@ -492,7 +514,7 @@ struct ElectricStorage <: AbstractElectricStorage
             rebate_per_kw = stor.total_rebate_per_kw
         )
         net_present_cost_per_kwh = effective_cost(;
-            itc_basis = stor.installed_cost_per_kwh,
+            itc_basis = installed_cost_per_kwh,
             replacement_cost = stor.battery_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kwh,
             replacement_year = stor.battery_replacement_year,
             discount_rate = f.owner_discount_rate_fraction,
@@ -505,9 +527,9 @@ struct ElectricStorage <: AbstractElectricStorage
 
         net_present_cost_per_kwh -= stor.total_rebate_per_kwh
 
-	    if (stor.installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
+	    if (installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
             net_present_cost_cost_constant = effective_cost(;
-                itc_basis = stor.installed_cost_constant,
+                itc_basis = installed_cost_constant,
                 replacement_cost = stor.cost_constant_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_constant,
                 replacement_year = stor.cost_constant_replacement_year,
                 discount_rate = f.owner_discount_rate_fraction,
@@ -560,9 +582,9 @@ struct ElectricStorage <: AbstractElectricStorage
             can_net_meter,
             can_wholesale,
             can_export_beyond_nem_limit,
-            stor.installed_cost_per_kw,
-            stor.installed_cost_per_kwh,
-            stor.installed_cost_constant,
+            installed_cost_per_kw,
+            installed_cost_per_kwh,
+            installed_cost_constant,
             replace_cost_per_kw,
             replace_cost_per_kwh,
             replace_cost_constant,
@@ -593,7 +615,178 @@ struct ElectricStorage <: AbstractElectricStorage
             minimum_avg_soc_fraction,
             optimize_soc_init_fraction,
             fixed_soc_series_fraction,
-            fixed_soc_series_fraction_tolerance
+            fixed_soc_series_fraction_tolerance,
+            size_class,
+            size_class_bounds_kw,
+            stor.electric_load_annual_peak,
+            stor.electric_load_average
         )
     end
+end
+
+"""
+    get_electric_storage_cost_params(; installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant,
+                                size_class, min_kw, max_kw, electric_load_annual_peak, electric_load_average)
+
+Processes and determines the cost scaling parameters for a Battery system, including installed cost per kW, 
+installed cost per kWh, installed cost constant and size class.
+
+# Arguments
+- `installed_cost_per_kw`::Union{Real, Nothing} = Nothing,
+- `installed_cost_per_kwh`::Union{Real, Nothing} = Nothing,
+- `installed_cost_constant`::Union{Real, Nothing} = Nothing,
+- `size_class`::Union{Int, Nothing} = Nothing,
+- `min_kw`::Real = 0.0,
+- `max_kw`::Real = 1.0e9,
+- `electric_load_annual_peak`::Real = 0.0,
+- `electric_load_average`::Real = 0.0
+
+# Returns
+Values:
+1. `installed_cost_per_kw`: Final installed cost per kW.
+2. `installed_cost_per_kwh`: Final installed cost per kWh.
+3. `installed_cost_constant`: Final installed cost constant.
+4. `size_class`: Determined size class.
+5. `size_kw_for_size_class`: Calculated size_kw used to determine size class.
+
+# Notes
+- If `size_class` is not provided, it is determined based on (peak demand - average demand) or user-provided cost data.
+- Handles both single-value and multi-point cost curves for installed and O&M costs.
+
+"""
+function get_electric_storage_cost_params(; 
+    installed_cost_per_kw::Union{Real, Nothing} = Nothing,
+    installed_cost_per_kwh::Union{Real, Nothing} = Nothing,
+    installed_cost_constant::Union{Real, Nothing} = Nothing,
+    size_class::Union{Int, Nothing} = Nothing,
+    min_kw::Real = 0.0,
+    max_kw::Real = 1.0e9,
+    electric_load_annual_peak::Real = 0.0,
+    electric_load_average::Real = 0.0
+)
+
+    # Get defaults and determine mount type
+    defaults = get_electric_storage_defaults_size_class()
+
+    # Initialize variables needed for processing
+    local determined_size_class
+    local size_kw_for_size_class = max_kw
+
+    # STEP 1: Determine size class
+    determined_size_class = if !isnothing(size_class)
+        # User explicitly set size class - validate boundaries
+        if size_class < 1
+            @warn "Size class $size_class is less than 1, using size class 1 instead"
+            1
+        elseif size_class > length(defaults)
+            @warn "Size class $size_class exceeds maximum ($(length(defaults))), using largest size class instead"
+            length(defaults)
+        else
+            size_class
+        end
+    elseif typeof(installed_cost_per_kw) <: Real
+        # Single cost value provided - size class not needed
+        size_class
+    else
+        # Default case: no costs or size_class information provided.
+        kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
+        size_class, size_kw_for_size_class = get_electric_storage_size_class(
+                electric_load_annual_peak,
+                electric_load_average,
+                kw_tech_sizes;
+                min_kw=min_kw,
+                max_kw=max_kw
+            )
+        size_class
+    end
+
+    # Get default data for determined size class
+    class_defaults = if !isnothing(determined_size_class)            
+        matching_default = findfirst(d -> d["size_class"] == determined_size_class, defaults)            
+        if isnothing(matching_default)
+            throw(ErrorException("Could not find matching defaults for size class $(determined_size_class)"))
+        end
+        defaults[matching_default]
+    end
+
+    installed_cost_constant = isnothing(installed_cost_constant) ? 0 : installed_cost_constant
+
+    # STEP 2: Handle installed costs
+    installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant = if (
+        typeof(installed_cost_per_kw) <: Real && typeof(installed_cost_per_kwh) <: Real && typeof(installed_cost_constant) <: Real
+    )
+        # Single cost value provided by user
+        convert(Float64, installed_cost_per_kw), convert(Float64, installed_cost_per_kwh), convert(Float64, installed_cost_constant)
+    elseif !isnothing(class_defaults)
+        class_defaults["installed_cost_per_kw"], class_defaults["installed_cost_per_kwh"], class_defaults["installed_cost_constant"]
+    else
+        throw(ErrorException("No installed costs provided and no size class determined"))
+    end
+
+    size_class_bounds_kw = if !isnothing(determined_size_class) && !isnothing(class_defaults)
+        convert(Vector{Float64}, class_defaults["size_class_bounds_kw"])
+    else
+        Float64[]
+    end
+
+    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0), size_class_bounds_kw
+end
+
+# TODO combine functions to load size class defaults for eligible techs.
+# Load ElectricStorage default size class data from JSON file
+function get_electric_storage_defaults_size_class()
+    electric_storage_defaults_path = joinpath(@__DIR__, "..", "..", "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
+    if !isfile(electric_storage_defaults_path)
+        throw(ErrorException("electric_storage_defaults.json not found at path: $electric_storage_defaults_path"))
+    end
+    
+    electric_storage_defaults_all = JSON.parsefile(electric_storage_defaults_path)
+    return electric_storage_defaults_all["size_classes"]
+end
+
+
+# Determine appropriate size class based on system parameters
+function get_electric_storage_size_class(
+    electric_load_annual_peak::Real,
+    electric_load_average::Real,
+    size_class_bounds_kw::AbstractVector;
+    min_kw::Real=0.0,
+    max_kw::Real=1.0e9
+    )
+
+    size_class_kw = nothing
+    size_kw = nothing
+
+    # Estimate size based on electric load and estimated (max_kw - avg_kw) value
+    kw_for_sizing = electric_load_annual_peak - electric_load_average
+    # if default min/max kw have been updated, factor those in.
+    # Do we need 2 size_kw here to factor in a wide size range that spreads over multiple size classes?
+    if max_kw != 1.0e9 
+        size_kw = min(kw_for_sizing, max_kw)
+    end
+    if min_kw != 0.0
+        size_kw = max(kw_for_sizing, min_kw)
+    end
+    if isnothing(size_kw)
+        size_kw = kw_for_sizing
+    end
+    # Find the appropriate kw size class for the effective size
+    for (i, size_range) in enumerate(size_class_bounds_kw)
+        min_size = convert(Float64, size_range[1])
+        max_size = convert(Float64, size_range[2])
+        
+        if size_kw >= min_size && size_kw <= max_size
+            size_class_kw = i
+        end
+    end
+    if isnothing(size_class_kw)
+        # Handle edge cases -> highest size class returned.
+        if size_kw > convert(Float64, size_class_bounds_kw[end][2])
+            size_class_kw = length(size_class_bounds_kw)
+        else
+            size_class_kw = 1  # Default to smallest size class
+        end
+    end
+
+    return size_class_kw, kw_for_sizing
 end
