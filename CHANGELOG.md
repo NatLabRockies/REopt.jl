@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## feature/steam-turbine-electric-only
+### Fixed
+- `src`, `test` Allow a **Boiler** to supply a condensing **SteamTurbine** in electric-only scenarios without a site heating load.
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following

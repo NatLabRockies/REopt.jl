@@ -418,10 +418,12 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     end
 
     if haskey(d, "Boiler")
-        if max_heat_demand_kw > 0 && !haskey(d, "FlexibleHVAC")
+        boiler_can_supply_steam_turbine = haskey(d, "SteamTurbine") &&
+            get(d["Boiler"], "can_supply_steam_turbine", true)
+        if (max_heat_demand_kw > 0 || boiler_can_supply_steam_turbine) && !haskey(d, "FlexibleHVAC")
             boiler = Boiler(; dictkeys_tosymbols(d["Boiler"])...)
         end
-        if !(max_heat_demand_kw > 0) && !haskey(d, "FlexibleHVAC")
+        if !(max_heat_demand_kw > 0 || boiler_can_supply_steam_turbine) && !haskey(d, "FlexibleHVAC")
             @warn("Not creating Boiler because there is no heating load.")
         end
     end

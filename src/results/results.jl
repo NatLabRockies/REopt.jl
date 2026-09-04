@@ -72,11 +72,12 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
         add_heating_load_results(m, p, d)
     end
 
-    if !isempty(p.techs.boiler)
+    if "ExistingBoiler" in p.techs.boiler
         add_existing_boiler_results(m, p, d)
-        if "Boiler" in p.techs.boiler
-            add_boiler_results(m, p, d)
-        end
+    end
+
+    if "Boiler" in p.techs.boiler
+        add_boiler_results(m, p, d)
     end
 
     if _n==""
