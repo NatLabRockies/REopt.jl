@@ -21,6 +21,16 @@ before running PV or Wind scenarios, and also assign your email to the expected 
 ENV["NLR_DEVELOPER_EMAIL"]="your contact email"
 ```
 
+### Add URDB API key for utility rates
+To download utility rates from the [Utility Rate Database (URDB)](https://openei.org/wiki/Utility_Rate_Database) using **ElectricTariff.urdb_label** or **ElectricTariff.urdb_utility_name**/**urdb_rate_name**, you need an OpenEI API key, which you can [sign up for here (free)](https://openei.org/services/api/signup/).
+Assign your API key to the expected environment variable:
+```julia
+ENV["URDB_API_KEY"]="your API key"
+```
+
+!!! note
+    When running the REopt.jl test suite locally, these environment variables are loaded from a `test/.env` file. Copy `test/.env.example` to `test/.env` and fill in your own values. `test/.env` is git-ignored, so never commit real API keys.
+
 ### Additional package loading for GHP
 GHP evaluations must load in the [`GhpGhx.jl`](https://github.com/NatLabRockies/GhpGhx.jl) package separately because it has a more [restrictive license](https://github.com/NatLabRockies/GhpGhx.jl/blob/main/LICENSE.md) and is not a registered Julia package.
 
