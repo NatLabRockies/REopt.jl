@@ -2581,6 +2581,51 @@ else  # run HiGHS tests
             boiler_to_st = sum(results["Boiler"]["thermal_to_steamturbine_series_mmbtu_per_hour"])
             st_thermal_in = results["SteamTurbine"]["annual_thermal_consumption_mmbtu"]
             @test boiler_to_st ≈ st_thermal_in rtol=0.01
+
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+
+            # A condensing SteamTurbine can produce electricity from a Boiler without a site heating load.
+            delete!(input_data, "SpaceHeatingLoad")
+            delete!(input_data, "DomesticHotWaterLoad")
+            input_data["SteamTurbine"]["min_kw"] = 30.0
+            input_data["SteamTurbine"]["max_kw"] = 30.0
+            input_data["SteamTurbine"]["is_condensing"] = true
+            input_data["SteamTurbine"]["thermal_produced_to_thermal_consumed_ratio"] = 0.0
+            input_data["SteamTurbine"]["installed_cost_per_kw"] = 0.0
+            input_data["SteamTurbine"]["om_cost_per_kw"] = 0.0
+            input_data["SteamTurbine"]["om_cost_per_kwh"] = 0.0
+            input_data["Boiler"]["fuel_cost_per_mmbtu"] = 1.0
+            input_data["Boiler"]["installed_cost_per_mmbtu_per_hour"] = 0.0
+            input_data["Boiler"]["om_cost_per_mmbtu_per_hour"] = 0.0
+            input_data["Boiler"]["om_cost_per_mmbtu"] = 0.0
+
+            electric_only_scenario = Scenario(input_data)
+            electric_only_inputs = REoptInputs(electric_only_scenario)
+            @test electric_only_scenario.boiler.max_kw > 0.0
+            @test "Boiler" in electric_only_inputs.techs.can_supply_steam_turbine
+
+            m3 = Model(optimizer_with_attributes(HiGHS.Optimizer, "mip_rel_gap" => 0.001, "output_flag" => false, "log_to_console" => false))
+            electric_only_results = run_reopt(m3, electric_only_inputs)
+
+            expected_electric_kwh = 30.0 * 8760
+            expected_thermal_input_mmbtu = expected_electric_kwh /
+                input_data["SteamTurbine"]["electric_produced_to_thermal_consumed_ratio"] / REopt.KWH_PER_MMBTU
+            expected_boiler_fuel_mmbtu = expected_thermal_input_mmbtu / input_data["Boiler"]["efficiency"]
+
+            @test electric_only_results["status"] == "optimal"
+            @test electric_only_results["SteamTurbine"]["annual_electric_production_kwh"] ≈ expected_electric_kwh rtol=1e-5
+            @test electric_only_results["SteamTurbine"]["annual_thermal_consumption_mmbtu"] ≈ expected_thermal_input_mmbtu rtol=1e-5
+            @test electric_only_results["Boiler"]["annual_fuel_consumption_mmbtu"] ≈ expected_boiler_fuel_mmbtu rtol=0.002
+            @test sum(electric_only_results["Boiler"]["thermal_to_steamturbine_series_mmbtu_per_hour"]) ≈ expected_thermal_input_mmbtu rtol=0.002
+            @test sum(electric_only_results["Boiler"]["thermal_to_load_series_mmbtu_per_hour"]) ≈ 0.0 atol=1e-5
+            @test sum(electric_only_results["SteamTurbine"]["thermal_to_load_series_mmbtu_per_hour"]) ≈ 0.0 atol=1e-5
+
+            finalize(backend(m3))
+            empty!(m3)
+            GC.gc()
         end        
 
         @testset "OffGrid" begin

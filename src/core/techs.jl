@@ -371,16 +371,16 @@ function Techs(s::Scenario)
     end
 
     # Zero out can_serve_* lists when the corresponding load is zero,
-    # UNLESS AbsorptionChiller is using that heating quality as its heat source
-    # (in which case techs must remain available to supply heat to the AC even though direct load is zero).
+    # UNLESS AbsorptionChiller or SteamTurbine is using heating production
+    # (in which case techs must remain available even though direct load is zero).
     ac_heating_load = !isnothing(s.absorption_chiller) ? s.absorption_chiller.heating_load_input : nothing
-    if sum(s.dhw_load.loads_kw) == 0.0 && ac_heating_load != "DomesticHotWater"
+    if sum(s.dhw_load.loads_kw) == 0.0 && ac_heating_load != "DomesticHotWater" && isnothing(s.steam_turbine)
         techs_can_serve_dhw = String[]
     end
-    if sum(s.space_heating_load.loads_kw) == 0.0 && ac_heating_load != "SpaceHeating"
+    if sum(s.space_heating_load.loads_kw) == 0.0 && ac_heating_load != "SpaceHeating" && isnothing(s.steam_turbine)
         techs_can_serve_space_heating = String[]
     end
-    if sum(s.process_heat_load.loads_kw) == 0.0 && ac_heating_load != "ProcessHeat"
+    if sum(s.process_heat_load.loads_kw) == 0.0 && ac_heating_load != "ProcessHeat" && isnothing(s.steam_turbine)
         techs_can_serve_process_heat = String[]
     end
 

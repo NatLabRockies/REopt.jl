@@ -29,7 +29,8 @@ end
 When modeling a heating load an `ExistingBoiler` model is created even if user does not provide the
 `ExistingBoiler` key. The `Boiler` model is not created by default. If a user provides the `Boiler`
 key then the optimal scenario has the option to purchase this new `Boiler` to meet the heating load
-in addition to using the `ExistingBoiler` to meet the heating load. 
+in addition to using the `ExistingBoiler`. A `Boiler` can also be modeled without a site heating load
+when a `SteamTurbine` is included and `can_supply_steam_turbine` is `true`.
 
 ```julia
 function Boiler(;
@@ -79,7 +80,7 @@ function Boiler(;
     )
 
     if isempty(fuel_cost_per_mmbtu)
-        throw(@error("The Boiler.fuel_cost_per_mmbtu is a required input when modeling a heating load which is served by the Boiler in the optimal case"))
+        throw(@error("Boiler.fuel_cost_per_mmbtu is required when modeling a Boiler."))
     end
 
     min_kw = min_mmbtu_per_hour * KWH_PER_MMBTU
