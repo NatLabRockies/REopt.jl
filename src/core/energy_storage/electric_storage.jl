@@ -166,7 +166,7 @@ end
 
 ```julia
     min_kw::Real = 0.0
-    max_kw::Real = 1.0e4
+    max_kw::Real = 1.0e5
     min_kwh::Real = 0.0
     max_kwh::Real = 1.0e6
     internal_efficiency_fraction::Float64 = 0.975
@@ -229,7 +229,7 @@ end
 Base.@kwdef struct ElectricStorageDefaults
     off_grid_flag::Bool = false
     min_kw::Real = 0.0
-    max_kw::Real = 1.0e4
+    max_kw::Real = 1.0e5
     min_kwh::Real = 0.0
     max_kwh::Real = 1.0e6
     internal_efficiency_fraction::Float64 = 0.975

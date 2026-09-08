@@ -30,7 +30,7 @@
     {
       "size_class": 4,
       "name": "Utility",
-      "size_class_bounds_kw": [10000,1.0e6],
+      "size_class_bounds_kw": [10000,1.0e5],
       "installed_cost_per_kw": 236,
       "installed_cost_per_kwh": 377,
       "installed_cost_constant": 0,
