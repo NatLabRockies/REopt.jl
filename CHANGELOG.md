@@ -25,6 +25,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## pv-resilience
+### Added
+- Optional input **PV.outage_prod_reduction_fraction** to reduce PV production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following
