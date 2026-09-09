@@ -3,9 +3,9 @@
 function outage_effective_production_factors(p)
     factors = Dict{String, Vector{Float64}}()
     chp_series_by_name = Dict(chp.name => chp.production_factor_series for chp in p.s.chps)
-    # MPCPV has no outage_prod_reduction_fraction field, so only collect it where defined.
-    pv_outage_prod_reduction = Dict(pv.name => pv.outage_prod_reduction_fraction
-        for pv in p.s.pvs if hasproperty(pv, :outage_prod_reduction_fraction))
+    # MPCPV has no outage_production_reduction_fraction field, so only collect it where defined.
+    pv_outage_prod_reduction = Dict(pv.name => pv.outage_production_reduction_fraction
+        for pv in p.s.pvs if hasproperty(pv, :outage_production_reduction_fraction))
 
     for t in p.techs.elec
         base_factor = collect(p.production_factor[t, :].data)

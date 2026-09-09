@@ -1886,7 +1886,7 @@ else  # run HiGHS tests
                 "PV" => [
                     Dict("name" => "derated", "min_kw" => 100.0, "max_kw" => 100.0,
                          "production_factor_series" => fill(0.5, 8760),
-                         "outage_prod_reduction_fraction" => 0.4),
+                         "outage_production_reduction_fraction" => 0.4),
                     Dict("name" => "full", "min_kw" => 50.0, "max_kw" => 50.0,
                          "production_factor_series" => fill(0.5, 8760))
                 ],
