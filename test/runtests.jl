@@ -1865,9 +1865,9 @@ else  # run HiGHS tests
             GC.gc()
         end
 
-        @testset "PV outage production reduction" begin
-            # Two fixed-size PVs at a flat 0.5 production factor, one derated during outages and one not.
-            # Sizes differ so that applying the reduction to the wrong PV changes the expected total.
+        @testset "PV outage production fraction" begin
+            # Three fixed-size PVs at a flat 0.5 production factor: derated, full, and fully unavailable.
+            # Sizes differ so that applying the derate to the wrong PV changes the expected total.
             d = Dict(
                 "Site" => Dict("latitude" => 39.7407, "longitude" => -105.1686),
                 "ElectricUtility" => Dict(
@@ -1886,29 +1886,35 @@ else  # run HiGHS tests
                 "PV" => [
                     Dict("name" => "derated", "min_kw" => 100.0, "max_kw" => 100.0,
                          "production_factor_series" => fill(0.5, 8760),
-                         "outage_production_reduction_fraction" => 0.4),
+                         "outage_production_fraction" => 0.4),
                     Dict("name" => "full", "min_kw" => 50.0, "max_kw" => 50.0,
-                         "production_factor_series" => fill(0.5, 8760))
+                         "production_factor_series" => fill(0.5, 8760)),
+                    Dict("name" => "zero", "min_kw" => 40.0, "max_kw" => 40.0,
+                         "production_factor_series" => fill(0.5, 8760),
+                         "outage_production_fraction" => 0.0)
                 ],
                 "Generator" => Dict("min_kw" => 30.0, "max_kw" => 30.0, "fuel_avail_gal" => 1.0e6),
                 "ElectricStorage" => Dict("max_kw" => 0.0, "max_kwh" => 0.0)
             )
             p = REoptInputs(Scenario(d))
 
-            # the reduction is mapped per PV name and leaves other techs alone
+            # the derate is mapped per PV name and leaves other techs alone
             factors = REopt.outage_effective_production_factors(p)
-            @test all(factors["derated"] .≈ 0.5 * (1 - 0.4))
+            @test all(factors["derated"] .≈ 0.5 * 0.4)
             @test all(factors["full"] .≈ 0.5)
+            @test all(factors["zero"] .≈ 0.0)
             @test factors["Generator"] ≈ collect(p.production_factor["Generator", :].data)
             # grid-connected production factors must not be derated
             @test all(collect(p.production_factor["derated", :].data) .≈ 0.5)
+            @test all(collect(p.production_factor["zero", :].data) .≈ 0.5)
 
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
             r = run_reopt(m, p)
 
             # Outages results sum over PVs, so check the total against each array's own expected output
-            expected_pv_kw = 100.0 * 0.5 * (1 - 0.4) * p.levelization_factor["derated"] +
-                              50.0 * 0.5 * p.levelization_factor["full"]
+            expected_pv_kw = 100.0 * 0.5 * 0.4 * p.levelization_factor["derated"] +
+                              50.0 * 0.5 * p.levelization_factor["full"] +
+                              40.0 * 0.5 * 0.0 * p.levelization_factor["zero"]
             pv_mg_prod = r["Outages"]["pv_to_load_series_kw"] .+ r["Outages"]["pv_curtailed_series_kw"]
             @test all(isapprox.(pv_mg_prod, expected_pv_kw, atol=0.01))
 
