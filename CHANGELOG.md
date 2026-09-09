@@ -30,6 +30,7 @@ Classify the change according to the following categories:
 - Size classes for `ElectricStorage` based on 2025 ATB.
 ### Changed
 - Updated default values for `ElectricStorage`, `PV` and `Wind` cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
+- Changed **ElectricStorage.max_kw** to default to 1.0e5 instead of previous default of 1.0e4.
 
 ## v0.61.1
 ### Fixed
