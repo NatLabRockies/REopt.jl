@@ -26,8 +26,10 @@ Classify the change according to the following categories:
     ### Removed
 
 ## defaults-update-atb25
+### Added
+- Size classes for `ElectricStorage` based on 2025 ATB.
 ### Changed
-- Updated default `PV` and `Wind` cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
+- Updated default values for `ElectricStorage`, `PV` and `Wind` cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
 
 ## v0.61.1
 ### Fixed
