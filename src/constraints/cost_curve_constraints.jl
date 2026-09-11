@@ -103,7 +103,8 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
         for pv in p.s.pvs
             cost_list = pv.installed_cost_per_kw
             size_list = pv.tech_sizes_for_cost_curve
-            t="PV"
+            # segmented-cost variables and `techs.segmented` are keyed by the per-PV name
+            t = pv.name
             if t in p.techs.segmented && !isempty(size_list)
                 # Use "no incentives" version of p.cap_cost_slope and p.seg_yint
                 cost_slope_no_inc = [cost_list[1]]
@@ -129,6 +130,7 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                 )
             end
         end
+        # keep outside the per-PV loop to avoid N-fold counting of the running sum
         add_to_expression!(m[:InitialCapexNoIncentives], m[:PVCapexNoIncentives])
     end
 
@@ -198,7 +200,8 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
                 )
             end
         end
-        
+
+        # keep outside the per-CHP loop to avoid N-fold counting of the running sum
         add_to_expression!(m[:InitialCapexNoIncentives], m[:CHPCapexNoIncentives])
     end
 

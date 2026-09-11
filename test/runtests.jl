@@ -2138,6 +2138,11 @@ else  # run HiGHS tests
                 @test ground_pv["size_kw"] ≈ 15 atol=0.1
                 @test roof_west["size_kw"] ≈ 7 atol=0.1
                 @test roof_east["size_kw"] ≈ 4 atol=0.1
+                # guards against N-fold PV cost duplication in InitialCapexNoIncentives
+                expected_pv_capex = ((ground_pv["size_kw"] - 5.0) +
+                                     (roof_west["size_kw"] - 5.0) +
+                                     roof_east["size_kw"]) * 1600.0
+                @test results["Financial"]["initial_capital_costs"] ≈ expected_pv_capex atol=1.0
                 @test ground_pv["lifecycle_om_cost_after_tax_bau"] ≈ 782.0 atol=0.1
                 @test roof_west["lifecycle_om_cost_after_tax_bau"] ≈ 782.0 atol=0.1
                 @test ground_pv["annual_energy_produced_kwh_bau"] ≈ 8933.09 atol=0.1
@@ -2180,6 +2185,12 @@ else  # run HiGHS tests
                     @test roof_west["size_kw"] >= roof_west_stage - 1e-4
                     @test roof_east["size_kw"] >= roof_east_stage - 1e-4
                 end
+
+                # guards against N-fold PV cost duplication under priority mode's staged rebuilds
+                expected_pv_capex = (ground_pv["size_kw"] +
+                                     roof_west["size_kw"] +
+                                     roof_east["size_kw"]) * 1600.0
+                @test results["Financial"]["initial_capital_costs"] ≈ expected_pv_capex atol=1.0
 
                 finalize(backend(m))
                 empty!(m)
