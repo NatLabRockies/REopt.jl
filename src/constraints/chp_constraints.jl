@@ -1,8 +1,12 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function add_chp_fuel_burn_constraints(m, p; _n="")
-    # Fuel cost
-    m[:TotalCHPFuelCosts] = @expression(m, 
-        sum(p.pwf_fuel[t] * m[:dvFuelUsage][t, ts] * p.fuel_cost_per_kwh[t][ts] for t in p.techs.chp, ts in p.time_steps)
+    # Fuel cost. Dual-fuel CHPs (fuel switch or capacity-limited-with-fuel2_type) are excluded here
+    # and their cost contributions are added by add_chp_dual_fuel_constraints instead, since they use
+    # fuel 2 pricing/escalation for some portion of their fuel use.
+    dual_fuel_special_chps = union(chp_names_with_fuel_switch(p), chp_names_with_capacity_limited_dual_fuel(p))
+    default_fuel_cost_chps = setdiff(p.techs.chp, dual_fuel_special_chps)
+    m[:TotalCHPFuelCosts] = @expression(m,
+        sum(p.pwf_fuel[t] * m[:dvFuelUsage][t, ts] * p.fuel_cost_per_kwh[t][ts] for t in default_fuel_cost_chps, ts in p.time_steps)
     )
     
     # Loop through each CHP and add constraints with tech-specific parameters
@@ -491,4 +495,6 @@ function add_chp_constraints(m, p; _n="")
     if any(chp.follow_heating_load for chp in p.s.chps)
         add_chp_heating_load_following_constraints(m, p; _n=_n)
     end
+
+    add_chp_dual_fuel_constraints(m, p; _n=_n)
 end
