@@ -25,6 +25,15 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## dual-fuel-chp
+### Added
+- `src/core/chp.jl`: dual-fuel **CHP** inputs, all optional and off by default: **fuel2_type**/**fuel2_cost_per_mmbtu**/**fuel2_cost_escalation_rate_fraction**/**fuel2_renewable_energy_fraction**/**fuel2_emissions_factor_lb_CO2_per_mmbtu**/**fuel2_emissions_factor_lb_NOx_per_mmbtu**/**fuel2_emissions_factor_lb_SO2_per_mmbtu**/**fuel2_emissions_factor_lb_PM25_per_mmbtu** (fuel 2 identity/cost/emissions); **fuel_max_period** (one of `"hour"`, `"day"`, `"week"`, `"month"`) with **fuel_max_mmbtu_per_period** (rate-limited fuel 1 for `"hour"`, slide 8; volume-limited fuel 1 for `"day"`/`"week"`/`"month"`, slide 7), optionally topped up by fuel 2 if `fuel2_type` is also set, else acting as a hard single-fuel cap; **fuel2_switch_start_year** (long-term fuel switch, slide 9) for e.g. modeling a switch from natural gas to a costlier/cleaner fuel partway through the analysis period. Electric/thermal efficiency remains a single blended value across both fuels.
+- `src/constraints/chp_dual_fuel_constraints.jl` (new file): dispatch constraints (`dvFuelUsageFuel1`/`dvFuelUsageFuel2` split for capacity-limited dual fuel) and lifecycle fuel-cost accounting for all three dual-fuel modes. `fuel_max_period`'s rate limit ("hour") and volume limits ("day"/"week"/"month") share one constraint-building code path, grouping time steps by period and capping each group's summed fuel 1 use.
+- `src/constraints/emissions_constraints.jl`: emissions accounting for dual-fuel CHPs — within-year-1 blending for capacity-limited dual fuel, and a lifecycle lbs/cost correction for the long-term fuel-switch mode.
+- `src/results/chp.jl`: new **annual_fuel2_consumption_mmbtu**, **year_one_fuel2_cost_before_tax** (and `_after_tax`), **lifecycle_fuel2_cost_after_tax** result fields for dual-fuel CHPs. The existing combined **annual_fuel_consumption_mmbtu**/**year_one_fuel_cost_before_tax**/**lifecycle_fuel_cost_after_tax** fields are unchanged (fuel 1 + fuel 2 total, same as they already are for a single-fuel CHP) — fuel 1's own share is that total minus the new fuel 2 field, so no separate "fuel 1" field is added. Input parameters like **fuel2_type** and **fuel2_switch_start_year** aren't echoed into results, consistent with how `fuel_type`/`prime_mover`/etc. aren't for a single-fuel CHP.
+- `src/core/utils.jl`: `get_time_steps_by_period` (groups a year's time steps by `"hour"`/`"day"`/`"week"`/`"month"`, deferring to the existing `get_monthly_time_steps` for `"month"`) and `annuity_split_periods` (present worth factors for two consecutive escalating periods of an annuity), used by the dual-fuel CHP capacity-limit and fuel-switch calculations respectively.
+- `test/scenarios/chp_dual_fuel_capacity_limited.json` (shared by the rate- and volume-limited tests, which override `fuel_max_period`/`fuel_max_mmbtu_per_period` in code), `chp_dual_fuel_switch.json`, and a new `"Dual Fuel CHP"` testset in `test/test_chp.jl`.
+
 ## v0.61.1
 ### Fixed
 - Avoid double-multiplication of production_factor_series with electrical load-following
