@@ -25,8 +25,12 @@
 - `year_one_standby_cost_before_tax` CHP standby charges in year one, before tax [\$]
 - `year_one_standby_cost_after_tax` CHP standby charges in year one, after tax
 - `lifecycle_standby_cost_after_tax` Present value of all CHP standby charges, after tax.
-- `thermal_production_series_mmbtu_per_hour`  
+- `thermal_production_series_mmbtu_per_hour`
 - `initial_capital_costs` Initial capital costs of the CHP system, before incentives [\$]
+- `annual_fuel2_consumption_mmbtu` Fuel 2 consumed in a year [MMBtu] (dual-fuel CHPs only; `annual_fuel_consumption_mmbtu` is the combined fuel 1 + fuel 2 total, same as for a single-fuel CHP — fuel 1's own consumption is that total minus this field)
+- `year_one_fuel2_cost_before_tax`/`_after_tax` Year-one fuel 2 cost (dual-fuel CHPs only; `year_one_fuel_cost_before_tax`/`_after_tax` remain the combined fuel 1 + fuel 2 total)
+- `lifecycle_fuel2_cost_after_tax` Present value of fuel 2 cost, after tax (dual-fuel CHPs only; `lifecycle_fuel_cost_after_tax` remains the combined fuel 1 + fuel 2 total)
+- `year_one_fuel2_equivalent_cost_before_tax` Long-term fuel-switch CHPs only: informational cost of fuel 2 at its year-1 price for year-1's dispatch, ahead of the actual switch in `fuel2_switch_start_year`
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -160,12 +164,31 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
     end
     r["thermal_to_process_heat_load_series_mmbtu_per_hour"] = round.(max.(0.0, CHPToProcessHeatKW ./ KWH_PER_MMBTU), digits=5)
 
-	# Calculate individual CHP fuel cost (not the total across all CHPs)
-	chp_fuel_cost_lifecycle = sum(p.pwf_fuel[chp_name] * value(m[:dvFuelUsage][chp_name, ts]) * p.fuel_cost_per_kwh[chp_name][ts] for ts in p.time_steps)
-	r["year_one_fuel_cost_before_tax"] = round(chp_fuel_cost_lifecycle / p.pwf_fuel[chp_name], digits=3)
+	# Calculate individual CHP fuel cost (not the total across all CHPs). For dual-fuel CHPs this is the
+	# combined fuel 1 + fuel 2 cost (fuel 1's own cost/consumption isn't separately reported below, since
+	# it's just this combined total minus the fuel 2 fields — the same relationship as the single-fuel
+	# case, where these fields already are fuel 1's value).
+	fuel_cost = chp_fuel_cost_breakdown(m, p, chp_name)
+	chp_fuel_cost_lifecycle = fuel_cost.lifecycle_fuel1 + fuel_cost.lifecycle_fuel2
+	r["year_one_fuel_cost_before_tax"] = round(fuel_cost.yr1_fuel1 + fuel_cost.yr1_fuel2, digits=3)
 	r["year_one_fuel_cost_after_tax"] = r["year_one_fuel_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
 	r["lifecycle_fuel_cost_after_tax"] = round(chp_fuel_cost_lifecycle * (1- p.s.financial.offtaker_tax_rate_fraction), digits=3)
-	
+
+	is_dual_fuel = !isnothing(chp.fuel2_type)
+	if is_dual_fuel
+		CHPFuelUsedKWH_2 = chp_has_fuel_capacity_limit(chp) ?
+			sum(value(m[Symbol("dvFuelUsageFuel2"*_n)][chp_name, ts]) for ts in p.time_steps) : 0.0
+		r["annual_fuel2_consumption_mmbtu"] = round(CHPFuelUsedKWH_2 / KWH_PER_MMBTU, digits=3)
+		r["year_one_fuel2_cost_before_tax"] = round(fuel_cost.yr1_fuel2, digits=3)
+		r["year_one_fuel2_cost_after_tax"] = r["year_one_fuel2_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
+		r["lifecycle_fuel2_cost_after_tax"] = round(fuel_cost.lifecycle_fuel2 * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=3)
+		if !isnothing(chp.fuel2_switch_start_year)
+			# Informational: what fuel 2 would cost at its year-1 price for this year's dispatch, ahead of
+			# the actual switch in fuel2_switch_start_year. Used internally to build the pro forma cash flow series.
+			r["year_one_fuel2_equivalent_cost_before_tax"] = round(fuel_cost.yr1_equivalent_fuel2, digits=3)
+		end
+	end
+
 	#Standby charges and hourly O&M
 	r["year_one_standby_cost_before_tax"] = round(chp.standby_rate_per_kw_per_month * 12 * value(m[Symbol("dvSize"*_n)][chp_name]), digits=0)
 	r["year_one_standby_cost_after_tax"] = r["year_one_standby_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)

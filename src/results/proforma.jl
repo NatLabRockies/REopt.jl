@@ -398,12 +398,17 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     m.om_series_bau += escalate_om(-1 * existing_kw * tech.om_cost_per_kw)
 
     if tech_name in [chp.name for chp in p.s.chps]
-        escalate_fuel(val, esc_rate) = [val * (1 + esc_rate)^yr for yr in 1:years]
-        fuel_cost = results[tech_name]["year_one_fuel_cost_before_tax"]
-        escalation_rate = isnothing(tech.fuel_cost_escalation_rate_fraction) ?
-            p.s.financial.chp_fuel_cost_escalation_rate_fraction :
-            tech.fuel_cost_escalation_rate_fraction
-        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, escalation_rate)
+        # results[tech_name]["year_one_fuel_cost_before_tax"] is the combined fuel 1 + fuel 2 total (same
+        # field as a single-fuel CHP uses); subtracting fuel 2's year-one cost (0.0 if not dual-fuel, or
+        # for the fuel-switch mode before fuel2_switch_start_year) isolates fuel 1's own year-one cost. Fuel 2's
+        # escalation basis is its real year-one cost for capacity-limited dual fuel, or its year-one-
+        # equivalent price for the long-term fuel-switch mode (fuel 2 not actually used until
+        # fuel2_switch_start_year); see chp_fuel_cost_breakdown in chp_dual_fuel_constraints.jl.
+        year_one_fuel2 = get(results[tech_name], "year_one_fuel2_cost_before_tax", 0.0)
+        year_one_fuel1 = results[tech_name]["year_one_fuel_cost_before_tax"] - year_one_fuel2
+        year_one_equivalent_fuel2 = get(results[tech_name], "year_one_fuel2_equivalent_cost_before_tax", year_one_fuel2)
+        nominal_fuel_cost_series = chp_annual_fuel_cost_nominal_series(p, tech, year_one_fuel1, year_one_equivalent_fuel2)
+        m.fuel_cost_series += -1 * nominal_fuel_cost_series
     end
 
     # incentive calculations, in the spreadsheet utility incentives are applied first
