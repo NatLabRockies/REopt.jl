@@ -1,14 +1,14 @@
-# using Revise
-# using REopt
-# using JSON
-# using DelimitedFiles
-# using PlotlyJS
-# using Dates
-# using Test
-# using JuMP
-# using HiGHS
-# using DotEnv
-# DotEnv.load!()
+using Revise
+using REopt
+using JSON
+using DelimitedFiles
+using PlotlyJS
+using Dates
+using Test
+using JuMP
+using HiGHS
+using DotEnv
+DotEnv.load!()
 
 
 ###############   Multiple CHPs Test    ###################
@@ -520,4 +520,133 @@ end
     @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 0.0))[:off_grid_flag] === false
     @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 1.0))[:off_grid_flag] === true
     @test_throws ArgumentError REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 2.0))
+end
+
+@testset "Dual Fuel CHP" begin
+
+    @testset "Rate-limited fuel 1" begin
+        input_data = JSON.parsefile("./scenarios/chp_dual_fuel_capacity_limited.json")
+        input_data["CHP"]["fuel_max_period"] = "hour"
+        input_data["CHP"]["fuel_max_mmbtu_per_period"] = 2.0
+        s = Scenario(input_data)
+        p = REoptInputs(s)
+
+        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        results = run_reopt([m1,m2], p)
+        r = results["CHP"]
+
+        # Fuel 1 (the limited/cheap fuel) never exceeds its per-timestep cap
+        cap_kwh_per_ts = s.chps[1].fuel_max_mmbtu_per_period * REopt.KWH_PER_MMBTU
+        fuel1_series = [value(m2[:dvFuelUsageFuel1]["CHP", ts]) for ts in p.time_steps]
+        @test maximum(fuel1_series) <= cap_kwh_per_ts + 1e-6
+
+        # Fuel 2 makes up the difference; fuel 1's share is the (unchanged) combined total minus fuel 2's
+        @test r["annual_fuel2_consumption_mmbtu"] > 0.0
+        @test r["annual_fuel_consumption_mmbtu"] - r["annual_fuel2_consumption_mmbtu"] > 0.0
+        @test r["year_one_fuel_cost_before_tax"] - r["year_one_fuel2_cost_before_tax"] > 0.0
+
+        optimal_lcc = results["Financial"]["lcc"]
+        optimal_cashflow_sum = -1*sum(results["Financial"]["offtaker_discounted_annual_free_cashflows"])
+        @test isapprox(optimal_lcc, optimal_cashflow_sum, rtol=0.001)
+
+        finalize(backend(m1)); empty!(m1)
+        finalize(backend(m2)); empty!(m2)
+        GC.gc()
+    end
+
+    @testset "Volume-limited fuel 1 (monthly)" begin
+        input_data = JSON.parsefile("./scenarios/chp_dual_fuel_capacity_limited.json")
+        input_data["CHP"]["fuel_max_period"] = "month"
+        input_data["CHP"]["fuel_max_mmbtu_per_period"] = 500.0
+        s = Scenario(input_data)
+        p = REoptInputs(s)
+
+        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        results = run_reopt([m1,m2], p)
+        r = results["CHP"]
+
+        # Fuel 1 never exceeds its monthly cap in any month
+        monthly_time_steps = REopt.get_monthly_time_steps(s.electric_load.year; time_steps_per_hour=s.settings.time_steps_per_hour)
+        fuel1_series = [value(m2[:dvFuelUsageFuel1]["CHP", ts]) for ts in p.time_steps]
+        monthly_fuel1_mmbtu = [sum(fuel1_series[period]) / REopt.KWH_PER_MMBTU for period in monthly_time_steps]
+        @test maximum(monthly_fuel1_mmbtu) <= s.chps[1].fuel_max_mmbtu_per_period + 1e-3
+
+        # Fuel 2 makes up the difference; fuel 1's share is the (unchanged) combined total minus fuel 2's
+        @test r["annual_fuel2_consumption_mmbtu"] > 0.0
+        @test r["annual_fuel_consumption_mmbtu"] - r["annual_fuel2_consumption_mmbtu"] > 0.0
+
+        optimal_lcc = results["Financial"]["lcc"]
+        optimal_cashflow_sum = -1*sum(results["Financial"]["offtaker_discounted_annual_free_cashflows"])
+        @test isapprox(optimal_lcc, optimal_cashflow_sum, rtol=0.001)
+
+        finalize(backend(m1)); empty!(m1)
+        finalize(backend(m2)); empty!(m2)
+        GC.gc()
+    end
+
+    @testset "Long-term fuel switch" begin
+        input_data = JSON.parsefile("./scenarios/chp_dual_fuel_switch.json")
+        s = Scenario(input_data)
+        p = REoptInputs(s)
+
+        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+        results = run_reopt([m1,m2], p)
+        r = results["CHP"]
+
+        # Year one always uses fuel 1's price (the switch to fuel2_type happens in year fuel2_switch_start_year)
+        yr1_fuel_kwh = sum(value(m2[:dvFuelUsage]["CHP", ts]) for ts in p.time_steps)
+        expected_year1_cost = yr1_fuel_kwh * s.chps[1].fuel_cost_per_mmbtu / REopt.KWH_PER_MMBTU
+        @test isapprox(r["year_one_fuel_cost_before_tax"], expected_year1_cost, rtol=1e-6)
+
+        # Lifecycle cost should sit strictly between an all-fuel-1 and an all-fuel-2 lifecycle cost,
+        # since the actual scenario is a mix of both over the analysis period
+        analysis_years = s.financial.analysis_years
+        discount_rate = s.financial.offtaker_discount_rate_fraction
+        esc = s.financial.chp_fuel_cost_escalation_rate_fraction
+        pwf_all_years = REopt.annuity(analysis_years, esc, discount_rate)
+        all_fuel1_lifecycle = yr1_fuel_kwh * (s.chps[1].fuel_cost_per_mmbtu / REopt.KWH_PER_MMBTU) * pwf_all_years
+        all_fuel2_lifecycle = yr1_fuel_kwh * (s.chps[1].fuel2_cost_per_mmbtu / REopt.KWH_PER_MMBTU) * pwf_all_years
+        actual_lifecycle_before_tax = r["lifecycle_fuel_cost_after_tax"] / (1 - s.financial.offtaker_tax_rate_fraction)
+        @test all_fuel1_lifecycle < actual_lifecycle_before_tax < all_fuel2_lifecycle
+
+        optimal_lcc = results["Financial"]["lcc"]
+        optimal_cashflow_sum = -1*sum(results["Financial"]["offtaker_discounted_annual_free_cashflows"])
+        @test isapprox(optimal_lcc, optimal_cashflow_sum, rtol=0.001)
+
+        finalize(backend(m1)); empty!(m1)
+        finalize(backend(m2)); empty!(m2)
+        GC.gc()
+    end
+
+    @testset "Input validation" begin
+        base = JSON.parsefile("./scenarios/chp_dual_fuel_switch.json")
+
+        # Cannot combine the long-term fuel switch with a capacity-limited fuel 1
+        d = deepcopy(base)
+        d["CHP"]["fuel_max_period"] = "hour"
+        d["CHP"]["fuel_max_mmbtu_per_period"] = 2.0
+        @test_throws ArgumentError Scenario(d)
+
+        # fuel_max_period and fuel_max_mmbtu_per_period must be set together
+        d = deepcopy(base)
+        delete!(d["CHP"], "fuel2_switch_start_year")
+        d["CHP"]["fuel_max_period"] = "week"
+        @test_throws ArgumentError Scenario(d)
+
+        # fuel_max_period must be one of the allowed values
+        d = deepcopy(base)
+        delete!(d["CHP"], "fuel2_switch_start_year")
+        d["CHP"]["fuel_max_period"] = "quarter"
+        d["CHP"]["fuel_max_mmbtu_per_period"] = 500.0
+        @test_throws ArgumentError Scenario(d)
+
+        # fuel2_switch_start_year requires fuel2_type/fuel2_cost_per_mmbtu
+        d = deepcopy(base)
+        delete!(d["CHP"], "fuel2_type")
+        delete!(d["CHP"], "fuel2_cost_per_mmbtu")
+        @test_throws ArgumentError Scenario(d)
+    end
 end
