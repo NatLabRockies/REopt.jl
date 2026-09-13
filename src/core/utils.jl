@@ -35,6 +35,22 @@ function annuity_two_escalation_rates(years::Int, rate_escalation1::Real, rate_e
 end
 
 
+function annuity_split_periods(n1::Int, n2::Int, rate_escalation1::Real, rate_escalation2::Real, rate_discount::Real)
+    """
+        present worth factors for two consecutive periods of a nominal-year-1-value annuity:
+        years 1..n1 escalating at rate_escalation1, then years n1+1..n1+n2 escalating at
+        rate_escalation2 (both relative to the same year-1 nominal value), all discounted at
+        rate_discount. Returns (pwf1, pwf2); pwf1 = annuity(n1, rate_escalation1, rate_discount)
+        and pwf2 = annuity(n2, rate_escalation2, rate_discount) discounted back n1 years.
+        Used for e.g. CHP dual-fuel long-term fuel switching, where the CHP's fuel (and thus its
+        cost/emissions) changes partway through the analysis period.
+    """
+    pwf1 = annuity(n1, rate_escalation1, rate_discount)
+    pwf2 = n2 <= 0 ? 0.0 : annuity(n2, rate_escalation2, rate_discount) / (1 + rate_discount)^n1
+    return pwf1, pwf2
+end
+
+
 function annuity_escalation(analysis_period::Int, rate_escalation::Real, rate_discount::Real)
     """
     :param analysis_period: years
@@ -574,6 +590,45 @@ function get_monthly_time_steps(year::Int; time_steps_per_hour=1)
         i = stop + 1
     end
     return a
+end
+
+"""
+    get_time_steps_by_period(period::String, year::Int; time_steps_per_hour=1)
+
+return Array{Array{Int64,1},1}: the year's time steps grouped into consecutive `period`-length groups,
+one of `"day"`, `"week"`, or `"month"`. `"month"` defers to `get_monthly_time_steps` (used more broadly
+elsewhere in REopt for calendar-month groupings); the others ignore leap days, consistent with
+`get_monthly_time_steps`. `"week"`'s final group is a short ~24-hour period, since 365 days doesn't
+divide evenly into 7-day weeks.
+
+Deliberately does not accept `"hour"`: since each time step already represents an energy quantity (not
+a rate), summing time steps within a group and capping that sum is only equivalent to a true rate limit
+when each group is a single time step — grouping multiple sub-hourly time steps into one clock hour
+turns an hourly *rate* limit into an hourly *volume* limit (e.g. at 15-minute resolution, it would let
+CHP use an entire hour's allowance in one 15-minute interval). Callers wanting an hourly rate limit
+should bound each time step directly instead of using this function — see
+`add_chp_fuel1_capacity_limit_constraints!` in `chp_dual_fuel_constraints.jl`.
+"""
+function get_time_steps_by_period(period::String, year::Int; time_steps_per_hour=1)
+    if period == "day"
+        steps_per_day = 24 * time_steps_per_hour
+        return [collect((d-1)*steps_per_day+1 : d*steps_per_day) for d in 1:365]
+    elseif period == "week"
+        steps_per_week = 168 * time_steps_per_hour
+        total_steps = 365 * 24 * time_steps_per_hour
+        a = Array[]
+        i = 1
+        while i <= total_steps
+            stop = min(i + steps_per_week - 1, total_steps)
+            append!(a, [collect(i:stop)])
+            i = stop + 1
+        end
+        return a
+    elseif period == "month"
+        return get_monthly_time_steps(year; time_steps_per_hour=time_steps_per_hour)
+    else
+        throw(ArgumentError("period must be one of [\"day\", \"week\", \"month\"], got \"$(period)\""))
+    end
 end
 
 """
