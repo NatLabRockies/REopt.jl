@@ -552,14 +552,12 @@ else  # run HiGHS tests
         end
 
         @testset "AVERT region abberviations" begin
-            """
-            This test checks 5 scenarios (in order)
-            1. Coordinate pair inside an AVERT polygon
-            2. Coordinate pair near a US border
-            3. Coordinate pair < 5 miles from US border
-            4. Coordinate pair > 5 miles from US border
-            5. Coordinate pair >> 5 miles from US border
-            """
+            # This test checks 5 scenarios (in order)
+            # 1. Coordinate pair inside an AVERT polygon
+            # 2. Coordinate pair near a US border
+            # 3. Coordinate pair < 5 miles from US border
+            # 4. Coordinate pair > 5 miles from US border
+            # 5. Coordinate pair >> 5 miles from US border
             (r, d) = REopt.avert_region_abbreviation(65.27661752129738, -149.59278391820223)
             @test r == "AKGD"
             (r, d) = REopt.avert_region_abbreviation(21.45440792261567, -157.93648793163402)
