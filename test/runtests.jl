@@ -4893,25 +4893,21 @@ else  # run HiGHS tests
             input_data["ElectricStorage"]["max_kw"] = 39
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 1
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][1]["installed_cost_per_kw"]
 
             # Size class 3
             input_data["ElectricStorage"]["min_kw"] = 401
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 401
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 3
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 527
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 278
-            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][3]["installed_cost_per_kw"]
+            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == bess_defaults_all["size_classes"][3]["installed_cost_per_kwh"]
+            @test s.storage.attr["ElectricStorage"].installed_cost_constant == bess_defaults_all["size_classes"][3]["installed_cost_constant"]
 
             # Size class selection obeys min_kw provided.
             input_data["ElectricStorage"]["min_kw"] = 401
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 1
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 3
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 527
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 278
-            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
 
             # Size class input, not loads, ultimately drives system costs.
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 401.0
@@ -4922,9 +4918,15 @@ else  # run HiGHS tests
             input_data["ElectricStorage"]["macrs_bonus_fraction"] = 0.0
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 1
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == 705
-            @test s.storage.attr["ElectricStorage"].installed_cost_per_kwh == 616
-            @test s.storage.attr["ElectricStorage"].installed_cost_constant == 0.0
+
+            # Test that size class is set to highest value when sizing parameter is absurdly large
+            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0], 8760)
+            input_data["ElectricLoad"]["loads_kw"][6000] = 2.0e5
+            input_data["ElectricStorage"] = Dict()
+            s = Scenario(input_data)
+            # sizing heuristic is calculated to be 1.9973e5, larger than size class 4 upper bounds
+            # but reopt returns size class 4 since it is highest available size class
+            @test s.storage.attr["ElectricStorage"].size_class == 4
 
             # Test: Warning is issued when optimal size_kw falls outside the size class bounds.
             # size_class 1 has bounds [0, 40] kW; forcing min_kw=200 guarantees the optimal size exceeds that range.

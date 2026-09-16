@@ -783,8 +783,10 @@ function get_electric_storage_size_class(
         # Handle edge cases -> highest size class returned.
         if size_kw > convert(Float64, size_class_bounds_kw[end][2])
             size_class_kw = length(size_class_bounds_kw)
+            @warn "Sizing metric $size_kw is greater than largest size class upper bound, using size class $size_class_kw instead"
         else
             size_class_kw = 1  # Default to smallest size class
+            @warn "Size class was not set using REopt logic, using size class 1 instead"
         end
     end
 

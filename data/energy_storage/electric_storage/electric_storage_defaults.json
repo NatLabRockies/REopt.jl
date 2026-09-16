@@ -31,8 +31,8 @@
       "size_class": 4,
       "name": "Utility",
       "size_class_bounds_kw": [10000,1.0e5],
-      "installed_cost_per_kw": 236,
-      "installed_cost_per_kwh": 377,
+      "installed_cost_per_kw": 378,
+      "installed_cost_per_kwh": 236,
       "installed_cost_constant": 0,
       "notes": "Based on ATB 2025 Commercial costs modeled for a 240000 kWh 60000 kW battery system in 2025 dollars"
     }
