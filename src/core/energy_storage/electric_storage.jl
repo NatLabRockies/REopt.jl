@@ -655,10 +655,10 @@ Values:
 
 """
 function get_electric_storage_cost_params(; 
-    installed_cost_per_kw::Union{Real, Nothing} = Nothing,
-    installed_cost_per_kwh::Union{Real, Nothing} = Nothing,
-    installed_cost_constant::Union{Real, Nothing} = Nothing,
-    size_class::Union{Int, Nothing} = Nothing,
+    installed_cost_per_kw::Union{Real, Nothing} = nothing,
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing,
+    installed_cost_constant::Union{Real, Nothing} = nothing,
+    size_class::Union{Int, Nothing} = nothing,
     min_kw::Real = 0.0,
     max_kw::Real = 1.0e9,
     electric_load_annual_peak::Real = 0.0,
