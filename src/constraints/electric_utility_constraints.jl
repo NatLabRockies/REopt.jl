@@ -444,7 +444,7 @@ function add_coincident_peak_charge_constraints(m, p; _n="")
 	@constraint(m, 
         [prd in p.s.electric_tariff.coincpeak_periods, 
          ts in p.s.electric_tariff.coincident_peak_load_active_time_steps[prd]],
-		m[Symbol("dvPeakDemandCP"*_n)][prd] >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] 
+		m[Symbol(dv)][prd] >= sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] 
                                                                       for tier in 1:p.s.electric_tariff.n_energy_tiers)
 	)
 end
