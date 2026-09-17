@@ -94,6 +94,29 @@ function add_chp_thermal_production_constraints(m, p; _n="")
 end
 
 """
+    chp_eligible_heating_load(p, t)
+
+Returns the names of the heating loads which CHP `t` is allowed to serve, along with the
+    time-series sum of those loads [kW].
+"""
+function chp_eligible_heating_load(p, t)
+    chp = p.s.chps[findfirst(c -> c.name == t, p.s.chps)]
+    heating_load_names = String[]
+    eligible_load_kw = zeros(length(p.time_steps))
+    for (can_serve, heating_load) in [
+        (chp.can_serve_dhw, "DomesticHotWater"),
+        (chp.can_serve_space_heating, "SpaceHeating"),
+        (chp.can_serve_process_heat, "ProcessHeat")
+    ]
+        if can_serve && heating_load in p.heating_loads
+            push!(heating_load_names, heating_load)
+            eligible_load_kw .+= p.heating_loads_kw[heating_load]
+        end
+    end
+    return heating_load_names, eligible_load_kw
+end
+
+"""
     add_chp_supplementary_firing_constraints(m, p; _n="")
 
 Used by add_chp_constraints to add supplementary firing constraints if 
@@ -133,8 +156,9 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
         else
             # Indicator constraints are unavailable with this solver, so the "off" state cannot be enforced
             # directly. Apply an additional conservative big-M style bound on supplementary thermal production
-            # using the peak heating load, which supplementary firing would never need to exceed.
-            max_supplementary_firing_size = maximum(p.s.dhw_load.loads_kw .+ p.s.space_heating_load.loads_kw)
+            # using the peak of the heating loads which this CHP can serve, which supplementary firing would
+            # never need to exceed.
+            max_supplementary_firing_size = maximum(chp_eligible_heating_load(p, t)[2])
             @constraint(m, [ts in p.time_steps],
                     m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= p.production_factor[t,ts] * max_supplementary_firing_size
                     )
@@ -310,18 +334,7 @@ function add_chp_heating_load_following_constraints(m, p; _n="")
 
     for chp in load_following_chps
         t = chp.name
-        heating_loads_served_by_chp[t] = String[]
-        chp_eligible_heat_load[t] = zeros(length(p.time_steps))
-        for (can_serve, heating_load) in [
-            (chp.can_serve_dhw, "DomesticHotWater"),
-            (chp.can_serve_space_heating, "SpaceHeating"),
-            (chp.can_serve_process_heat, "ProcessHeat")
-        ]
-            if can_serve && heating_load in p.heating_loads
-                push!(heating_loads_served_by_chp[t], heating_load)
-                chp_eligible_heat_load[t] .+= p.heating_loads_kw[heating_load]
-            end
-        end
+        heating_loads_served_by_chp[t], chp_eligible_heat_load[t] = chp_eligible_heating_load(p, t)
 
         thermal_prod_full_load = chp.thermal_efficiency_full_load / chp.electric_efficiency_full_load
         thermal_prod_half_load = 0.5 * chp.thermal_efficiency_half_load / chp.electric_efficiency_half_load
