@@ -5,9 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Guidelines
-- When working in feature branch, start a new double-hash header with the name of the branch and record changes under that section
-- When merging `master` into a feature branch, keep the feature branch section and the "Pre-release after [previous version #]" section separate to simplify merge conflicts
-- When making a Pull Request into `master`, we will merge new changelog items into the "Pre-release..." section **after** merging into master, so still keep them separate.
+- When working in a feature branch, start a new double-hash header with the name of the branch and record changes under that section.
+- When merging `master` into the feature branch (to keep up-to-date), keep the feature branch section separate from any other branch sections that are already in `master` to avoid merge conflicts.
+- When making a Pull Request for merging into `master`, note that we will merge new changelog items into a new version heading later (after merging) when we want to release a new registered version.
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
@@ -30,8 +30,6 @@ Classify the change according to the following categories:
 ### Removed
 - Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
 
-## Pre-release after v0.61.1
-- Nothing yet
 
 ## v0.61.1
 ### Fixed
