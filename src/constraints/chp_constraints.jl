@@ -153,10 +153,15 @@ function add_binCHPIsOnInTS_constraints(m, p; _n="")
     )
 
     # Enforce minimum turndown during grid availability, or across all off-grid timesteps.
+    # When CHP is off the left-hand side is at most min_turn_down_fraction * dvSize <= min_turn_down_fraction * max_sizes[t],
+    # so scaling the big-M by min_turn_down_fraction is exactly tight and tightens the LP relaxation.
     min_turn_down_time_steps = p.s.settings.off_grid_flag ? p.time_steps_without_grid : p.time_steps_with_grid
-    @constraint(m, [t in p.techs.chp, ts in min_turn_down_time_steps],
+    # Techs with a zero min_turn_down_fraction are skipped because the constraint reduces to
+    # dvRatedProduction >= 0, which the variable bound already enforces.
+    min_turn_down_techs = [t for t in p.techs.chp if p.chp_params[t][:min_turn_down_fraction] > 0]
+    @constraint(m, [t in min_turn_down_techs, ts in min_turn_down_time_steps],
         p.chp_params[t][:min_turn_down_fraction] * m[Symbol("dvSize"*_n)][t] - m[Symbol("dvRatedProduction"*_n)][t, ts] <=
-        p.max_sizes[t] * (1 - m[Symbol("binCHPIsOnInTS"*_n)][t, ts])
+        p.chp_params[t][:min_turn_down_fraction] * p.max_sizes[t] * (1 - m[Symbol("binCHPIsOnInTS"*_n)][t, ts])
     )
 end
 
