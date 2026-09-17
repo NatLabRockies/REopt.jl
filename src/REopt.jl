@@ -110,6 +110,11 @@ const EMISSIONS_DECREASE_DEFAULTS = Dict(
     "SO2" => 0.0459,
     "PM25" => 0.0459
 )
+# Solvers with *native* indicator constraint support. HiGHS deliberately does not belong here:
+# MOI has no native HiGHS indicator support, so JuMP falls back to IndicatorToMILPBridge, which
+# reformulates the indicator into a big-M itself and requires every variable in the implied
+# constraint to have finite bounds. REopt variables such as dvGridPurchase are unbounded above, so
+# adding "HiGHS" would raise BridgeRequiresFiniteDomainError rather than improve the formulation.
 const INDICATOR_COMPATIBLE_SOLVERS = ["CPLEX","Xpress"]
 
 include("logging.jl")
