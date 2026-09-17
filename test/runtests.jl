@@ -552,14 +552,12 @@ else  # run HiGHS tests
         end
 
         @testset "AVERT region abberviations" begin
-            """
-            This test checks 5 scenarios (in order)
-            1. Coordinate pair inside an AVERT polygon
-            2. Coordinate pair near a US border
-            3. Coordinate pair < 5 miles from US border
-            4. Coordinate pair > 5 miles from US border
-            5. Coordinate pair >> 5 miles from US border
-            """
+            # This test checks 5 scenarios (in order)
+            # 1. Coordinate pair inside an AVERT polygon
+            # 2. Coordinate pair near a US border
+            # 3. Coordinate pair < 5 miles from US border
+            # 4. Coordinate pair > 5 miles from US border
+            # 5. Coordinate pair >> 5 miles from US border
             (r, d) = REopt.avert_region_abbreviation(65.27661752129738, -149.59278391820223)
             @test r == "AKGD"
             (r, d) = REopt.avert_region_abbreviation(21.45440792261567, -157.93648793163402)
@@ -1802,7 +1800,8 @@ else  # run HiGHS tests
             Scenario with $0.001/kWh value_of_lost_load_per_kwh, 12x169 hour outages, 1kW load/hour, and min_resil_time_steps = 168
             - should meet 168 kWh in each outage such that the total unserved load is 12 kWh
             =#
-            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
+            # Tighter feasibility tolerances needed: default HiGHS tolerances misclassify this razor-thin (168 vs 169 hour) case as infeasible
+            m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on", "mip_feasibility_tolerance" => 1e-9, "primal_feasibility_tolerance" => 1e-9))
             results = run_reopt(m, "./scenarios/nogridcost_minresilhours.json")
             @test sum(results["Outages"]["unserved_load_per_outage_kwh"]) ≈ 12
             finalize(backend(m))
