@@ -30,6 +30,9 @@ Classify the change according to the following categories:
 ### Removed
 - Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
 
+## julia-113
+### Changed
+- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
 
 ## v0.61.1
 ### Fixed
