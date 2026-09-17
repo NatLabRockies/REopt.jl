@@ -281,7 +281,7 @@ function add_binMGGenIsOnInTS_constraints(m,p)
             m[:dvMGRatedProduction][t, s, tz, ts] <= p.max_sizes[t] *  m[:binMGGenIsOnInTS][s, tz, ts]
         )
         @constraint(m, [t in p.techs.gen, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-            m[:dvMGRatedProduction][t, s, tz, ts] >= p.s.generator.min_turn_down_fraction * m[:dvMGsize][t] - p.max_sizes[t] * (1-m[:binMGGenIsOnInTS][s, tz, ts])
+            m[:dvMGRatedProduction][t, s, tz, ts] >= p.s.generator.min_turn_down_fraction * m[:dvMGsize][t] - p.s.generator.min_turn_down_fraction * p.max_sizes[t] * (1-m[:binMGGenIsOnInTS][s, tz, ts])
         )
     end
     @constraint(m, [t in p.techs.gen, s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],

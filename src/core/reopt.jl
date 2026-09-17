@@ -588,7 +588,9 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 	# Set model objective 
 	@objective(m, Min, m[:Costs] + m[:ObjectivePenalties] )
-    
+
+	set_tiered_rate_mip_start!(m, p)
+
 	nothing
 end
 

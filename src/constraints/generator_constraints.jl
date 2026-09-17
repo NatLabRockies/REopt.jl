@@ -23,17 +23,17 @@ function add_binGenIsOnInTS_constraints(m,p)
 		m[:dvRatedProduction][t, ts] <= p.max_sizes[t] * m[:binGenIsOnInTS][t, ts]
 	)
 	# Note: min_turn_down_fraction is only enforced when `off_grid_flag` is true and in p.time_steps_with_grid, but not for grid outages for on-grid analyses
-	if p.s.settings.off_grid_flag 
-		@constraint(m, [t in p.techs.gen, ts in p.time_steps_without_grid],
+	# When the generator is off the left-hand side is at most min_turn_down_fraction * dvSize <= min_turn_down_fraction * max_sizes[t],
+	# so scaling the big-M by min_turn_down_fraction is exactly tight and tightens the LP relaxation.
+	# When min_turn_down_fraction is zero (the on-grid default) the constraint reduces to dvRatedProduction >= 0,
+	# which the variable bound already enforces, so it is skipped rather than adding a row per time step.
+	if p.s.generator.min_turn_down_fraction > 0
+		min_turn_down_time_steps = p.s.settings.off_grid_flag ? p.time_steps_without_grid : p.time_steps_with_grid
+		@constraint(m, [t in p.techs.gen, ts in min_turn_down_time_steps],
 			p.s.generator.min_turn_down_fraction * m[:dvSize][t] - m[:dvRatedProduction][t, ts] <=
-			p.max_sizes[t] * (1 - m[:binGenIsOnInTS][t, ts])
+			p.s.generator.min_turn_down_fraction * p.max_sizes[t] * (1 - m[:binGenIsOnInTS][t, ts])
 		)
-	else 
-		@constraint(m, [t in p.techs.gen, ts in p.time_steps_with_grid],
-			p.s.generator.min_turn_down_fraction * m[:dvSize][t] - m[:dvRatedProduction][t, ts] <=
-			p.max_sizes[t] * (1 - m[:binGenIsOnInTS][t, ts])
-		)
-	end 
+	end
 end
 
 function add_gen_can_run_constraints(m,p)

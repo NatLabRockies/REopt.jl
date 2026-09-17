@@ -25,6 +25,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## solve-time-improvements
+### Changed
+- `constraints/electric_utility_constraints.jl` Added `set_tiered_rate_mip_start!` to supply an analytic MIP start for the tiered electric rate binaries (**binEnergyTier**, **binMonthlyDemandTier**, **binTOUDemandTier**, **binIncludeStorageCostConstant**), called from `build_reopt!`. On a 2-tier energy / 2-tier TOU demand URDB rate this reduced end-to-end solve time from 969s to 324s with identical sizing.
+- `constraints/electric_utility_constraints.jl` Added `tiered_rates_require_binaries` so that tier-selection binaries are only created for _decreasing_ block rates. Non-decreasing tiers make the cost function convex, so a cost-minimizing LP fills the cheapest tier first without binaries.
+- `constraints/electric_utility_constraints.jl` Derived the **allow_simultaneous_export_import** big-M values from physical limits (storage charge/discharge power, peak load, interconnection limits) instead of the `max_kw`/`max_kwh` sentinels, reducing matrix coefficients from 1e+09 to 2e+06. Objective values are unchanged.
+- `constraints/generator_constraints.jl`, `constraints/chp_constraints.jl`, `constraints/outage_constraints.jl` Scaled the minimum-turndown big-M by **min_turn_down_fraction**. When a tech is off the left-hand side is at most `min_turn_down_fraction * dvSize`, so this is exactly tight rather than merely valid. The constraint is now skipped entirely when **min_turn_down_fraction** is zero (the on-grid **Generator** default), where it reduces to `dvRatedProduction >= 0`; this removes one row per time step per tech.
+- `src/REopt.jl` Documented why HiGHS cannot be added to `INDICATOR_COMPATIBLE_SOLVERS`: it supports neither indicator constraints nor SOS1, and JuMP's fallback bridge raises `BridgeRequiresFiniteDomainError` on the unbounded **dvGridPurchase**.
+
 ## julia-113
 ### Changed
 - Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies

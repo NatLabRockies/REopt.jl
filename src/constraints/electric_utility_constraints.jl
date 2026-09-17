@@ -265,14 +265,21 @@ function add_monthly_peak_constraint(m, p; _n="")
     end
 
     if p.s.electric_tariff.n_monthly_demand_tiers > 1  # only need binaries if more than one tier
-        @warn "Adding binary variables to model monthly demand tiers."
         ntiers = p.s.electric_tariff.n_monthly_demand_tiers
+        bigM_monthly_demand_tier_limits = get_electric_demand_tiers_bigM(p, false)
+
+        if !tiered_rates_require_binaries(p.s.electric_tariff.monthly_demand_rates, p.months, ntiers)
+            @constraint(m, [mth in p.months, tier in 1:ntiers-1],
+                m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier]
+            )
+            return nothing
+        end
+
+        @warn "Adding binary variables to model monthly demand tiers."
         dv = "binMonthlyDemandTier" * _n
         m[Symbol(dv)] = @variable(m, [p.months, 1:ntiers], binary = true, base_name = dv)
         b = m[Symbol(dv)]
 
-        bigM_monthly_demand_tier_limits = get_electric_demand_tiers_bigM(p, false) 
-        
         # Upper bound on peak electrical power demand by month, tier; if tier is selected (0 o.w.)
         @constraint(m, [mth in p.months, tier in 1:ntiers],
             m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier] * 
@@ -300,13 +307,22 @@ function add_tou_peak_constraint(m, p; _n="")
     )
 
     if p.s.electric_tariff.n_tou_demand_tiers > 1
-        @warn "Adding binary variables to model TOU demand tiers."
         ntiers = p.s.electric_tariff.n_tou_demand_tiers
+        bigM_tou_demand_tier_limits = get_electric_demand_tiers_bigM(p, true)
+
+        if !tiered_rates_require_binaries(p.s.electric_tariff.tou_demand_rates, p.ratchets, ntiers)
+            # Rates are non-decreasing across tiers, so the tiered cost function is convex and the LP
+            # relaxation already fills cheaper tiers first. Binaries (and their big-Ms) are unnecessary.
+            @constraint(m, [r in p.ratchets, tier in 1:ntiers-1],
+                m[Symbol("dvPeakDemandTOU"*_n)][r, tier] <= bigM_tou_demand_tier_limits[r, tier]
+            )
+            return nothing
+        end
+
+        @warn "Adding binary variables to model TOU demand tiers."
         dv = "binTOUDemandTier" * _n
         m[Symbol(dv)] = @variable(m, [p.ratchets, 1:ntiers], binary = true, base_name = dv)
         b = m[Symbol(dv)]
-         
-        bigM_tou_demand_tier_limits = get_electric_demand_tiers_bigM(p, true) 
 
         # Upper bound on peak electrical power demand by tier, by ratchet, if tier is selected (0 o.w.)
         @constraint(m, [r in p.ratchets, tier in 1:ntiers],
@@ -351,15 +367,33 @@ function add_simultaneous_export_import_constraint(m, p; _n="")
             }
         )
     else
-        bigM_hourly_load_plus_battery = maximum(p.s.electric_load.loads_kw)+maximum(p.s.space_heating_load.loads_kw)+maximum(p.s.process_heat_load.loads_kw)+maximum(p.s.dhw_load.loads_kw)+maximum(p.s.cooling_load.loads_kw_thermal)+sum(Real[p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec])
+        # Separate, individually-derived big-Ms for the import and export sides. Both are valid
+        # upper bounds on their own left-hand side, so the reformulation is exact; deriving them
+        # from what the site can physically import/export avoids the 1e9 `max_kw` sentinel.
+        transmission_limit_kw = p.s.electric_utility.transmission_limit_kw
+        storage_charge_kw = max_electric_storage_charge_power_kw(p)
+
+        # When binNoGridPurchases is 0 the export constraint below forces exports to 0, so grid
+        # purchases can only serve site load and storage charging. dvGridToStorage is counted twice
+        # because it appears in this left-hand side and again inside dvGridPurchase (constraint 8c).
+        bigM_grid_import = min(
+            2 * transmission_limit_kw,
+            peak_electric_demand_kw(p) + 2 * storage_charge_kw
+        )
+        # Exports are bounded by what can be generated and discharged on site in one time step.
+        bigM_grid_export = min(
+            transmission_limit_kw,
+            max_electric_production_kw(p) + max_electric_storage_discharge_power_kw(p)
+        )
+
         @constraint(m, NoGridPurchasesBinary[ts in p.time_steps],
             sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) +
-            sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_hourly_load_plus_battery*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
+            sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) <= bigM_grid_import*(1-m[Symbol("binNoGridPurchases"*_n)][ts])
         )
         @constraint(m, ExportOnlyAfterSiteLoadMetCon[ts in p.time_steps],
             sum(m[Symbol("dvProductionToGrid"*_n)][t,u,ts] for t in p.techs.elec, u in p.export_bins_by_tech[t]) +
             sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b])
-            <= bigM_hourly_load_plus_battery * m[Symbol("binNoGridPurchases"*_n)][ts]
+            <= bigM_grid_export * m[Symbol("binNoGridPurchases"*_n)][ts]
         )
     end
 end
@@ -371,14 +405,23 @@ end
 Only necessary if n_energy_tiers > 1
 """
 function add_energy_tier_constraints(m, p; _n="")
-    @warn "Adding binary variables to model energy cost tiers."
     ntiers = p.s.electric_tariff.n_energy_tiers
+    bigM_energy_tier_limits = get_electric_energy_tiers_bigM(p)
+
+    if !tiered_rates_require_binaries(p.s.electric_tariff.energy_rates, p.time_steps, ntiers)
+        # Non-decreasing (convex) tiered energy rates: the LP fills cheaper tiers first on its own.
+        @constraint(m, [mth in p.months, tier in 1:ntiers-1],
+            p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] )
+            <= bigM_energy_tier_limits[mth, tier]
+        )
+        return nothing
+    end
+
+    @warn "Adding binary variables to model energy cost tiers."
     dv = "binEnergyTier" * _n
     m[Symbol(dv)] = @variable(m, [p.months, 1:ntiers], binary = true, base_name = dv)
     b = m[Symbol(dv)]
 
-    bigM_energy_tier_limits = get_electric_energy_tiers_bigM(p)
-    
     ##Constraint (10a): Usage limits by pricing tier, by month
     @constraint(m, [mth in p.months, tier in 1:p.s.electric_tariff.n_energy_tiers],
         p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] ) 
@@ -525,6 +568,169 @@ function add_elec_utility_expressions(m, p; _n="")
 end
 
 """
+    set_tiered_rate_mip_start!(m::JuMP.AbstractModel, p::REoptInputs)
+
+Supply a MIP start for the tiered-rate and storage cost-constant binaries.
+
+These binaries are almost entirely determined by the site load: a rate tier is used if and only if
+the load exceeds the cumulative limits of the tiers below it. Handing the solver that assignment up
+front avoids a long search for a first incumbent, which otherwise dominates solve time on tiered
+rates (the LP relaxation bound is typically already tight, so the branch-and-bound work is spent
+finding a good primal solution rather than improving the bound).
+
+A MIP start cannot change the optimal solution: solvers verify it and discard it if infeasible.
+"""
+function set_tiered_rate_mip_start!(m::JuMP.AbstractModel, p::REoptInputs)
+    t = p.s.electric_tariff
+    load = p.s.electric_load.loads_kw
+
+    # A tier is active if the load to be served exceeds the cumulative limits of all lower tiers.
+    function set_starts!(bins, periods, ntiers, limits, quantity)
+        for period in periods
+            q = quantity(period)
+            cumulative = 0.0
+            for tier in 1:ntiers
+                set_start_value(bins[period, tier], q > cumulative ? 1.0 : 0.0)
+                cumulative += limits[period, tier]
+            end
+        end
+    end
+
+    if haskey(m, :binEnergyTier)
+        set_starts!(m[:binEnergyTier], p.months, t.n_energy_tiers, t.energy_tier_limits,
+            mth -> p.hours_per_time_step * sum(load[ts] for ts in t.time_steps_monthly[mth]))
+    end
+
+    if haskey(m, :binMonthlyDemandTier)
+        set_starts!(m[:binMonthlyDemandTier], p.months, t.n_monthly_demand_tiers, t.monthly_demand_tier_limits,
+            mth -> maximum(load[ts] for ts in t.time_steps_monthly[mth]))
+    end
+
+    if haskey(m, :binTOUDemandTier)
+        set_starts!(m[:binTOUDemandTier], p.ratchets, t.n_tou_demand_tiers, t.tou_demand_tier_limits,
+            r -> maximum(load[ts] for ts in t.tou_demand_ratchet_time_steps[r]))
+    end
+
+    if haskey(m, :binIncludeStorageCostConstant)
+        for b in p.s.storage.types.elec
+            set_start_value(m[:binIncludeStorageCostConstant][b], 1.0)
+        end
+    end
+
+    nothing
+end
+
+
+"""
+    max_electric_storage_charge_power_kw(p::REoptInputs)
+
+Valid upper bound on the total power that can flow *into* electric storage in one time step.
+
+`ElectricStorage.max_kw` defaults to 1e9, which is a sentinel for "no user-specified limit" rather
+than an engineering limit. Fed straight into a big-M it produces coefficients many orders of
+magnitude larger than the quantity they bound, which cripples the LP relaxation.
+
+Storage charging is independently limited by the *energy* capacity: the state-of-charge constraints
+require `dvStorageEnergy >= hours_per_time_step * efficiency * charge_power`, and
+`dvStorageEnergy <= max_kwh`, so `max_kwh / (hours_per_time_step * efficiency)` is an equally valid
+bound. Taking the minimum of the two keeps the big-M exact while dropping the sentinel whenever the
+user bounded energy capacity but not power.
+"""
+function max_electric_storage_charge_power_kw(p::REoptInputs)
+    total_kw = 0.0
+    for b in p.s.storage.types.elec
+        attr = p.s.storage.attr[b]
+        eff = min(attr.charge_efficiency, attr.grid_charge_efficiency)
+        energy_limited_kw = eff > 0 ? attr.max_kwh / (p.hours_per_time_step * eff) : Inf
+        total_kw += min(attr.max_kw, energy_limited_kw)
+    end
+    return total_kw
+end
+
+
+"""
+    max_electric_storage_discharge_power_kw(p::REoptInputs)
+
+Valid upper bound on the total power that can flow *out of* electric storage in one time step.
+
+Mirror of [`max_electric_storage_charge_power_kw`](@ref): discharging draws
+`hours_per_time_step * discharge_power / discharge_efficiency` from a state of charge that never
+exceeds `max_kwh`.
+"""
+function max_electric_storage_discharge_power_kw(p::REoptInputs)
+    total_kw = 0.0
+    for b in p.s.storage.types.elec
+        attr = p.s.storage.attr[b]
+        energy_limited_kw = attr.max_kwh * attr.discharge_efficiency / p.hours_per_time_step
+        total_kw += min(attr.max_kw, energy_limited_kw)
+    end
+    return total_kw
+end
+
+
+"""
+    max_electric_production_kw(p::REoptInputs)
+
+Valid upper bound on total on-site electric production in any single time step.
+
+`dvRatedProduction[t, ts] <= dvSize[t] <= max_sizes[t]`, and production is scaled by the tech's
+production factor and levelization factor, so the peak production factor over the year gives a valid
+per-tech bound. For space-constrained techs (e.g. roof-limited PV) this is far tighter than the
+1e9 `max_kw` default.
+"""
+function max_electric_production_kw(p::REoptInputs)
+    total_kw = 0.0
+    for t in p.techs.elec
+        peak_pf = maximum(p.production_factor[t, ts] for ts in p.time_steps)
+        total_kw += max(p.levelization_factor[t], 1.0) * peak_pf * p.max_sizes[t]
+    end
+    return total_kw
+end
+
+
+"""
+    peak_electric_demand_kw(p::REoptInputs)
+
+Conservative upper bound on the site's electric demand in any single time step.
+
+Thermal loads are added at an implied COP of 1, which over-states the electric draw of any real
+heating/cooling equipment and so keeps the bound valid.
+"""
+function peak_electric_demand_kw(p::REoptInputs)
+    return maximum(p.s.electric_load.loads_kw) +
+           maximum(p.s.space_heating_load.loads_kw) +
+           maximum(p.s.process_heat_load.loads_kw) +
+           maximum(p.s.dhw_load.loads_kw) +
+           maximum(p.s.cooling_load.loads_kw_thermal)
+end
+
+
+"""
+    tiered_rates_require_binaries(rates::AbstractArray, periods, ntiers::Int)
+
+Returns `true` only if binary variables are actually needed to enforce tiered-rate ordering.
+
+Tiered rates are modeled with an "incremental" formulation: the cost of a period is
+`sum(rate[tier] * quantity[tier])` subject to `sum(quantity[tier]) >= load` and per-tier limits.
+When the rates are non-decreasing across tiers the resulting cost function is convex, so a
+cost-minimizing LP fills the cheapest (lowest) tier first on its own and the tier-ordering
+binaries -- along with their big-M constraints -- are redundant. Binaries are only required for
+decreasing block rates, where the cost function is concave and the LP would otherwise buy
+everything at the cheapest (highest) tier.
+"""
+function tiered_rates_require_binaries(rates::AbstractArray, periods, ntiers::Int)
+    if ntiers < 2 || isempty(rates) || size(rates, 2) < ntiers
+        return false
+    end
+    for period in periods, tier in 2:ntiers
+        if rates[period, tier] < rates[period, tier-1] - 1e-12
+            return true
+        end
+    end
+    return false
+end
+
+"""
     get_electric_demand_tiers_bigM(p::REoptInputs, tou::Bool)
 
   Used to generate reasonable big-M values for demand constraints
@@ -539,7 +745,7 @@ end
   bigM_demand_tier_limits::Array{Float64,2} -- big-M tier limits for demand constraints
 """
 function get_electric_demand_tiers_bigM(p::REoptInputs, tou::Bool)
-    added_power = !isempty(p.s.storage.types.elec) ? sum(p.s.storage.attr[b].max_kw for b in p.s.storage.types.elec) : 1.0e-3
+    added_power = !isempty(p.s.storage.types.elec) ? max_electric_storage_charge_power_kw(p) : 1.0e-3
     bigM = 2 * maximum(100*p.s.electric_load.loads_kw  .+   #2 multiplier for heating/cooling loads in case of a low COP tech, like ASHP in cold temps
             p.s.space_heating_load.loads_kw .+     #100 multiplier for electric load in case it is used for charging an inefficient, seasonal storage (e.g., H2)
             p.s.process_heat_load.loads_kw .+ 
