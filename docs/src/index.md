@@ -21,12 +21,13 @@ before running PV or Wind scenarios, and also assign your email to the expected 
 ENV["NLR_DEVELOPER_EMAIL"]="your contact email"
 ```
 
-### Add URDB API key for utility rates
-To download utility rates from the [Utility Rate Database (URDB)](https://openei.org/wiki/Utility_Rate_Database) using **ElectricTariff.urdb_label** or **ElectricTariff.urdb_utility_name**/**urdb_rate_name**, you need an OpenEI API key, which you can [sign up for here (free)](https://openei.org/services/api/signup/).
+### Add URDB API key for fetching utility rates
+To enable calling the [Utility Rate Database (URDB)](https://openei.org/wiki/Utility_Rate_Database) API internally to REopt using `ElectricTariff.urdb_label` input or the combination of `ElectricTariff.` `urdb_utility_name` and `urdb_rate_name` to fetch utility rates, you need an OpenEI API key, which you can [sign up for here (free)](https://openei.org/services/api/signup/).
 Assign your API key to the expected environment variable:
 ```julia
 ENV["URDB_API_KEY"]="your API key"
 ```
+If you use more simplified `ElectricTariff` inputs to define the electricity price structure, you don't need this.
 
 !!! note
     When running the REopt.jl test suite locally, these environment variables are loaded from a `test/.env` file. Copy `test/.env.example` to `test/.env` and fill in your own values. `test/.env` is git-ignored, so never commit real API keys.
