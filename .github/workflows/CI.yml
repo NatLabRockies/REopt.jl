@@ -16,6 +16,14 @@ jobs:
         os: [ubuntu-latest]
 
     steps:
+      # GitHub does not expose repository secrets to pull_request runs from forks,
+      # so the test suite cannot authenticate against the URDB/NLR developer APIs.
+      # Fail fast with an actionable message rather than reporting a false green.
+      - name: Check that API secrets are available
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          echo "::error::This pull request comes from a fork, so GitHub does not provide the repository secrets (NLR_DEVELOPER_API_KEY, URDB_API_KEY, NLR_DEVELOPER_EMAIL) that the test suite requires. A maintainer must push this branch to NatLabRockies/REopt.jl and open a pull request from there to run CI."
+          exit 1
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
@@ -24,3 +32,7 @@ jobs:
       # - uses: mxschmitt/action-tmate@v3  # for interactive debugging
       - run: julia --project=. -e 'using Pkg; Pkg.activate("test"); Pkg.rm("Xpress"); Pkg.activate("."); using TestEnv; TestEnv.activate(); Pkg.add(PackageSpec(name="GhpGhx", url="https://github.com/NatLabRockies/GhpGhx.jl.git")); using GhpGhx; cd("test"); include("runtests.jl")'
         shell: bash
+        env:
+          NLR_DEVELOPER_API_KEY: ${{ secrets.NLR_DEVELOPER_API_KEY }}
+          URDB_API_KEY: ${{ secrets.URDB_API_KEY }}
+          NLR_DEVELOPER_EMAIL: ${{ secrets.NLR_DEVELOPER_EMAIL }}
