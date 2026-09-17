@@ -265,14 +265,21 @@ function add_monthly_peak_constraint(m, p; _n="")
     end
 
     if p.s.electric_tariff.n_monthly_demand_tiers > 1  # only need binaries if more than one tier
-        @warn "Adding binary variables to model monthly demand tiers."
         ntiers = p.s.electric_tariff.n_monthly_demand_tiers
+        bigM_monthly_demand_tier_limits = get_electric_demand_tiers_bigM(p, false)
+
+        if !tiered_rates_require_binaries(p.s.electric_tariff.monthly_demand_rates, p.months, ntiers)
+            @constraint(m, [mth in p.months, tier in 1:ntiers-1],
+                m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier]
+            )
+            return nothing
+        end
+
+        @warn "Adding binary variables to model monthly demand tiers."
         dv = "binMonthlyDemandTier" * _n
         m[Symbol(dv)] = @variable(m, [p.months, 1:ntiers], binary = true, base_name = dv)
         b = m[Symbol(dv)]
 
-        bigM_monthly_demand_tier_limits = get_electric_demand_tiers_bigM(p, false) 
-        
         # Upper bound on peak electrical power demand by month, tier; if tier is selected (0 o.w.)
         @constraint(m, [mth in p.months, tier in 1:ntiers],
             m[Symbol("dvPeakDemandMonth"*_n)][mth, tier] <= bigM_monthly_demand_tier_limits[mth, tier] * 
@@ -300,13 +307,22 @@ function add_tou_peak_constraint(m, p; _n="")
     )
 
     if p.s.electric_tariff.n_tou_demand_tiers > 1
-        @warn "Adding binary variables to model TOU demand tiers."
         ntiers = p.s.electric_tariff.n_tou_demand_tiers
+        bigM_tou_demand_tier_limits = get_electric_demand_tiers_bigM(p, true)
+
+        if !tiered_rates_require_binaries(p.s.electric_tariff.tou_demand_rates, p.ratchets, ntiers)
+            # Rates are non-decreasing across tiers, so the tiered cost function is convex and the LP
+            # relaxation already fills cheaper tiers first. Binaries (and their big-Ms) are unnecessary.
+            @constraint(m, [r in p.ratchets, tier in 1:ntiers-1],
+                m[Symbol("dvPeakDemandTOU"*_n)][r, tier] <= bigM_tou_demand_tier_limits[r, tier]
+            )
+            return nothing
+        end
+
+        @warn "Adding binary variables to model TOU demand tiers."
         dv = "binTOUDemandTier" * _n
         m[Symbol(dv)] = @variable(m, [p.ratchets, 1:ntiers], binary = true, base_name = dv)
         b = m[Symbol(dv)]
-         
-        bigM_tou_demand_tier_limits = get_electric_demand_tiers_bigM(p, true) 
 
         # Upper bound on peak electrical power demand by tier, by ratchet, if tier is selected (0 o.w.)
         @constraint(m, [r in p.ratchets, tier in 1:ntiers],
@@ -371,14 +387,23 @@ end
 Only necessary if n_energy_tiers > 1
 """
 function add_energy_tier_constraints(m, p; _n="")
-    @warn "Adding binary variables to model energy cost tiers."
     ntiers = p.s.electric_tariff.n_energy_tiers
+    bigM_energy_tier_limits = get_electric_energy_tiers_bigM(p)
+
+    if !tiered_rates_require_binaries(p.s.electric_tariff.energy_rates, p.time_steps, ntiers)
+        # Non-decreasing (convex) tiered energy rates: the LP fills cheaper tiers first on its own.
+        @constraint(m, [mth in p.months, tier in 1:ntiers-1],
+            p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] )
+            <= bigM_energy_tier_limits[mth, tier]
+        )
+        return nothing
+    end
+
+    @warn "Adding binary variables to model energy cost tiers."
     dv = "binEnergyTier" * _n
     m[Symbol(dv)] = @variable(m, [p.months, 1:ntiers], binary = true, base_name = dv)
     b = m[Symbol(dv)]
 
-    bigM_energy_tier_limits = get_electric_energy_tiers_bigM(p)
-    
     ##Constraint (10a): Usage limits by pricing tier, by month
     @constraint(m, [mth in p.months, tier in 1:p.s.electric_tariff.n_energy_tiers],
         p.hours_per_time_step * sum( m[Symbol("dvGridPurchase"*_n)][ts, tier] for ts in p.s.electric_tariff.time_steps_monthly[mth] ) 
@@ -522,6 +547,85 @@ function add_elec_utility_expressions(m, p; _n="")
 		0.001 * MinChargeAdder is added back into LCC when writing to results.  
     =#
     nothing
+end
+
+"""
+    set_tiered_rate_mip_start!(m::JuMP.AbstractModel, p::REoptInputs)
+
+Supply a MIP start for the tiered-rate and storage cost-constant binaries.
+
+These binaries are almost entirely determined by the site load: a rate tier is used if and only if
+the load exceeds the cumulative limits of the tiers below it. Handing the solver that assignment up
+front avoids a long search for a first incumbent, which otherwise dominates solve time on tiered
+rates (the LP relaxation bound is typically already tight, so the branch-and-bound work is spent
+finding a good primal solution rather than improving the bound).
+
+A MIP start cannot change the optimal solution: solvers verify it and discard it if infeasible.
+"""
+function set_tiered_rate_mip_start!(m::JuMP.AbstractModel, p::REoptInputs)
+    t = p.s.electric_tariff
+    load = p.s.electric_load.loads_kw
+
+    # A tier is active if the load to be served exceeds the cumulative limits of all lower tiers.
+    function set_starts!(bins, periods, ntiers, limits, quantity)
+        for period in periods
+            q = quantity(period)
+            cumulative = 0.0
+            for tier in 1:ntiers
+                set_start_value(bins[period, tier], q > cumulative ? 1.0 : 0.0)
+                cumulative += limits[period, tier]
+            end
+        end
+    end
+
+    if haskey(m, :binEnergyTier)
+        set_starts!(m[:binEnergyTier], p.months, t.n_energy_tiers, t.energy_tier_limits,
+            mth -> p.hours_per_time_step * sum(load[ts] for ts in t.time_steps_monthly[mth]))
+    end
+
+    if haskey(m, :binMonthlyDemandTier)
+        set_starts!(m[:binMonthlyDemandTier], p.months, t.n_monthly_demand_tiers, t.monthly_demand_tier_limits,
+            mth -> maximum(load[ts] for ts in t.time_steps_monthly[mth]))
+    end
+
+    if haskey(m, :binTOUDemandTier)
+        set_starts!(m[:binTOUDemandTier], p.ratchets, t.n_tou_demand_tiers, t.tou_demand_tier_limits,
+            r -> maximum(load[ts] for ts in t.tou_demand_ratchet_time_steps[r]))
+    end
+
+    if haskey(m, :binIncludeStorageCostConstant)
+        for b in p.s.storage.types.elec
+            set_start_value(m[:binIncludeStorageCostConstant][b], 1.0)
+        end
+    end
+
+    nothing
+end
+
+
+"""
+    tiered_rates_require_binaries(rates::AbstractArray, periods, ntiers::Int)
+
+Returns `true` only if binary variables are actually needed to enforce tiered-rate ordering.
+
+Tiered rates are modeled with an "incremental" formulation: the cost of a period is
+`sum(rate[tier] * quantity[tier])` subject to `sum(quantity[tier]) >= load` and per-tier limits.
+When the rates are non-decreasing across tiers the resulting cost function is convex, so a
+cost-minimizing LP fills the cheapest (lowest) tier first on its own and the tier-ordering
+binaries -- along with their big-M constraints -- are redundant. Binaries are only required for
+decreasing block rates, where the cost function is concave and the LP would otherwise buy
+everything at the cheapest (highest) tier.
+"""
+function tiered_rates_require_binaries(rates::AbstractArray, periods, ntiers::Int)
+    if ntiers < 2 || isempty(rates) || size(rates, 2) < ntiers
+        return false
+    end
+    for period in periods, tier in 2:ntiers
+        if rates[period, tier] < rates[period, tier-1] - 1e-12
+            return true
+        end
+    end
+    return false
 end
 
 """
