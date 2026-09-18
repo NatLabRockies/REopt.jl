@@ -4941,6 +4941,12 @@ else  # run HiGHS tests
             finalize(backend(m2))
             empty!(m2)
             GC.gc()
+
+            # Test that size class for flat load is average load and not peak load minus average load.
+            input_data["ElectricLoad"]["loads_kw"] = repeat([500.0], 8760)
+            input_data["ElectricStorage"] = Dict()
+            s = Scenario(input_data)
+            @test s.storage.attr["ElectricStorage"].size_class == 3 # should be set on average load of 500 kw
         end
         
         @testset verbose=true "Battery heuristic dispatch tests" begin
