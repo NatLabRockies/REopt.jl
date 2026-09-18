@@ -4885,7 +4885,7 @@ else  # run HiGHS tests
             @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][1]["installed_cost_per_kw"]
 
             # Size class is 2 for a larger peak.
-            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0])
+            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0], 8760)
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 41
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 2
