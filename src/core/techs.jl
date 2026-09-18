@@ -58,6 +58,27 @@ function Techs(p::REoptInputs, s::BAUScenario)
         push!(electric_chillers, "ExistingChiller")
     end
 
+    for chp in s.chps
+        push!(all_techs, chp.name)
+        push!(chp_techs, chp.name)
+        push!(elec, chp.name)
+        if !chp.is_electric_only
+            push!(heating_techs, chp.name)
+        end
+        if chp.can_serve_space_heating
+            push!(techs_can_serve_space_heating, chp.name)
+        end
+        if chp.can_serve_dhw
+            push!(techs_can_serve_dhw, chp.name)
+        end
+        if chp.can_serve_process_heat
+            push!(techs_can_serve_process_heat, chp.name)
+        end
+        if chp.can_supply_steam_turbine
+            push!(techs_can_supply_steam_turbine, chp.name)
+        end
+    end
+
     cooling_techs = union(electric_chillers, absorption_chillers)
     fuel_burning_techs = union(gentechs, boiler_techs, chp_techs)
     thermal_techs = union(heating_techs, boiler_techs, cooling_techs)
@@ -104,6 +125,11 @@ function Techs(s::Scenario)
     pvtechs = String[pv.name for pv in s.pvs]
     if length(Base.Set(pvtechs)) != length(pvtechs)
         throw(@error("PV names must be unique, got $(pvtechs)"))
+    end
+
+    chp_names = String[chp.name for chp in s.chps]
+    if length(Base.Set(chp_names)) != length(chp_names)
+        throw(@error("CHP names must be unique, got $(chp_names)"))
     end
 
     all_techs = copy(pvtechs)
@@ -186,21 +212,28 @@ function Techs(s::Scenario)
         end
     end
     
-    if !isnothing(s.chp)
-        push!(all_techs, "CHP")
-        push!(elec, "CHP")
-        push!(chp_techs, "CHP")
-        if s.chp.can_supply_steam_turbine
-            push!(techs_can_supply_steam_turbine, "CHP")
+    for chp in s.chps
+        push!(all_techs, chp.name)
+        push!(chp_techs, chp.name)
+        push!(elec, chp.name)
+        if chp.can_supply_steam_turbine
+            push!(techs_can_supply_steam_turbine, chp.name)
         end
-        if s.chp.can_serve_space_heating
-            push!(techs_can_serve_space_heating, "CHP")
+        if chp.can_serve_space_heating
+            push!(techs_can_serve_space_heating, chp.name)
         end
-        if s.chp.can_serve_dhw
-            push!(techs_can_serve_dhw, "CHP")
+        if chp.can_serve_dhw
+            push!(techs_can_serve_dhw, chp.name)
         end
-        if s.chp.can_serve_process_heat
-            push!(techs_can_serve_process_heat, "CHP")
+        if chp.can_serve_process_heat
+            push!(techs_can_serve_process_heat, chp.name)
+        end
+        if s.settings.off_grid_flag
+            if chp.operating_reserve_required_fraction > 0.0
+                push!(requiring_oper_res, chp.name)
+            else
+                push!(providing_oper_res, chp.name)
+            end
         end
     end
 

@@ -262,7 +262,12 @@ function ElectricTariff(;
             energy_rates, monthly_demand_rates, tou_demand_rates = remove_tiers_from_urdb_rate(u)
             energy_tier_limits, monthly_demand_tier_limits, tou_demand_tier_limits = 
                 Array{Float64,2}(undef, 0, 0), Array{Float64,2}(undef, 0, 0), Array{Float64,2}(undef, 0, 0)
-            n_energy_tiers, n_monthly_demand_tiers, n_tou_demand_tiers = 1, 1, 1
+            # Energy always collapses to one tier when remove_tiers is true.
+            n_energy_tiers = 1
+
+            # Preserve whether demand structures exist in the URDB tariff.
+            n_monthly_demand_tiers = u.n_monthly_demand_tiers > 0 ? 1 : 0
+            n_tou_demand_tiers = u.n_tou_demand_tiers > 0 ? 1 : 0
         end
 
         tou_demand_ratchet_time_steps = u.tou_demand_ratchet_time_steps
@@ -434,13 +439,13 @@ function remove_tiers_from_urdb_rate(u::URDBrate)
     if length(u.energy_tier_limits) > 1
         @warn "Energy rate contains tiers. Using the first tier!"
     end
-    elec_rates = u.energy_rates[:,1]
+    elec_rates = u.energy_rates[:,1:1] # Keep 2D shape (N x 1) to satisfy ElectricTariff field types.
 
     if u.n_monthly_demand_tiers > 1
         @warn "Monthly demand rate contains tiers. Using the last tier!"
     end
     if u.n_monthly_demand_tiers > 0
-        demand_rates_monthly = u.monthly_demand_rates[:,u.n_monthly_demand_tiers]
+        demand_rates_monthly = u.monthly_demand_rates[:,u.n_monthly_demand_tiers:u.n_monthly_demand_tiers]
     else
         demand_rates_monthly = u.monthly_demand_rates  # 0×0 Array{Float64,2}
     end
@@ -449,7 +454,7 @@ function remove_tiers_from_urdb_rate(u::URDBrate)
         @warn "TOU demand rate contains tiers. Using the last tier!"
     end
     if u.n_tou_demand_tiers > 0
-        demand_rates = u.tou_demand_rates[:,u.n_tou_demand_tiers]
+        demand_rates = u.tou_demand_rates[:,u.n_tou_demand_tiers:u.n_tou_demand_tiers]
     else
         demand_rates = u.tou_demand_rates
     end

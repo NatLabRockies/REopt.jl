@@ -133,8 +133,14 @@ function proforma_results(p::REoptInputs, d::Dict)
     end
 
     # calculate CHP o+m costs, incentives, and depreciation
-    if "CHP" in keys(d) && d["CHP"]["size_kw"] > 0
-        update_metrics(m, p, p.s.chp, "CHP", d, third_party)
+    for chp_name in p.techs.chp
+        if chp_name in keys(d) && get(d[chp_name], "size_kw", 0) > 0
+            # Find the CHP object for this name
+            chp_idx = findfirst(chp -> chp.name == chp_name, p.s.chps)
+            if !isnothing(chp_idx)
+                update_metrics(m, p, p.s.chps[chp_idx], chp_name, d, third_party)
+            end
+        end
     end
 
     # calculate ExistingBoiler o+m costs (just fuel, no non-fuel operating costs currently)
@@ -366,19 +372,19 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     total_kw = results[tech_name]["size_kw"]
     existing_kw = :existing_kw in fieldnames(typeof(tech)) ? tech.existing_kw : 0
     new_kw = total_kw - existing_kw
-    if tech_name == "CHP"
-        capital_cost = results["CHP"]["initial_capital_costs"]
+    if tech_name in [chp.name for chp in p.s.chps]
+        capital_cost = results[tech_name]["initial_capital_costs"]
     elseif tech_name in [pv.name for pv in p.s.pvs]  # Check if it's a PV technology
-        capital_cost = get_pv_initial_capex(p, tech, new_kw)
+        capital_cost = get_tech_initial_capex(tech, new_kw)
     else
         capital_cost = new_kw * tech.installed_cost_per_kw
     end
 
     # owner is responsible for only new technologies operating and maintenance cost in optimal case
     # CHP doesn't have existing CHP, and it has different O&M cost parameters
-    if tech_name == "CHP"
-        hours_operating = sum(results["CHP"]["electric_production_series_kw"] .> 0.0) / (8760 * p.s.settings.time_steps_per_hour)
-        annual_om = -1 * (results["CHP"]["annual_electric_production_kwh"] * tech.om_cost_per_kwh + 
+    if tech_name in [chp.name for chp in p.s.chps]
+        hours_operating = sum(results[tech_name]["electric_production_series_kw"] .> 0.0) * p.hours_per_time_step
+        annual_om = -1 * (results[tech_name]["annual_electric_production_kwh"] * tech.om_cost_per_kwh + 
                             new_kw * tech.om_cost_per_kw + 
                             new_kw * tech.om_cost_per_hr_per_kw_rated * hours_operating)
     elseif third_party
@@ -391,10 +397,13 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     m.om_series += escalate_om(annual_om)
     m.om_series_bau += escalate_om(-1 * existing_kw * tech.om_cost_per_kw)
 
-    if tech_name == "CHP"
+    if tech_name in [chp.name for chp in p.s.chps]
         escalate_fuel(val, esc_rate) = [val * (1 + esc_rate)^yr for yr in 1:years]
-        fuel_cost = results["CHP"]["year_one_fuel_cost_before_tax"]
-        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, p.s.financial.chp_fuel_cost_escalation_rate_fraction)
+        fuel_cost = results[tech_name]["year_one_fuel_cost_before_tax"]
+        escalation_rate = isnothing(tech.fuel_cost_escalation_rate_fraction) ?
+            p.s.financial.chp_fuel_cost_escalation_rate_fraction :
+            tech.fuel_cost_escalation_rate_fraction
+        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, escalation_rate)
     end
 
     # incentive calculations, in the spreadsheet utility incentives are applied first
@@ -411,7 +420,7 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     pbi_series = Float64[]
     pbi_series_bau = Float64[]
     existing_energy_bau = third_party ? get(results[tech_name], "year_one_energy_produced_kwh_bau", 0) : 0
-    if tech_name == "CHP"
+    if tech_name in [chp.name for chp in p.s.chps]
         year_one_energy = results[tech_name]["annual_electric_production_kwh"]
     else
         year_one_energy = "year_one_energy_produced_kwh" in keys(results[tech_name]) ? results[tech_name]["year_one_energy_produced_kwh"] : results[tech_name]["annual_energy_produced_kwh"]

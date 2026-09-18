@@ -798,8 +798,8 @@ function backup_reliability_reopt_inputs(;d::Dict, p::REoptInputs, r::Dict = Dic
         end
         if prime_kw > 0
             fuel_slope, fuel_intercept = fuel_slope_and_intercept(
-                electric_efficiency_full_load=p.s.chp.electric_efficiency_full_load, 
-                electric_efficiency_half_load=p.s.chp.electric_efficiency_half_load,
+                electric_efficiency_full_load=p.s.chps[1].electric_efficiency_full_load, 
+                electric_efficiency_half_load=p.s.chps[1].electric_efficiency_half_load,
                 fuel_higher_heating_value_kwh_per_unit=1
 	        )
             r2[:generator_fuel_burn_rate_per_kwh] = [fuel_slope]

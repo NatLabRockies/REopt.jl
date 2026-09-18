@@ -9,7 +9,7 @@ function add_flexible_hvac_results(m::JuMP.AbstractModel, p::REoptInputs{Scenari
     r = Dict{String, Any}()
     binFlexHVAC = value(m[:binFlexHVAC]) > 0.5 ? 1.0 : 0.0
     r["purchased"] = string(Bool(binFlexHVAC))
-    r["temperatures_degC_node_by_time"] = value.(m[Symbol("dvTemperature"*_n)]).data
+    r["temperatures_degC_node_by_time"] = results_array(value.(m[Symbol("dvTemperature"*_n)]))
     r["upgrade_cost"] = Int(binFlexHVAC) * p.s.flexible_hvac.installed_cost
 
     if binFlexHVAC ≈ 1.0

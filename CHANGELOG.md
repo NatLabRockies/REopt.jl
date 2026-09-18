@@ -5,10 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Guidelines
-- When working in feature branch, start a new double-hash header with the name of the branch and record changes under that
-- When merging `develop` into a feature branch, keep the feature branch section and the "Develop" section separate to simplify merge conflicts
-- When making a Pull Request into `develop`, merge the feature branch section into the "Develop" section (if it exists), else rename the feature branch header to "Develop"
-- When making a Pull Request into `master` change "Develop" to the next version number
+- When working in a feature branch, start a new double-hash header with the name of the branch and record changes under that section.
+- When merging `master` into the feature branch (to keep up-to-date), keep the feature branch section separate from any other branch sections that are already in `master` to avoid merge conflicts.
+- When making a Pull Request for merging into `master`, note that we will merge new changelog items into a new version heading later (after merging) when we want to release a new registered version.
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
@@ -25,17 +24,52 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## bess-export
-### Added 
+## follow-supplementary
+### Changed
+- `src`,`core`,`constraints`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
+- `src`,`constraints`: Updated supplementary-firing and heating-load-following constraints to enforce the max fired-to-unfired ratio using incremental supplementary capacity limits tied to CHP unfired thermal capacity.
+### Added
+- `src`,`results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
+- `src`,`results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
+
+## ci-secrets-for-api-keys
+### Changed
+- `src/core/urdb.jl` now reads the URDB API key from the **URDB_API_KEY** environment variable only, and throws a descriptive error if it is not set (the hardcoded fallback key was removed)
+### Removed
+- Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
+
+## julia-113
+### Changed
+- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
+
+## v0.61.1
+### Fixed
+- Avoid double-multiplication of production_factor_series with electrical load-following
+
+## v0.61.0
+### Added
+- Expanded **CHP** modeling to support multiple independently-configured CHPs, existing capacity (i.e. in BAU scenario), off-grid operation including the option for CHP to either require or supply operating reserves, user-defined production factors, ramp-rate limits, and heating load following thermal dispatch.
+- Added **CHP** inputs **name** (to label the type of system you are modeling), **existing_kw**, **ramp_rate_fraction_per_hour**, **operating_reserve_required_fraction**, **production_factor_series**, **fuel_cost_escalation_rate_fraction**, and **follow_heating_load**. When **follow_heating_load** is `true`, each CHP independently follows its eligible heating load at unfired thermal capacity; **ExistingBoiler** is restricted when CHP capacity exceeds that load, while other onsite heating resources can contribute and supplementary firing remains available only as incremental heat.
+- Added **CHP** outputs **name**, **electric_curtailed_series_kw**, and **annual_thermal_curtailed_mmbtu**. Multiple CHP systems are returned as a list of per-unit results under **CHP**, identified by **name**.
+- Added **CHP** BAU outputs **size_kw_bau**, **annual_fuel_consumption_mmbtu_bau**, **annual_electric_production_kwh_bau**, **annual_thermal_production_mmbtu_bau**, **annual_thermal_curtailed_mmbtu_bau**, **year_one_fuel_cost_before_tax_bau**, **year_one_fuel_cost_after_tax_bau**, **lifecycle_fuel_cost_after_tax_bau**, **year_one_standby_cost_before_tax_bau**, **year_one_standby_cost_after_tax_bau**, and **lifecycle_standby_cost_after_tax_bau**.
+
+## v0.60.0
+### Changed
+- MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
+- Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
+- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
+- Added temporary backwards compatibility with old environment variable names and a warning for user to update
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+- **ElectricStorage** input field **dispatch_strategy** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
 - Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
 - Add result **ElectricStorage** `storage_to_grid_series_kw` 
 ### Fixed
+- Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
+- Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
 - Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
- 
-## v0.59.3
-### Changed
-- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
-- Added temporary backwards compatiability with old environment variable names and a warning for user to update
 
 ## v0.59.2
 ### Fixed

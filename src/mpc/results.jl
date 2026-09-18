@@ -47,7 +47,7 @@ function mpc_results(m::JuMP.AbstractModel, p::MPCInputs; _n="")
     d["Costs"] = value(m[Symbol("Costs"*_n)])
 	
 	time_elapsed = time() - tstart
-	@info "Results processing took $(round(time_elapsed, digits=3)) seconds."
+	# @info "Results processing took $(round(time_elapsed, digits=3)) seconds."
 	
 	# if !isempty(p.s.electric_utility.outage_durations) && isempty(_n)  # outages not included in multinode model
     #     tstart = time()
