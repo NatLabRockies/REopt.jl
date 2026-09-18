@@ -4863,10 +4863,6 @@ else  # run HiGHS tests
             input_data["ElectricStorage"]["macrs_bonus_fraction"] = 0.0
 
             input_data["ElectricLoad"] = Dict()
-            # Average load is 250 kw
-            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0], 8760)
-            # Peak load determines size class. We use size class bounds to vary size class.
-            input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 39
             input_data["ElectricLoad"]["year"] = 2025
 
             input_data["Site"] = Dict()
@@ -4879,11 +4875,17 @@ else  # run HiGHS tests
 
             # Test 1: No size class or costs provided in inputs.
             # Model chooses size class 1 per given load inputs
+            input_data["ElectricLoad"]["loads_kw"] = repeat([39.0], 8760)
+            input_data["ElectricLoad"]["loads_kw"][6000] = 78
+            # average of load profile = 39.0045 kW
+            # peak load minus average load = 38.9956 kW
+            # size class 1 is chosen as average load is higher.
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 1
             @test s.storage.attr["ElectricStorage"].installed_cost_per_kw == bess_defaults_all["size_classes"][1]["installed_cost_per_kw"]
 
             # Size class is 2 for a larger peak.
+            input_data["ElectricLoad"]["loads_kw"] = repeat([250.0])
             input_data["ElectricLoad"]["loads_kw"][6000] = 250.0 + 41
             s = Scenario(input_data)
             @test s.storage.attr["ElectricStorage"].size_class == 2
