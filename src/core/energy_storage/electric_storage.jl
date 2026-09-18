@@ -758,7 +758,7 @@ function get_electric_storage_size_class(
     size_kw = nothing
 
     # Estimate size based on electric load and estimated (max_kw - avg_kw) value
-    kw_for_sizing = electric_load_annual_peak - electric_load_average
+    kw_for_sizing = maximum(electric_load_annual_peak - electric_load_average, electric_load_average)
     # if default min/max kw have been updated, factor those in.
     # Do we need 2 size_kw here to factor in a wide size range that spreads over multiple size classes?
     if max_kw != 1.0e9 
