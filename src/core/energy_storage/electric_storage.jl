@@ -670,7 +670,8 @@ function get_electric_storage_cost_params(;
 
     # Initialize variables needed for processing
     local determined_size_class
-    local size_kw_for_size_class = max_kw
+    local size_kw_for_size_class
+    local electric_load_based_sizing_kw
 
     # STEP 1: Determine size class
     determined_size_class = if !isnothing(size_class)
@@ -690,7 +691,7 @@ function get_electric_storage_cost_params(;
     else
         # Default case: no costs or size_class information provided.
         kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
-        size_class, size_kw_for_size_class = get_electric_storage_size_class(
+        size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
                 electric_load_annual_peak,
                 electric_load_average,
                 kw_tech_sizes;
@@ -729,7 +730,7 @@ function get_electric_storage_cost_params(;
         Float64[]
     end
 
-    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0), size_class_bounds_kw
+    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0), round(electric_load_based_sizing_kw, digits=0), size_class_bounds_kw
 end
 
 # TODO combine functions to load size class defaults for eligible techs.
@@ -754,41 +755,40 @@ function get_electric_storage_size_class(
     max_kw::Real=1.0e9
     )
 
-    size_class_kw = nothing
-    size_kw = nothing
+    size_class = nothing
+    size_kw_for_size_class = nothing
 
     # Estimate size based on electric load and estimated (max_kw - avg_kw) value
-    kw_for_sizing = max(electric_load_annual_peak - electric_load_average, electric_load_average)
+    electric_load_based_sizing_kw = max(electric_load_annual_peak - electric_load_average, electric_load_average)
     # if default min/max kw have been updated, factor those in.
-    # Do we need 2 size_kw here to factor in a wide size range that spreads over multiple size classes?
     if max_kw != 1.0e9 
-        size_kw = min(kw_for_sizing, max_kw)
+        size_kw_for_size_class = min(electric_load_based_sizing_kw, max_kw)
     end
     if min_kw != 0.0
-        size_kw = max(kw_for_sizing, min_kw)
+        size_kw_for_size_class = max(electric_load_based_sizing_kw, min_kw)
     end
-    if isnothing(size_kw)
-        size_kw = kw_for_sizing
+    if isnothing(size_kw_for_size_class)
+        size_kw_for_size_class = electric_load_based_sizing_kw
     end
     # Find the appropriate kw size class for the effective size
     for (i, size_range) in enumerate(size_class_bounds_kw)
         min_size = convert(Float64, size_range[1])
         max_size = convert(Float64, size_range[2])
         
-        if size_kw >= min_size && size_kw <= max_size
-            size_class_kw = i
+        if size_kw_for_size_class >= min_size && size_kw_for_size_class <= max_size
+            size_class = i
         end
     end
-    if isnothing(size_class_kw)
+    if isnothing(size_class)
         # Handle edge cases -> highest size class returned.
-        if size_kw > convert(Float64, size_class_bounds_kw[end][2])
-            size_class_kw = length(size_class_bounds_kw)
-            @warn "Sizing metric $size_kw is greater than largest size class upper bound, using size class $size_class_kw instead"
+        if size_kw_for_size_class > convert(Float64, size_class_bounds_kw[end][2])
+            size_class = length(size_class_bounds_kw)
+            @warn "Sizing metric $size_kw_for_size_class is greater than largest size class upper bound, using size class $size_class instead"
         else
-            size_class_kw = 1  # Default to smallest size class
+            size_class = 1  # Default to smallest size class
             @warn "Size class was not set using REopt logic, using size class 1 instead"
         end
     end
 
-    return size_class_kw, kw_for_sizing
+    return size_class, size_kw_for_size_class, electric_load_based_sizing_kw
 end
