@@ -490,7 +490,7 @@ struct ElectricStorage <: AbstractElectricStorage
         end
 
         installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
-        size_kw_for_size_class, size_class_bounds_kw = get_electric_storage_cost_params(;
+        size_kw_for_size_class, electric_load_based_sizing_kw, size_class_bounds_kw = get_electric_storage_cost_params(;
             installed_cost_per_kw = stor.installed_cost_per_kw,
             installed_cost_per_kwh = stor.installed_cost_per_kwh,
             installed_cost_constant = stor.installed_cost_constant, 
