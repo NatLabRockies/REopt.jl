@@ -298,7 +298,8 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 
 			# Add supplementary firing capital costs for each CHP
 			for chp in p.s.chps
-				m[:TotalTechCapCosts] += chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][chp.name]
+				m[:TotalTechCapCosts] += chp.supplementary_firing_installed_cost_per_mmbtu_per_hour *
+					m[:dvSupplementaryFiringSize][chp.name] / KWH_PER_MMBTU
 			end
         end
 
@@ -705,7 +706,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
         if !isempty(p.techs.chp)
 			@variables m begin
 				dvSupplementaryThermalProduction[p.techs.chp, p.time_steps] >= 0
-				dvSupplementaryFiringSize[p.techs.chp] >= 0  #X^{\sigma db}_{t}: System size of CHP with supplementary firing [kW]
+				dvSupplementaryFiringSize[p.techs.chp] >= 0  # X^{\sigma db}_{t}: Incremental CHP supplementary firing thermal capacity [kWth]
 			end
         end
 		if !isempty(p.s.storage.types.hot)
