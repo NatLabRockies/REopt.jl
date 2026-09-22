@@ -670,8 +670,8 @@ function get_electric_storage_cost_params(;
 
     # Initialize variables needed for processing
     local determined_size_class
-    local size_kw_for_size_class
-    local electric_load_based_sizing_kw
+    local size_kw_for_size_class = 0 # defaults to 0 and set only if size class is undefined.
+    local electric_load_based_sizing_kw = 0  # defaults to 0 and set only if size class is undefined.
 
     # STEP 1: Determine size class
     determined_size_class = if !isnothing(size_class)
