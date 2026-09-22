@@ -632,10 +632,10 @@ Processes and determines the cost scaling parameters for a Battery system, inclu
 installed cost per kWh, installed cost constant and size class.
 
 # Arguments
-- `installed_cost_per_kw`::Union{Real, Nothing} = Nothing,
-- `installed_cost_per_kwh`::Union{Real, Nothing} = Nothing,
-- `installed_cost_constant`::Union{Real, Nothing} = Nothing,
-- `size_class`::Union{Int, Nothing} = Nothing,
+- `installed_cost_per_kw`::Union{Real, Nothing} = nothing,
+- `installed_cost_per_kwh`::Union{Real, Nothing} = nothing,
+- `installed_cost_constant`::Union{Real, Nothing} = nothing,
+- `size_class`::Union{Int, Nothing} = nothing,
 - `min_kw`::Real = 0.0,
 - `max_kw`::Real = 1.0e9,
 - `electric_load_annual_peak`::Real = 0.0,
@@ -647,11 +647,12 @@ Values:
 2. `installed_cost_per_kwh`: Final installed cost per kWh.
 3. `installed_cost_constant`: Final installed cost constant.
 4. `size_class`: Determined size class.
-5. `size_kw_for_size_class`: Calculated size_kw used to determine size class.
+5. `size_kw_for_size_class`: Calculated size_kw used to determine size class. This value accounts for minimum of maximum kw parameters.
+6. `electric_load_based_sizing_kw`: Calculated size_kw used to determine size class based on input electric load profile.
+7. `size_class_bounds_kw`: kW bounds for chosen size class.
 
 # Notes
-- If `size_class` is not provided, it is determined based on (peak demand - average demand) or user-provided cost data.
-- Handles both single-value and multi-point cost curves for installed and O&M costs.
+- If `size_class` is not provided, it is determined based on max(peak demand - average demand, average demand) and `min_kw` or `max_kw` input parameters.
 
 """
 function get_electric_storage_cost_params(; 
@@ -673,15 +674,17 @@ function get_electric_storage_cost_params(;
     local size_kw_for_size_class = 0 # defaults to 0 and set only if size class is undefined.
     local electric_load_based_sizing_kw = 0  # defaults to 0 and set only if size class is undefined.
 
-    # STEP 1: Determine size class
-    determined_size_class = if !isnothing(size_class)
-        temp_size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
+    kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
+    reopt_identified_size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
             electric_load_annual_peak,
             electric_load_average,
             kw_tech_sizes;
             min_kw=min_kw,
             max_kw=max_kw
         )
+
+    # STEP 1: Determine size class
+    determined_size_class = if !isnothing(size_class)
         # User explicitly set size class - validate boundaries
         if size_class < 1
             @warn "Size class $size_class is less than 1, using size class 1 instead"
@@ -693,26 +696,11 @@ function get_electric_storage_cost_params(;
             size_class
         end
     elseif typeof(installed_cost_per_kw) <: Real
-        size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
-            electric_load_annual_peak,
-            electric_load_average,
-            kw_tech_sizes;
-            min_kw=min_kw,
-            max_kw=max_kw
-        )
-        # Single cost value provided - size class not needed
-        size_class
+        # Single cost value provided - size class not needed. Set to REopt identified size class
+        reopt_identified_size_class
     else
         # Default case: no costs or size_class information provided.
-        kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
-        size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
-                electric_load_annual_peak,
-                electric_load_average,
-                kw_tech_sizes;
-                min_kw=min_kw,
-                max_kw=max_kw
-            )
-        size_class
+        reopt_identified_size_class
     end
 
     # Get default data for determined size class
