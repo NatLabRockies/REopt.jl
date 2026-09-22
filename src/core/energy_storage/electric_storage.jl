@@ -675,6 +675,13 @@ function get_electric_storage_cost_params(;
 
     # STEP 1: Determine size class
     determined_size_class = if !isnothing(size_class)
+        temp_size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
+            electric_load_annual_peak,
+            electric_load_average,
+            kw_tech_sizes;
+            min_kw=min_kw,
+            max_kw=max_kw
+        )
         # User explicitly set size class - validate boundaries
         if size_class < 1
             @warn "Size class $size_class is less than 1, using size class 1 instead"
@@ -686,6 +693,13 @@ function get_electric_storage_cost_params(;
             size_class
         end
     elseif typeof(installed_cost_per_kw) <: Real
+        size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
+            electric_load_annual_peak,
+            electric_load_average,
+            kw_tech_sizes;
+            min_kw=min_kw,
+            max_kw=max_kw
+        )
         # Single cost value provided - size class not needed
         size_class
     else
