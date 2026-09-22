@@ -147,6 +147,13 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
                     m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
                     p.production_factor[t,ts] * m[Symbol("dvSupplementaryFiringSize"*_n)][t]
                     )
+        @constraint(m, [ts in p.time_steps],
+                    m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
+                    p.production_factor[t,ts] *
+                    (p.chp_params[t][:supplementary_firing_max_ratio] - 1.0) *
+                    thermal_prod_full_load *
+                    m[Symbol("dvRatedProduction"*_n)][t,ts]
+                    )
 
         if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
             # Constrain lower limit of 0 if CHP tech is off

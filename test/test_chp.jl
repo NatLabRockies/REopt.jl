@@ -530,7 +530,12 @@ end
         m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
         s = Scenario(data)
         inputs = REoptInputs(s)
+        chp_name = s.chps[1].name
         results = run_reopt([m1, m2], inputs)
+        supplementary_thermal_series_mmbtu_per_hour = [
+            value(m1[:dvSupplementaryThermalProduction][chp_name, ts]) / REopt.KWH_PER_MMBTU
+            for ts in inputs.time_steps
+        ]
 
         finalize(backend(m1))
         empty!(m1)
@@ -538,7 +543,7 @@ end
         empty!(m2)
         GC.gc()
 
-        return (; results, supplementary_ratio)
+        return (; results, supplementary_ratio, supplementary_thermal_series_mmbtu_per_hour)
     end
 
     economic_below = run_supplementary_following_case(
@@ -568,6 +573,13 @@ end
     actual_total_to_unfired_ratio = follow_heating.results["CHP"]["size_supplementary_firing_ratio"]
     @test actual_total_to_unfired_ratio <= max_total_to_unfired_ratio + 1.0e-6
     @test actual_total_to_unfired_ratio >= 1.0 - 1.0e-6
+    @test all(
+        supp <= 1.0e-6 || elec > 1.0e-6 for
+        (elec, supp) in zip(
+            follow_heating.results["CHP"]["electric_production_series_kw"],
+            follow_heating.supplementary_thermal_series_mmbtu_per_hour
+        )
+    )
 end
 
 @testset "Numeric boolean inputs" begin
