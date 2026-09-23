@@ -33,6 +33,9 @@ Classify the change according to the following categories:
 ### Added
 - `data/chp/chp_cost_curve.json` Preserves the previous two-point **installed_cost_per_kw** and matching **tech_sizes_for_cost_curve** data for every `prime_mover` and `size_class`. Users can still model a size-dependent CHP cost curve by supplying both **CHP.installed_cost_per_kw** and **CHP.tech_sizes_for_cost_curve** as inputs; that code path is unchanged.
 
+### Fixed
+- `data/chp/chp_defaults.json` Removed trailing extra entries so every per-`size_class` array matches the number of size classes for its `prime_mover`: **recip_engine.min_allowable_kw** had 9 entries for 8 size classes, and **micro_turbine.cooling_thermal_factor**, **micro_turbine.min_turn_down_fraction**, and **micro_turbine.thermal_efficiency_full_load.steam** each had 5 entries for 4 size classes. The extra trailing entries were unreachable, since lookups index by `size_class+1` and the maximum valid `size_class` is `n_classes-1`. No default value returned for any `prime_mover`/`size_class` changes.
+
 ## solve-time-improvements
 ### Changed
 - `constraints/electric_utility_constraints.jl` Added `set_tiered_rate_mip_start!` to supply an analytic MIP start for the tiered electric rate binaries (**binEnergyTier**, **binMonthlyDemandTier**, **binTOUDemandTier**, **binIncludeStorageCostConstant**), called from `build_reopt!`. On a 2-tier energy / 2-tier TOU demand URDB rate this reduced end-to-end solve time from 969s to 324s with identical sizing.
