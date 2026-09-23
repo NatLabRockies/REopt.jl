@@ -111,6 +111,10 @@ const EMISSIONS_DECREASE_DEFAULTS = Dict(
     "PM25" => 0.0459
 )
 const INDICATOR_COMPATIBLE_SOLVERS = ["CPLEX","Xpress"]
+# Minimum electric production, as a fraction of the CHP size, required for binCHPIsOnInTS to be 1.
+# This keeps the "on" binary from being 1 while the CHP produces nothing, which would otherwise
+# allow supplementary firing (and other "on" state costs) without the prime mover running.
+const CHP_MIN_ON_PRODUCTION_FRACTION = 1.0e-3
 
 include("logging.jl")
 
