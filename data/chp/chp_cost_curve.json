@@ -1,0 +1,80 @@
+{
+  "_comment": [
+    "Two-point (size-dependent) CHP installed cost curves by prime_mover and size_class.",
+    "These were the REopt defaults for CHP.installed_cost_per_kw prior to switching the",
+    "defaults in data/chp/chp_defaults.json to a single (size-averaged) cost per size class.",
+    "Modeling a multi-point cost curve adds cost-curve segment binaries to the MILP and can",
+    "slow CHP problems down substantially. This data is preserved here so it can be used by",
+    "supplying CHP.installed_cost_per_kw and CHP.tech_sizes_for_cost_curve together as inputs.",
+    "Indexing matches chp_defaults.json: entry 1 is size_class 0 (all sizes), entry 2 is",
+    "size_class 1, and so on."
+  ],
+  "recip_engine": {
+    "installed_cost_per_kw": [
+      [4510.0, 2120.0],
+      [4510.0, 3920.0],
+      [3920.0, 3660.0],
+      [3660.0, 3340.0],
+      [3340.0, 2970.0],
+      [2970.0, 2700.0],
+      [2700.0, 2490.0],
+      [2490.0, 2120.0]
+    ],
+    "tech_sizes_for_cost_curve": [
+      [35, 4500],
+      [35, 100],
+      [100, 250],
+      [250, 500],
+      [500, 1000],
+      [1000, 2000],
+      [2000, 3000],
+      [3000, 4500]
+    ]
+  },
+  "micro_turbine": {
+    "installed_cost_per_kw": [
+      [4900.0, 3500.0],
+      [5050.0, 4530.0],
+      [4530.0, 3810.0],
+      [3810.0, 3500.0]
+    ],
+    "tech_sizes_for_cost_curve": [
+      [65, 1000],
+      [65, 200],
+      [200, 600],
+      [600, 1000]
+    ]
+  },
+  "combustion_turbine": {
+    "installed_cost_per_kw": [
+      [5360.0, 1750.0],
+      [5360.0, 4330.0],
+      [4330.0, 3500.0],
+      [3500.0, 2940.0],
+      [2940.0, 2580.0],
+      [2580.0, 2210.0],
+      [2210.0, 1750.0]
+    ],
+    "tech_sizes_for_cost_curve": [
+      [2000, 25000],
+      [2000, 3500],
+      [3500, 5000],
+      [5000, 8000],
+      [8000, 10000],
+      [10000, 15000],
+      [15000, 25000]
+    ]
+  },
+  "fuel_cell": {
+    "installed_cost_per_kw": [
+      [5000.0, 3680.0],
+      [5000.0, 4600.0],
+      [4600.0, 3680.0]
+    ],
+    "tech_sizes_for_cost_curve": [
+      [440, 9300],
+      [440, 1400],
+      [1400, 9300]
+    ]
+  }
+}

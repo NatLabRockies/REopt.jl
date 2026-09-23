@@ -25,6 +25,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-single-cost
+### Changed
+- `data/chp/chp_defaults.json` Changed the default **CHP.installed_cost_per_kw** from a two-point, size-dependent cost curve to a single value per `size_class`, computed as the average of that size class's two cost points. Size classes themselves are unchanged. Modeling a multi-point cost curve adds cost-curve segment binaries and a segment big-M that badly weakens the LP relaxation; on `test/scenarios/chp_sizing.json` (recip_engine, `size_class` 3, CHP free to size 0-4000 kW, HiGHS at 0.1% gap) the two-point curve needed 612 branch-and-bound nodes and 1345s, while the single-value default solved at the root node in 57s - a 23.5x speedup for a 0.41% difference in lifecycle cost.
+- `src/core/chp.jl` `get_prime_mover_defaults` now returns an empty **tech_sizes_for_cost_curve**. That key in `chp_defaults.json` defines the `size_class` bounds (still used for size-class selection and returned as `size_class_bounds`), so it must no longer double as a default cost curve now that **installed_cost_per_kw** defaults to a scalar.
+
+### Added
+- `data/chp/chp_cost_curve.json` Preserves the previous two-point **installed_cost_per_kw** and matching **tech_sizes_for_cost_curve** data for every `prime_mover` and `size_class`. Users can still model a size-dependent CHP cost curve by supplying both **CHP.installed_cost_per_kw** and **CHP.tech_sizes_for_cost_curve** as inputs; that code path is unchanged.
+
 ## solve-time-improvements
 ### Changed
 - `constraints/electric_utility_constraints.jl` Added `set_tiered_rate_mip_start!` to supply an analytic MIP start for the tiered electric rate binaries (**binEnergyTier**, **binMonthlyDemandTier**, **binTOUDemandTier**, **binIncludeStorageCostConstant**), called from `build_reopt!`. On a 2-tier energy / 2-tier TOU demand URDB rate this reduced end-to-end solve time from 969s to 324s with identical sizing.

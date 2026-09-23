@@ -10,8 +10,8 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     fuel_cost_per_mmbtu::Union{<:Real, AbstractVector{<:Real}} = [] # REQUIRED. Can be a scalar, a list of 12 monthly values, or a time series of values for every time step
 
     # Required "custom inputs" if not providing prime_mover:
-    installed_cost_per_kw::Union{Float64, AbstractVector{Float64}} = NaN # Installed CHP system cost in \$/kW (based on rated electric power)
-    tech_sizes_for_cost_curve::Union{Float64, AbstractVector{Float64}} = NaN # Size of CHP systems corresponding to installed cost input points"
+    installed_cost_per_kw::Union{Float64, AbstractVector{Float64}} = NaN # Installed CHP system cost in \$/kW (based on rated electric power). Defaults to a single size-averaged value for the size class; supply a vector (with `tech_sizes_for_cost_curve`) to model a size-dependent cost curve
+    tech_sizes_for_cost_curve::Union{Float64, AbstractVector{Float64}} = NaN # Size of CHP systems corresponding to installed cost input points. Empty by default; only used when `installed_cost_per_kw` is a vector
     om_cost_per_kwh::Float64 = NaN # CHP non-fuel variable operations and maintenance costs in \$/kwh
     electric_efficiency_full_load::Float64 = NaN # Electric efficiency of CHP prime-mover at full-load, HHV-basis
     electric_efficiency_half_load::Float64 = NaN # Electric efficiency of CHP prime-mover at half-load, HHV-basis
@@ -391,7 +391,7 @@ return a Dict{String, Union{Float64, AbstractVector{Float64}}} by selecting the 
 data/chp/chp_default_data.json, which contains values based on prime_mover, boiler_type, and size_class for the 
 custom_chp_inputs, i.e.
 - "installed_cost_per_kw"
-- "tech_sizes_for_cost_curve"
+- "tech_sizes_for_cost_curve" (always empty; the defaults use a single installed cost per size class)
 - "om_cost_per_kwh"
 - "electric_efficiency_full_load"
 - "thermal_efficiency_full_load"
@@ -411,6 +411,13 @@ function get_prime_mover_defaults(prime_mover::String, boiler_type::String, size
             else
                 prime_mover_defaults[key] = pmds[prime_mover][key][boiler_type][size_class+1]
             end
+        elseif key == "tech_sizes_for_cost_curve"
+            # `tech_sizes_for_cost_curve` in chp_defaults.json defines the size class bounds, not a
+            # default cost curve. The defaults now use a single `installed_cost_per_kw` per size
+            # class, so no cost curve breakpoints are returned. The prior two-point cost curve data
+            # is preserved in data/chp/chp_cost_curve.json and can be used by supplying both
+            # `CHP.installed_cost_per_kw` and `CHP.tech_sizes_for_cost_curve` as inputs.
+            prime_mover_defaults[key] = Float64[]
         elseif key == "unavailability_periods"
             prime_mover_defaults[key] = convert(Vector{Dict}, pmds[prime_mover][key])
         else
