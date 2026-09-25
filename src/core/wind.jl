@@ -34,6 +34,7 @@
     can_wholesale = true,
     can_export_beyond_nem_limit = true
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+    outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
 ```
 !!! note "Default assumptions" 
     `size_class` must be one of ["residential", "commercial", "medium", "large"]. If `size_class` is not provided then it is determined based on the average electric load.
@@ -96,6 +97,7 @@ struct Wind <: AbstractTech
     can_export_beyond_nem_limit::Bool
     can_curtail::Bool
     operating_reserve_required_fraction::Real
+    outage_production_fraction::Real
 
     function Wind(;
         off_grid_flag::Bool = false,
@@ -135,6 +137,7 @@ struct Wind <: AbstractTech
         can_curtail= true,
         average_elec_load = 0.0,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+        outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
         )
         size_class_to_hub_height = Dict(
             "residential"=> 20,
@@ -181,6 +184,10 @@ struct Wind <: AbstractTech
             can_export_beyond_nem_limit = false
         end
 
+        if !(0.0 <= outage_production_fraction <= 1.0)
+            throw(@error("Invalid Wind argument values: outage_production_fraction must satisfy 0 <= outage_production_fraction <= 1, got $(outage_production_fraction)"))
+        end
+
         new(
             min_kw,
             max_kw,
@@ -215,7 +222,8 @@ struct Wind <: AbstractTech
             can_wholesale,
             can_export_beyond_nem_limit,
             can_curtail,
-            operating_reserve_required_fraction
+            operating_reserve_required_fraction,
+            outage_production_fraction
         )
     end
 end
