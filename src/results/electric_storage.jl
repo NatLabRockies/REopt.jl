@@ -27,6 +27,15 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
     r["size_kwh"] = round(value(m[Symbol("dvStorageEnergy"*_n)][b]), digits=2)
     r["size_kw"] = round(value(m[Symbol("dvStoragePower"*_n)][b]), digits=2)
 
+    storage_tech = p.s.storage.attr[b]
+    if !isnothing(storage_tech.size_class) && !isempty(storage_tech.size_class_bounds_kw)
+        min_size = storage_tech.size_class_bounds_kw[1]
+        max_size = storage_tech.size_class_bounds_kw[2]
+        if r["size_kw"] < min_size || r["size_kw"] > max_size
+            @warn "ElectricStorage $(b): Optimal size ($(round(r["size_kw"], digits=1)) kW) doesn't match size class $(storage_tech.size_class) range ($(round(min_size, digits=1))-$(round(max_size, digits=1)) kW). For more accurate results, rerun with an appropriate size class or define the installed cost. Ignore if using custom costs instead of default size class costs."
+        end
+    end
+
     if r["size_kwh"] != 0
     	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
         r["soc_series_fraction"] = round.(value.(soc) ./ r["size_kwh"], digits=3)

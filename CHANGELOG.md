@@ -24,6 +24,13 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## defaults-update-atb25
+### Added
+- Size classes for `ElectricStorage` based on 2025 ATB.
+### Changed
+- Updated default values for `ElectricStorage` (`src\data\energy_storage\electric_storage\electric_storage_defaults.json`), `PV` (`src\data\pv\pv_defaults.json`) and `Wind` (`src\core\wind.jl`) cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
+- Changed **ElectricStorage.max_kw** to default to 1.0e5 instead of previous default of 1.0e4.
+
 ## follow-supplementary
 ### Changed
 - `src`,`core`,`constraints`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
