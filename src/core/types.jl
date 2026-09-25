@@ -48,6 +48,7 @@ mutable struct Techs
     ghp::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
+    maximize_size::Vector{String}
 end
 ```
 """
@@ -79,4 +80,5 @@ mutable struct Techs
     ghp::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
+    maximize_size::Vector{String}
 end
