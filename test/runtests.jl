@@ -1925,6 +1925,27 @@ else  # run HiGHS tests
             GC.gc()
         end
 
+        @testset "Wind outage production fraction" begin
+            d = Dict(
+                "Site" => Dict("latitude" => 39.7407, "longitude" => -105.1686),
+                "ElectricUtility" => Dict(
+                    "outage_start_time_steps" => [10],
+                    "outage_durations" => [5],
+                    "outage_probabilities" => [1.0]
+                ),
+                "ElectricTariff" => Dict("blended_annual_energy_rate" => 0.10),
+                "ElectricLoad" => Dict("loads_kw" => fill(100.0, 8760), "year" => 2017),
+                "Wind" => Dict("min_kw" => 100.0, "max_kw" => 100.0,
+                               "production_factor_series" => fill(0.5, 8760),
+                               "outage_production_fraction" => 0.4)
+            )
+            p = REoptInputs(Scenario(d))
+            factors = REopt.outage_effective_production_factors(p)
+            @test all(factors["Wind"] .≈ 0.5 * 0.4)
+            # grid-connected production factors must not be derated
+            @test all(collect(p.production_factor["Wind", :].data) .≈ 0.5)
+        end
+
         @testset "Multiple Sites" begin
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
             ps = [
