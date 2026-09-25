@@ -4841,5 +4841,82 @@ else  # run HiGHS tests
             include("battery_dispatch_tests.jl")
         end
 
+        @testset "Max simple payback threshold" begin
+            # Synthetic PV capacity factor profile (avoids needing a PVWatts API key / internet access)
+            pv_profile = Float64[]
+            for day in 1:365, hour in 0:23
+                cf = hour in 7:17 ? max(0.0, sin(pi * (hour - 7) / 10)) : 0.0
+                push!(pv_profile, cf)
+            end
+            function make_payback_scenario(; max_simple_payback_years=nothing, bau_year_one_operating_cost=nothing)
+                Scenario(Dict(
+                    "Site" => Dict("latitude" => 34.5794343, "longitude" => -118.1164613),
+                    "PV" => Dict("max_kw" => 5000.0, "installed_cost_per_kw" => 1600.0, "federal_itc_fraction" => 0.0,
+                        "macrs_option_years" => 0, "production_factor_series" => pv_profile),
+                    "ElectricLoad" => Dict("doe_reference_name" => "RetailStore", "annual_kwh" => 1.0e6, "year" => 2017),
+                    "ElectricTariff" => Dict("blended_annual_energy_rate" => 0.12, "blended_annual_demand_rate" => 0.0),
+                    "Financial" => Dict(
+                        "elec_cost_escalation_rate_fraction" => 0.02,
+                        "offtaker_discount_rate_fraction" => 0.08,
+                        "owner_discount_rate_fraction" => 0.08,
+                        "analysis_years" => 20,
+                        "offtaker_tax_rate_fraction" => 0.0,
+                        "owner_tax_rate_fraction" => 0.0,
+                        "om_cost_escalation_rate_fraction" => 0.02,
+                        "max_simple_payback_years" => max_simple_payback_years,
+                        "bau_year_one_operating_cost" => bau_year_one_operating_cost,
+                    )
+                ))
+            end
+
+            # Solve the true BAU (no new PV) case via BAUInputs to get a real reference year-1 operating cost
+            opt_inputs = REoptInputs(make_payback_scenario())
+            bau_inputs = REopt.BAUInputs(opt_inputs)
+            m_bau = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            r_bau = run_reopt(m_bau, bau_inputs)
+            bau_year1 = r_bau["Financial"]["year_one_operating_cost_before_tax_model"]
+            # BAUInputs excludes new PV from p.techs.pv entirely (not just size=0), so "PV" may be absent from results
+            @test get(get(r_bau, "PV", Dict()), "size_kw", 0.0) ≈ 0.0 atol=1e-6
+            finalize(backend(m_bau))
+            empty!(m_bau)
+            GC.gc()
+
+            # Unconstrained (LCC-optimal) case: expect PV sized with an implied payback of roughly 7 years
+            m_opt = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            r_opt = run_reopt(m_opt, opt_inputs)
+            unconstrained_savings = bau_year1 - r_opt["Financial"]["year_one_operating_cost_before_tax_model"]
+            unconstrained_payback = r_opt["Financial"]["initial_capital_costs"] / unconstrained_savings
+            @test unconstrained_payback ≈ 6.93 atol=0.1
+            finalize(backend(m_opt))
+            empty!(m_opt)
+            GC.gc()
+
+            # Looser payback threshold (9 years) should push PV size above the LCC-optimal size,
+            # with the payback constraint binding exactly at the threshold
+            pb_inputs = REoptInputs(make_payback_scenario(; max_simple_payback_years=9.0, bau_year_one_operating_cost=bau_year1))
+            @test pb_inputs.techs.maximize_size == ["PV"]
+            m_pb = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            r_pb = run_reopt(m_pb, pb_inputs)
+            @test r_pb isa Dict
+            constrained_savings = bau_year1 - r_pb["Financial"]["year_one_operating_cost_before_tax_model"]
+            constrained_payback = r_pb["Financial"]["initial_capital_costs"] / constrained_savings
+            @test r_pb["PV"]["size_kw"] > r_opt["PV"]["size_kw"]
+            @test constrained_payback ≈ 9.0 atol=0.05
+            finalize(backend(m_pb))
+            empty!(m_pb)
+            GC.gc()
+
+            # A stricter threshold (5 years, below the achievable marginal payback) should yield no new PV
+            tight_inputs = REoptInputs(make_payback_scenario(; max_simple_payback_years=5.0, bau_year_one_operating_cost=bau_year1))
+            m_tight = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            r_tight = run_reopt(m_tight, tight_inputs)
+            @test r_tight isa Dict
+            # atol accounts for the small numerical tolerance added to the payback constraint (see reopt.jl)
+            @test r_tight["PV"]["size_kw"] ≈ 0.0 atol=1e-2
+            finalize(backend(m_tight))
+            empty!(m_tight)
+            GC.gc()
+        end
+
     end
 end
