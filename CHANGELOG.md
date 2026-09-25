@@ -26,7 +26,7 @@ Classify the change according to the following categories:
 
 ## pv-resilience
 ### Added
-- Optional input **PV.outage_production_fraction** to reduce PV production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
+- Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
 ## defaults-update-atb25
 ### Added
 - Size classes for `ElectricStorage` based on 2025 ATB.
