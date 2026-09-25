@@ -266,6 +266,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	m[:ExistingChillerCost] = 0.0
 	m[:ElectricStorageCapCost] = 0.0
 	m[:ElectricStorageOMCost] = 0.0
+	m[:MaximizeProductionIncentive] = 0.0
 
 	if !isempty(p.techs.all) || !isempty(p.techs.ghp)
 		if !isempty(p.techs.all)
@@ -508,6 +509,53 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		add_capex_constraints(m, p)
 	end 
 
+	# Undiscounted year-one operating cost, built the same way regardless of max_simple_payback_years so that
+	# a BAU solve's value(m[:Year1OperatingCost]) is directly comparable to the optimal model's (avoids
+	# mismatches against the independently-rounded results["Financial"]["year_one_total_operating_cost_before_tax"])
+	if !isempty(p.techs.fuel_burning)
+		@expression(m, Year1FuelCost,
+			sum(m[:dvFuelUsage][t, ts] * p.fuel_cost_per_kwh[t][ts] for t in p.techs.fuel_burning, ts in p.time_steps)
+		)
+	else
+		m[:Year1FuelCost] = 0.0
+	end
+	@expression(m, Year1OperatingCost,
+		m[:TotalElecBill] / p.pwf_e +
+		m[:TotalCHPStandbyCharges] / p.pwf_e +
+		(m[:TotalPerUnitSizeOMCosts] + m[:TotalPerUnitProdOMCosts] + m[:TotalPerUnitHourOMCosts] +
+			m[:GHPOMCosts] + m[:ElectricStorageOMCost]) / (p.pwf_om * p.third_party_factor) +
+		m[:Year1FuelCost]
+	)
+
+	# Bound simple payback (Capex / year-one operating cost savings vs. BAU) so max size/production can be found within that bound
+	if !isnothing(p.s.financial.max_simple_payback_years)
+		if isnothing(p.s.financial.bau_year_one_operating_cost)
+			throw(@error("financial.bau_year_one_operating_cost must be set (from a prior BAU run's value(m[:Year1OperatingCost]), see results[\"Financial\"][\"year_one_operating_cost_before_tax_model\"]) to constrain max_simple_payback_years."))
+		end
+		# Savings relative to the (externally solved) BAU scenario's year-one operating cost
+		@expression(m, PaybackSavings, p.s.financial.bau_year_one_operating_cost - m[:Year1OperatingCost])
+		# Small absolute tolerance so floating-point noise in Year1OperatingCost/InitialCapexNoIncentives
+		# (on the order of 1e-7, amplified by max_simple_payback_years) can't flip a truly-satisfied
+		# constraint (e.g. all new techs at size 0) into a false INFEASIBLE result.
+		payback_tol = 1.0e-6 * abs(p.s.financial.bau_year_one_operating_cost) * p.s.financial.max_simple_payback_years + 1.0e-6
+		@constraint(m, m[:InitialCapexNoIncentives] <= p.s.financial.max_simple_payback_years * m[:PaybackSavings] + payback_tol)
+	end
+
+	# Incentivize maximum size of maximize_size techs and, when the payback threshold is active, storage,
+	# while still meeting the payback constraint above. Uses dvSize/dvStorage* directly (not production) so
+	# it behaves correctly for both intermittent (PV, Wind) and dispatchable (Generator, CHP, etc.) techs.
+	# The coefficient must dominate typical per-kW/kWh cost differences so the payback constraint (not LCC) binds,
+	# but shouldn't be so large it causes numerical/MIP-solver instability with per-time-step binaries.
+	storage_to_maximize = !isnothing(p.s.financial.max_simple_payback_years) ? p.s.storage.types.all : String[]
+	if !isempty(p.techs.maximize_size) || !isempty(storage_to_maximize)
+		m[:MaximizeProductionIncentive] = @expression(m,
+			-1.0e4 * (
+				sum(m[:dvSize][t] for t in p.techs.maximize_size; init=0.0) +
+				sum(m[:dvStoragePower][b] + m[:dvStorageEnergy][b] for b in storage_to_maximize; init=0.0)
+			)
+		)
+	end
+
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
 		# Capital Costs
@@ -555,6 +603,8 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	if p.s.settings.include_health_in_objective
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
 	end
+
+	add_to_expression!(Costs, m[:MaximizeProductionIncentive])
 
 	has_degr = false
 	for b in p.s.storage.types.elec

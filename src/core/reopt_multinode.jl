@@ -125,6 +125,9 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
         ex_name = "TotalPerUnitProdOMCosts"*_n
 		m[Symbol(ex_name)] = 0
+
+		ex_name = "MaximizeProductionIncentive"*_n
+		m[Symbol(ex_name)] = 0
 	
 		add_elec_utility_expressions(m, p; _n=_n)
 
