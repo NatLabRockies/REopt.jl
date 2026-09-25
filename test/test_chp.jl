@@ -530,7 +530,13 @@ end
         m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
         s = Scenario(data)
         inputs = REoptInputs(s)
+        chp_name = s.chps[1].name
         results = run_reopt([m1, m2], inputs)
+        # m2 holds the optimal (non-BAU) model; BAU has no CHP decision variables
+        supplementary_thermal_series_mmbtu_per_hour = [
+            value(m2[:dvSupplementaryThermalProduction][chp_name, ts]) / REopt.KWH_PER_MMBTU
+            for ts in inputs.time_steps
+        ]
 
         finalize(backend(m1))
         empty!(m1)
@@ -538,7 +544,7 @@ end
         empty!(m2)
         GC.gc()
 
-        return (; results, supplementary_ratio)
+        return (; results, supplementary_ratio, supplementary_thermal_series_mmbtu_per_hour)
     end
 
     economic_below = run_supplementary_following_case(
@@ -568,6 +574,38 @@ end
     actual_total_to_unfired_ratio = follow_heating.results["CHP"]["size_supplementary_firing_ratio"]
     @test actual_total_to_unfired_ratio <= max_total_to_unfired_ratio + 1.0e-6
     @test actual_total_to_unfired_ratio >= 1.0 - 1.0e-6
+    @test all(
+        supp <= 1.0e-6 || elec > 1.0e-6 for
+        (elec, supp) in zip(
+            follow_heating.results["CHP"]["electric_production_series_kw"],
+            follow_heating.supplementary_thermal_series_mmbtu_per_hour
+        )
+    )
+
+    # Supplementary firing must be zero whenever the prime mover is not producing. With
+    # min_turn_down_fraction of 0, binCHPIsOnInTS could otherwise be 1 with no CHP production,
+    # which would let supplementary firing dispatch heat without the CHP running.
+    off_state_data = JSON.parsefile("./scenarios/supplementary_following.json")
+    off_state_data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = 10 * REopt.KWH_PER_MMBTU
+    off_state_data["CHP"]["supplementary_firing_max_ratio"] = 1 + 2.66
+    off_state_data["CHP"]["supplementary_firing_efficiency"] = 0.88
+    off_state_data["CHP"]["min_turn_down_fraction"] = 0.0
+    m_off = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    s_off = Scenario(off_state_data)
+    inputs_off = REoptInputs(s_off)
+    build_reopt!(m_off, inputs_off)
+    chp_name_off = s_off.chps[1].name
+    for ts in inputs_off.time_steps
+        fix(m_off[:dvRatedProduction][chp_name_off, ts], 0.0, force=true)
+    end
+    @objective(m_off, Max, sum(m_off[:dvSupplementaryThermalProduction][chp_name_off, ts] for ts in inputs_off.time_steps))
+    optimize!(m_off)
+    @test termination_status(m_off) == JuMP.MOI.OPTIMAL
+    @test objective_value(m_off) ≈ 0.0 atol = 1.0e-6
+
+    finalize(backend(m_off))
+    empty!(m_off)
+    GC.gc()
 end
 
 @testset "Numeric boolean inputs" begin
