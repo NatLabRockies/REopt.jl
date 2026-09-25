@@ -253,6 +253,10 @@ end
 
 function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 
+	if any(!isnothing(p.s.financial.max_simple_payback_years) for p in ps)
+		throw(@error("financial.max_simple_payback_years is not supported in multinode solves."))
+	end
+
 	build_reopt!(m, ps)
 
 	add_objective!(m, ps)
@@ -291,4 +295,3 @@ function reopt_results(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}
 	end
 	return results
 end
-

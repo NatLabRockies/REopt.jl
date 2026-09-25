@@ -168,6 +168,34 @@ function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.Abst
 end
 
 
+function should_lexicographically_maximize_size(p::REoptInputs)
+	!isnothing(p.s.financial.max_simple_payback_years) &&
+		(!isempty(p.techs.maximize_size) || !isempty(p.s.storage.types.all))
+end
+
+
+function optimize_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
+	total_opt_time = 0.0
+	if should_lexicographically_maximize_size(p)
+		@objective(m, Max, m[:MaximizeSizeObjective])
+		tstart = time()
+		optimize!(m)
+		total_opt_time += time() - tstart
+		if termination_status(m) != MOI.OPTIMAL
+			return total_opt_time
+		end
+		max_size = value(m[:MaximizeSizeObjective])
+		max_size_tol = 1.0e-6 * max(1.0, abs(max_size))
+		@constraint(m, m[:MaximizeSizeObjective] >= max_size - max_size_tol)
+	end
+	@objective(m, Min, m[:Costs] + m[:ObjectivePenalties])
+	tstart = time()
+	optimize!(m)
+	total_opt_time += time() - tstart
+	return total_opt_time
+end
+
+
 """
 	build_reopt!(m::JuMP.AbstractModel, fp::String)
 
@@ -541,20 +569,19 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		@constraint(m, m[:InitialCapexNoIncentives] <= p.s.financial.max_simple_payback_years * m[:PaybackSavings] + payback_tol)
 	end
 
-	# Incentivize maximum size of maximize_size techs and, when the payback threshold is active, storage,
-	# while still meeting the payback constraint above. Uses dvSize/dvStorage* directly (not production) so
-	# it behaves correctly for both intermittent (PV, Wind) and dispatchable (Generator, CHP, etc.) techs.
-	# The coefficient must dominate typical per-kW/kWh cost differences so the payback constraint (not LCC) binds,
-	# but shouldn't be so large it causes numerical/MIP-solver instability with per-time-step binaries.
+	# When a payback threshold is active, size is maximized in a first-stage solve and lifecycle cost is
+	# minimized in a second-stage solve while holding that maximum. Uses dvSize/dvStorage* directly (not
+	# production) so it behaves correctly for both intermittent (PV, Wind) and dispatchable techs.
 	storage_to_maximize = !isnothing(p.s.financial.max_simple_payback_years) ? p.s.storage.types.all : String[]
 	if !isempty(p.techs.maximize_size) || !isempty(storage_to_maximize)
-		m[:MaximizeProductionIncentive] = @expression(m,
-			-1.0e4 * (
-				sum(m[:dvSize][t] for t in p.techs.maximize_size; init=0.0) +
-				sum(m[:dvStoragePower][b] + m[:dvStorageEnergy][b] for b in storage_to_maximize; init=0.0)
-			)
+		m[:MaximizeSizeObjective] = @expression(m,
+			sum(m[:dvSize][t] for t in p.techs.maximize_size; init=0.0) +
+			sum(m[:dvStoragePower][b] + m[:dvStorageEnergy][b] for b in storage_to_maximize; init=0.0)
 		)
+	else
+		m[:MaximizeSizeObjective] = 0.0
 	end
+	m[:MaximizeProductionIncentive] = 0.0
 
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
@@ -604,8 +631,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
 	end
 
-	add_to_expression!(Costs, m[:MaximizeProductionIncentive])
-
 	has_degr = false
 	for b in p.s.storage.types.elec
 		if p.s.storage.attr[b].model_degradation
@@ -650,9 +675,7 @@ function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, org
 		build_reopt!(m, p)
 
 		@info "Model built. Optimizing..."
-		tstart = time()
-		optimize!(m)
-		opt_time = round(time() - tstart, digits=3)
+		opt_time = round(optimize_reopt!(m, p), digits=3)
 		if termination_status(m) == MOI.TIME_LIMIT
 			status = "timed-out"
 		elseif termination_status(m) == MOI.OPTIMAL
