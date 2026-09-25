@@ -66,7 +66,7 @@
             "om_cost_per_kw": 10.0,
             "om_cost_per_kwh": 0.05,
             "om_cost_per_hr_per_kw_rated": 0.05,
-            "supplementary_firing_max_steam_ratio": 1.2
+            "supplementary_firing_max_ratio": 1.2
         }
     ]
 }

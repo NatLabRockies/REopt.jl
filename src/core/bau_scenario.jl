@@ -135,7 +135,7 @@ function BAUScenario(s::Scenario)
     for chp in s.chps
         if chp.existing_kw > 0
             bau_chp = deepcopy(chp)
-            bau_chp.supplementary_firing_capital_cost_per_kw = 0.0
+            bau_chp.supplementary_firing_installed_cost_per_mmbtu_per_hour = 0.0
             push!(chps, bau_chp)
         end
     end
