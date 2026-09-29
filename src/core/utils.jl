@@ -411,7 +411,7 @@ function call_solar_dataset_api(latitude::Real, longitude::Real, radius::Int)
         "&lat=", latitude , "&lon=", longitude, "&radius=", radius, "&all=", 0 
         )
     try
-        r = HTTP.get(url, keepalive=true, readtimeout=10)
+        r = HTTP.get(url, readtimeout=10)
         response = JSON.parse(String(r.body))
 
         if r.status != 200
@@ -488,7 +488,7 @@ function call_pvwatts_api(latitude::Real, longitude::Real; tilt=latitude, azimut
 
     try
         @info "Querying PVWatts for production factor and ambient air temperature... "
-        r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; keepalive=true, readtimeout=10)
+        r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; readtimeout=10)
         response = JSON.parse(String(r.body))
         if r.status != 200
             throw(@error("Bad response from PVWatts: $(response["errors"])"))
