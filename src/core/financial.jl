@@ -66,6 +66,8 @@ mutable struct Financial
     offgrid_other_annual_costs::Float64
     min_initial_capital_costs_before_incentives::Union{Nothing,Real}
     max_initial_capital_costs_before_incentives::Union{Nothing,Real}
+    max_simple_payback_years::Union{Nothing,Real}
+    bau_year_one_operating_cost::Union{Nothing,Real}
     CO2_cost_per_tonne::Float64
     CO2_cost_escalation_rate_fraction::Float64
     NOx_grid_cost_per_tonne::Float64
@@ -103,6 +105,8 @@ mutable struct Financial
         offgrid_other_annual_costs::Real = 0.0, # only applicable when `off_grid_flag` is true. Considered tax deductible for owner.
         min_initial_capital_costs_before_incentives::Union{Nothing,Real} = nothing,
         max_initial_capital_costs_before_incentives::Union{Nothing,Real} = nothing,
+        max_simple_payback_years::Union{Nothing,Real} = nothing, # find max size/production of maximize_size techs while keeping simple payback <= this value
+        bau_year_one_operating_cost::Union{Nothing,Real} = nothing, # BAU results["Financial"]["year_one_operating_cost_before_tax_model"] (from a prior BAUInputs solve), required if max_simple_payback_years is set
         # Emissions cost inputs
         CO2_cost_per_tonne::Real = 51.0,
         CO2_cost_escalation_rate_fraction::Real = 0.042173,
@@ -202,6 +206,8 @@ mutable struct Financial
             offgrid_other_annual_costs,
             min_initial_capital_costs_before_incentives,
             max_initial_capital_costs_before_incentives,
+            max_simple_payback_years,
+            bau_year_one_operating_cost,
             CO2_cost_per_tonne,
             CO2_cost_escalation_rate_fraction,
             NOx_grid_cost_per_tonne,
