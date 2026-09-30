@@ -24,6 +24,14 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## supp-fire-fix
+### Fixed
+- `src`,`constraints`: Fixed unconstrained **CHP** supplementary firing when the prime mover is off. Supplementary thermal production is now forced to zero in any time step where **binCHPIsOnInTS** is zero, including for solvers without indicator-constraint support.
+### Added
+- `src/core/chp.jl`: Added validation that **min_turn_down_fraction** is greater than zero when **supplementary_firing_max_ratio** is greater than 1.0. Supplementary firing is only allowed while the prime mover is running, and a **min_turn_down_fraction** of zero would let the CHP be "on" while producing nothing.
+### Changed
+- `src/core/chp.jl`: Updated the default **supplementary_firing_installed_cost_per_mmbtu_per_hour** to \$20,000/MMBtu/hr, from \$10,000/MMBtu/hr.
+
 ## follow-supplementary
 ### Changed
 - `src`,`core`,`constraints`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].

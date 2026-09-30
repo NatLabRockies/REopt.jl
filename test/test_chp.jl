@@ -270,7 +270,7 @@ end
 
     @testset "CHP with supplementary firing (binary SHOULD be created)" begin
         data = chp_binary_test_data()
-        data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["min_turn_down_fraction"] = 0.3
         data["CHP"]["electric_efficiency_full_load"] = 0.35
         data["CHP"]["electric_efficiency_half_load"] = 0.35
         data["CHP"]["thermal_efficiency_full_load"] = 0.45
@@ -288,6 +288,16 @@ end
         @test haskey(m.obj_dict, :binCHPIsOnInTS)
 
         finalize(backend(m)); empty!(m); GC.gc()
+    end
+
+    @testset "CHP supplementary firing requires a positive min_turn_down_fraction" begin
+        # Supplementary firing is only allowed while the prime mover is running, which is enforced
+        # through binCHPIsOnInTS and min_turn_down_fraction. A min_turn_down_fraction of zero would
+        # let the CHP be "on" while producing nothing, so it is rejected up front.
+        data = chp_binary_test_data()
+        data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["supplementary_firing_max_ratio"] = 1.2
+        @test_throws ArgumentError Scenario(data)
     end
 end
 
@@ -518,13 +528,15 @@ end
 
 @testset "CHP Supplementary firing framework" begin
     function run_supplementary_following_case(label; supplementary_efficiency, follow_heating_load, supplementary_ratio=1 + 2.66,
-            supplementary_installed_cost_per_mmbtu_per_hour=10 * REopt.KWH_PER_MMBTU)
+            supplementary_installed_cost_per_mmbtu_per_hour=10 * REopt.KWH_PER_MMBTU, min_turn_down_fraction=0.25)
         data = JSON.parsefile("./scenarios/supplementary_following.json")
         data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = supplementary_installed_cost_per_mmbtu_per_hour
         data["CHP"]["supplementary_firing_max_ratio"] = supplementary_ratio
         data["CHP"]["supplementary_firing_efficiency"] = supplementary_efficiency
         data["CHP"]["follow_heating_load"] = follow_heating_load
-        data["CHP"]["min_turn_down_fraction"] = 0.0
+        # Supplementary firing requires a positive min_turn_down_fraction so that binCHPIsOnInTS
+        # cannot be 1 while the prime mover produces nothing.
+        data["CHP"]["min_turn_down_fraction"] = min_turn_down_fraction
 
         m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
         m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
@@ -582,14 +594,14 @@ end
         )
     )
 
-    # Supplementary firing must be zero whenever the prime mover is not producing. With
-    # min_turn_down_fraction of 0, binCHPIsOnInTS could otherwise be 1 with no CHP production,
-    # which would let supplementary firing dispatch heat without the CHP running.
+    # Supplementary firing must be zero whenever the prime mover is not producing. The min turndown
+    # constraint forces binCHPIsOnInTS to 0 when rated production is 0, which in turn zeroes out
+    # supplementary firing.
     off_state_data = JSON.parsefile("./scenarios/supplementary_following.json")
     off_state_data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = 10 * REopt.KWH_PER_MMBTU
     off_state_data["CHP"]["supplementary_firing_max_ratio"] = 1 + 2.66
     off_state_data["CHP"]["supplementary_firing_efficiency"] = 0.88
-    off_state_data["CHP"]["min_turn_down_fraction"] = 0.0
+    off_state_data["CHP"]["min_turn_down_fraction"] = 0.25
     m_off = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
     s_off = Scenario(off_state_data)
     inputs_off = REoptInputs(s_off)
