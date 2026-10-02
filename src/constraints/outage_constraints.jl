@@ -48,6 +48,18 @@ function add_min_hours_crit_ld_met_constraint(m,p)
     end
 end
 
+"""
+Adds a minimum survival probability and constraints to define survival as zero unserved load.
+"""
+function add_survival_probability_constraints(m,p)
+    @constraint(m, OutageSurvivalTrackingCon[s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
+        m[:binLoadNotServed][s,tz] >= m[:dvUnservedLoad][s, tz, ts] / p.s.electric_load.critical_loads_kw[time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)]
+    )
+    @constraint(m, OutageSurvivalChanceCon,
+        sum(p.s.electric_utility.outage_probabilities[s] * (1/length(p.s.electric_utility.outage_start_time_steps)) * m[:binLoadNotServed][s,tz] for s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps) <= 1 - p.s.electric_utility.min_prob_outage_survival
+    )
+end
+
 function add_outage_cost_constraints(m,p)
     @constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps],
         m[:dvMaxOutageCost][s] >= p.pwf_e * sum(p.value_of_lost_load_per_kwh[time_step_wrap_around(tz+ts-1, time_steps_per_hour=p.s.settings.time_steps_per_hour)] * m[:dvUnservedLoad][s, tz, ts] for ts in 1:p.s.electric_utility.outage_durations[s])

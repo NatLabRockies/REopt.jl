@@ -189,6 +189,9 @@ function build_mpc!(m::JuMP.AbstractModel, p::MPCInputs)
 		end
 		add_cannot_have_MG_with_only_PVwind_constraints(m,p)
 		add_MG_size_constraints(m,p)
+		if p.s.electric_utility.min_prob_outage_survival > 0.0
+			add_survival_probability_constraints(m,p)
+		end
 		
 		if !isempty(p.techs.gen)
 			add_MG_fuel_burn_constraints(m,p)

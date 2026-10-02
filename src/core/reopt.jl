@@ -459,6 +459,9 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		end
 		add_cannot_have_MG_with_only_PVwind_constraints(m,p)
 		add_MG_size_constraints(m,p)
+		if p.s.electric_utility.min_prob_outage_survival > 0.0
+			add_survival_probability_constraints(m,p)
+		end
 		
 		m[:ExpectedMGFuelCost] = 0
         if !isempty(p.techs.gen)
@@ -771,6 +774,11 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binMGGenIsOnInTS[S, tZeros, outage_time_steps], Bin
             binMGCHPIsOnInTS[p.techs.chp, S, tZeros, outage_time_steps], Bin
             dvMGCHPOnSize[p.techs.chp, S, tZeros, outage_time_steps] >= 0
+		end
+		if p.s.electric_utility.min_prob_outage_survival > 1e-10
+			@variables m begin
+				binLoadNotServed[S,tZeros], Bin #1 if load not served for scenario S and outage start time step tz
+			end
 		end
 	end
 

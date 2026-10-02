@@ -80,6 +80,8 @@
     emissions and renewable energy percentage calculations and constraints will factor in this outage.
     If stochastic outages are modeled using outage_start_time_steps, outage_durations, and outage_probabilities,
     emissions and renewable energy percentage calculations and constraints will not consider outages.
+    When there is a required minimum survival rate among mulitple outages, then min_prob_outage_survival
+    must be set to zero.  Note this adds binary values and may cause long solve times.
     
 !!! note "MPC vs. Non-MPC"
     This constructor is intended to be used with latitude/longitude arguments provided for
@@ -137,6 +139,7 @@ struct ElectricUtility
     outage_probabilities::Array{R,1} where R<:Real 
     outage_time_steps::Union{Nothing, UnitRange} 
     scenarios::Union{Nothing, UnitRange} 
+    min_prob_outage_survival::Real
     net_metering_limit_kw::Real 
     interconnection_limit_kw::Real
     transmission_limit_kw::Real
@@ -172,6 +175,7 @@ struct ElectricUtility
         outage_probabilities::Array{<:Real,1} = isempty(outage_durations) ? Float64[] : [1/length(outage_durations) for p_i in 1:length(outage_durations)],
         outage_time_steps::Union{Nothing, UnitRange} = isempty(outage_durations) ? nothing : 1:maximum(outage_durations),
         scenarios::Union{Nothing, UnitRange} = isempty(outage_durations) ? nothing : 1:length(outage_durations),
+        min_prob_outage_survival::Real=0.0, # probability survival
 
         ### Cambium Emissions and Clean Energy Inputs ###
         cambium_scenario::String = "Mid-case", # Cambium Scenario for evolution of electricity sector (see Cambium documentation for descriptions).
@@ -344,6 +348,9 @@ struct ElectricUtility
         if length(outage_probabilities) >= 1 && (sum(outage_probabilities) < 0.99999 || sum(outage_probabilities) > 1.00001)
             throw(@error("Sum of ElectricUtility inputs outage_probabilities must be equal to 1"))
         end
+        if min_prob_outage_survival < 0.0 || min_prob_outage_survival > 1.0
+            throw(@error("ElectricUtility.min_prob_outage_survival must be a value between 0 and 1."))
+        end
 
         new(
             is_MPC ? "" : avert_emissions_region,
@@ -366,6 +373,7 @@ struct ElectricUtility
             outage_probabilities,
             outage_time_steps,
             scenarios,
+            min_prob_outage_survival,
             net_metering_limit_kw,
             interconnection_limit_kw,
             transmission_limit_kw
