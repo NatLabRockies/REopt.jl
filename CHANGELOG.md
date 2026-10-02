@@ -24,6 +24,9 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## pv-resilience
+### Added
+- Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
 ## defaults-update-atb25
 ### Added
 - Size classes for `ElectricStorage` based on 2025 ATB.
@@ -33,11 +36,10 @@ Classify the change according to the following categories:
 
 ## follow-supplementary
 ### Changed
-- `src`,`core`,`constraints`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
-- `src`,`constraints`: Updated supplementary-firing and heating-load-following constraints to enforce the max fired-to-unfired ratio using incremental supplementary capacity limits tied to CHP unfired thermal capacity.
+- `src/core/chp.jl`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
 ### Added
-- `src`,`results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
-- `src`,`results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
+- `src/results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
+- `src/results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
 
 ## ci-secrets-for-api-keys
 ### Changed
