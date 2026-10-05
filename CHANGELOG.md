@@ -24,32 +24,20 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
-## pv-resilience
+## v1.0.0
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
-## defaults-update-atb25
-### Added
 - Size classes for `ElectricStorage` based on 2025 ATB.
+- `src/results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
+- `src/results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
 ### Changed
 - Updated default values for `ElectricStorage` (`src\data\energy_storage\electric_storage\electric_storage_defaults.json`), `PV` (`src\data\pv\pv_defaults.json`) and `Wind` (`src\core\wind.jl`) cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
 - Changed **ElectricStorage.max_kw** to default to 1.0e5 instead of previous default of 1.0e4.
-
-## follow-supplementary
-### Changed
 - `src/core/chp.jl`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
-### Added
-- `src/results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
-- `src/results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
-
-## ci-secrets-for-api-keys
-### Changed
 - `src/core/urdb.jl` now reads the URDB API key from the **URDB_API_KEY** environment variable only, and throws a descriptive error if it is not set (the hardcoded fallback key was removed)
+- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
 ### Removed
 - Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
-
-## julia-113
-### Changed
-- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
 
 ## v0.61.1
 ### Fixed
