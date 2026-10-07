@@ -71,7 +71,7 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
     heatpump_capacity_sizing_factor_on_peak_load::Float64 = 1.1
     installed_cost_ghx_per_ft::Float64 = 14.0
     ghx_useful_life_years::Int = 50
-    ghp_replacement_year::Int = 10 # Project year in which GHP will be replaced at a cost of replace_cost_per_ton.
+    replacement_year::Int = 10 # Project year in which GHP will be replaced at a cost of replace_cost_per_ton.
     ghx_only_capital_cost::Union{Float64, Nothing} = nothing # overwritten afterwards
     installed_cost_building_hydronic_loop_per_sqft = 1.70
     om_cost_per_sqft_year::Float64 = -0.51
@@ -162,7 +162,7 @@ function GHP(response::Dict, d::Dict; sector::String,financial::Financial,federa
         @error "out of bounds aux_unit_capacity_sizing_factor_on_peak_load"
     end
 
-    if (ghp.ghp_replacement_year >= financial.analysis_years) && !(ghp.replace_cost_per_ton == 0.0)
+    if (ghp.replacement_year >= financial.analysis_years) && !(ghp.replace_cost_per_ton == 0.0)
         @warn "GHP replacement costs will not be considered because replacement_year >= analysis_years."
     end
 

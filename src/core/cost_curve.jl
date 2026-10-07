@@ -333,11 +333,15 @@ function cost_curve(tech::AbstractTech, financial::Financial)
 
         replacement_cost = 0.0
         replacement_year = financial.analysis_years
-        if nameof(T) in [:Generator]  # Generator is currently only Tech with replacement year and cost
+        if nameof(T) in [:Generator, :GHP]  # Generator and GHP are currently only Techs with replacement year and cost
             if tech.replacement_year >= financial.analysis_years # assume no replacement in final year of project
                 replacement_cost = 0.0
             else
-                replacement_cost = tech.replace_cost_per_kw
+                if nameof(T) in [:GHP]
+                    replacement_cost = tech.replace_cost_per_ton
+                else
+                    replacement_cost = tech.replace_cost_per_kw
+                end
             end
             replacement_year = tech.replacement_year
         end
