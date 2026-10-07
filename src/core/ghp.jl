@@ -144,7 +144,7 @@ Base.@kwdef mutable struct GHP <: AbstractGHP
 end
 
 
-function GHP(response::Dict, d::Dict; sector::String,f::Financial,federal_procurement_type::String)
+function GHP(response::Dict, d::Dict; sector::String,financial::Financial,federal_procurement_type::String)
     d = dictkeys_tosymbols(d)
     set_sector_defaults!(d; struct_name="GHP", sector=sector, federal_procurement_type=federal_procurement_type)
 
@@ -162,7 +162,7 @@ function GHP(response::Dict, d::Dict; sector::String,f::Financial,federal_procur
         @error "out of bounds aux_unit_capacity_sizing_factor_on_peak_load"
     end
 
-    if (ghp_replacement_year >= f.analysis_years) && !(replace_cost_per_ton == 0.0)
+    if (ghp.ghp_replacement_year >= financial.analysis_years) && !(ghp.replace_cost_per_ton == 0.0)
         @warn "GHP replacement costs will not be considered because replacement_year >= analysis_years."
     end
 
@@ -246,7 +246,7 @@ function setup_installed_cost_curve!(d::Dict, ghp::GHP, response::Dict)
     end
 
     # Using a separate call to _get_REopt_cost_curve in data_manager for "ghp" (not included in "available_techs")
-    #    and then use the value above for heat pump capacity to calculate the final absolute cost for GHP
+    # and then use the value above for heat pump capacity to calculate the final absolute cost for GHP
 
     if ghp.heat_pump_configuration == "WSHP"
         if !(ghp.heatpump_capacity_ton == 0)

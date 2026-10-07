@@ -916,6 +916,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                     ghpghx_response, 
                     ghp_inputs_removed_ghpghx_params;
                     sector = site.sector,
+                    financial,
                     federal_procurement_type = site.federal_procurement_type
                 )]
             )
