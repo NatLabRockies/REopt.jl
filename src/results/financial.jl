@@ -241,7 +241,7 @@ function replacement_costs_future_and_present(m::JuMP.AbstractModel, p::REoptInp
         if p.s.ghp_option_list[ghp_option_chosen].replacement_year >= p.s.financial.analysis_years 
             future_cost_ghp = 0.0
         else
-            future_cost_ghp = p.s.ghp_option_list[ghp_option_chosen].replace_cost_per_ton * p.s.ghp_option_list[ghp_option_chosen].heatpump_capacity_ton
+            future_cost_ghp = p.s.ghp_option_list[ghp_option_chosen].replace_cost_per_ton * max(p.s.ghp_option_list[ghp_option_chosen].heatpump_capacity_ton, p.s.ghp_option_list[ghp_option_chosen].wwhp_heating_pump_capacity_ton, p.s.ghp_option_list[ghp_option_chosen].wwhp_cooling_pump_capacity_ton)
         end
         future_cost += future_cost_ghp
         present_cost += future_cost_ghp * (1 - p.s.financial.owner_tax_rate_fraction) / 
