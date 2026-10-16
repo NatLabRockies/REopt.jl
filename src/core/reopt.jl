@@ -570,13 +570,16 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	end
 
 	# When a payback threshold is active, size is maximized in a first-stage solve and lifecycle cost is
-	# minimized in a second-stage solve while holding that maximum. Uses dvSize/dvStorage* directly (not
+	# minimized in a second-stage solve while holding that maximum. Uses dvSize/dvStoragePower directly (not
 	# production) so it behaves correctly for both intermittent (PV, Wind) and dispatchable techs.
+	# dvStorageEnergy is intentionally excluded: it's tied to dvStoragePower via duration constraints
+	# (add_storage_size_constraints), so maximizing it too would push kWh to its duration ceiling "for free"
+	# in stage 1 regardless of cost, leaving stage 2 to size it purely on economics instead.
 	storage_to_maximize = !isnothing(p.s.financial.max_simple_payback_years) ? p.s.storage.types.all : String[]
 	if !isempty(p.techs.maximize_size) || !isempty(storage_to_maximize)
 		m[:MaximizeSizeObjective] = @expression(m,
 			sum(m[:dvSize][t] for t in p.techs.maximize_size; init=0.0) +
-			sum(m[:dvStoragePower][b] + m[:dvStorageEnergy][b] for b in storage_to_maximize; init=0.0)
+			sum(m[:dvStoragePower][b] for b in storage_to_maximize; init=0.0)
 		)
 	else
 		m[:MaximizeSizeObjective] = 0.0
