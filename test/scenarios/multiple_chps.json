@@ -56,7 +56,7 @@
             "installed_cost_per_kw": 3500.0,
             "macrs_bonus_fraction": 0.0,
             "macrs_option_years": 0,            
-            "min_turn_down_fraction": 0.0,
+            "min_turn_down_fraction": 0.3,
             "min_kw": 100.0,
             "max_kw": 100.0,
             "fuel_cost_per_mmbtu": 8.0,

@@ -94,7 +94,8 @@ function add_heating_load_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict
                                                     p.s.space_heating_load.unaddressable_annual_fuel_mmbtu + 
                                                     p.s.process_heat_load.unaddressable_annual_fuel_mmbtu)
 
-    r["annual_emissions_from_unaddressable_heating_load_tonnes_CO2"] = r["annual_total_unaddressable_heating_load_mmbtu"] * p.s.existing_boiler.emissions_factor_lb_CO2_per_mmbtu * TONNE_PER_LB
+    existing_boiler_emissions_factor_lb_CO2_per_mmbtu = isnothing(p.s.existing_boiler) ? FUEL_DEFAULTS["emissions_factor_lb_CO2_per_mmbtu"]["natural_gas"] : p.s.existing_boiler.emissions_factor_lb_CO2_per_mmbtu
+    r["annual_emissions_from_unaddressable_heating_load_tonnes_CO2"] = r["annual_total_unaddressable_heating_load_mmbtu"] * existing_boiler_emissions_factor_lb_CO2_per_mmbtu * TONNE_PER_LB
 
     d["HeatingLoad"] =   r
     nothing

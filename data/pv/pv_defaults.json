@@ -5,8 +5,8 @@
       "name": "Residential",
       "tech_sizes_for_cost_curve": [3, 11],
       "roof": {
-        "installed_cost_per_kw": [5115, 2359],
-        "avg_installed_cost_per_kw": 2783,
+        "installed_cost_per_kw": [5954, 2746],
+        "avg_installed_cost_per_kw": 3239,
         "om_cost_per_kw": 32
       },
       "mount_premiums": {
@@ -15,16 +15,16 @@
           "om_premium": 1.0
         }
       },
-      "notes": "Based on ATB 2024 Residential 7.9 kW system and estimating 3 kW to 11 kW cost scaling"
+      "notes": "Based on ATB 2025 Residential 7.9 kW system and estimating 3 kW to 11 kW cost scaling"
     },
     {
       "size_class": 2,
       "name": "Small Commercial",
       "tech_sizes_for_cost_curve": [11, 100],
       "roof": {
-        "installed_cost_per_kw": [2359, 2105],
-        "avg_installed_cost_per_kw": 2232,
-        "om_cost_per_kw": 26
+        "installed_cost_per_kw": [2746, 1942],
+        "avg_installed_cost_per_kw": 2344,
+        "om_cost_per_kw": 25
       },
       "mount_premiums": {
         "ground": {
@@ -32,16 +32,16 @@
           "om_premium": 1.0
         }
       },
-      "notes": "Based on ATB 2024 averaging 11 kW and 100 kW cost estimates"
+      "notes": "Based on ATB 2025 averaging 11 kW and 100 kW cost estimates"
     },    
     {
       "size_class": 3,
       "name": "Large Commercial",
       "tech_sizes_for_cost_curve": [100, 2000],
       "roof": {
-        "installed_cost_per_kw": [2105, 1748],
-        "avg_installed_cost_per_kw": 1920,
-        "om_cost_per_kw": 20
+        "installed_cost_per_kw": [1942, 1613],
+        "avg_installed_cost_per_kw": 1772,
+        "om_cost_per_kw": 18
       },
       "mount_premiums": {
         "ground": {
@@ -49,16 +49,16 @@
           "om_premium": 1.0
         }
       },
-      "notes": "Based on ATB 2024 Commercial 200 kW data point and estimating 100 to 2,000 kW cost scaling"
+      "notes": "Based on ATB 2025 Commercial 200 kW data point and estimating 100 to 2,000 kW cost scaling"
     },
     {
       "size_class": 4,
       "name": "Industrial",
       "tech_sizes_for_cost_curve": [2000, 10000],
       "roof": {
-        "installed_cost_per_kw": [1748, 1573],
-        "avg_installed_cost_per_kw": 1661,
-        "om_cost_per_kw": 20
+        "installed_cost_per_kw": [1613, 1480],
+        "avg_installed_cost_per_kw": 1546,
+        "om_cost_per_kw": 19
       },
       "mount_premiums": {
         "ground": {
@@ -66,16 +66,16 @@
           "om_premium": 1.0
         }
       },
-      "notes": "Based on ATB 2024 averaging 2,000 kW and 10,000 kW estimated cost scaling"
+      "notes": "Based on ATB 2025 averaging 2,000 kW and 10,000 kW estimated cost scaling"
     },    
     {
       "size_class": 5,
       "name": "Utility",
       "tech_sizes_for_cost_curve": [10000, 100000],
       "roof": {
-        "installed_cost_per_kw": [1573, 1239],
-        "avg_installed_cost_per_kw": 1239,
-        "om_cost_per_kw": 17
+        "installed_cost_per_kw": [1480, 1165],
+        "avg_installed_cost_per_kw": 1165,
+        "om_cost_per_kw": 19
       },
       "mount_premiums": {
         "ground": {
@@ -83,7 +83,7 @@
           "om_premium": 1.0
         }
       },
-      "notes": "Based on ATB 2024 Utility single-axis tracking 100,000 kW datapoint and estimating 10,000 kW to 100,000 kW cost scaling"
+      "notes": "Based on ATB 2025 Utility single-axis tracking 100,000 kW datapoint and estimating 10,000 kW to 100,000 kW cost scaling"
     }
   ]
 }
