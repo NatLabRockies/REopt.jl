@@ -56,7 +56,7 @@
             "installed_cost_per_kw": 3500.0,
             "macrs_bonus_fraction": 0.0,
             "macrs_option_years": 0,            
-            "min_turn_down_fraction": 0.0,
+            "min_turn_down_fraction": 0.3,
             "min_kw": 100.0,
             "max_kw": 100.0,
             "fuel_cost_per_mmbtu": 8.0,
@@ -66,7 +66,7 @@
             "om_cost_per_kw": 10.0,
             "om_cost_per_kwh": 0.05,
             "om_cost_per_hr_per_kw_rated": 0.05,
-            "supplementary_firing_max_steam_ratio": 1.2
+            "supplementary_firing_max_ratio": 1.2
         }
     ]
 }

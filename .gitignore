@@ -3,3 +3,5 @@
 docs/build/
 docs/Manifest.toml
 **.log
+.env
+test/.env

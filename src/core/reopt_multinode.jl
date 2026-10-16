@@ -125,6 +125,9 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
         ex_name = "TotalPerUnitProdOMCosts"*_n
 		m[Symbol(ex_name)] = 0
+
+		ex_name = "MaximizeProductionIncentive"*_n
+		m[Symbol(ex_name)] = 0
 	
 		add_elec_utility_expressions(m, p; _n=_n)
 
@@ -256,6 +259,9 @@ function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) wh
 			break
 		end
 	end
+	if any(!isnothing(p.s.financial.max_simple_payback_years) for p in ps)
+		throw(@error("financial.max_simple_payback_years is not supported in multinode solves."))
+	end
 
 	build_reopt!(m, ps)
 
@@ -295,4 +301,3 @@ function reopt_results(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}
 	end
 	return results
 end
-

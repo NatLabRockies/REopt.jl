@@ -102,6 +102,8 @@ function BAUScenario(s::Scenario)
     financial = deepcopy(s.financial)
     financial.min_initial_capital_costs_before_incentives = nothing
     financial.max_initial_capital_costs_before_incentives = nothing
+    financial.max_simple_payback_years = nothing
+    financial.bau_year_one_operating_cost = nothing
     
     t0, tf = s.electric_utility.outage_start_time_step, s.electric_utility.outage_end_time_step
     #=
@@ -135,7 +137,7 @@ function BAUScenario(s::Scenario)
     for chp in s.chps
         if chp.existing_kw > 0
             bau_chp = deepcopy(chp)
-            bau_chp.supplementary_firing_capital_cost_per_kw = 0.0
+            bau_chp.supplementary_firing_installed_cost_per_mmbtu_per_hour = 0.0
             push!(chps, bau_chp)
         end
     end

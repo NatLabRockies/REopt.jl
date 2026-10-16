@@ -49,8 +49,9 @@
     use_detailed_cost_curve::Bool = false, # Use detailed cost curve instead of average cost
     electric_load_annual_kwh::Real = 0.0, # Annual electric load (kWh) for size class determination
     site_land_acres::Union{Real, Nothing} = nothing,  # site.land_acres to determine size_class if space constraineed
-    site_roof_squarefeet::Union{Real, Nothing} = nothing,  # site.roof_squarefeet to determine size_class if space constraineed
+    site_roof_squarefeet::Union{Real, Nothing} = nothing,,  # site.roof_squarefeet to determine size_class if space constraineed
     priority::Union{Int, Nothing} = nothing  # Optional integer (>=1) sizing priority for use with multiple PV systems
+    outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
 ```
 
 !!! note "Multiple PV types" 
@@ -128,6 +129,7 @@ mutable struct PV <: AbstractTech
     site_land_acres
     site_roof_squarefeet
     priority
+    outage_production_fraction
 
     function PV(;
         off_grid_flag::Bool = false,
@@ -183,7 +185,8 @@ mutable struct PV <: AbstractTech
         electric_load_annual_kwh::Real = 0.0,
         site_land_acres::Union{Real, Nothing} = nothing,
         site_roof_squarefeet::Union{Real, Nothing} = nothing,
-        priority::Union{Int, Nothing} = nothing
+        priority::Union{Int, Nothing} = nothing,
+        outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
         )
 
         # Adjust operating_reserve_required_fraction based on off_grid_flag
@@ -227,6 +230,9 @@ mutable struct PV <: AbstractTech
         end
         if !(0.0 <= dc_ac_ratio <= 2.0)
             push!(invalid_args, "dc_ac_ratio must satisfy 0 <= dc_ac_ratio <= 2, got $(dc_ac_ratio)")
+        end
+        if !(0.0 <= outage_production_fraction <= 1.0)
+            push!(invalid_args, "outage_production_fraction must satisfy 0 <= outage_production_fraction <= 1, got $(outage_production_fraction)")
         end
         if !isnothing(production_factor_series)
             error_if_series_vals_not_0_to_1(production_factor_series, "PV", "production_factor_series")
@@ -311,7 +317,8 @@ mutable struct PV <: AbstractTech
             electric_load_annual_kwh,
             site_land_acres,
             site_roof_squarefeet,
-            priority
+            priority,
+            outage_production_fraction
         )
     end
 end

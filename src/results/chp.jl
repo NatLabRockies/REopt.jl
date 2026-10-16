@@ -2,7 +2,9 @@
 """
 `CHP` results keys:
 - `size_kw` Power capacity size of the CHP system [kW]
-- `size_supplemental_firing_kw` Power capacity of CHP supplementary firing system [kW]
+- `size_supplemental_firing_mmbtu_per_hour` Incremental thermal capacity of the CHP supplementary firing system [MMBtu/hr]
+- `size_supplementary_firing_ratio` Ratio of total fired thermal capacity (unfired + supplementary firing) to unfired CHP thermal capacity at full load [-]
+- `annual_supplementary_firing_thermal_production_mmbtu` Supplementary firing thermal energy produced in a year [MMBtu]
 - `annual_fuel_consumption_mmbtu` Fuel consumed in a year [MMBtu]
 - `annual_electric_production_kwh` Electric energy produced in a year [kWh]
 - `annual_thermal_production_mmbtu` Thermal energy produced in a year (not including curtailed thermal) [MMBtu]
@@ -57,7 +59,17 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
     chp = p.s.chps[chp_idx]
     
 	r["size_kw"] = value(m[Symbol("dvSize"*_n)][chp_name])
-    r["size_supplemental_firing_kw"] = value(m[Symbol("dvSupplementaryFiringSize"*_n)][chp_name])
+    supplementary_firing_size_kwt = value(m[Symbol("dvSupplementaryFiringSize"*_n)][chp_name])
+    r["size_supplemental_firing_mmbtu_per_hour"] = supplementary_firing_size_kwt / KWH_PER_MMBTU
+
+    thermal_full_load_kwt_per_kwe = chp.thermal_efficiency_full_load / chp.electric_efficiency_full_load
+    unfired_thermal_capacity_kwt = thermal_full_load_kwt_per_kwe * r["size_kw"]
+    r["size_supplementary_firing_ratio"] = unfired_thermal_capacity_kwt > 1.0e-9 ?
+        (unfired_thermal_capacity_kwt + supplementary_firing_size_kwt) / unfired_thermal_capacity_kwt : 0.0
+
+    supplementary_firing_thermal_prod_kwh = p.hours_per_time_step *
+        sum(value(m[Symbol("dvSupplementaryThermalProduction"*_n)][chp_name, ts]) for ts in p.time_steps)
+    r["annual_supplementary_firing_thermal_production_mmbtu"] = round(supplementary_firing_thermal_prod_kwh / KWH_PER_MMBTU, digits=3)
 	CHPFuelUsedKWH = sum(value(m[Symbol("dvFuelUsage"*_n)][chp_name, ts]) for ts in p.time_steps)
 	r["annual_fuel_consumption_mmbtu"] = round(CHPFuelUsedKWH / KWH_PER_MMBTU, digits=3)
 	Year1CHPElecProd = p.hours_per_time_step * sum(value(m[Symbol("dvRatedProduction"*_n)][chp_name,ts]) * p.production_factor[chp_name, ts]
@@ -173,13 +185,13 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 	
 	# Calculate individual CHP capital costs using purchased CHP capacity (excluding existing_kw)
 	size_kw = value(m[Symbol("dvPurchaseSize"*_n)][chp_name])
-	suppl_firing_size = value(m[Symbol("dvSupplementaryFiringSize"*_n)][chp_name])
+    suppl_firing_size_kwt = value(m[Symbol("dvSupplementaryFiringSize"*_n)][chp_name])
 	
 	# Base CHP capital cost using generalized function
 	capital_cost = get_tech_initial_capex(chp, size_kw)
 	
 	# Add supplementary firing capital cost
-	capital_cost += chp.supplementary_firing_capital_cost_per_kw * suppl_firing_size
+    capital_cost += chp.supplementary_firing_installed_cost_per_mmbtu_per_hour * (suppl_firing_size_kwt / KWH_PER_MMBTU)
 	
 	r["initial_capital_costs"] = round(capital_cost, digits=2)
 
