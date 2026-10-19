@@ -812,7 +812,7 @@ function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organ
 end
 
 
-function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
 
 	try
 		if pv_priority_active(p.s.pvs)
