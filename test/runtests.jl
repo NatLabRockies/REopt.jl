@@ -4740,7 +4740,7 @@ else  # run HiGHS tests
             GC.gc()
 
             # Test 6: size_class is 1 based on Site.roof_squarefeet
-            kw_per_square_foot = 0.01
+            kw_per_square_foot = 0.017
             acres_per_kw = 6e-3
             input_data = JSON.parsefile(pv_scenario_file_path)
             input_data["PV"]["array_type"] = 1  # roof

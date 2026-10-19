@@ -21,7 +21,9 @@
         "om_cost_per_kw": 16.0,
         "macrs_itc_reduction": 0.5,
         "azimuth": 180.0,
-        "federal_rebate_per_kw": 350.0
+        "federal_rebate_per_kw": 350.0,
+        "kw_per_square_foot": 0.01,
+        "acres_per_kw": 6e-3        
     },
     "ElectricLoad": {
         "doe_reference_name": "RetailStore",
