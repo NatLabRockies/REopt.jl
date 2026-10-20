@@ -42,7 +42,9 @@
         "macrs_itc_reduction": 0.5, 
         "degradation_fraction": 0.005, 
         "inv_eff": 0.96, 
-        "azimuth": 180.0
+        "azimuth": 180.0,
+        "kw_per_square_foot": 0.01,
+        "acres_per_kw": 6e-3
     },
     "ElectricStorage": {
         "rectifier_efficiency_fraction": 0.96, 
