@@ -260,31 +260,33 @@ struct ElectricUtility
                     end
                 else # if not user-provided, get emissions or cef factors from Cambium and/or AVERT
                     if ekey == "CO2" && co2_from_avert == false || ekey == "renewable_energy_fraction_series" # Use Cambium for CO2 or clean energy factors
-                        try
-                            cambium_response_dict = cambium_profile( # Adjusted for day of week alignment with load and time_steps_per_hour
-                                    scenario = cambium_scenario, 
-                                    location_type = cambium_location_type, 
-                                    latitude = latitude, 
-                                    longitude = longitude,
-                                    start_year = cambium_start_year,
-                                    lifetime = cambium_levelization_years,
-                                    metric_col = ekey == "CO2" ? cambium_co2_metric : cambium_cef_metric,
-                                    time_steps_per_hour = time_steps_per_hour,
-                                    load_year = load_year,
-                                    profile_year = 2017, # because Cambium data always starts on a Sunday
-                                    grid_level = cambium_grid_level
-                            )
-                            emissions_and_cef_series_dict[ekey] = cambium_response_dict["data_series"]
-                            cambium_region = cambium_response_dict["location"]
+                        # TEMP: Cambium API call bypassed (rate-limited upstream); defaulting to zero until re-enabled.
+                        emissions_and_cef_series_dict[ekey] = zeros(Float64, 8760*time_steps_per_hour)
+                        # try
+                        #     cambium_response_dict = cambium_profile( # Adjusted for day of week alignment with load and time_steps_per_hour
+                        #             scenario = cambium_scenario, 
+                        #             location_type = cambium_location_type, 
+                        #             latitude = latitude, 
+                        #             longitude = longitude,
+                        #             start_year = cambium_start_year,
+                        #             lifetime = cambium_levelization_years,
+                        #             metric_col = ekey == "CO2" ? cambium_co2_metric : cambium_cef_metric,
+                        #             time_steps_per_hour = time_steps_per_hour,
+                        #             load_year = load_year,
+                        #             profile_year = 2017, # because Cambium data always starts on a Sunday
+                        #             grid_level = cambium_grid_level
+                        #     )
+                        #     emissions_and_cef_series_dict[ekey] = cambium_response_dict["data_series"]
+                        #     cambium_region = cambium_response_dict["location"]
 
-                            # save clean_energy_series_dict["cef"] as csv
-                            # clean_energy_df = DataFrame(cef = clean_energy_series_dict["cef"])
-                            # CSV.write("renewable_energy_fraction_series.csv", clean_energy_df)
-                        catch
-                            @warn("Could not look up Cambium $(ekey) profile for location ($(latitude), $(longitude)).
-                            Location is likely outside contiguous US or something went wrong with the Cambium API request. Setting ElectricUtility $(ekey) factors to zero.")
-                            emissions_and_cef_series_dict[ekey] = zeros(Float64, 8760*time_steps_per_hour) 
-                        end
+                        #     # save clean_energy_series_dict["cef"] as csv
+                        #     # clean_energy_df = DataFrame(cef = clean_energy_series_dict["cef"])
+                        #     # CSV.write("renewable_energy_fraction_series.csv", clean_energy_df)
+                        # catch
+                        #     @warn("Could not look up Cambium $(ekey) profile for location ($(latitude), $(longitude)).
+                        #     Location is likely outside contiguous US or something went wrong with the Cambium API request. Setting ElectricUtility $(ekey) factors to zero.")
+                        #     emissions_and_cef_series_dict[ekey] = zeros(Float64, 8760*time_steps_per_hour) 
+                        # end
                     else # otherwise use AVERT
                         if !isnothing(region_abbr)
                             avert_data_year = 2023 # Must update when AVERT data are updated
