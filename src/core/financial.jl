@@ -34,6 +34,7 @@
     NOx_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
     SO2_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing, # Default data from EASIUR based on location
     PM25_cost_escalation_rate_fraction::Union{Nothing,Real} = nothing # Default data from EASIUR based on location
+    bau_lcc::Union{Nothing,Real}
 ```
 
 !!! note "Third party financing"
@@ -79,6 +80,7 @@ mutable struct Financial
     NOx_cost_escalation_rate_fraction::Float64
     SO2_cost_escalation_rate_fraction::Float64
     PM25_cost_escalation_rate_fraction::Float64
+    bau_lcc::Union{Nothing,Real}
 
     function Financial(;
         off_grid_flag::Bool = false,
@@ -122,7 +124,8 @@ mutable struct Financial
         # fields from other models needed for validation
         latitude::Real, # Passed from Site
         longitude::Real, # Passed from Site
-        include_health_in_objective::Bool = false # Passed from Settings
+        include_health_in_objective::Bool = false, # Passed from Settings
+        bau_lcc::Union{Nothing,Real} = nothing
     )
         
         if off_grid_flag && !(microgrid_upgrade_cost_fraction == 0.0)
@@ -218,7 +221,8 @@ mutable struct Financial
             PM25_onsite_fuelburn_cost_per_tonne,
             NOx_cost_escalation_rate_fraction,
             SO2_cost_escalation_rate_fraction,
-            PM25_cost_escalation_rate_fraction
+            PM25_cost_escalation_rate_fraction,
+            bau_lcc
         )
     end
 end

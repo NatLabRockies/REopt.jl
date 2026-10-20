@@ -80,7 +80,7 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
         m[Symbol("MaximizeProductionIncentive"*_n)] = 0.0
     end
 
-    r["lcc"] = value(m[Symbol("Costs"*_n)]) + 0.0001 * value(m[Symbol("MinChargeAdder"*_n)]) - value(m[Symbol("MaximizeProductionIncentive"*_n)])
+    r["lcc"] = value(m[Symbol("Costs"*_n)]) + 0.0001 * value(m[Symbol("MinChargeAdder"*_n)]) - value(m[Symbol("MaximizeProductionIncentive"*_n)]) - value(m[Symbol("MaximizeProductionIncentive"*_n)])
 
     r["lifecycle_om_costs_before_tax"] = value(m[Symbol("TotalPerUnitSizeOMCosts"*_n)] + 
                                            m[Symbol("TotalPerUnitProdOMCosts"*_n)] + 
@@ -157,10 +157,11 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
         r["lifecycle_emissions_cost_health"] = round(value(m[:Lifecycle_Emissions_Cost_Health]), digits=2)
     end
 
-    r["maximize_tech_size_incentive_value"] = value(m[Symbol("MaximizeProductionIncentive"*_n)])
     if Symbol("Year1OperatingCost"*_n) in keys(m.obj_dict)
         r["year_one_operating_cost_before_tax_model"] = value(m[Symbol("Year1OperatingCost"*_n)])
     end
+
+    r["maximize_tech_size_incentive_value"] = value(m[Symbol("MaximizeProductionIncentive"*_n)])
 
     d["Financial"] = Dict{String,Float64}(k => round(v, digits=4) for (k,v) in r)
     nothing

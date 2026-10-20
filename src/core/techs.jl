@@ -414,6 +414,10 @@ function Techs(s::Scenario)
         end 
     end
 
+    if !isnothing(s.financial.bau_lcc)
+        maximize_size_techs = copy(pvtechs)
+    end
+    
     Techs(
         all_techs,
         elec,
