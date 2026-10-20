@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## chp-peak-shaving
+### Added
+- `src`,`core`,`constraints`,`results`: New optional **CHP** input **monthly_peak_shave_fraction**, a list of 12 fractions (January through December) that dispatches a CHP system to shave a given fraction of each month's peak site electric load. The CHP runs only when the site electric load exceeds `(1 - monthly_peak_shave_fraction) * monthly peak load` and serves the load above that threshold, capped at the CHP's available capacity and floored at **min_turn_down_fraction**. While shaving, the CHP's electricity cannot charge storage, be exported, or be curtailed. New **CHP** results **peak_shave_monthly_original_peak_kw**, **peak_shave_monthly_threshold_kw**, **peak_shave_monthly_target_kw**, **peak_shave_monthly_peak_after_chp_kw**, **peak_shave_monthly_achieved_kw**, **peak_shave_shortfall_time_step_count**, and **peak_shave_max_shortfall_kw** report the outcome, and a warning is logged when the CHP is too small to fully shave the requested peak.
+
 ## pv-resilience
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.

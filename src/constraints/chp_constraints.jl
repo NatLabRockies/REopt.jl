@@ -446,6 +446,109 @@ end
 
 
 """
+    add_chp_peak_shaving_constraints(m, p; _n="")
+
+Used in function add_chp_constraints to prescribe the dispatch of CHP systems that shave a user-specified fraction of
+each month's peak site electric load (`CHP.monthly_peak_shave_fraction`).
+
+In every grid-connected time step the CHP is required to serve the site electric load above that month's threshold of
+`(1 - monthly_peak_shave_fraction[month]) * monthly peak load`, with the following qualifications:
+- the output is capped at the CHP's available capacity, so an undersized CHP shaves as much of the peak as it can;
+- the output is floored at the CHP's minimum turn down, so the turn down limit is never violated;
+- the CHP is forced off whenever the load is at or below the threshold; and
+- the CHP's electricity cannot charge storage, be exported, or be curtailed while shaving, so that its output
+    actually offsets the load.
+
+Time steps without grid (outages) are left to the rest of the model because there is no grid peak to shave.
+"""
+function add_chp_peak_shaving_constraints(m, p; _n="")
+    peak_shaving_chps = [chp for chp in p.s.chps if !isempty(chp.monthly_peak_shave_fraction)]
+
+    for chp in peak_shaving_chps
+        t = chp.name
+        _, _, required_kw = chp_peak_shaving_targets(
+            chp.monthly_peak_shave_fraction,
+            p.s.electric_load.loads_kw,
+            p.s.electric_load.year,
+            p.s.settings.time_steps_per_hour
+        )
+        # Electricity delivered per kW of rated production, which is how the load balance counts CHP output.
+        delivered_per_rated_kw = [p.production_factor[t,ts] * p.levelization_factor[t] for ts in p.time_steps]
+        shave_time_steps = [ts for ts in p.time_steps_with_grid
+                            if required_kw[ts] > 1.0e-6 && delivered_per_rated_kw[ts] > 1.0e-6]
+        min_turn_down = p.chp_params[t][:min_turn_down_fraction]
+
+        # The CHP only runs to shave the peak, so it is off in every other grid-connected time step.
+        for ts in setdiff(p.time_steps_with_grid, shave_time_steps)
+            fix(m[Symbol("dvRatedProduction"*_n)][t,ts], 0.0, force=true)
+        end
+
+        # Require the shaved electricity to offset load instead of charging storage, exporting, or being curtailed.
+        for ts in shave_time_steps
+            for b in p.s.storage.types.elec
+                fix(m[Symbol("dvProductionToStorage"*_n)][b,t,ts], 0.0, force=true)
+            end
+            if haskey(m, Symbol("dvProductionToGrid"*_n)) && haskey(p.export_bins_by_tech, t)
+                for u in p.export_bins_by_tech[t]
+                    fix(m[Symbol("dvProductionToGrid"*_n)][t,u,ts], 0.0, force=true)
+                end
+            end
+            fix(m[Symbol("dvCurtail"*_n)][t,ts], 0.0, force=true)
+        end
+
+        isempty(shave_time_steps) && continue
+
+        # With a fixed CHP size the dispatch is fully determined by the load, so set it directly and avoid binaries.
+        if isapprox(p.min_sizes[t], p.max_sizes[t]; atol=1.0e-6)
+            size_kw = p.max_sizes[t]
+            for ts in shave_time_steps
+                capacity_kw = delivered_per_rated_kw[ts] * size_kw
+                delivered_kw = min(max(required_kw[ts], min_turn_down * capacity_kw), capacity_kw)
+                fix(m[Symbol("dvRatedProduction"*_n)][t,ts],
+                    delivered_kw / delivered_per_rated_kw[ts], force=true)
+            end
+            continue
+        end
+
+        # The CHP size is a decision variable, so the capacity cap and turn down floor require big-M formulations.
+        big_m = 2 * max(p.max_sizes[t] * maximum(delivered_per_rated_kw), maximum(required_kw), 1.0)
+        delivered_kw = @expression(m, [ts in shave_time_steps],
+            delivered_per_rated_kw[ts] * m[Symbol("dvRatedProduction"*_n)][t,ts]
+        )
+        capacity_kw = @expression(m, [ts in shave_time_steps],
+            delivered_per_rated_kw[ts] * m[Symbol("dvSize"*_n)][t]
+        )
+
+        if min_turn_down > 1.0e-7
+            # target_kw = max(required_kw, minimum turn down output)
+            target_kw = @variable(m, [shave_time_steps], lower_bound=0.0,
+                base_name="dvCHPPeakShaveTarget"*t*_n)
+            bin_above_turn_down = @variable(m, [shave_time_steps], binary=true,
+                base_name="binCHPPeakShaveAboveMinTurnDown"*t*_n)
+            @constraint(m, [ts in shave_time_steps], target_kw[ts] >= required_kw[ts])
+            @constraint(m, [ts in shave_time_steps], target_kw[ts] >= min_turn_down * capacity_kw[ts])
+            @constraint(m, [ts in shave_time_steps],
+                target_kw[ts] <= required_kw[ts] + big_m * bin_above_turn_down[ts])
+            @constraint(m, [ts in shave_time_steps],
+                target_kw[ts] <= min_turn_down * capacity_kw[ts] + big_m * (1 - bin_above_turn_down[ts]))
+        else
+            target_kw = required_kw
+        end
+
+        # delivered_kw = min(target_kw, capacity_kw), so the CHP runs at capacity only when it cannot fully shave.
+        bin_capacity_limited = @variable(m, [shave_time_steps], binary=true,
+            base_name="binCHPPeakShaveCapacityLimited"*t*_n)
+        @constraint(m, [ts in shave_time_steps], delivered_kw[ts] <= target_kw[ts])
+        @constraint(m, [ts in shave_time_steps],
+            delivered_kw[ts] >= target_kw[ts] - big_m * bin_capacity_limited[ts])
+        @constraint(m, [ts in shave_time_steps], delivered_kw[ts] <= capacity_kw[ts])
+        @constraint(m, [ts in shave_time_steps],
+            delivered_kw[ts] >= capacity_kw[ts] - big_m * (1 - bin_capacity_limited[ts]))
+    end
+end
+
+
+"""
     add_chp_constraints(m, p; _n="")
 
 Used in src/reopt.jl to add_chp_constraints if !isempty(p.techs.chp) to add CHP operating constraints and 
@@ -541,5 +644,9 @@ function add_chp_constraints(m, p; _n="")
 
     if any(chp.follow_heating_load for chp in p.s.chps)
         add_chp_heating_load_following_constraints(m, p; _n=_n)
+    end
+
+    if any(!isempty(chp.monthly_peak_shave_fraction) for chp in p.s.chps)
+        add_chp_peak_shaving_constraints(m, p; _n=_n)
     end
 end

@@ -48,6 +48,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[] # months in which CHP only sevres the absorption chiller, with 1=January and 12=December; only applied when serve_absorption_chiller_only = true
     follow_electrical_load::Bool = false # If CHP follows the electrical load by running at capacity or meeting the load only.
     follow_heating_load::Bool = false # If CHP follows eligible heating load by running at unfired thermal capacity or meeting the load.
+    monthly_peak_shave_fraction::AbstractVector{Float64} = Float64[] # Fraction of each month's peak electric load to shave with CHP, with 12 values ordered January through December (e.g. 0.05 shaves the top 5% of that month's peak). When provided, CHP runs only when the site electric load exceeds (1 - fraction) * monthly peak, and serves the load above that threshold.
 
     macrs_option_years::Int = 5 # Notes: this value cannot be 0 if aiming to apply 100% bonus depreciation; default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -130,6 +131,7 @@ Base.@kwdef mutable struct CHP <: AbstractCHP
     months_serving_absorption_chiller_only::AbstractVector{Int64} = Int64[]
     follow_electrical_load::Bool = false
     follow_heating_load::Bool = false
+    monthly_peak_shave_fraction::AbstractVector{Float64} = Float64[]
 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0
@@ -372,7 +374,83 @@ function CHP(d::Dict;
         end
     end
 
+    # Validate monthly peak shaving inputs
+    if !isempty(chp.monthly_peak_shave_fraction)
+        if length(chp.monthly_peak_shave_fraction) != 12
+            throw(ArgumentError(
+                "CHP.monthly_peak_shave_fraction must have 12 values, one for each month " *
+                "ordered January through December, but $(length(chp.monthly_peak_shave_fraction)) were provided."
+            ))
+        end
+        invalid_months = findall(f -> !(0.0 <= f < 1.0), chp.monthly_peak_shave_fraction)
+        if !isempty(invalid_months)
+            throw(ArgumentError(
+                "CHP.monthly_peak_shave_fraction values must be greater than or equal to 0.0 and less than 1.0, " *
+                "but months $invalid_months have values of " *
+                "$(chp.monthly_peak_shave_fraction[invalid_months])."
+            ))
+        end
+        if chp.follow_electrical_load || chp.follow_heating_load
+            throw(ArgumentError(
+                "CHP.monthly_peak_shave_fraction prescribes the CHP dispatch, so it cannot be combined with " *
+                "CHP.follow_electrical_load or CHP.follow_heating_load. Set those inputs to false."
+            ))
+        end
+        if off_grid_flag
+            throw(ArgumentError(
+                "CHP.monthly_peak_shave_fraction shaves the peak of the grid-served electric load, so it cannot " *
+                "be used in an off-grid analysis."
+            ))
+        end
+        if chp.ramp_rate_fraction_per_hour < 1.0
+            @warn "CHP.monthly_peak_shave_fraction dispatches CHP from off to its peak shaving output within a " *
+                "single time step, which may be infeasible with CHP.ramp_rate_fraction_per_hour of " *
+                "$(chp.ramp_rate_fraction_per_hour). Consider setting ramp_rate_fraction_per_hour to 1.0."
+        end
+        if !(chp.min_kw ≈ chp.max_kw)
+            @warn "CHP.monthly_peak_shave_fraction is intended for a fixed-size CHP system. CHP.min_kw " *
+                "($(chp.min_kw) kW) and CHP.max_kw ($(chp.max_kw) kW) differ, so binary variables will be " *
+                "added to size the system, which can substantially increase solve time. Set min_kw equal to " *
+                "max_kw to fix the CHP size."
+        end
+    end
+
     return chp
+end
+
+
+"""
+    chp_peak_shaving_targets(monthly_peak_shave_fraction::AbstractVector{<:Real},
+                             electric_load_kw::AbstractVector{<:Real},
+                             year::Int,
+                             time_steps_per_hour::Int)
+
+Translate `CHP.monthly_peak_shave_fraction` into the dispatch targets used by the peak shaving constraints and results.
+
+Returns a tuple of:
+- `monthly_peaks_kw`: the peak site electric load in each of the 12 months [kW]
+- `thresholds_kw`: the load level above which CHP must run in each month, `(1 - fraction) * monthly peak` [kW]
+- `required_kw`: time series of the site electric load above the month's threshold, i.e. the CHP output needed
+    to fully shave the peak before accounting for CHP capacity or minimum turn down [kW]
+"""
+function chp_peak_shaving_targets(monthly_peak_shave_fraction::AbstractVector{<:Real},
+                                  electric_load_kw::AbstractVector{<:Real},
+                                  year::Int,
+                                  time_steps_per_hour::Int)
+    monthly_time_steps = get_monthly_time_steps(year; time_steps_per_hour=time_steps_per_hour)
+    monthly_peaks_kw = zeros(12)
+    thresholds_kw = zeros(12)
+    required_kw = zeros(length(electric_load_kw))
+    for mth in 1:12
+        time_steps = [ts for ts in monthly_time_steps[mth] if ts <= length(electric_load_kw)]
+        isempty(time_steps) && continue
+        monthly_peaks_kw[mth] = maximum(electric_load_kw[ts] for ts in time_steps)
+        thresholds_kw[mth] = (1.0 - monthly_peak_shave_fraction[mth]) * monthly_peaks_kw[mth]
+        for ts in time_steps
+            required_kw[ts] = max(0.0, electric_load_kw[ts] - thresholds_kw[mth])
+        end
+    end
+    return monthly_peaks_kw, thresholds_kw, required_kw
 end
 
 

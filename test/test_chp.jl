@@ -575,3 +575,134 @@ end
     @test REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 1.0))[:off_grid_flag] === true
     @test_throws ArgumentError REopt.dictkeys_tosymbols(Dict("off_grid_flag" => 2.0))
 end
+
+###########   CHP monthly peak shaving tests   #############
+@testset "CHP monthly peak shaving" begin
+    year = 2017
+    monthly_time_steps = REopt.get_monthly_time_steps(year; time_steps_per_hour=1)
+    sep = monthly_time_steps[9]
+    oct = monthly_time_steps[10]
+
+    loads_kw = repeat([100.0], 8760)
+    # September peak of 200 kW; a 5% shave sets the threshold at 190 kW
+    loads_kw[sep[10]] = 200.0
+    loads_kw[sep[11]] = 195.0
+    loads_kw[sep[12]] = 191.0
+    loads_kw[sep[13]] = 185.0  # below the threshold, so CHP stays off
+    # October peak of 300 kW; a 10% shave sets the threshold at 270 kW
+    loads_kw[oct[10]] = 300.0
+    loads_kw[oct[11]] = 290.0
+    loads_kw[oct[12]] = 250.0  # below the threshold, so CHP stays off
+
+    shave_fractions = zeros(12)
+    shave_fractions[9] = 0.05
+    shave_fractions[10] = 0.10
+
+    base_input_data = Dict(
+        "Site" => Dict("latitude" => 39.7, "longitude" => -104.9),
+        "ElectricLoad" => Dict("loads_kw" => loads_kw, "year" => year),
+        "ElectricTariff" => Dict(
+            "blended_annual_energy_rate" => 0.12,
+            "blended_annual_demand_rate" => 15.0
+        ),
+        "CHP" => Dict(
+            "is_electric_only" => true,
+            "fuel_cost_per_mmbtu" => 4.0,
+            "min_kw" => 100.0,
+            "max_kw" => 100.0,
+            "min_allowable_kw" => 0.0,
+            "min_turn_down_fraction" => 0.0,
+            "production_factor_series" => ones(8760),  # avoid unavailability periods
+            "monthly_peak_shave_fraction" => shave_fractions
+        )
+    )
+
+    expected_required_kw(threshold, mth_time_steps) =
+        [max(0.0, loads_kw[ts] - threshold) for ts in mth_time_steps]
+
+    # 1. A CHP large enough to fully shave the requested peaks
+    input_data = deepcopy(base_input_data)
+    s = Scenario(input_data)
+    p = REoptInputs(s)
+    @test s.chps[1].monthly_peak_shave_fraction == shave_fractions
+
+    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    results = run_reopt(m, p)
+    @test results["status"] == "optimal"
+
+    r = results["CHP"]
+    production_kw = r["electric_production_series_kw"]
+    # CHP serves exactly the load above each month's threshold and is off otherwise
+    expected_kw = zeros(8760)
+    expected_kw[sep] = expected_required_kw(190.0, sep)
+    expected_kw[oct] = expected_required_kw(270.0, oct)
+    @test maximum(abs.(production_kw .- expected_kw)) <= 1.0e-3
+    # all of the CHP output offsets load rather than charging storage, exporting, or being curtailed
+    @test maximum(abs.(r["electric_to_load_series_kw"] .- production_kw)) <= 1.0e-3
+
+    @test r["peak_shave_monthly_original_peak_kw"][9] ≈ 200.0 atol=1.0e-3
+    @test r["peak_shave_monthly_original_peak_kw"][10] ≈ 300.0 atol=1.0e-3
+    @test r["peak_shave_monthly_threshold_kw"][9] ≈ 190.0 atol=1.0e-3
+    @test r["peak_shave_monthly_threshold_kw"][10] ≈ 270.0 atol=1.0e-3
+    @test r["peak_shave_monthly_target_kw"][9] ≈ 10.0 atol=1.0e-3
+    @test r["peak_shave_monthly_target_kw"][10] ≈ 30.0 atol=1.0e-3
+    @test r["peak_shave_monthly_achieved_kw"][9] ≈ 10.0 atol=1.0e-3
+    @test r["peak_shave_monthly_achieved_kw"][10] ≈ 30.0 atol=1.0e-3
+    @test r["peak_shave_monthly_peak_after_chp_kw"][9] ≈ 190.0 atol=1.0e-3
+    @test all(isapprox(r["peak_shave_monthly_achieved_kw"][mth], 0.0, atol=1.0e-3) for mth in [1,2,3,4,5,6,7,8,11,12])
+    @test r["peak_shave_shortfall_time_step_count"] == 0
+    @test r["peak_shave_max_shortfall_kw"] ≈ 0.0 atol=1.0e-3
+
+    finalize(backend(m)); empty!(m); GC.gc()
+
+    # 2. An undersized CHP shaves as much of the peak as its capacity allows, and reports the shortfall
+    small_input_data = deepcopy(base_input_data)
+    small_input_data["CHP"]["min_kw"] = 15.0
+    small_input_data["CHP"]["max_kw"] = 15.0
+    small_s = Scenario(small_input_data)
+    small_p = REoptInputs(small_s)
+
+    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    small_results = run_reopt(m, small_p)
+    @test small_results["status"] == "optimal"
+
+    small_r = small_results["CHP"]
+    small_expected_kw = min.(expected_kw, 15.0)
+    @test maximum(abs.(small_r["electric_production_series_kw"] .- small_expected_kw)) <= 1.0e-3
+    # October needs 30 kW and 20 kW above the threshold but only 15 kW is available
+    @test small_r["peak_shave_shortfall_time_step_count"] == 2
+    @test small_r["peak_shave_max_shortfall_kw"] ≈ 15.0 atol=1.0e-3
+    @test small_r["peak_shave_monthly_achieved_kw"][9] ≈ 10.0 atol=1.0e-3
+    @test small_r["peak_shave_monthly_achieved_kw"][10] ≈ 15.0 atol=1.0e-3
+
+    finalize(backend(m)); empty!(m); GC.gc()
+
+    # 3. Minimum turn down is respected, so the CHP over-shaves rather than running below its turn down limit
+    turn_down_input_data = deepcopy(base_input_data)
+    turn_down_input_data["CHP"]["min_turn_down_fraction"] = 0.5
+    turn_down_s = Scenario(turn_down_input_data)
+    turn_down_p = REoptInputs(turn_down_s)
+
+    m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    turn_down_results = run_reopt(m, turn_down_p)
+    @test turn_down_results["status"] == "optimal"
+
+    turn_down_production_kw = turn_down_results["CHP"]["electric_production_series_kw"]
+    turn_down_expected_kw = [v > 1.0e-6 ? max(v, 50.0) : 0.0 for v in expected_kw]
+    @test maximum(abs.(turn_down_production_kw .- turn_down_expected_kw)) <= 1.0e-3
+
+    finalize(backend(m)); empty!(m); GC.gc()
+
+    # 4. Input validation
+    bad_length = deepcopy(base_input_data)
+    bad_length["CHP"]["monthly_peak_shave_fraction"] = [0.05, 0.10]
+    @test_throws ArgumentError Scenario(bad_length)
+
+    bad_value = deepcopy(base_input_data)
+    bad_value["CHP"]["monthly_peak_shave_fraction"] = vcat([1.0], zeros(11))
+    @test_throws ArgumentError Scenario(bad_value)
+
+    conflicting = deepcopy(base_input_data)
+    conflicting["CHP"]["follow_electrical_load"] = true
+    @test_throws ArgumentError Scenario(conflicting)
+end

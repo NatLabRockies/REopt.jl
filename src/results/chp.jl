@@ -30,6 +30,16 @@
 - `thermal_production_series_mmbtu_per_hour`  
 - `initial_capital_costs` Initial capital costs of the CHP system, before incentives [\$]
 
+The following results are only included when `CHP.monthly_peak_shave_fraction` is provided. Each monthly array has 12 
+values ordered January through December.
+- `peak_shave_monthly_original_peak_kw` Peak site electric load in each month, before any technologies serve it [kW]
+- `peak_shave_monthly_threshold_kw` Load level above which the CHP is required to run, `(1 - monthly_peak_shave_fraction) * monthly peak` [kW]
+- `peak_shave_monthly_target_kw` Requested peak reduction, `monthly_peak_shave_fraction * monthly peak` [kW]
+- `peak_shave_monthly_peak_after_chp_kw` Peak site electric load in each month after subtracting this CHP's electricity served to load [kW]
+- `peak_shave_monthly_achieved_kw` Peak reduction achieved by this CHP in each month [kW]
+- `peak_shave_shortfall_time_step_count` Number of time steps in which the CHP could not serve all of the load above the threshold
+- `peak_shave_max_shortfall_kw` Largest amount of load above the threshold that the CHP could not serve [kW]
+
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
@@ -195,7 +205,68 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 	
 	r["initial_capital_costs"] = round(capital_cost, digits=2)
 
+    if !isempty(chp.monthly_peak_shave_fraction)
+        add_chp_peak_shaving_results!(r, p, chp, CHPtoLoad)
+    end
+
     return r
+end
+
+
+"""
+    add_chp_peak_shaving_results!(r::Dict, p::REoptInputs, chp::CHP, chp_to_load_kw::AbstractVector{<:Real})
+
+Add the monthly peak shaving results for a CHP that was dispatched with `CHP.monthly_peak_shave_fraction`, and warn
+if the CHP was unable to serve the full load above the threshold in any time step.
+"""
+function add_chp_peak_shaving_results!(r::Dict, p::REoptInputs, chp::CHP, chp_to_load_kw::AbstractVector{<:Real})
+    monthly_peaks_kw, thresholds_kw, required_kw = chp_peak_shaving_targets(
+        chp.monthly_peak_shave_fraction,
+        p.s.electric_load.loads_kw,
+        p.s.electric_load.year,
+        p.s.settings.time_steps_per_hour
+    )
+    monthly_time_steps = get_monthly_time_steps(p.s.electric_load.year;
+        time_steps_per_hour=p.s.settings.time_steps_per_hour)
+
+    # Site electric load remaining after this CHP serves load, which is what the grid and other techs must meet.
+    net_load_kw = [p.s.electric_load.loads_kw[ts] - chp_to_load_kw[ts] for ts in p.time_steps]
+    peaks_after_chp_kw = zeros(12)
+    for mth in 1:12
+        time_steps = [ts for ts in monthly_time_steps[mth] if ts <= length(net_load_kw)]
+        peaks_after_chp_kw[mth] = isempty(time_steps) ? 0.0 : maximum(net_load_kw[ts] for ts in time_steps)
+    end
+
+    r["peak_shave_monthly_original_peak_kw"] = round.(monthly_peaks_kw, digits=3)
+    r["peak_shave_monthly_threshold_kw"] = round.(thresholds_kw, digits=3)
+    r["peak_shave_monthly_target_kw"] = round.(monthly_peaks_kw .- thresholds_kw, digits=3)
+    r["peak_shave_monthly_peak_after_chp_kw"] = round.(peaks_after_chp_kw, digits=3)
+    r["peak_shave_monthly_achieved_kw"] = round.(monthly_peaks_kw .- peaks_after_chp_kw, digits=3)
+
+    # A shortfall occurs when the CHP could not serve all of the load above the threshold, e.g. because the system
+    # is too small or is unavailable. Only grid-connected time steps are checked because the peak shaving
+    # constraints do not apply during modeled outages.
+    shortfall_kw = zeros(length(p.time_steps))
+    for ts in p.time_steps_with_grid
+        shortfall_kw[ts] = max(0.0, required_kw[ts] - chp_to_load_kw[ts])
+    end
+    shortfall_time_steps = findall(shortfall_kw .> 1.0e-3)
+    r["peak_shave_shortfall_time_step_count"] = length(shortfall_time_steps)
+    r["peak_shave_max_shortfall_kw"] = isempty(shortfall_time_steps) ? 0.0 :
+        round(maximum(shortfall_kw[shortfall_time_steps]), digits=3)
+
+    if !isempty(shortfall_time_steps)
+        month_by_time_step = zeros(Int, length(p.time_steps))
+        for mth in 1:12, ts in monthly_time_steps[mth]
+            ts <= length(month_by_time_step) && (month_by_time_step[ts] = mth)
+        end
+        months_short = sort(unique(month_by_time_step[shortfall_time_steps]))
+        @warn "$(chp.name) could not serve the full electric load above the monthly peak shaving threshold in " *
+            "$(length(shortfall_time_steps)) of $(length(p.time_steps)) time steps (months $months_short), with a " *
+            "maximum shortfall of $(r["peak_shave_max_shortfall_kw"]) kW. The CHP ran at its available capacity in " *
+            "those time steps; increase the CHP size to fully shave the requested peak."
+    end
+    nothing
 end
 
 
