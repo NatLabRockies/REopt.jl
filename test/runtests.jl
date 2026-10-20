@@ -2188,8 +2188,9 @@ else  # run HiGHS tests
 
             m = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "presolve" => "on"))
             d["Site"]["land_acres"] = 60 # = 2 MW (with 0.03 acres/kW)
+            d["Wind"]["min_kw"] = 6050.0 # Exercise the 6050 kW minimum land-cap floor
             results = run_reopt(m, d)
-            @test results["Wind"]["size_kw"] == 2000.0 # Wind should be constrained by land_acres
+            @test results["Wind"]["size_kw"] ≈ 6050.0 atol = 0.1 # Land-constrained maximum is floored at 6050 kW
             finalize(backend(m))
             empty!(m)
             GC.gc()

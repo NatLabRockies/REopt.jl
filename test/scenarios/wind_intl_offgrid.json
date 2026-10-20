@@ -22,6 +22,8 @@
         "federal_itc_fraction": 0,
         "macrs_option_years": 0,
         "size_class": "Vestas V-47",
+        "use_turbine_model_names": true,
+        "can_curtail": true,
         "operating_reserve_required_fraction": 0.05
     },
     "Generator": {
