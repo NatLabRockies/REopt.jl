@@ -66,17 +66,17 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         r["cooling_thermal_load_reduction_with_ghp_ton"] = round.(value.(CoolingThermalReductionWithGHP) ./ KWH_THERMAL_PER_TONHOUR, digits=3)
         r["ghx_residual_value_present_value"] = value(m[:ResidualGHXCapCost])
         r["avoided_capex_by_ghp_present_value"] = value(m[:AvoidedCapexByGHP])
-        r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.(value.(HeatingThermalLoadServedWithGHP) ./ KWH_PER_MMBTU, digits=3)
+        r["thermal_to_load_series_mmbtu_per_hour"] = round.(value.(HeatingThermalLoadServedWithGHP) ./ KWH_PER_MMBTU, digits=3)
         r["thermal_to_load_series_ton"] = round.(value.(CoolingThermalLoadServedWithGHP) ./ KWH_THERMAL_PER_TONHOUR, digits=3)
-        r["annual_thermal_production_mmbtu"] = sum(r["thermal_to_space_heating_load_series_mmbtu_per_hour"])
+        r["annual_thermal_production_mmbtu"] = sum(p.hours_per_time_step * r["thermal_to_load_series_mmbtu_per_hour"])
         r["annual_thermal_production_tonhour"] = sum(r["thermal_to_load_series_ton"])
         if p.s.ghp_option_list[ghp_option_chosen].can_serve_dhw
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = d["HeatingLoad"]["dhw_thermal_load_series_mmbtu_per_hour"]
-            r["annual_thermal_production_mmbtu"] = r["annual_thermal_production_mmbtu"] + sum(r["thermal_to_dhw_load_series_mmbtu_per_hour"])
+            r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = d["HeatingLoad"]["space_heating_thermal_load_series_mmbtu_per_hour"]
         else
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
+            r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = r["thermal_to_load_series_mmbtu_per_hour"]
         end
-        r["thermal_to_load_series_mmbtu_per_hour"] = r["thermal_to_space_heating_load_series_mmbtu_per_hour"] + r["thermal_to_dhw_load_series_mmbtu_per_hour"]
     else
         r["ghpghx_chosen_outputs"] = Dict()
         r["space_heating_thermal_load_reduction_with_ghp_mmbtu_per_hour"] = zeros(length(p.time_steps))
