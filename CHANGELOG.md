@@ -5,10 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Guidelines
-- When working in feature branch, start a new double-hash header with the name of the branch and record changes under that
-- When merging `develop` into a feature branch, keep the feature branch section and the "Develop" section separate to simplify merge conflicts
-- When making a Pull Request into `develop`, merge the feature branch section into the "Develop" section (if it exists), else rename the feature branch header to "Develop"
-- When making a Pull Request into `master` change "Develop" to the next version number
+- When working in a feature branch, start a new double-hash header with the name of the branch and record changes under that section.
+- When merging `master` into the feature branch (to keep up-to-date), keep the feature branch section separate from any other branch sections that are already in `master` to avoid merge conflicts.
+- When making a Pull Request for merging into `master`, note that we will merge new changelog items into a new version heading later (after merging) when we want to release a new registered version.
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
@@ -33,6 +32,21 @@ Classify the change according to the following categories:
 - `src/results/chp.jl`: new **annual_fuel2_consumption_mmbtu**, **year_one_fuel2_cost_before_tax** (and `_after_tax`), **lifecycle_fuel2_cost_after_tax** result fields for dual-fuel CHPs. The existing combined **annual_fuel_consumption_mmbtu**/**year_one_fuel_cost_before_tax**/**lifecycle_fuel_cost_after_tax** fields are unchanged (fuel 1 + fuel 2 total, same as they already are for a single-fuel CHP) — fuel 1's own share is that total minus the new fuel 2 field, so no separate "fuel 1" field is added. Input parameters like **fuel2_type** and **fuel2_switch_start_year** aren't echoed into results, consistent with how `fuel_type`/`prime_mover`/etc. aren't for a single-fuel CHP.
 - `src/core/utils.jl`: `get_time_steps_by_period` (groups a year's time steps by `"hour"`/`"day"`/`"week"`/`"month"`, deferring to the existing `get_monthly_time_steps` for `"month"`) and `annuity_split_periods` (present worth factors for two consecutive escalating periods of an annuity), used by the dual-fuel CHP capacity-limit and fuel-switch calculations respectively.
 - `test/scenarios/chp_dual_fuel_capacity_limited.json` (shared by the rate- and volume-limited tests, which override `fuel_max_period`/`fuel_max_mmbtu_per_period` in code), `chp_dual_fuel_switch.json`, and a new `"Dual Fuel CHP"` testset in `test/test_chp.jl`.
+
+## v1.0.0
+### Added
+- Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
+- Size classes for `ElectricStorage` based on 2025 ATB.
+- `src/results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
+- `src/results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
+### Changed
+- Updated default values for `ElectricStorage` (`src\data\energy_storage\electric_storage\electric_storage_defaults.json`), `PV` (`src\data\pv\pv_defaults.json`) and `Wind` (`src\core\wind.jl`) cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
+- Changed **ElectricStorage.max_kw** to default to 1.0e5 instead of previous default of 1.0e4.
+- `src/core/chp.jl`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
+- `src/core/urdb.jl` now reads the URDB API key from the **URDB_API_KEY** environment variable only, and throws a descriptive error if it is not set (the hardcoded fallback key was removed)
+- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
+### Removed
+- Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
 
 ## v0.61.1
 ### Fixed

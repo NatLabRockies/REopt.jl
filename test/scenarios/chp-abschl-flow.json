@@ -12,7 +12,8 @@
         "doe_reference_name":"LargeHotel"
     },
     "ElectricTariff":{
-        "urdb_label":"67a250cb809958d49f095b5c"
+        "blended_annual_energy_rate":0.1,
+        "blended_annual_demand_rate":10.0
     },
     "ElectricUtility":{
         "cambium_location_type":"GEA Regions 2023",

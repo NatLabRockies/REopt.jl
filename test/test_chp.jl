@@ -94,14 +94,14 @@ end
 
     new_purchase = r_existing["CHP"]["size_kw"] - 100.0
     expected_capex = REopt.get_tech_initial_capex(s_existing.chps[1], new_purchase) +
-        s_existing.chps[1].supplementary_firing_capital_cost_per_kw * r_existing["CHP"]["size_supplemental_firing_kw"]
+        s_existing.chps[1].supplementary_firing_installed_cost_per_mmbtu_per_hour * r_existing["CHP"]["size_supplemental_firing_mmbtu_per_hour"]
 
     @test r_existing["CHP"]["initial_capital_costs"] ≈ expected_capex atol=1e-2
 
     bau_s = REopt.BAUScenario(s_existing)
     @test length(bau_s.chps) == 1
     @test bau_s.chps[1].existing_kw == 100.0
-    @test bau_s.chps[1].supplementary_firing_capital_cost_per_kw == 0.0
+    @test bau_s.chps[1].supplementary_firing_installed_cost_per_mmbtu_per_hour == 0.0
 
     bau_inputs = REopt.BAUInputs(p_existing)
     @test bau_inputs.max_sizes[chp_name] == 100.0
@@ -270,13 +270,13 @@ end
 
     @testset "CHP with supplementary firing (binary SHOULD be created)" begin
         data = chp_binary_test_data()
-        data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["min_turn_down_fraction"] = 0.3
         data["CHP"]["electric_efficiency_full_load"] = 0.35
         data["CHP"]["electric_efficiency_half_load"] = 0.35
         data["CHP"]["thermal_efficiency_full_load"] = 0.45
         data["CHP"]["thermal_efficiency_half_load"] = 0.45
         data["CHP"]["om_cost_per_hr_per_kw_rated"] = 0.0
-        data["CHP"]["supplementary_firing_max_steam_ratio"] = 1.2
+        data["CHP"]["supplementary_firing_max_ratio"] = 1.2
         delete!(data, "ElectricUtility")
         data["ElectricUtility"] = Dict("net_metering_limit_kw" => 0.0, "co2_from_avert" => true)
 
@@ -288,6 +288,16 @@ end
         @test haskey(m.obj_dict, :binCHPIsOnInTS)
 
         finalize(backend(m)); empty!(m); GC.gc()
+    end
+
+    @testset "CHP supplementary firing requires a positive min_turn_down_fraction" begin
+        # Supplementary firing is only allowed while the prime mover is running, which is enforced
+        # through binCHPIsOnInTS and min_turn_down_fraction. A min_turn_down_fraction of zero would
+        # let the CHP be "on" while producing nothing, so it is rejected up front.
+        data = chp_binary_test_data()
+        data["CHP"]["min_turn_down_fraction"] = 0.0
+        data["CHP"]["supplementary_firing_max_ratio"] = 1.2
+        @test_throws ArgumentError Scenario(data)
     end
 end
 
@@ -514,6 +524,100 @@ end
     @test prod_factor[122] ≈ 0.9 atol=0.001
     @test prod_factor[123] ≈ 0.0 atol=0.001
     @test prod_factor[124] ≈ 1.0 atol=0.001
+end
+
+@testset "CHP Supplementary firing framework" begin
+    function run_supplementary_following_case(label; supplementary_efficiency, follow_heating_load, supplementary_ratio=1 + 2.66,
+            supplementary_installed_cost_per_mmbtu_per_hour=10 * REopt.KWH_PER_MMBTU, min_turn_down_fraction=0.25)
+        data = JSON.parsefile("./scenarios/supplementary_following.json")
+        data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = supplementary_installed_cost_per_mmbtu_per_hour
+        data["CHP"]["supplementary_firing_max_ratio"] = supplementary_ratio
+        data["CHP"]["supplementary_firing_efficiency"] = supplementary_efficiency
+        data["CHP"]["follow_heating_load"] = follow_heating_load
+        # Supplementary firing requires a positive min_turn_down_fraction so that binCHPIsOnInTS
+        # cannot be 1 while the prime mover produces nothing.
+        data["CHP"]["min_turn_down_fraction"] = min_turn_down_fraction
+
+        m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+        m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+        s = Scenario(data)
+        inputs = REoptInputs(s)
+        chp_name = s.chps[1].name
+        results = run_reopt([m1, m2], inputs)
+        # m2 holds the optimal (non-BAU) model; BAU has no CHP decision variables
+        supplementary_thermal_series_mmbtu_per_hour = [
+            value(m2[:dvSupplementaryThermalProduction][chp_name, ts]) / REopt.KWH_PER_MMBTU
+            for ts in inputs.time_steps
+        ]
+
+        finalize(backend(m1))
+        empty!(m1)
+        finalize(backend(m2))
+        empty!(m2)
+        GC.gc()
+
+        return (; results, supplementary_ratio, supplementary_thermal_series_mmbtu_per_hour)
+    end
+
+    economic_below = run_supplementary_following_case(
+        "Economic supplementary sizing below boiler efficiency";
+        supplementary_efficiency=0.88,
+        follow_heating_load=false
+    )
+
+    economic_above = run_supplementary_following_case(
+        "Economic supplementary sizing above boiler efficiency";
+        supplementary_efficiency=0.95,
+        follow_heating_load=false
+    )
+
+    follow_heating = run_supplementary_following_case(
+        "Heating load following with supplementary sizing within max ratio";
+        supplementary_efficiency=0.88,
+        follow_heating_load=true
+    )
+
+    @test economic_above.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] > 0.0
+    @test economic_below.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] <= economic_above.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] + 1.0e-6
+    @test follow_heating.results["CHP"]["size_supplemental_firing_mmbtu_per_hour"] > 0.0
+    @test sum(follow_heating.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"]) <
+          sum(economic_below.results["ExistingBoiler"]["thermal_to_load_series_mmbtu_per_hour"])
+    max_total_to_unfired_ratio = follow_heating.supplementary_ratio
+    actual_total_to_unfired_ratio = follow_heating.results["CHP"]["size_supplementary_firing_ratio"]
+    @test actual_total_to_unfired_ratio <= max_total_to_unfired_ratio + 1.0e-6
+    @test actual_total_to_unfired_ratio >= 1.0 - 1.0e-6
+    @test all(
+        supp <= 1.0e-6 || elec > 1.0e-6 for
+        (elec, supp) in zip(
+            follow_heating.results["CHP"]["electric_production_series_kw"],
+            follow_heating.supplementary_thermal_series_mmbtu_per_hour
+        )
+    )
+
+    # Supplementary firing must be zero whenever the prime mover is not producing. The min turndown
+    # constraint forces binCHPIsOnInTS to 0 when rated production is 0, which in turn zeroes out
+    # supplementary firing.
+    off_state_data = JSON.parsefile("./scenarios/supplementary_following.json")
+    off_state_data["CHP"]["supplementary_firing_installed_cost_per_mmbtu_per_hour"] = 10 * REopt.KWH_PER_MMBTU
+    off_state_data["CHP"]["supplementary_firing_max_ratio"] = 1 + 2.66
+    off_state_data["CHP"]["supplementary_firing_efficiency"] = 0.88
+    off_state_data["CHP"]["min_turn_down_fraction"] = 0.25
+    m_off = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+    s_off = Scenario(off_state_data)
+    inputs_off = REoptInputs(s_off)
+    build_reopt!(m_off, inputs_off)
+    chp_name_off = s_off.chps[1].name
+    for ts in inputs_off.time_steps
+        fix(m_off[:dvRatedProduction][chp_name_off, ts], 0.0, force=true)
+    end
+    @objective(m_off, Max, sum(m_off[:dvSupplementaryThermalProduction][chp_name_off, ts] for ts in inputs_off.time_steps))
+    optimize!(m_off)
+    @test termination_status(m_off) == JuMP.MOI.OPTIMAL
+    @test objective_value(m_off) ≈ 0.0 atol = 1.0e-6
+
+    finalize(backend(m_off))
+    empty!(m_off)
+    GC.gc()
 end
 
 @testset "Numeric boolean inputs" begin
