@@ -716,6 +716,18 @@ end
         actual_lifecycle_before_tax = r["lifecycle_fuel_cost_after_tax"] / (1 - s.financial.offtaker_tax_rate_fraction)
         @test all_fuel1_lifecycle < actual_lifecycle_before_tax < all_fuel2_lifecycle
 
+        # Exact lifecycle cost, built year by year: both prices are today's-dollars inputs that escalate
+        # from year 1, fuel 1 is used in years 1..(switch year - 1), fuel 2 from the switch year on, and
+        # every year is discounted from year 1.
+        switch_year = s.chps[1].fuel2_switch_start_year
+        price1 = s.chps[1].fuel_cost_per_mmbtu / REopt.KWH_PER_MMBTU
+        price2 = s.chps[1].fuel2_cost_per_mmbtu / REopt.KWH_PER_MMBTU
+        expected_lifecycle_before_tax = sum(
+            yr1_fuel_kwh * (yr < switch_year ? price1 : price2) * (1 + esc)^yr / (1 + discount_rate)^yr
+            for yr in 1:analysis_years
+        )
+        @test isapprox(actual_lifecycle_before_tax, expected_lifecycle_before_tax, rtol=1e-5)
+
         optimal_lcc = results["Financial"]["lcc"]
         optimal_cashflow_sum = -1*sum(results["Financial"]["offtaker_discounted_annual_free_cashflows"])
         @test isapprox(optimal_lcc, optimal_cashflow_sum, rtol=0.001)
@@ -723,6 +735,24 @@ end
         finalize(backend(m1)); empty!(m1)
         finalize(backend(m2)); empty!(m2)
         GC.gc()
+    end
+
+    @testset "Fuel switch present worth factors" begin
+        n1, n2, d = 5, 7, 0.083
+        esc1, esc2 = 0.034, 0.02
+        pwf1, pwf2 = REopt.annuity_split_periods(n1, n2, esc1, esc2, d)
+
+        # Each price escalates from year 1 and is discounted from year 1, whichever period it falls in
+        @test isapprox(pwf1, sum(((1 + esc1) / (1 + d))^n for n in 1:n1), atol=1e-4)
+        @test isapprox(pwf2, sum(((1 + esc2) / (1 + d))^n for n in (n1 + 1):(n1 + n2)), atol=1e-4)
+
+        # With a single escalation rate (e.g. the emissions $/tonne escalation), the two periods must add up to
+        # the unsplit annuity, so a switch can't change the cost of anything that doesn't depend on the fuel
+        pwf1_equal, pwf2_equal = REopt.annuity_split_periods(n1, n2, 0.042, 0.042, d)
+        @test isapprox(pwf1_equal + pwf2_equal, REopt.annuity(n1 + n2, 0.042, d), rtol=1e-12)
+
+        # Fuel 2 never reached within the analysis period
+        @test REopt.annuity_split_periods(n1, 0, esc1, esc2, d)[2] == 0.0
     end
 
     @testset "Input validation" begin

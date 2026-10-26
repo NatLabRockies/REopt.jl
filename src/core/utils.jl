@@ -37,16 +37,18 @@ end
 
 function annuity_split_periods(n1::Int, n2::Int, rate_escalation1::Real, rate_escalation2::Real, rate_discount::Real)
     """
-        present worth factors for two consecutive periods of a nominal-year-1-value annuity:
-        years 1..n1 escalating at rate_escalation1, then years n1+1..n1+n2 escalating at
-        rate_escalation2 (both relative to the same year-1 nominal value), all discounted at
-        rate_discount. Returns (pwf1, pwf2); pwf1 = annuity(n1, rate_escalation1, rate_discount)
-        and pwf2 = annuity(n2, rate_escalation2, rate_discount) discounted back n1 years.
+        present worth factors for a cost stream that switches from one price to another after n1 years:
+        years 1..n1 use the first price (escalating at rate_escalation1) and years n1+1..n1+n2 use the
+        second (escalating at rate_escalation2). Each price is a today's-dollars (year 0) value that
+        escalates from year 1, consistent with `annuity`, and everything is discounted from year 1 at
+        rate_discount. Returns (pwf1, pwf2), where pwf1 = annuity(n1, rate_escalation1, rate_discount)
+        and pwf2 is the share of annuity(n1+n2, rate_escalation2, rate_discount) falling in years
+        n1+1..n1+n2. With equal escalation rates, pwf1 + pwf2 == annuity(n1+n2, rate_escalation, rate_discount).
         Used for e.g. CHP dual-fuel long-term fuel switching, where the CHP's fuel (and thus its
         cost/emissions) changes partway through the analysis period.
     """
     pwf1 = annuity(n1, rate_escalation1, rate_discount)
-    pwf2 = n2 <= 0 ? 0.0 : annuity(n2, rate_escalation2, rate_discount) / (1 + rate_discount)^n1
+    pwf2 = n2 <= 0 ? 0.0 : annuity(n1 + n2, rate_escalation2, rate_discount) - annuity(n1, rate_escalation2, rate_discount)
     return pwf1, pwf2
 end
 

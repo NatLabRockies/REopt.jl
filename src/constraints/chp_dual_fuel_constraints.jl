@@ -136,7 +136,10 @@ end
 
 For each CHP with `fuel2_switch_start_year` set, add its lifecycle fuel cost to `TotalCHPFuelCosts` using
 fuel 1's price/escalation for years 1..(fuel2_switch_start_year - 1) and fuel 2's price/escalation for years
-fuel2_switch_start_year..analysis_years, applied to the (year-1-repeating) `dvFuelUsage` dispatch.
+fuel2_switch_start_year..analysis_years, applied to the (year-1-repeating) `dvFuelUsage` dispatch. Both
+`fuel_cost_per_mmbtu` and `fuel2_cost_per_mmbtu` are treated as today's (year 0) prices that escalate
+from year 1 at their own escalation rates, so fuel 2's price in its first year of use is
+`fuel2_cost_per_mmbtu * (1 + esc2)^fuel2_switch_start_year`. Costs are discounted from year 1 as usual.
 """
 function add_chp_fuel_switch_costs(m, p, switch_chp_names; _n="")
     isempty(switch_chp_names) && return nothing
@@ -225,7 +228,7 @@ of \$ fuel costs for the (solved) CHP `chp_name`, correctly split across fuel 1 
 dual-fuel modes. `yr1_*` are the actual year-1 dollar costs (for the long-term fuel-switch mode,
 `yr1_fuel2` is always `0.0` since fuel 2 is never used in year 1). `yr1_equivalent_fuel2` is the basis
 used to escalate fuel 2's cost in `chp_annual_fuel_cost_nominal_series` (for the fuel-switch mode this
-is fuel 2's year-1-equivalent price applied to the year-1-repeating dispatch — not a real year-1 cost,
+is fuel 2's today's-dollars price applied to the year-1-repeating dispatch — not a real year-1 cost,
 purely the present-worth-factor/escalation multiplicand from `add_chp_fuel_switch_costs`; for the
 capacity-limited dual-fuel mode it equals `yr1_fuel2`, a real year-1 cost). For a CHP with no dual-fuel
 input set, all `*_fuel2` terms are `0.0` and `*_fuel1` equal the combined (single-fuel) fuel cost. Used
@@ -279,10 +282,11 @@ end
     chp_annual_fuel_cost_nominal_series(p, chp::CHP, yr1_fuel1::Real, yr1_equivalent_fuel2::Real)
 
 Nominal (undiscounted) annual CHP fuel cost for each year 1..`Financial.analysis_years`, escalating
-fuel 1 and fuel 2 at their own escalation rates. For the long-term fuel-switch mode, only fuel 1's term
-applies for years 1..(fuel2_switch_start_year-1) and only fuel 2's term applies from fuel2_switch_start_year on (fuel
-2 escalates from its own start year, per `add_chp_fuel_switch_costs`); otherwise (capacity-limited dual
-fuel, or no dual-fuel input) both terms apply every year. Used to build the pro forma cash flow series
+fuel 1 and fuel 2 at their own escalation rates, each starting from year 1 (both prices are
+today's-dollars inputs, per `add_chp_fuel_switch_costs`). For the long-term fuel-switch mode, only fuel 1's
+term applies for years 1..(fuel2_switch_start_year-1) and only fuel 2's term applies from
+fuel2_switch_start_year on; otherwise (capacity-limited dual fuel, or no dual-fuel input) both terms apply
+every year. Used to build the pro forma cash flow series
 in `src/results/proforma.jl`, consistent with the lifecycle cost calculated in
 `add_chp_fuel_switch_costs`/`add_chp_capacity_limited_dual_fuel_constraints`/`chp_fuel_cost_breakdown`.
 """
@@ -298,7 +302,7 @@ function chp_annual_fuel_cost_nominal_series(p, chp::CHP, yr1_fuel1::Real, yr1_e
         return [
             yr <= n_fuel1_years ?
                 yr1_fuel1 * (1 + esc1)^yr :
-                yr1_equivalent_fuel2 * (1 + esc2)^(yr - n_fuel1_years)
+                yr1_equivalent_fuel2 * (1 + esc2)^yr
             for yr in 1:years
         ]
     else

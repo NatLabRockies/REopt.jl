@@ -79,8 +79,8 @@ const CHP_FUEL_MAX_PERIODS = ["hour", "day", "week", "month"]
 
     # Dual-fuel CHP (optional): model a second fuel alongside fuel_type/fuel_cost_per_mmbtu ("fuel 1") using one of three mutually-exclusive modes
     fuel2_type::Union{Nothing, String} = nothing # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]. Second fuel type; required if fuel2_switch_start_year is set, optional otherwise
-    fuel2_cost_per_mmbtu::Union{Nothing, <:Real, AbstractVector{<:Real}} = nothing # Cost of fuel2_type; same format options as fuel_cost_per_mmbtu. Required if fuel2_type is provided
-    fuel2_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing # Escalation rate for fuel2_cost_per_mmbtu; defaults to Financial.chp_fuel_cost_escalation_rate_fraction if not provided
+    fuel2_cost_per_mmbtu::Union{Nothing, <:Real, AbstractVector{<:Real}} = nothing # Cost of fuel2_type in today's dollars (like fuel_cost_per_mmbtu, it escalates from year 1 at fuel2_cost_escalation_rate_fraction, including before any fuel2_switch_start_year); same format options as fuel_cost_per_mmbtu. Required if fuel2_type is provided
+    fuel2_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing # Escalation rate for fuel2_cost_per_mmbtu, applied from year 1 (use a low or negative value to represent an expected price decline); defaults to Financial.chp_fuel_cost_escalation_rate_fraction if not provided
     fuel2_renewable_energy_fraction::Union{Nothing, Real} = nothing # defaults based on fuel2_type
     fuel2_emissions_factor_lb_CO2_per_mmbtu::Union{Nothing, Real} = nothing # defaults based on fuel2_type
     fuel2_emissions_factor_lb_NOx_per_mmbtu::Union{Nothing, Real} = nothing # defaults based on fuel2_type
