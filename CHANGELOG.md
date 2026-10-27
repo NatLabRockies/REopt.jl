@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fix-ghp-heat-result
+### Fixed
+- `src/results`: Corrected **GHP** thermal production results when serving DHW so total annual thermal production includes space heating and DHW and accounts for hours per time step.
+
 ## v1.0.0
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
