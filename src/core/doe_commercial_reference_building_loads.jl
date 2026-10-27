@@ -231,7 +231,8 @@ function blend_and_scale_doe_profiles(
     monthly_energies::Array{<:Real,1} = Real[],
     addressable_load_fraction::Union{<:Real, AbstractVector{<:Real}} = 1.0,
     boiler_efficiency_input::Union{Real,Nothing}=nothing,
-    heating_load_type::String=""
+    heating_load_type::String="";
+    existing_chiller_cop::Union{Real, Nothing}=nothing
     )
 
     @assert sum(blended_doe_reference_percents) ≈ 1 "The sum of the blended_doe_reference_percents must equal 1"
@@ -248,6 +249,10 @@ function blend_and_scale_doe_profiles(
     if constructor == BuiltInHeatingLoad
         for name in blended_doe_reference_names
             push!(profiles, constructor(heating_load_type, city, name, latitude, longitude, year, addressable_load_fraction, annual_energy, monthly_energies, boiler_efficiency_input))
+        end
+    elseif constructor == BuiltInCoolingLoad
+        for name in blended_doe_reference_names
+            push!(profiles, constructor(city, name, latitude, longitude, year, annual_energy, monthly_energies, existing_chiller_cop))
         end
     else
         for name in blended_doe_reference_names
