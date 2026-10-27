@@ -2543,6 +2543,19 @@ else  # run HiGHS tests
                     @test load.existing_chiller_cop == cop
                 end
             end
+            for blended in (false, true)
+                profile = blended ? (; blended_doe_reference_names=["Warehouse", "FlatLoad"],
+                    blended_doe_reference_percents=[0.5, 0.5]) : (; doe_reference_name="Hospital")
+                options = (; profile..., city="SanFrancisco", year=2017,
+                    site_electric_load_profile=fill(100.0, 8760),
+                    existing_chiller_max_thermal_factor_on_peak_load=1.25)
+                baseline = REopt.CoolingLoad(; options...)
+                for cop in (2.0, 4.55, 6.0)
+                    load = REopt.CoolingLoad(; options..., existing_chiller_cop=cop)
+                    @test load.loads_kw_thermal ≈ baseline.loads_kw_thermal
+                    @test load.existing_chiller_cop == cop
+                end
+            end
             load = REopt.CoolingLoad(; year=2017, annual_fraction_of_electric_load=0.1,
                 site_electric_load_profile=fill(100.0, 8760),
                 existing_chiller_max_thermal_factor_on_peak_load=1.25)
