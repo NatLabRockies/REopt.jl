@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## compat-updates-combined
+### Changed
+- Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.
+
 ## preserve-cooling
 ### Fixed
 - `src/core`: Preserve **CoolingLoad.annual_tonhour** and **CoolingLoad.monthly_tonhour** when a user supplies **ExistingChiller.cop**, including for blended DOE reference profiles, by using the same COP for thermal-to-electric and electric-to-thermal load conversions.
