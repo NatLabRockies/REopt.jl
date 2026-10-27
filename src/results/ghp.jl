@@ -72,7 +72,7 @@ function add_ghp_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
         r["annual_thermal_production_tonhour"] = sum(r["thermal_to_load_series_ton"])
         if p.s.ghp_option_list[ghp_option_chosen].can_serve_dhw
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = d["HeatingLoad"]["dhw_thermal_load_series_mmbtu_per_hour"]
-            r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = d["HeatingLoad"]["space_heating_thermal_load_series_mmbtu_per_hour"]
+            r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = round.([value(m[Symbol("dvHeatingProduction"*_n)]["GHP", "SpaceHeating", ts] - HeatingThermalReductionWithGHP[ts]) / KWH_PER_MMBTU for ts in p.time_steps], digits=3)
         else
             r["thermal_to_dhw_load_series_mmbtu_per_hour"] = zeros(length(p.time_steps))
             r["thermal_to_space_heating_load_series_mmbtu_per_hour"] = r["thermal_to_load_series_mmbtu_per_hour"]
