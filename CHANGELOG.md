@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## preserve-cooling
+### Fixed
+- `src/core`: Preserve **CoolingLoad.annual_tonhour** and **CoolingLoad.monthly_tonhour** when a user supplies **ExistingChiller.cop**, including for blended DOE reference profiles, by using the same COP for thermal-to-electric and electric-to-thermal load conversions.
+
 ## v1.0.0
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
