@@ -149,18 +149,21 @@ function add_chp_supplementary_firing_constraints(m, p; _n="")
                     )
 
         if solver_is_compatible_with_indicator_constraints(p.s.settings.solver_name)
-            # Constrain lower limit of 0 if CHP tech is off
+            # Constrain lower limit of 0 if CHP tech is off. CHP.min_turn_down_fraction is required to
+            # be greater than zero when supplementary firing is enabled (see the CHP constructor), so
+            # binCHPIsOnInTS can only be 1 when the prime mover is producing at least its minimum
+            # turndown output, and supplementary firing cannot run without the prime mover.
             @constraint(m, [ts in p.time_steps],
                     !m[Symbol("binCHPIsOnInTS"*_n)][t,ts] => {m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= 0.0}
                     )
         else
-            # Indicator constraints are unavailable with this solver, so the "off" state cannot be enforced
-            # directly. Apply an additional conservative big-M style bound on supplementary thermal production
-            # using the peak of the heating loads which this CHP can serve, which supplementary firing would
-            # never need to exceed.
+            # Indicator constraints are unavailable with this solver, so use an equivalent big-M
+            # bound (multiplied by binCHPIsOnInTS, which always exists when supplementary firing is
+            # enabled) to force supplementary firing to 0 whenever CHP is off in a given timestep.
             max_supplementary_firing_size = maximum(chp_eligible_heating_load(p, t)[2])
             @constraint(m, [ts in p.time_steps],
-                    m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <= p.production_factor[t,ts] * max_supplementary_firing_size
+                    m[Symbol("dvSupplementaryThermalProduction"*_n)][t,ts] <=
+                        p.production_factor[t,ts] * max_supplementary_firing_size * m[Symbol("binCHPIsOnInTS"*_n)][t,ts]
                     )
         end
     end
@@ -172,7 +175,9 @@ function add_binCHPIsOnInTS_constraints(m, p; _n="")
         m[Symbol("dvRatedProduction"*_n)][t, ts] <= p.max_sizes[t] * m[Symbol("binCHPIsOnInTS"*_n)][t, ts]
     )
 
-    # Enforce minimum turndown during grid availability, or across all off-grid timesteps.
+    # Force binCHPIsOnInTS to zero unless the CHP is actually producing, because the "on" state
+    # drives hourly O&M, fuel/thermal y-intercepts, operating reserve eligibility, and supplementary
+    # firing. This is enforced during grid availability, or across all off-grid timesteps.
     min_turn_down_time_steps = p.s.settings.off_grid_flag ? p.time_steps_without_grid : p.time_steps_with_grid
     @constraint(m, [t in p.techs.chp, ts in min_turn_down_time_steps],
         p.chp_params[t][:min_turn_down_fraction] * m[Symbol("dvSize"*_n)][t] - m[Symbol("dvRatedProduction"*_n)][t, ts] <=
