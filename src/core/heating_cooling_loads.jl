@@ -390,7 +390,8 @@ struct CoolingLoad
                 loads_kw = blend_and_scale_doe_profiles(BuiltInCoolingLoad, latitude, longitude, year, 
                                                         blended_doe_reference_names, 
                                                         blended_doe_reference_percents, city, 
-                                                        annual_tonhour, monthly_tonhour)
+                                                        annual_tonhour, monthly_tonhour;
+                                                        existing_chiller_cop=existing_chiller_cop)
             end
         
         else
@@ -404,7 +405,7 @@ struct CoolingLoad
                 # cop_unknown_thermal (4.55) was used to convert thermal to electric in BuiltInCoolingLoad, so need to use the same here to convert back
                 #  in order to preserve the input tonhour amounts - however, the updated/actual existing_chiller_cop is still assigned based on user input or actual max ton load conditional defaults
                 chiller_cop = get_existing_chiller_default_cop()
-            elseif (!isempty(doe_reference_name) || !isempty(blended_doe_reference_names)) || isnothing(existing_chiller_cop)
+            elseif isnothing(existing_chiller_cop)
                 # Generated loads_kw (electric) above based on the building's default fraction of electric profile
                 chiller_cop = get_existing_chiller_default_cop(;existing_chiller_max_thermal_factor_on_peak_load=existing_chiller_max_thermal_factor_on_peak_load, 
                                         max_load_kw=maximum(loads_kw))

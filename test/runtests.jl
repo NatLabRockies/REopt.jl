@@ -2525,6 +2525,31 @@ else  # run HiGHS tests
             @test inputs.s.chps[1].max_kw ≈ maximum(inputs.s.electric_load.loads_kw) atol=0.001    
         end
 
+        @testset "Cooling tonhour conservation with supplied and default COPs" begin
+            for blended in (false, true), cop in (nothing, 2.0, 6.0), monthly in (false, true)
+                profile = blended ? (; blended_doe_reference_names=["Hospital", "LargeOffice"],
+                    blended_doe_reference_percents=[0.3, 0.7]) : (; doe_reference_name="Hospital")
+                energy = monthly ? (; monthly_tonhour=collect(1000.0:1000.0:12000.0)) :
+                    (; annual_tonhour=100000.0)
+                load = REopt.CoolingLoad(; profile..., energy..., city="Miami", year=2017,
+                    existing_chiller_cop=cop, existing_chiller_max_thermal_factor_on_peak_load=1.25)
+                tons = load.loads_kw_thermal ./ REopt.KWH_THERMAL_PER_TONHOUR
+                if monthly
+                    @test all(isapprox.(REopt.get_monthly_energy(tons), energy.monthly_tonhour))
+                else
+                    @test sum(tons) ≈ energy.annual_tonhour
+                end
+                if !isnothing(cop)
+                    @test load.existing_chiller_cop == cop
+                end
+            end
+            load = REopt.CoolingLoad(; year=2017, annual_fraction_of_electric_load=0.1,
+                site_electric_load_profile=fill(100.0, 8760),
+                existing_chiller_max_thermal_factor_on_peak_load=1.25)
+            @test all(isfinite, load.loads_kw_thermal)
+            @test load.existing_chiller_cop > 0
+        end
+
         @testset "Hybrid/blended heating and cooling loads" begin
             """
 
