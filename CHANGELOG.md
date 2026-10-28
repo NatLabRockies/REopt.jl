@@ -28,6 +28,15 @@ Classify the change according to the following categories:
 ### Fixed
 - `src/results`: Corrected **GHP** thermal production results when serving DHW so total annual thermal production includes space heating and DHW and accounts for hours per time step.
 
+## compat-updates-combined
+### Changed
+- Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.
+
+## preserve-cooling
+### Fixed
+- `src/core`: Preserve **CoolingLoad.annual_tonhour** and **CoolingLoad.monthly_tonhour** when a user supplies **ExistingChiller.cop**, including for blended DOE reference profiles, by using the same COP for thermal-to-electric and electric-to-thermal load conversions.
+- Temporarily commented out failing Cambium tests due to recent API request limitation
+
 ## v1.0.0
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
