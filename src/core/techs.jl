@@ -31,6 +31,7 @@ function Techs(p::REoptInputs, s::BAUScenario)
     ghp_techs = String[]
     ashp_techs = String[]
     ashp_wh_techs = String[]
+    maximize_size_techs = String[]
 
     if p.s.generator.existing_kw > 0
         push!(all_techs, "Generator")
@@ -110,7 +111,8 @@ function Techs(p::REoptInputs, s::BAUScenario)
         techs_can_serve_process_heat,
         ghp_techs,
         ashp_techs,
-        ashp_wh_techs
+        ashp_wh_techs,
+        maximize_size_techs
     )
 end
 
@@ -156,6 +158,7 @@ function Techs(s::Scenario)
     ghp_techs = String[]
     ashp_techs = String[]
     ashp_wh_techs = String[]
+    maximize_size_techs = String[]
 
     if s.wind.max_kw > 0
         push!(all_techs, "Wind")
@@ -387,6 +390,12 @@ function Techs(s::Scenario)
     thermal_techs = union(heating_techs, boiler_techs, chp_techs, cooling_techs)
     fuel_burning_techs = union(gentechs, boiler_techs, chp_techs)
 
+    if !isnothing(s.financial.max_simple_payback_years)
+        # Any purchasable tech can be grown up to the payback threshold; exclude legacy/existing
+        # equipment (fixed size, not a new-build decision) from the incentive.
+        maximize_size_techs = setdiff(all_techs, ["ExistingBoiler", "ExistingChiller"])
+    end
+
     # check for ability of new technologies to meet heating loads if retire_in_optimal
     if !isnothing(s.existing_boiler) && s.existing_boiler.retire_in_optimal
         if !isnothing(s.dhw_load) && s.dhw_load.annual_mmbtu > 0 && isempty(setdiff(techs_can_serve_dhw, "ExistingBoiler"))
@@ -432,7 +441,8 @@ function Techs(s::Scenario)
         techs_can_serve_process_heat,
         ghp_techs,
         ashp_techs,
-        ashp_wh_techs
+        ashp_wh_techs,
+        maximize_size_techs
     )
 end
 
@@ -464,6 +474,7 @@ function Techs(s::MPCScenario)
         String[],
         String[],
         techs_no_turndown,
+        String[],
         String[],
         String[],
         String[],
