@@ -755,6 +755,95 @@ end
         @test REopt.annuity_split_periods(n1, 0, esc1, esc2, d)[2] == 0.0
     end
 
+    @testset "Capacity-limited fuel 1 without fuel 2" begin
+        # Without fuel2_type, the fuel 1 limit is a hard cap on the CHP's fuel burn (there is no second fuel to fill the gap)
+        for (period, max_mmbtu) in [("hour", 3.0), ("month", 1000.0)]
+            input_data = JSON.parsefile("./scenarios/chp_dual_fuel_capacity_limited.json")
+            delete!(input_data["CHP"], "fuel2_type")
+            delete!(input_data["CHP"], "fuel2_cost_per_mmbtu")
+            input_data["CHP"]["fuel_max_period"] = period
+            input_data["CHP"]["fuel_max_mmbtu_per_period"] = max_mmbtu
+            s = Scenario(input_data)
+            p = REoptInputs(s)
+
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            results = run_reopt([m1,m2], p)
+            r = results["CHP"]
+
+            # No second fuel, so no fuel2 results and no fuel1/fuel2 split variables
+            @test !haskey(r, "annual_fuel2_consumption_mmbtu")
+            @test !haskey(m2, :dvFuelUsageFuel1)
+
+            fuel_series = [value(m2[:dvFuelUsage]["CHP", ts]) for ts in p.time_steps]
+            if period == "hour"
+                # Rate cap in every time step, which also caps the electric (and thermal) production
+                cap_kwh_per_ts = max_mmbtu * REopt.KWH_PER_MMBTU * p.hours_per_time_step
+                @test maximum(fuel_series) <= cap_kwh_per_ts + 1e-6
+                @test isapprox(maximum(fuel_series), cap_kwh_per_ts, rtol=1e-4)  # the cap is binding
+                max_kw = max_mmbtu * REopt.KWH_PER_MMBTU * s.chps[1].electric_efficiency_full_load
+                @test maximum(r["electric_production_series_kw"]) <= max_kw + 1e-3
+            else
+                # Volume cap in every month
+                monthly_time_steps = REopt.get_monthly_time_steps(s.electric_load.year; time_steps_per_hour=s.settings.time_steps_per_hour)
+                monthly_mmbtu = [sum(fuel_series[ts]) / REopt.KWH_PER_MMBTU for ts in monthly_time_steps]
+                @test maximum(monthly_mmbtu) <= max_mmbtu + 1e-3
+                @test isapprox(maximum(monthly_mmbtu), max_mmbtu, rtol=1e-4)  # the cap is binding
+            end
+            @test r["annual_fuel_consumption_mmbtu"] > 0.0  # CHP still runs, within its limit
+
+            optimal_lcc = results["Financial"]["lcc"]
+            optimal_cashflow_sum = -1*sum(results["Financial"]["offtaker_discounted_annual_free_cashflows"])
+            @test isapprox(optimal_lcc, optimal_cashflow_sum, rtol=0.001)
+
+            finalize(backend(m1)); empty!(m1)
+            finalize(backend(m2)); empty!(m2)
+            GC.gc()
+        end
+    end
+
+    @testset "Custom fuel types" begin
+        base = JSON.parsefile("./scenarios/chp_dual_fuel_switch.json")
+        custom_fuel_inputs = Dict(
+            "fuel_cost_escalation_rate_fraction" => 0.01,
+            "fuel_renewable_energy_fraction" => 0.4,
+            "emissions_factor_lb_CO2_per_mmbtu" => 101.0,
+            "emissions_factor_lb_NOx_per_mmbtu" => 0.11,
+            "emissions_factor_lb_SO2_per_mmbtu" => 0.012,
+            "emissions_factor_lb_PM25_per_mmbtu" => 0.013,
+        )
+        custom_fuel2_inputs = Dict(
+            "fuel2_cost_escalation_rate_fraction" => 0.02,
+            "fuel2_renewable_energy_fraction" => 0.6,
+            "fuel2_emissions_factor_lb_CO2_per_mmbtu" => 202.0,
+            "fuel2_emissions_factor_lb_NOx_per_mmbtu" => 0.21,
+            "fuel2_emissions_factor_lb_SO2_per_mmbtu" => 0.022,
+            "fuel2_emissions_factor_lb_PM25_per_mmbtu" => 0.023,
+        )
+
+        # Custom fuel 1 and fuel 2 use the provided values, not fuel type defaults
+        d = deepcopy(base)
+        d["CHP"]["fuel_type"] = "custom"
+        d["CHP"]["fuel2_type"] = "custom"
+        merge!(d["CHP"], custom_fuel_inputs, custom_fuel2_inputs)
+        s = Scenario(d)
+        REoptInputs(s)
+        for (k, v) in merge(custom_fuel_inputs, custom_fuel2_inputs)
+            @test getproperty(s.chps[1], Symbol(k)) == v
+        end
+
+        # A custom fuel requires all of its escalation rate, renewable fraction and emissions factor inputs
+        d = deepcopy(base)
+        d["CHP"]["fuel_type"] = "custom"
+        d["CHP"]["fuel2_type"] = "custom"
+        merge!(d["CHP"], custom_fuel_inputs, custom_fuel2_inputs)
+        for k in keys(merge(custom_fuel_inputs, custom_fuel2_inputs))
+            d_missing = deepcopy(d)
+            delete!(d_missing["CHP"], k)
+            @test_throws ArgumentError Scenario(d_missing)
+        end
+    end
+
     @testset "Input validation" begin
         base = JSON.parsefile("./scenarios/chp_dual_fuel_switch.json")
 
@@ -777,10 +866,32 @@ end
         d["CHP"]["fuel_max_mmbtu_per_period"] = 500.0
         @test_throws ArgumentError Scenario(d)
 
-        # fuel2_switch_start_year requires fuel2_type/fuel2_cost_per_mmbtu
+        # fuel2_switch_start_year requires fuel2_cost_per_mmbtu (fuel2_type defaults to natural_gas)
         d = deepcopy(base)
         delete!(d["CHP"], "fuel2_type")
         delete!(d["CHP"], "fuel2_cost_per_mmbtu")
         @test_throws ArgumentError Scenario(d)
+
+        # fuel2_type indicates dual fuel and requires fuel2_cost_per_mmbtu
+        d = deepcopy(base)
+        delete!(d["CHP"], "fuel2_switch_start_year")
+        delete!(d["CHP"], "fuel2_cost_per_mmbtu")
+        @test_throws ArgumentError Scenario(d)
+
+        # Any other fuel2 input without fuel2_type defaults fuel2_type to natural_gas (with natural_gas defaults)
+        d = deepcopy(base)
+        delete!(d["CHP"], "fuel2_type")
+        chp = Scenario(d).chps[1]
+        @test chp.fuel2_type == "natural_gas"
+        @test chp.fuel2_emissions_factor_lb_CO2_per_mmbtu == REopt.FUEL_DEFAULTS["emissions_factor_lb_CO2_per_mmbtu"]["natural_gas"]
+
+        # ... but a fuel limit alone is not dual fuel
+        d = deepcopy(base)
+        for k in ["fuel2_type", "fuel2_cost_per_mmbtu", "fuel2_switch_start_year"]
+            delete!(d["CHP"], k)
+        end
+        d["CHP"]["fuel_max_period"] = "hour"
+        d["CHP"]["fuel_max_mmbtu_per_period"] = 3.0
+        @test isnothing(Scenario(d).chps[1].fuel2_type)
     end
 end
