@@ -3086,90 +3086,90 @@ else  # run HiGHS tests
             GC.gc()
         end
 
-        # @testset "Cambium Emissions" begin
-        #     """
-        #     1) Location in contiguous US
-        #         - Correct data from Cambium (returned location and values)
-        #         - Adjusted for load year vs. Cambium year (which starts on Sunday) vs. AVERT year (2022 currently)
-        #         - co2 pct increase should be zero
-        #     2) HI and AK locations
-        #         - Should use AVERT data and give an "info" message
-        #         - Adjust for load year vs. AVERT year
-        #         - co2 pct increase should be the default value unless user provided value 
-        #     3) International 
-        #         - all emissions should be zero unless provided
-        #     """
-        #     m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
-        #     m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+        @testset "Cambium Emissions" begin
+            """
+            1) Location in contiguous US
+                - Correct data from Cambium (returned location and values)
+                - Adjusted for load year vs. Cambium year (which starts on Sunday) vs. AVERT year (2022 currently)
+                - co2 pct increase should be zero
+            2) HI and AK locations
+                - Should use AVERT data and give an "info" message
+                - Adjust for load year vs. AVERT year
+                - co2 pct increase should be the default value unless user provided value 
+            3) International 
+                - all emissions should be zero unless provided
+            """
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false, "mip_rel_gap" => 0.01))
 
-        #     post_name = "cambium.json"
-        #     post = JSON.parsefile("./scenarios/$post_name")
+            post_name = "cambium.json"
+            post = JSON.parsefile("./scenarios/$post_name")
 
-        #     cities = Dict(
-        #         "Denver" => (39.7413753050447, -104.99965032911328),
-        #         "Fairbanks" => (64.84053664406181, -147.71913656313163),
-        #         "Santiago" => (-33.44485437650408, -70.69031905547853)
-        #     )
+            cities = Dict(
+                "Denver" => (39.7413753050447, -104.99965032911328),
+                "Fairbanks" => (64.84053664406181, -147.71913656313163),
+                "Santiago" => (-33.44485437650408, -70.69031905547853)
+            )
 
-        #     # 1) Location in contiguous US
-        #     city = "Denver"
-        #     post["Site"]["latitude"] = cities[city][1]
-        #     post["Site"]["longitude"] = cities[city][2]
-        #     post["ElectricLoad"]["loads_kw"] = [20 for i in range(1, 8760)]
-        #     post["ElectricLoad"]["year"] = 2021 # 2021 First day is Fri
-        #     scen = Scenario(post)
+            # 1) Location in contiguous US
+            city = "Denver"
+            post["Site"]["latitude"] = cities[city][1]
+            post["Site"]["longitude"] = cities[city][2]
+            post["ElectricLoad"]["loads_kw"] = [20 for i in range(1, 8760)]
+            post["ElectricLoad"]["year"] = 2021 # 2021 First day is Fri
+            scen = Scenario(post)
 
-        #     @test scen.electric_utility.avert_emissions_region == "Rocky Mountains"
-        #     @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 0 atol = 1e-5
-        #     @test scen.electric_utility.cambium_region == "West Connect North"
-        #     # Test that correct data is used, and adjusted to start on a Fri to align with load year of 2021
-        #     avert_year = 2023 # Update when AVERT/eGRID data are updated
-        #     ef_start_day = 7 # Sun. Update when AVERT/eGRID data are updated
-        #     load_start_day = 5 # Fri
-        #     cut_days = 7 + (load_start_day - ef_start_day) # Ex: = 7+(5-7) = 5 --> cut Sun, Mon, Tues, Wed, Thurs
-        #     so2_data = CSV.read("../data/emissions/AVERT_Data/AVERT_$(avert_year)_SO2_lb_per_kwh.csv", DataFrame)[!, "RM"]
-        #     @test scen.electric_utility.emissions_factor_series_lb_SO2_per_kwh[1] ≈ so2_data[24*cut_days+1] # EF data should start on Fri
+            @test scen.electric_utility.avert_emissions_region == "Rocky Mountains"
+            @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 0 atol = 1e-5
+            @test scen.electric_utility.cambium_region == "West Connect North"
+            # Test that correct data is used, and adjusted to start on a Fri to align with load year of 2021
+            avert_year = 2023 # Update when AVERT/eGRID data are updated
+            ef_start_day = 7 # Sun. Update when AVERT/eGRID data are updated
+            load_start_day = 5 # Fri
+            cut_days = 7 + (load_start_day - ef_start_day) # Ex: = 7+(5-7) = 5 --> cut Sun, Mon, Tues, Wed, Thurs
+            so2_data = CSV.read("../data/emissions/AVERT_Data/AVERT_$(avert_year)_SO2_lb_per_kwh.csv", DataFrame)[!, "RM"]
+            @test scen.electric_utility.emissions_factor_series_lb_SO2_per_kwh[1] ≈ so2_data[24*cut_days+1] # EF data should start on Fri
 
-        #     @test scen.electric_utility.emissions_factor_CO2_decrease_fraction ≈ 0 atol = 1e-5 # should be 0 with Cambium data
-        #     @test scen.electric_utility.emissions_factor_SO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["SO2"]
-        #     @test scen.electric_utility.emissions_factor_NOx_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["NOx"]
-        #     @test scen.electric_utility.emissions_factor_PM25_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["PM25"]
+            @test scen.electric_utility.emissions_factor_CO2_decrease_fraction ≈ 0 atol = 1e-5 # should be 0 with Cambium data
+            @test scen.electric_utility.emissions_factor_SO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["SO2"]
+            @test scen.electric_utility.emissions_factor_NOx_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["NOx"]
+            @test scen.electric_utility.emissions_factor_PM25_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["PM25"]
 
-        #     # 2) AK location
-        #     city = "Fairbanks"
-        #     post["Site"]["latitude"] = cities[city][1]
-        #     post["Site"]["longitude"] = cities[city][2]
-        #     scen = Scenario(post)
+            # 2) AK location
+            city = "Fairbanks"
+            post["Site"]["latitude"] = cities[city][1]
+            post["Site"]["longitude"] = cities[city][2]
+            scen = Scenario(post)
 
-        #     @test scen.electric_utility.avert_emissions_region == "Alaska"
-        #     @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 0 atol = 1e-5
-        #     @test scen.electric_utility.cambium_region == "NA - Cambium data not used"
-        #     @test sum(scen.electric_utility.emissions_factor_series_lb_CO2_per_kwh) / 8760 ≈ CSV.read("../data/emissions/AVERT_Data/AVERT_$(avert_year)_CO2_lb_per_kwh.csv", DataFrame)[!, "AKGD"][1] rtol = 1e-3 # check that data from eGRID (AVERT data file) is used
-        #     @test scen.electric_utility.emissions_factor_CO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["CO2e"] # should get updated to this value
-        #     @test scen.electric_utility.emissions_factor_SO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["SO2"] # should be 2.163% for AVERT data
-        #     @test scen.electric_utility.emissions_factor_NOx_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["NOx"]
-        #     @test scen.electric_utility.emissions_factor_PM25_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["PM25"]
+            @test scen.electric_utility.avert_emissions_region == "Alaska"
+            @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 0 atol = 1e-5
+            @test scen.electric_utility.cambium_region == "NA - Cambium data not used"
+            @test sum(scen.electric_utility.emissions_factor_series_lb_CO2_per_kwh) / 8760 ≈ CSV.read("../data/emissions/AVERT_Data/AVERT_$(avert_year)_CO2_lb_per_kwh.csv", DataFrame)[!, "AKGD"][1] rtol = 1e-3 # check that data from eGRID (AVERT data file) is used
+            @test scen.electric_utility.emissions_factor_CO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["CO2e"] # should get updated to this value
+            @test scen.electric_utility.emissions_factor_SO2_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["SO2"] # should be 2.163% for AVERT data
+            @test scen.electric_utility.emissions_factor_NOx_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["NOx"]
+            @test scen.electric_utility.emissions_factor_PM25_decrease_fraction ≈ REopt.EMISSIONS_DECREASE_DEFAULTS["PM25"]
 
-        #     # 3) International location
-        #     city = "Santiago"
-        #     post["Site"]["latitude"] = cities[city][1]
-        #     post["Site"]["longitude"] = cities[city][2]
-        #     scen = Scenario(post)
+            # 3) International location
+            city = "Santiago"
+            post["Site"]["latitude"] = cities[city][1]
+            post["Site"]["longitude"] = cities[city][2]
+            scen = Scenario(post)
 
-        #     @test scen.electric_utility.avert_emissions_region == ""
-        #     @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 5.521032136418236e6 atol = 1.0
-        #     @test scen.electric_utility.cambium_region == "NA - Cambium data not used"
-        #     @test sum(scen.electric_utility.emissions_factor_series_lb_CO2_per_kwh) ≈ 0
-        #     @test sum(scen.electric_utility.emissions_factor_series_lb_NOx_per_kwh) ≈ 0
-        #     @test sum(scen.electric_utility.emissions_factor_series_lb_SO2_per_kwh) ≈ 0
-        #     @test sum(scen.electric_utility.emissions_factor_series_lb_PM25_per_kwh) ≈ 0
-        #     finalize(backend(m1))
-        #     empty!(m1)
-        #     finalize(backend(m2))
-        #     empty!(m2)
-        #     GC.gc()
+            @test scen.electric_utility.avert_emissions_region == ""
+            @test scen.electric_utility.distance_to_avert_emissions_region_meters ≈ 5.521032136418236e6 atol = 1.0
+            @test scen.electric_utility.cambium_region == "NA - Cambium data not used"
+            @test sum(scen.electric_utility.emissions_factor_series_lb_CO2_per_kwh) ≈ 0
+            @test sum(scen.electric_utility.emissions_factor_series_lb_NOx_per_kwh) ≈ 0
+            @test sum(scen.electric_utility.emissions_factor_series_lb_SO2_per_kwh) ≈ 0
+            @test sum(scen.electric_utility.emissions_factor_series_lb_PM25_per_kwh) ≈ 0
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+            GC.gc()
 
-        # end
+        end
 
         @testset "Emissions and Renewable Energy Percent" begin
             #renewable energy and emissions reduction targets
