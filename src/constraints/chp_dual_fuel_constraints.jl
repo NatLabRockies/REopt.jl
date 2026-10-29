@@ -69,14 +69,26 @@ function add_chp_fuel1_capacity_limit_constraints!(m, p, chp::CHP, t::String, va
 end
 
 """
+    chp_fuel_cost_escalation_rates(p, chp::CHP)
+
+Escalation rates `(esc1, esc2)` for `chp`'s fuel 1 and fuel 2 costs. Fuel 1 uses
+`chp.fuel_cost_escalation_rate_fraction` if provided, otherwise `Financial.chp_fuel_cost_escalation_rate_fraction`.
+Fuel 2 uses `chp.fuel2_cost_escalation_rate_fraction` if provided, otherwise inherits fuel 1's rate.
+"""
+function chp_fuel_cost_escalation_rates(p, chp::CHP)
+    esc1 = something(chp.fuel_cost_escalation_rate_fraction, p.s.financial.chp_fuel_cost_escalation_rate_fraction)
+    esc2 = something(chp.fuel2_cost_escalation_rate_fraction, esc1)
+    return esc1, esc2
+end
+
+"""
     chp_fuel2_pwf(p, chp::CHP)
 
 Present worth factor for `chp`'s fuel 2 cost, over the full analysis period (used for the
 capacity-limited dual-fuel modes, where fuel 1 and fuel 2 are both burned every year).
 """
 function chp_fuel2_pwf(p, chp::CHP)
-    escalation_rate = isnothing(chp.fuel2_cost_escalation_rate_fraction) ?
-        p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel2_cost_escalation_rate_fraction
+    _, escalation_rate = chp_fuel_cost_escalation_rates(p, chp)
     return annuity(p.s.financial.analysis_years, escalation_rate, p.s.financial.offtaker_discount_rate_fraction)
 end
 
@@ -153,10 +165,7 @@ function add_chp_fuel_switch_costs(m, p, switch_chp_names; _n="")
                 "($(p.s.financial.analysis_years)); fuel2_type will never be used and fuel_type will be used for the entire analysis period."
         end
 
-        esc1 = isnothing(chp.fuel_cost_escalation_rate_fraction) ?
-            p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel_cost_escalation_rate_fraction
-        esc2 = isnothing(chp.fuel2_cost_escalation_rate_fraction) ?
-            p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel2_cost_escalation_rate_fraction
+        esc1, esc2 = chp_fuel_cost_escalation_rates(p, chp)
         pwf_fuel1_partial, pwf_fuel2_partial = annuity_split_periods(n_fuel1_years, n_fuel2_years, esc1, esc2, discount_rate)
         fuel2_cost_per_kwh = n_fuel2_years <= 0 ? nothing : chp_fuel2_cost_per_kwh(p, chp)
 
@@ -243,10 +252,7 @@ function chp_fuel_cost_breakdown(m, p, chp_name::String)
 
     if !isnothing(chp.fuel2_switch_start_year)
         n_fuel1_years, n_fuel2_years = chp_fuel_switch_year_counts(p, chp)
-        esc1 = isnothing(chp.fuel_cost_escalation_rate_fraction) ?
-            p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel_cost_escalation_rate_fraction
-        esc2 = isnothing(chp.fuel2_cost_escalation_rate_fraction) ?
-            p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel2_cost_escalation_rate_fraction
+        esc1, esc2 = chp_fuel_cost_escalation_rates(p, chp)
         pwf1, pwf2 = annuity_split_periods(n_fuel1_years, n_fuel2_years, esc1, esc2, p.s.financial.offtaker_discount_rate_fraction)
 
         yr1_fuel1 = sum(value(m[:dvFuelUsage][chp_name, ts]) * p.fuel_cost_per_kwh[chp_name][ts] for ts in p.time_steps)
@@ -292,10 +298,7 @@ in `src/results/proforma.jl`, consistent with the lifecycle cost calculated in
 """
 function chp_annual_fuel_cost_nominal_series(p, chp::CHP, yr1_fuel1::Real, yr1_equivalent_fuel2::Real)
     years = p.s.financial.analysis_years
-    esc1 = isnothing(chp.fuel_cost_escalation_rate_fraction) ?
-        p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel_cost_escalation_rate_fraction
-    esc2 = isnothing(chp.fuel2_cost_escalation_rate_fraction) ?
-        p.s.financial.chp_fuel_cost_escalation_rate_fraction : chp.fuel2_cost_escalation_rate_fraction
+    esc1, esc2 = chp_fuel_cost_escalation_rates(p, chp)
 
     if !isnothing(chp.fuel2_switch_start_year)
         n_fuel1_years, n_fuel2_years = chp_fuel_switch_year_counts(p, chp)

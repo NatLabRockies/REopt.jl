@@ -842,6 +842,17 @@ end
             delete!(d_missing["CHP"], k)
             @test_throws ArgumentError Scenario(d_missing)
         end
+
+        # All of the input errors are reported together in a single error
+        d = deepcopy(base)
+        d["CHP"]["fuel_type"] = "custom"
+        d["CHP"]["fuel2_type"] = "custom"
+        delete!(d["CHP"], "fuel2_cost_per_mmbtu")
+        err = try Scenario(d); nothing catch e e end
+        @test err isa ArgumentError
+        for fragment in ["CHP.fuel_type \"custom\"", "CHP.fuel2_cost_per_mmbtu is required", "CHP.fuel2_type \"custom\""]
+            @test occursin(fragment, err.msg)
+        end
     end
 
     @testset "Input validation" begin
