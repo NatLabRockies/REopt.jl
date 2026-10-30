@@ -408,6 +408,13 @@ function generate_year_profile_hourly(year::Int64, consecutive_periods::Abstract
     return year_profile_hourly
 end
 
+function http_read_timeout_kwargs(seconds::Real)
+    if isdefined(Base, :pkgversion) && Base.pkgversion(HTTP) >= v"2.0.0"
+        return (; read_idle_timeout=seconds)
+    end
+    return (; readtimeout=seconds)
+end
+
 """
     call_solar_dataset_api(latitude::Real, longitude::Real, radius::Int)
 This calls the Solar Dataset Query API to determine the dataset to use in the PVWatts API call. 
@@ -429,7 +436,7 @@ function call_solar_dataset_api(latitude::Real, longitude::Real, radius::Int)
         "&lat=", latitude , "&lon=", longitude, "&radius=", radius, "&all=", 0 
         )
     try
-        r = HTTP.get(url, keepalive=true, readtimeout=10)
+        r = HTTP.get(url; http_read_timeout_kwargs(60)...)
         response = JSON.parse(String(r.body))
 
         if r.status != 200
@@ -506,7 +513,7 @@ function call_pvwatts_api(latitude::Real, longitude::Real; tilt=latitude, azimut
 
     try
         @info "Querying PVWatts for production factor and ambient air temperature... "
-        r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; keepalive=true, readtimeout=10)
+        r = HTTP.get(url, ["User-Agent" => "REopt.jl"]; http_read_timeout_kwargs(60)...)
         response = JSON.parse(String(r.body))
         if r.status != 200
             throw(@error("Bad response from PVWatts: $(response["errors"])"))

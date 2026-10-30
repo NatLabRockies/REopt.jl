@@ -34,6 +34,14 @@ Classify the change according to the following categories:
 - `src/core/utils.jl`: `get_time_steps_by_period` (groups a year's time steps by `"hour"`/`"day"`/`"week"`/`"month"`, deferring to the existing `get_monthly_time_steps` for `"month"`) and `annuity_split_periods` (present worth factors for two consecutive escalating periods of an annuity), used by the dual-fuel CHP capacity-limit and fuel-switch calculations respectively.
 - `test/scenarios/chp_dual_fuel_capacity_limited.json` (shared by the rate- and volume-limited tests, which override `fuel_max_period`/`fuel_max_mmbtu_per_period` in code), `chp_dual_fuel_switch.json`, and a new `"Dual Fuel CHP"` testset in `test/test_chp.jl`, including a single-fuel (no **fuel2_type**) fuel limit test and custom fuel type tests.
 
+## v1.0.1
+### Changed
+- Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.
+- Temporarily commented out failing Cambium tests due to recent API request limitation
+### Fixed
+- `src/results`: Corrected **GHP** thermal production results when serving DHW so total annual thermal production includes space heating and DHW and accounts for hours per time step.
+- `src/core`: Preserve **CoolingLoad.annual_tonhour** and **CoolingLoad.monthly_tonhour** when a user supplies **ExistingChiller.cop**, including for blended DOE reference profiles, by using the same COP for thermal-to-electric and electric-to-thermal load conversions.
+
 ## v1.0.0
 ### Added
 - Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
