@@ -65,21 +65,48 @@ Function to calculate annual emissions from onsite fuel consumption.
 	account for expected operations during modeled outages (time_steps_without_grid is empty)
 """
 function calc_yr1_emissions_from_onsite_fuel(m,p; tech_array=p.techs.fuel_burning) # also run this with p.techs.boiler
+	# Capacity-limited dual-fuel CHPs blend fuel 1 and fuel 2 within year 1 itself (dvFuelUsageFuel1 +
+	# dvFuelUsageFuel2), so they need their own emissions-factor-weighted terms rather than the single
+	# tech_emissions_factors_* factor used for every other fuel-burning tech.
+	dual_fuel_chps = intersect(tech_array, chp_names_with_capacity_limited_dual_fuel(p))
+	single_factor_tech_array = setdiff(tech_array, dual_fuel_chps)
+
 	yr1_emissions_onsite_fuel_lbs_CO2 = @expression(m,p.hours_per_time_step*
-		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_CO2[t] for t in tech_array, ts in p.time_steps))
+		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_CO2[t] for t in single_factor_tech_array, ts in p.time_steps))
 
 	yr1_emissions_onsite_fuel_lbs_NOx = @expression(m,p.hours_per_time_step*
-		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_NOx[t] for t in tech_array, ts in p.time_steps))
+		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_NOx[t] for t in single_factor_tech_array, ts in p.time_steps))
 
 	yr1_emissions_onsite_fuel_lbs_SO2 = @expression(m,p.hours_per_time_step*
-		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_SO2[t] for t in tech_array, ts in p.time_steps))
+		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_SO2[t] for t in single_factor_tech_array, ts in p.time_steps))
 
 	yr1_emissions_onsite_fuel_lbs_PM25 = @expression(m,p.hours_per_time_step*
-		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_PM25[t] for t in tech_array, ts in p.time_steps))
+		sum(m[:dvFuelUsage][t,ts]*p.tech_emissions_factors_PM25[t] for t in single_factor_tech_array, ts in p.time_steps))
 
-	return yr1_emissions_onsite_fuel_lbs_CO2, 
-		   yr1_emissions_onsite_fuel_lbs_NOx, 
-		   yr1_emissions_onsite_fuel_lbs_SO2, 
+	for t in dual_fuel_chps
+		chp = get_chp_by_name(t, p.s.chps)
+		fuel2_factor_CO2 = chp.fuel2_emissions_factor_lb_CO2_per_mmbtu / KWH_PER_MMBTU
+		fuel2_factor_NOx = chp.fuel2_emissions_factor_lb_NOx_per_mmbtu / KWH_PER_MMBTU
+		fuel2_factor_SO2 = chp.fuel2_emissions_factor_lb_SO2_per_mmbtu / KWH_PER_MMBTU
+		fuel2_factor_PM25 = chp.fuel2_emissions_factor_lb_PM25_per_mmbtu / KWH_PER_MMBTU
+
+		yr1_emissions_onsite_fuel_lbs_CO2 += @expression(m, p.hours_per_time_step*sum(
+			m[:dvFuelUsageFuel1][t,ts]*p.tech_emissions_factors_CO2[t] + m[:dvFuelUsageFuel2][t,ts]*fuel2_factor_CO2
+			for ts in p.time_steps))
+		yr1_emissions_onsite_fuel_lbs_NOx += @expression(m, p.hours_per_time_step*sum(
+			m[:dvFuelUsageFuel1][t,ts]*p.tech_emissions_factors_NOx[t] + m[:dvFuelUsageFuel2][t,ts]*fuel2_factor_NOx
+			for ts in p.time_steps))
+		yr1_emissions_onsite_fuel_lbs_SO2 += @expression(m, p.hours_per_time_step*sum(
+			m[:dvFuelUsageFuel1][t,ts]*p.tech_emissions_factors_SO2[t] + m[:dvFuelUsageFuel2][t,ts]*fuel2_factor_SO2
+			for ts in p.time_steps))
+		yr1_emissions_onsite_fuel_lbs_PM25 += @expression(m, p.hours_per_time_step*sum(
+			m[:dvFuelUsageFuel1][t,ts]*p.tech_emissions_factors_PM25[t] + m[:dvFuelUsageFuel2][t,ts]*fuel2_factor_PM25
+			for ts in p.time_steps))
+	end
+
+	return yr1_emissions_onsite_fuel_lbs_CO2,
+		   yr1_emissions_onsite_fuel_lbs_NOx,
+		   yr1_emissions_onsite_fuel_lbs_SO2,
 		   yr1_emissions_onsite_fuel_lbs_PM25
 end
 
@@ -198,6 +225,64 @@ function add_lifecycle_emissions_calcs(m,p)
 		p.s.financial.PM25_grid_cost_per_tonne * m[:yr1_emissions_from_elec_grid_net_if_selected_lbs_PM25] + 
 		p.pwf_emissions_cost["PM25_onsite"] * p.s.financial.PM25_onsite_fuelburn_cost_per_tonne * m[:yr1_emissions_onsite_fuel_lbs_PM25]
 	)
+	m[:Lifecycle_Emissions_Cost_Health] = m[:Lifecycle_Emissions_Cost_NOx] + m[:Lifecycle_Emissions_Cost_SO2] + m[:Lifecycle_Emissions_Cost_PM25]
+
+	add_chp_fuel_switch_emissions_corrections(m, p)
+
+	nothing
+end
+
+"""
+    add_chp_fuel_switch_emissions_corrections(m, p)
+
+The lifecycle emissions lbs/cost roll-ups above assume fuel 1's emissions factor and cost-escalation
+apply for the entire analysis period, which is correct except for CHPs using the long-term fuel-switch
+dual-fuel mode (`fuel2_switch_start_year` set). For each such CHP, replace its share of the uniform
+`analysis_years * yr1` roll-up with the correct N-years-fuel-1 / N-years-fuel-2 split, using the same
+year-1-repeating dispatch (`dvFuelUsage`) both before and after, consistent with how
+`add_chp_fuel_switch_costs` (chp_dual_fuel_constraints.jl) handles CHP fuel cost.
+"""
+function add_chp_fuel_switch_emissions_corrections(m, p)
+	switch_chps = chp_names_with_fuel_switch(p)
+	isempty(switch_chps) && return nothing
+
+	discount_rate = p.s.financial.offtaker_discount_rate_fraction
+	# (onsite $/tonne field name, cost-escalation-rate field name) per pollutant
+	cost_fields = Dict(
+		"CO2" => (:CO2_cost_per_tonne, :CO2_cost_escalation_rate_fraction),
+		"NOx" => (:NOx_onsite_fuelburn_cost_per_tonne, :NOx_cost_escalation_rate_fraction),
+		"SO2" => (:SO2_onsite_fuelburn_cost_per_tonne, :SO2_cost_escalation_rate_fraction),
+		"PM25" => (:PM25_onsite_fuelburn_cost_per_tonne, :PM25_cost_escalation_rate_fraction),
+	)
+
+	for t in switch_chps
+		chp = get_chp_by_name(t, p.s.chps)
+		n_fuel1_years, n_fuel2_years = chp_fuel_switch_year_counts(p, chp)
+		n_fuel2_years <= 0 && continue  # fuel 2 never reached within the analysis period; base formula already correct
+
+		for pollutant in ["CO2", "NOx", "SO2", "PM25"]
+			yr1_fuel1, yr1_fuel2 = chp_fuel_switch_yr1_emissions_contributions(m, p, t, pollutant)
+
+			lbs_key = Symbol("Lifecycle_Emissions_Lbs_$(pollutant)_fuelburn")
+			m[lbs_key] = @expression(m, m[lbs_key] + n_fuel2_years * (yr1_fuel2 - yr1_fuel1))
+
+			cost_per_tonne_field, escalation_field = cost_fields[pollutant]
+			cost_per_tonne = getproperty(p.s.financial, cost_per_tonne_field)
+			escalation_rate = getproperty(p.s.financial, escalation_field)
+			pwf1, pwf2 = annuity_split_periods(n_fuel1_years, n_fuel2_years, escalation_rate, escalation_rate, discount_rate)
+			base_pwf_onsite = p.pwf_emissions_cost["$(pollutant)_onsite"]
+
+			cost_key = Symbol("Lifecycle_Emissions_Cost_$(pollutant)")
+			m[cost_key] = @expression(m, m[cost_key] +
+				TONNE_PER_LB * cost_per_tonne * (pwf1 * yr1_fuel1 + pwf2 * yr1_fuel2 - base_pwf_onsite * yr1_fuel1)
+			)
+		end
+	end
+
+	m[:Lifecycle_Emissions_Lbs_CO2] = m[:Lifecycle_Emissions_Lbs_CO2_grid_net_if_selected] + m[:Lifecycle_Emissions_Lbs_CO2_fuelburn]
+	m[:Lifecycle_Emissions_Lbs_NOx] = m[:Lifecycle_Emissions_Lbs_NOx_grid_net_if_selected] + m[:Lifecycle_Emissions_Lbs_NOx_fuelburn]
+	m[:Lifecycle_Emissions_Lbs_SO2] = m[:Lifecycle_Emissions_Lbs_SO2_grid_net_if_selected] + m[:Lifecycle_Emissions_Lbs_SO2_fuelburn]
+	m[:Lifecycle_Emissions_Lbs_PM25] = m[:Lifecycle_Emissions_Lbs_PM25_grid_net_if_selected] + m[:Lifecycle_Emissions_Lbs_PM25_fuelburn]
 	m[:Lifecycle_Emissions_Cost_Health] = m[:Lifecycle_Emissions_Cost_NOx] + m[:Lifecycle_Emissions_Cost_SO2] + m[:Lifecycle_Emissions_Cost_PM25]
 
 	nothing

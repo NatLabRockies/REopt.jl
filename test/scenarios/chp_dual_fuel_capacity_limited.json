@@ -1,0 +1,58 @@
+{
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "Financial": {
+        "analysis_years": 25,
+        "om_cost_escalation_rate_fraction": 0.025,
+        "elec_cost_escalation_rate_fraction": 0.023,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.034,
+        "chp_fuel_cost_escalation_rate_fraction": 0.034,
+        "offtaker_discount_rate_fraction": 0.083,
+        "offtaker_tax_rate_fraction": 0.26
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 10.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "Hospital"
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 10.0
+    },
+    "ElectricUtility": {
+        "co2_from_avert": true
+    },
+    "CHP": {
+        "prime_mover": "recip_engine",
+        "fuel_type": "landfill_bio_gas",
+        "fuel_cost_per_mmbtu": 5.0,
+        "min_kw": 400,
+        "max_kw": 400,
+        "installed_cost_per_kw": 2416.7,
+        "om_cost_per_kw": 149.8,
+        "om_cost_per_kwh": 0.0,
+        "om_cost_per_hr_per_kw_rated": 0.0,
+        "electric_efficiency_full_load": 0.34,
+        "electric_efficiency_half_load": 0.34,
+        "min_turn_down_fraction": 0.5,
+        "thermal_efficiency_full_load": 0.45,
+        "thermal_efficiency_half_load": 0.45,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "macrs_itc_reduction": 0.0,
+        "federal_itc_fraction": 0.0,
+        "fuel2_type": "natural_gas",
+        "fuel2_cost_per_mmbtu": 12.0,
+        "fuel_max_period": "hour",
+        "fuel_max_mmbtu_per_period": 2.0
+    }
+}
