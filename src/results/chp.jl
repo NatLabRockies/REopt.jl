@@ -30,10 +30,8 @@
 - `thermal_production_series_mmbtu_per_hour`
 - `initial_capital_costs` Initial capital costs of the CHP system, before incentives [\$]
 - `annual_fuel2_consumption_mmbtu` Fuel 2 consumed in a year [MMBtu] (dual-fuel CHPs only; `annual_fuel_consumption_mmbtu` is the combined fuel 1 + fuel 2 total, same as for a single-fuel CHP — fuel 1's own consumption is that total minus this field)
-- `year_one_fuel2_cost_before_tax`/`_after_tax` Year-one fuel 2 cost (dual-fuel CHPs only; `year_one_fuel_cost_before_tax`/`_after_tax` remain the combined fuel 1 + fuel 2 total)
+- `year_one_fuel2_cost_before_tax`/`_after_tax` Year-one fuel 2 cost (dual-fuel CHPs only; `year_one_fuel_cost_before_tax`/`_after_tax` remain the combined fuel 1 + fuel 2 total). With a long-term fuel switch, fuel 2 is not used in year one, so this is the hypothetical year-one cost of fuel 2 (its input, today's-dollars price applied to the year-one dispatch) and `year_one_fuel_cost_before_tax`/`_after_tax` are fuel 1 only
 - `lifecycle_fuel2_cost_after_tax` Present value of fuel 2 cost, after tax (dual-fuel CHPs only; `lifecycle_fuel_cost_after_tax` remains the combined fuel 1 + fuel 2 total)
-- `year_one_fuel2_equivalent_cost_before_tax` Long-term fuel-switch CHPs only: informational cost of fuel 2 at its input (today's-dollars, unescalated) price for year-1's dispatch, ahead of the actual switch in `fuel2_switch_start_year`
-
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
 	Therefore, all timeseries (`_series`) and `annual_` results should be interpretted as energy outputs averaged over the analysis period. 
@@ -191,14 +189,12 @@ function get_chp_results_for_tech(m::JuMP.AbstractModel, p::REoptInputs, chp_nam
 		CHPFuelUsedKWH_2 = chp_has_fuel_capacity_limit(chp) ?
 			sum(value(m[Symbol("dvFuelUsageFuel2"*_n)][chp_name, ts]) for ts in p.time_steps) : 0.0
 		r["annual_fuel2_consumption_mmbtu"] = round(CHPFuelUsedKWH_2 / KWH_PER_MMBTU, digits=3)
-		r["year_one_fuel2_cost_before_tax"] = round(fuel_cost.yr1_fuel2, digits=3)
+		# With the long-term fuel switch, fuel 2 isn't used until fuel2_switch_start_year, so this is the
+		# hypothetical year-one cost of fuel 2 (its input price applied to the year-one dispatch), which is the basis
+		# for escalating fuel 2's cost in the lifecycle cost and pro forma. Otherwise it is the real year-one cost.
+		r["year_one_fuel2_cost_before_tax"] = round(fuel_cost.yr1_equivalent_fuel2, digits=3)
 		r["year_one_fuel2_cost_after_tax"] = r["year_one_fuel2_cost_before_tax"] * (1 - p.s.financial.offtaker_tax_rate_fraction)
 		r["lifecycle_fuel2_cost_after_tax"] = round(fuel_cost.lifecycle_fuel2 * (1 - p.s.financial.offtaker_tax_rate_fraction), digits=3)
-		if !isnothing(chp.fuel2_switch_start_year)
-			# Informational: what fuel 2 would cost at its year-1 price for this year's dispatch, ahead of
-			# the actual switch in fuel2_switch_start_year. Used internally to build the pro forma cash flow series.
-			r["year_one_fuel2_equivalent_cost_before_tax"] = round(fuel_cost.yr1_equivalent_fuel2, digits=3)
-		end
 	end
 
 	#Standby charges and hourly O&M

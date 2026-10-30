@@ -705,6 +705,13 @@ end
         expected_year1_cost = yr1_fuel_kwh * s.chps[1].fuel_cost_per_mmbtu / REopt.KWH_PER_MMBTU
         @test isapprox(r["year_one_fuel_cost_before_tax"], expected_year1_cost, rtol=1e-6)
 
+        # year_one_fuel2_cost_* is the hypothetical year-one cost of fuel 2 (its price on the year-one dispatch),
+        # which is not part of the (fuel 1 only) year-one total
+        expected_year1_fuel2_cost = yr1_fuel_kwh * s.chps[1].fuel2_cost_per_mmbtu / REopt.KWH_PER_MMBTU
+        @test isapprox(r["year_one_fuel2_cost_before_tax"], expected_year1_fuel2_cost, rtol=1e-6)
+        @test isapprox(r["year_one_fuel2_cost_after_tax"], expected_year1_fuel2_cost * (1 - s.financial.offtaker_tax_rate_fraction), rtol=1e-6)
+        @test !haskey(r, "year_one_fuel2_equivalent_cost_before_tax")
+
         # Lifecycle cost should sit strictly between an all-fuel-1 and an all-fuel-2 lifecycle cost,
         # since the actual scenario is a mix of both over the analysis period
         analysis_years = s.financial.analysis_years

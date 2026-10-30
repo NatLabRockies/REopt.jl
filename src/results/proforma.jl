@@ -399,15 +399,15 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
 
     if tech_name in [chp.name for chp in p.s.chps]
         # results[tech_name]["year_one_fuel_cost_before_tax"] is the combined fuel 1 + fuel 2 total (same
-        # field as a single-fuel CHP uses); subtracting fuel 2's year-one cost (0.0 if not dual-fuel, or
-        # for the fuel-switch mode before fuel2_switch_start_year) isolates fuel 1's own year-one cost. Fuel 2's
-        # escalation basis is its real year-one cost for capacity-limited dual fuel, or its year-one-
-        # equivalent price for the long-term fuel-switch mode (fuel 2 not actually used until
-        # fuel2_switch_start_year); see chp_fuel_cost_breakdown in chp_dual_fuel_constraints.jl.
+        # field as a single-fuel CHP uses); subtracting fuel 2's year-one cost (0.0 if not dual-fuel) isolates
+        # fuel 1's own year-one cost. With the long-term fuel switch, fuel 2 is not used in year one, so the
+        # combined total is already fuel 1 only, and year_one_fuel2_cost_before_tax is fuel 2's hypothetical
+        # year-one cost, which is its escalation basis; see chp_fuel_cost_breakdown in chp_dual_fuel_constraints.jl.
         year_one_fuel2 = get(results[tech_name], "year_one_fuel2_cost_before_tax", 0.0)
-        year_one_fuel1 = results[tech_name]["year_one_fuel_cost_before_tax"] - year_one_fuel2
-        year_one_equivalent_fuel2 = get(results[tech_name], "year_one_fuel2_equivalent_cost_before_tax", year_one_fuel2)
-        nominal_fuel_cost_series = chp_annual_fuel_cost_nominal_series(p, tech, year_one_fuel1, year_one_equivalent_fuel2)
+        year_one_fuel1 = isnothing(tech.fuel2_switch_start_year) ?
+            results[tech_name]["year_one_fuel_cost_before_tax"] - year_one_fuel2 :
+            results[tech_name]["year_one_fuel_cost_before_tax"]
+        nominal_fuel_cost_series = chp_annual_fuel_cost_nominal_series(p, tech, year_one_fuel1, year_one_fuel2)
         m.fuel_cost_series += -1 * nominal_fuel_cost_series
     end
 
