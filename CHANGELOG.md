@@ -25,6 +25,12 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## Develop 2026-11-09
+### Added
+- Added the capability to optimize the sizing and operation of a pumped storage hydropower (PSH) system 
+- New files are: `constraints/water_power_constraints.jl`, `core/water_power.jl`, `core/water_storage.jl`, `results/water_power.jl`, `results/water_storage`
+- The PSH code is compatible with the existing REopt techno-economic analysis architecture and allows for the optimization of hybrid systems that include PSH
+
 ## v0.59.3
 ### Changed
 - Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
@@ -420,12 +426,6 @@ Update the following inputs from the previous --> new values:
 - Fixed a reshape call in function `parse_urdb_tou_demand` that incorrectly assumed row major instead of column major ordering
 - Fixed a loop range in function `parse_urdb_tou_demand` that incorrectly started at 0 instead of 1
 - Added the missing tier index when accessing `p.s.electric_tariff.tou_demand_rates` in function `add_elec_utility_expressions`
-## Develop 2024-04-19
-### Added
-- Added new inputs **om_cost_per_kw** and **om_cost_per_kwh** to `ElectricStorage` for modeling capacity-based O&M 
-- Added new input **per_timestep_self_discharge_fraction** to `ElectricStorage` for modeling battery self-discharge
-- Added new outputs **lifecycle_om_cost_after_tax** and **year_one_om_cost_before_tax** to `ElectricStorage` 
-- Added testsets **Electric Storage O&M** and **Electric Storage Self-Discharge** in `test/runtests.jl`
 
 ## v0.45.0
 ### Fixed 
