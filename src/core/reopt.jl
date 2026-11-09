@@ -594,7 +594,7 @@ end
 
 
 """
-    run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+    run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
 
 Solve a multi-PV scenario in stages, sizing higher-priority PV systems before lower-
 priority ones. For N PV systems with priorities 1..N, this performs up to N sequential
@@ -618,7 +618,7 @@ dict; a `PriorityStages` entry summarises every stage (solved or skipped).
 This function is dispatched automatically by `run_reopt(m, p)` when
 `pv_priority_active(p.s.pvs)` is `true`. Users typically do not call it directly.
 """
-function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
     pvs_by_priority = sort(p.s.pvs, by = pv -> pv.priority)
     n_stages = length(pvs_by_priority)
     stage_records = Dict[]
@@ -727,17 +727,20 @@ function run_reopt_with_pv_priority(m::JuMP.AbstractModel, p::REoptInputs; organ
     if organize_pvs && !isempty(p.techs.pv)
         organize_multiple_pv_results(p, results)
     end
+    if organize_chps && !isempty(p.techs.chp)
+        organize_multiple_chp_results(p, results)
+    end
 
     results["Messages"] = logger_to_dict()
     return results
 end
 
 
-function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
 
 	try
 		if pv_priority_active(p.s.pvs)
-			return run_reopt_with_pv_priority(m, p; organize_pvs=organize_pvs)
+			return run_reopt_with_pv_priority(m, p; organize_pvs=organize_pvs, organize_chps=organize_chps)
 		end
 		build_reopt!(m, p)
 
