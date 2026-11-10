@@ -76,7 +76,6 @@ function Techs(p::REoptInputs, s::BAUScenario)
             for i in 1:s.water_power.number_of_pumps
                 water_power_name_pump = "WaterPower_Pump"*string(i)
                 push!(all_techs, water_power_name_pump)
-                push!(elec, water_power_name_pump)
                 push!(water_power, water_power_name_pump)
                 push!(water_power_pumps, water_power_name_pump)
             end

@@ -1,7 +1,6 @@
 # REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function add_export_constraints(m, p; _n="")
-    print("\n #1: p.techs.all is: $(p.techs.all)")
-
+   
     ## Imports and Exports must be no greater than the transmission limit
     m[Symbol("ImportExportLimitCon"*_n)] = @constraint(m, [ts in p.time_steps_with_grid],
     sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for t in p.techs.elec, u in p.export_bins_by_tech[t])
@@ -139,8 +138,6 @@ function add_export_constraints(m, p; _n="")
     end
 
     if !isempty(WHL_techs)
-        print("\n techs in wholesale export bin are: ")
-        print(p.techs_by_exportbin[:WHL])
         if typeof(binNEM) <: Real  # no need for wholesale binary
             binWHL = 1
             WHL_benefit = @expression(m, p.pwf_e * p.hours_per_time_step *
@@ -393,8 +390,7 @@ end
 
 
 function add_elec_utility_expressions(m, p; _n="")
-    # TODO: if prefered, change the if statement below so that the water_power does not need to be called out separately (note: hydro is removed from p.techs.all in reopt.jl in this line of code: NonHydroTechs = filter!(x->x != water_power_tech, p.techs.all))
-    if (!isempty(p.s.electric_tariff.export_bins) && !isempty(p.techs.all)) || (!isempty(p.techs.water_power))
+    if (!isempty(p.s.electric_tariff.export_bins) && !isempty(p.techs.all))
         # NOTE: levelization_factor is baked into dvProductionToGrid
         m[Symbol("TotalExportBenefit"*_n)] = m[Symbol("NEM_benefit"*_n)] + m[Symbol("WHL_benefit"*_n)] +
                                              m[Symbol("EXC_benefit"*_n)]

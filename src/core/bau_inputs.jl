@@ -234,7 +234,6 @@ function BAUInputs(p::REoptInputs)
         heating_loads_served_by_tes,
         unavailability,
         absorption_chillers_using_heating_load,
-        water_power_inputs,
         avoided_capex_by_ashp_present_value
     )
 end

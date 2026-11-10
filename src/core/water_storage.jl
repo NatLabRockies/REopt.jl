@@ -103,7 +103,7 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
     net_present_cost_per_cubic_meter::Float64
 
     function UpstreamReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
-        set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
+        set_sector_defaults!(d; struct_name="WaterPower", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = UpstreamReservoirStorageDefaults(; d...)
 
         macrs_schedule = [0.0]
@@ -180,7 +180,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
     net_present_cost_per_cubic_meter::Float64
 
     function DownstreamReservoirStorage(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
-        set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
+        set_sector_defaults!(d; struct_name="WaterPower", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = DownstreamReservoirStorageDefaults(; d...)
 
         macrs_schedule = [0.0]

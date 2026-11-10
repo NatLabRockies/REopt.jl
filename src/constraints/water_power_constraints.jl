@@ -6,25 +6,25 @@ const GRAVITATIONAL_CONSTANT = 9.81
 function add_water_power_constraints(m,p; _n="")
 	@info "Adding constraints for water_power"
 	
-	if p.s.water_power.computation_type == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
+	if p.s.water_power.water_power_mathematical_representation == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
 		@info "Adding water_power power output constraint using the average power conversion"
 
 		for (t_i, t) in enumerate(p.techs.water_power_turbines)
 			@constraint(m, [ts in p.time_steps],
 					m[Symbol("dvRatedProduction"*_n)][t,ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
 																			m[Symbol("dvWaterOutFlow"*_n)][t,ts] * 
-																			(1/p.s.water_power.water_turbine_average_cubic_meters_per_second_conversion_efficiency) * 
+																			(1/p.s.water_power.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second) * 
 																			(p.s.water_power.head_turbine_meters - p.s.water_power.head_loss_turbine_meters) * (1- (t_i/1000))  # the "1 - (t_i/1000)" is for turbine prioritization
 						)
 		end
 
 	#TODO: add other formuations
-	#elseif p.s.water_power.computation_type == "" 
+	#elseif p.s.water_power.water_power_mathematical_representation == "" 
 			
-	#elseif p.s.water_power.computation_type == ""
+	#elseif p.s.water_power.water_power_mathematical_representation == ""
 		
 	else 
-		error("Invalid input for the computation_type field")
+		error("Invalid input for the water_power_mathematical_representation field")
 	end
 
 	# Create variable for the upstream reservoir capacity
@@ -164,13 +164,13 @@ function add_water_power_constraints(m,p; _n="")
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[Symbol("PumpPowerInputMaximum"*_n)][t,ts] >= m[Symbol("pump_power_rating"*_n)][t] - (1000000*(1-m[Symbol("binPumpingWaterActive"*_n)][t,ts])))
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[Symbol("PumpPowerInputMaximum"*_n)][t,ts] >= 0)
 
-		if p.s.water_power.computation_type == "average_power_conversion"
+		if p.s.water_power.water_power_mathematical_representation == "average_power_conversion"
 			# Conversion between pumped water flow rate and power input into the pump
 			for t in 1:Int(length(p.techs.water_power_pumps))
 				@constraint(m, [ts in p.time_steps], 
 										m[Symbol("dvPumpPowerInput"*_n)][p.techs.water_power_pumps[t], ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
 																				m[Symbol("dvPumpedWaterFlow"*_n)][p.techs.water_power_pumps[t], ts] * 
-																				(1/p.s.water_power.water_pump_average_cubic_meters_per_second_conversion_efficiency) * 
+																				(1/p.s.water_power.water_pump_average_power_conversion_kw_per_cubic_meters_per_second) * 
 																				(p.s.water_power.head_pump_meters + p.s.water_power.head_loss_pump_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
 							)
 			end

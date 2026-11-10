@@ -8,49 +8,45 @@
     turbine_cost_per_kw::Real=5000.0,
     turbine_max_kw::Real=10000000,
     turbine_min_kw::Real=0,
-    computation_type::String="average_power_conversion", 
-    water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0, # only applied when the computation_type = "average_power_conversion"   
+    head_turbine_meters::Real=500,
+    head_loss_turbine_meters::Real=20
+    water_power_mathematical_representation::String="average_power_conversion", # This input defines which mathematical representation is used for the water power system. The options are: "average_power_conversion" (which assumes a fixed conversion factor between the water flow and the electric power)
+    water_turbine_average_power_conversion_kw_per_cubic_meters_per_second::Real=0, # only applied when the water_power_mathematical_representation = "average_power_conversion"   
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0,
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
-    minimum_operating_time_steps_individual_turbine::Real=0.0, # the minimum time (in time steps) that an invidual turbine must run for (can avoid turning a turbine on for just 15 minute, for instance)
+    minimum_operating_time_steps_individual_turbine::Real=1.0, # the minimum time (in time steps) that an invidual turbine must run for (can avoid turning a turbine on for just 15 minute, for instance)
     minimum_operating_time_steps_at_local_maximum_turbine_output::Real=0.0,
     minimum_turbine_off_time_steps::Real=0.0,
+    om_cost_per_kw_turbine::Real=0,
+    total_rebate_per_kw_turbine::Real=0,
 
     # Define the pump information
     number_of_pumps::Real=0,
     max_kw_pump::Real=10000000,
     min_kw_pump::Real=0,
     pump_cost_per_kw::Real=5000.0,
-    water_pump_average_cubic_meters_per_second_conversion_efficiency::Real=0,
-   
+    head_pump_meters::Real=500,
+    head_loss_pump_meters::Real=20,
+    water_pump_average_power_conversion_kw_per_cubic_meters_per_second::Real=0, # only applied when the water_power_mathematical_representation = "average_power_conversion"   
+    om_cost_per_kw_pump::Real=0,
     are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0,
     maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000,
     minimum_operating_time_steps_individual_pump::Real=1,
- 
+    total_rebate_per_kw_pump::Real=0,
+    
     # Additional inputs
-    spillway_maximum_cubic_meter_per_second::Real=nothing, # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
-    hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
+    spillway_maximum_cubic_meter_per_second::Union{Nothing,:Real}=nothing, # maximum water flow that can flow out of the spillway (structure that enables water overflowing from the reservoir to pass over/through the dam)
     can_net_meter::Bool = off_grid_flag ? false : true,
     can_wholesale::Bool = off_grid_flag ? false : true,
     can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true,
     can_curtail::Bool = true,
-
-    om_cost_per_kw_turbine::Real=0,
-    om_cost_per_kw_pump::Real=0,
-    total_rebate_per_kw_pump::Real=0,
-    total_rebate_per_kw_turbine::Real=0,
     macrs_option_years::Real=0,
     macrs_bonus_fraction::Real=0,
     macrs_itc_reduction::Real=0,
     total_itc_fraction::Real=0,
-
-    head_pump_meters::Real=500,
-    head_turbine_meters::Real=500,
-    head_loss_pump_meters::Real=20,
-    head_loss_turbine_meters::Real=20
 
 ```
 """
@@ -61,50 +57,46 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     turbine_cost_per_kw::Real=5000.0
     turbine_max_kw::Real=10000000
     turbine_min_kw::Real=0
-    
-    computation_type::String="average_power_conversion"
-    water_turbine_average_cubic_meters_per_second_conversion_efficiency::Real=0
+    head_turbine_meters::Real=500
+    head_loss_turbine_meters::Real=20
+    water_power_mathematical_representation::String="average_power_conversion"
+    water_turbine_average_power_conversion_kw_per_cubic_meters_per_second::Real=0
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
-    minimum_operating_time_steps_individual_turbine::Real=0.0
+    minimum_operating_time_steps_individual_turbine::Real=1.0
     minimum_operating_time_steps_at_local_maximum_turbine_output::Real=0.0
     minimum_turbine_off_time_steps::Real=0.0
+    om_cost_per_kw_turbine::Real=0
+    total_rebate_per_kw_turbine::Real=0
 
     # Define the pump information
     number_of_pumps::Real=0
     max_kw_pump::Real=10000000
     min_kw_pump::Real=0
     pump_cost_per_kw::Real=5000.0
-    water_pump_average_cubic_meters_per_second_conversion_efficiency::Real=0
-    
+    head_pump_meters::Real=500
+    head_loss_pump_meters::Real=20
+    water_pump_average_power_conversion_kw_per_cubic_meters_per_second::Real=0
+    om_cost_per_kw_pump::Real=0
     are_pumps_reversible::Bool=false
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0
     minimum_water_flow_cubic_meter_per_second_per_pump::Real=0
     maximum_water_flow_cubic_meter_per_second_per_pump::Real=1000000
     minimum_operating_time_steps_individual_pump::Real=1
+    total_rebate_per_kw_pump::Real=0
 
     # Additional inputs
-    spillway_maximum_cubic_meter_per_second::Real=nothing
-    hydro_production_factor_series::Union{Nothing, Array{<:Real,1}} = nothing
+    spillway_maximum_cubic_meter_per_second::Union{Nothing,:Real}=nothing
     can_net_meter::Bool = off_grid_flag ? false : true
     can_wholesale::Bool = off_grid_flag ? false : true
     can_export_beyond_nem_limit::Bool = off_grid_flag ? false : true
     can_curtail::Bool = true
-
-    om_cost_per_kw_turbine::Real=0
-    om_cost_per_kw_pump::Real=0
-    total_rebate_per_kw_pump::Real=0
-    total_rebate_per_kw_turbine::Real=0
     macrs_option_years::Real=0
     macrs_bonus_fraction::Real=0
     macrs_itc_reduction::Real=0
     total_itc_fraction::Real=0
-    
-    head_pump_meters::Real=500
-    head_turbine_meters::Real=500
-    head_loss_pump_meters::Real=20
-    head_loss_turbine_meters::Real=20
+
 end
 
 """
@@ -119,60 +111,62 @@ mutable struct WaterPower <: AbstractWaterPower
     turbine_cost_per_kw
     turbine_max_kw
     turbine_min_kw
-    
-    computation_type
-    water_turbine_average_cubic_meters_per_second_conversion_efficiency
+    head_turbine_meters
+    head_loss_turbine_meters
+    water_power_mathematical_representation
+    water_turbine_average_power_conversion_kw_per_cubic_meters_per_second
     minimum_water_output_cubic_meter_per_second_total_of_all_turbines
     minimum_water_output_cubic_meter_per_second_per_turbine
     maximum_water_output_cubic_meter_per_second_per_turbine
     minimum_operating_time_steps_individual_turbine
     minimum_operating_time_steps_at_local_maximum_turbine_output
     minimum_turbine_off_time_steps
+    om_cost_per_kw_turbine
+    total_rebate_per_kw_turbine
+    
     number_of_pumps
     max_kw_pump
     min_kw_pump
     pump_cost_per_kw
-    water_pump_average_cubic_meters_per_second_conversion_efficiency
-    
+    head_pump_meters
+    head_loss_pump_meters
+    water_pump_average_power_conversion_kw_per_cubic_meters_per_second
+    om_cost_per_kw_pump
     are_pumps_reversible
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps
     minimum_water_flow_cubic_meter_per_second_per_pump
     maximum_water_flow_cubic_meter_per_second_per_pump
     minimum_operating_time_steps_individual_pump
+    total_rebate_per_kw_pump
+    
     spillway_maximum_cubic_meter_per_second
-    hydro_production_factor_series 
     can_net_meter  
     can_wholesale  
     can_export_beyond_nem_limit 
     can_curtail
-    om_cost_per_kw_turbine
-    om_cost_per_kw_pump
-    total_rebate_per_kw_pump
-    total_rebate_per_kw_turbine
     macrs_option_years
     macrs_bonus_fraction
     macrs_itc_reduction
     total_itc_fraction
     net_present_cost_per_kw_turbine
     net_present_cost_per_kw_pump
-    head_pump_meters
-    head_turbine_meters
-    head_loss_pump_meters
-    head_loss_turbine_meters
 
     function WaterPower(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
         # TODO: update the struct_name for the sector-specific defaults
-        set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
+        set_sector_defaults!(d; struct_name="WaterPower", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         stor = WaterPowerDefaults(; d...)
         
         macrs_schedule = [0.0]
         if stor.macrs_option_years == 5 || stor.macrs_option_years == 7
             macrs_schedule = stor.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
         elseif !(stor.macrs_option_years == 0)
-            throw(@error("ColdThermalStorage macrs_option_years must be 0, 5, or 7."))
+            throw(@error("WaterPower macrs_option_years must be 0, 5, or 7."))
         end
 
         # TODO: implement off_grid capability for water_power
+        if off_grid_flag
+            throw(@error("Water power cannot currently be modeled in off grid models."))
+        end
         #=
         if off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
             @warn "Setting Existing WaterPower can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
@@ -223,44 +217,46 @@ mutable struct WaterPower <: AbstractWaterPower
             stor.turbine_cost_per_kw,
             stor.turbine_max_kw,
             stor.turbine_min_kw,
-            stor.computation_type,
-            stor.water_turbine_average_cubic_meters_per_second_conversion_efficiency,
+            stor.head_turbine_meters,
+            stor.head_loss_turbine_meters,
+            stor.water_power_mathematical_representation,
+            stor.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second,
             stor.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
             stor.minimum_water_output_cubic_meter_per_second_per_turbine,
             stor.maximum_water_output_cubic_meter_per_second_per_turbine,
             stor.minimum_operating_time_steps_individual_turbine,
             stor.minimum_operating_time_steps_at_local_maximum_turbine_output,
             stor.minimum_turbine_off_time_steps,
+            stor.om_cost_per_kw_turbine,
+            stor.total_rebate_per_kw_turbine,
+
             stor.number_of_pumps,
             stor.max_kw_pump,
             stor.min_kw_pump,
             stor.pump_cost_per_kw,
-            stor.water_pump_average_cubic_meters_per_second_conversion_efficiency,
+            stor.head_pump_meters,
+            stor.head_loss_pump_meters,
+            stor.water_pump_average_power_conversion_kw_per_cubic_meters_per_second,
+            stor.om_cost_per_kw_pump,
             stor.are_pumps_reversible,
             stor.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
             stor.minimum_water_flow_cubic_meter_per_second_per_pump,
             stor.maximum_water_flow_cubic_meter_per_second_per_pump,
             stor.minimum_operating_time_steps_individual_pump,
+            stor.total_rebate_per_kw_pump,
+            
             stor.spillway_maximum_cubic_meter_per_second,
-            stor.hydro_production_factor_series,
             stor.can_net_meter,
             stor.can_wholesale,
             stor.can_export_beyond_nem_limit,
-            stor.can_curtail,
-            stor.om_cost_per_kw_turbine,
-            stor.om_cost_per_kw_pump,
-            stor.total_rebate_per_kw_pump,
-            stor.total_rebate_per_kw_turbine,
+            stor.can_curtail,            
             stor.macrs_option_years,
             stor.macrs_bonus_fraction,
             stor.macrs_itc_reduction,
             stor.total_itc_fraction,
             net_present_cost_per_kw_turbine,
-            net_present_cost_per_kw_pump,
-            stor.head_pump_meters,
-            stor.head_turbine_meters,
-            stor.head_loss_pump_meters,
-            stor.head_loss_turbine_meters
+            net_present_cost_per_kw_pump
+            
         )
     end
 end

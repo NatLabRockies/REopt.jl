@@ -66,7 +66,6 @@ struct REoptInputs <: AbstractInputs
     cooling_cf::Dict{String, Array{<:Real, 1}} # (techs.ashp)
     heating_loads_kw::Dict{String, <:Real} # (heating_loads)
     unavailability::Dict{String, Array{Float64,1}}  # Dict by tech of unavailability profile
-    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing water_power inputs
     avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
 end
 ```
@@ -139,7 +138,6 @@ struct REoptInputs{ScenarioType <: AbstractScenario} <: AbstractInputs
     heating_loads_served_by_tes::Dict{String, Array{String,1}} # ("HotThermalStorage" or empty)
     unavailability::Dict{String, Array{Float64,1}} # (techs.elec)
     absorption_chillers_using_heating_load::Dict{String,Array{String,1}} # ("AbsorptionChiller" or empty)
-    water_power_inputs::Dict{String, Any} # consolidated dictionary for all existing water_power inputs
     avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
 end
 
@@ -177,7 +175,7 @@ function REoptInputs(s::AbstractScenario)
         tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, 
         tech_emissions_factors_PM25, techs_operating_reserve_req_fraction, thermal_cop, fuel_cost_per_kwh, 
         heating_cop, cooling_cop, heating_cf, cooling_cf, avoided_capex_by_ashp_present_value, 
-        pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh, water_power_inputs = setup_tech_inputs(s,time_steps)
+        pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh = setup_tech_inputs(s,time_steps)
 
     months = 1:12
 
@@ -338,7 +336,6 @@ function REoptInputs(s::AbstractScenario)
         heating_loads_served_by_tes,
         unavailability,
         absorption_chillers_using_heating_load,
-        water_power_inputs,
         avoided_capex_by_ashp_present_value
     )
 end
@@ -382,8 +379,6 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     pbi_max_benefit = Dict{String, Any}()
     pbi_max_kw = Dict{String, Any}()
     pbi_benefit_per_kwh = Dict{String, Any}()
-
-    water_power_inputs = Dict{String, Any}()
 
     # export related inputs
     techs_by_exportbin = Dict{Symbol, AbstractArray}(k => [] for k in s.electric_tariff.export_bins)
@@ -497,10 +492,7 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     end
     
     if "WaterPower_Turbine1" in techs.all   # Note: the setup_water_power_inputs function adds inputs for the other turbine numbers
-        print("\n Setting up WaterPower in the reopt inputs file")
-        setup_water_power_inputs(s, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
-    else
-        print("\n WaterPower is not in the techs")
+        setup_water_power_inputs(s, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
     end
 
     # filling export_bins_by_tech MUST be done after techs_by_exportbin has been filled in
@@ -518,7 +510,7 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
     tech_renewable_energy_fraction, tech_emissions_factors_CO2, tech_emissions_factors_NOx, tech_emissions_factors_SO2, 
     tech_emissions_factors_PM25, techs_operating_reserve_req_fraction, thermal_cop, fuel_cost_per_kwh, 
     heating_cop, cooling_cop, heating_cf, cooling_cf, avoided_capex_by_ashp_present_value,
-    pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh, water_power_inputs
+    pbi_pwf, pbi_max_benefit, pbi_max_kw, pbi_benefit_per_kwh
 end
 
 
@@ -737,7 +729,7 @@ function setup_wind_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_s
     return nothing
 end
 
-function setup_water_power_inputs(s::AbstractScenario, water_power_inputs, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
+function setup_water_power_inputs(s::AbstractScenario, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
    
     for i in 1:s.water_power.number_of_turbines
         turbine_tech_name = "WaterPower_Turbine"*string(i)

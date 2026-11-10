@@ -77,7 +77,6 @@ function add_elec_storage_dispatch_constraints(m, p, b; _n="")
         )
 	)
 
-    # Note: Hydro to storage not added for off-grid scenarios
 	# Constraint (4h): state-of-charge for electrical storage - no grid
 	# Constraint (4g)-2: state-of-charge for electrical storage - no grid
 	@constraint(m, [ts in p.time_steps_without_grid],

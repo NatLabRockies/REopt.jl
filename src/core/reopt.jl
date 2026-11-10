@@ -217,13 +217,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 				@constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps], m[:dvHeatToStorage][b,t,q,ts] == 0)
 			end
 		else
-			# Additional variables for exporting storage energy to the grid
-			dv = "dvBattCharge_binary" 
-			m[Symbol(dv)] = @variable(m, [0:p.time_steps[end]], base_name=dv, Bin) # Binary for battery charge
-
-			dv = "dvBattDischarge_binary"
-			m[Symbol(dv)] = @variable(m, [0:p.time_steps[end]], base_name=dv, Bin) # Binary for battery discharge
-
 			add_storage_size_constraints(m, p, b)
 			add_general_storage_dispatch_constraints(m, p, b)
 			if b in p.s.storage.types.elec
@@ -344,9 +337,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_thermal_load_constraints(m, p)  # split into heating and cooling constraints?
         end
 
-		print("p.techs.water_power is $(p.techs.water_power)")
 		if !isempty(p.techs.water_power)
-			print("\n Adding existing water_power constraints")
 			add_water_power_constraints(m,p)
 		end
 
@@ -712,9 +703,6 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 		@warn "Adding binary variable to prevent simultaneous grid import/export. Some solvers are very slow with integer variables"
 		@variable(m, binNoGridPurchases[p.time_steps], Bin)
 	end
-
-	print("\n p.s.water_power is: $(p.s.water_power)")
-	print("\n p.s.water_storage is: $(p.s.water_storage)")
 
 	if !isempty(p.techs.water_power)
 		print("\n Creating variables for existing water_power")

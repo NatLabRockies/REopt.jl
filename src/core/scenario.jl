@@ -254,7 +254,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                 financial, site, settings.time_steps_per_hour
                             )
     else
-        upstream_reservoir = "none"
+        upstream_reservoir = nothing
     end
     if haskey(d, "DownstreamReservoirWaterStorage")
         push!(water_storage, "downstream_reservoir")
@@ -263,24 +263,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                     financial, site, settings.time_steps_per_hour
                                 )
     else
-        downstream_reservoir = "none"              
-    end
-
-    if !(settings.off_grid_flag) # ElectricTariff only required for on-grid                            
-        electric_tariff = ElectricTariff(; dictkeys_tosymbols(d["ElectricTariff"])..., 
-                                        year=electric_load.year,
-                                        NEM=electric_utility.net_metering_limit_kw > 0, 
-                                        time_steps_per_hour=settings.time_steps_per_hour
-                                        )
-    else # if ElectricTariff inputs supplied for off-grid, will not be applied. 
-        if haskey(d, "ElectricTariff")
-            @warn "ElectricTariff inputs are not applicable when `off_grid_flag` is true, and will be ignored."
-        end
-        electric_tariff = ElectricTariff(;  blended_annual_energy_rate = 0.0, 
-                                            blended_annual_demand_rate = 0.0,
-                                            year=electric_load.year,
-                                            time_steps_per_hour=settings.time_steps_per_hour
-        )
+        downstream_reservoir = nothing              
     end
 
     if haskey(d, "Wind")
