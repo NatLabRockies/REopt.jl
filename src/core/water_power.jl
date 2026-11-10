@@ -12,7 +12,7 @@
     head_loss_turbine_meters::Real=20
     water_power_mathematical_representation::String="average_power_conversion", # This input defines which mathematical representation is used for the water power system. The options are: "average_power_conversion" (which assumes a fixed conversion factor between the water flow and the electric power)
     water_turbine_average_power_conversion_kw_per_cubic_meters_per_second::Real=0, # only applied when the water_power_mathematical_representation = "average_power_conversion"   
-    minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0,
+    minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway::Real=0,
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0,
     minimum_operating_time_steps_individual_turbine::Real=1.0, # the minimum time (in time steps) that an invidual turbine must run for (can avoid turning a turbine on for just 15 minute, for instance)
@@ -61,7 +61,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     head_loss_turbine_meters::Real=20
     water_power_mathematical_representation::String="average_power_conversion"
     water_turbine_average_power_conversion_kw_per_cubic_meters_per_second::Real=0
-    minimum_water_output_cubic_meter_per_second_total_of_all_turbines::Real=0
+    minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway::Real=0
     minimum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
     maximum_water_output_cubic_meter_per_second_per_turbine::Real=0.0
     minimum_operating_time_steps_individual_turbine::Real=1.0
@@ -115,7 +115,7 @@ mutable struct WaterPower <: AbstractWaterPower
     head_loss_turbine_meters
     water_power_mathematical_representation
     water_turbine_average_power_conversion_kw_per_cubic_meters_per_second
-    minimum_water_output_cubic_meter_per_second_total_of_all_turbines
+    minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway
     minimum_water_output_cubic_meter_per_second_per_turbine
     maximum_water_output_cubic_meter_per_second_per_turbine
     minimum_operating_time_steps_individual_turbine
@@ -169,7 +169,7 @@ mutable struct WaterPower <: AbstractWaterPower
         if water_power.minimum_operating_time_steps_individual_turbine < 1
             throw(@error("The 'minimum_operating_time_steps_individual_turbine' must be greater than or equal to 1"))
         end
-        
+
         if water_power.are_pumps_reversible && (water_power.number_of_pumps != water_power.number_of_turbines)
             throw(@error("If the pumps are reversible, then the number_of_pumps must be equal to the number_of_turbines"))
         end
@@ -196,7 +196,7 @@ mutable struct WaterPower <: AbstractWaterPower
             water_power.head_loss_turbine_meters,
             water_power.water_power_mathematical_representation,
             water_power.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second,
-            water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
+            water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway,
             water_power.minimum_water_output_cubic_meter_per_second_per_turbine,
             water_power.maximum_water_output_cubic_meter_per_second_per_turbine,
             water_power.minimum_operating_time_steps_individual_turbine,

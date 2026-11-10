@@ -125,8 +125,9 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        # TODO: implement the conversion to the correct timesteps for the tributary inflow
-        #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        if length(stor.tributary_water_inflow_cubic_meter_per_second) > 0
+            stor.tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        end
 
         if stor.maximum_volume_fraction < stor.minimum_volume_fraction
             throw(@error("The 'maximum_volume_fraction' must be greater than or equal to the 'minimum_volume_fraction"))
@@ -202,9 +203,10 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        # TODO: implement the conversion to the correct timesteps for the tributary inflow
-        #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
-
+        if length(stor.tributary_water_inflow_cubic_meter_per_second) > 0
+            stor.tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        end
+        
         return new(
             stor.initial_reservoir_volume_fraction,
             stor.minimum_volume_fraction,
@@ -227,7 +229,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
 end
 
 
-function convert_tributary_flow_to_correct_time_steps_per_hour(tributary_flow, time_steps_per_hour)
+function verify_tributary_flow_data_has_correct_time_steps_per_hour(tributary_flow, time_steps_per_hour)
     
     tributary_flow_length = length(tributary_flow)
 
