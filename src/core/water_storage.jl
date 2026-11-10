@@ -8,12 +8,12 @@ Upstream reservoir water storage sytem
 
 ```julia
     tributary_water_inflow_cubic_meter_per_second::Array=[]
-    minimum_volume_fraction_upstream_reservoir::Float64 = 0.1
-    maximum_volume_fraction_upstream_reservoir::Float64 = 1.0
-    initial_reservoir_volume_fraction_upstream_reservoir::Float64 = 0.0
-    minimum_capacity_cubic_meters_upstream_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_upstream_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_upstream_reservoir::Float64 = 25.0
+    minimum_volume_fraction::Float64 = 0.1
+    maximum_volume_fraction::Float64 = 1.0
+    initial_reservoir_volume_fraction::Float64 = 0.0
+    minimum_capacity_cubic_meters::Float64 = 0.0
+    maximum_capacity_cubic_meters::Float64 = 10000000.0
+    cost_per_cubic_meter::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 # Yearly fixed O&M cost dependent on storage energy size
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -24,12 +24,12 @@ Upstream reservoir water storage sytem
 """
 Base.@kwdef struct UpstreamReservoirStorageDefaults <: AbstractWaterStorageDefaults
     tributary_water_inflow_cubic_meter_per_second::Array=[]
-    minimum_volume_fraction_upstream_reservoir::Float64 = 0.1
-    maximum_volume_fraction_upstream_reservoir::Float64 = 1.0
-    initial_reservoir_volume_fraction_upstream_reservoir::Float64 = 0.0
-    minimum_capacity_cubic_meters_upstream_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_upstream_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_upstream_reservoir::Float64 = 25.0
+    minimum_volume_fraction::Float64 = 0.1
+    maximum_volume_fraction::Float64 = 1.0
+    initial_reservoir_volume_fraction::Float64 = 0.0
+    minimum_capacity_cubic_meters::Float64 = 0.0
+    maximum_capacity_cubic_meters::Float64 = 10000000.0
+    cost_per_cubic_meter::Float64 = 25.0
     om_cost_per_cubic_meter::Float64 = 0.0 
     macrs_option_years::Int = 5
     macrs_bonus_fraction::Float64 = 1.0 
@@ -43,14 +43,14 @@ end
 `DownstreamReservoirStorage` is an optional REopt input with the following keys and default values:
 
 ```julia    
-    initial_reservoir_volume_fraction_downstream_reservoir::Float64 = 0.5
-    minimum_volume_fraction_downstream_reservoir::Float64 = 0.2
-    maximum_volume_fraction_downstream_reservoir::Float64 = 1.0
-    minimum_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_downstream_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_downstream_reservoir::Float64 = 25.0
-    minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 0.0
-    maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 10000.0
+    initial_reservoir_volume_fraction::Float64 = 0.5
+    minimum_volume_fraction::Float64 = 0.2
+    maximum_volume_fraction::Float64 = 1.0
+    minimum_capacity_cubic_meters::Float64 = 0.0
+    maximum_capacity_cubic_meters::Float64 = 10000000.0
+    cost_per_cubic_meter::Float64 = 25.0
+    minimum_outflow_cubic_meter_per_second::Float64 = 0.0
+    maximum_outflow_cubic_meter_per_second::Float64 = 10000.0
     om_cost_per_cubic_meter::Float64 = 0.0
     tributary_water_inflow_cubic_meter_per_second::Array=[]
     macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
@@ -62,14 +62,14 @@ end
 ```
 """
 Base.@kwdef struct DownstreamReservoirStorageDefaults <: AbstractWaterStorageDefaults   
-    initial_reservoir_volume_fraction_downstream_reservoir::Float64 = 0.5
-    minimum_volume_fraction_downstream_reservoir::Float64 = 0.2
-    maximum_volume_fraction_downstream_reservoir::Float64 = 1.0
-    minimum_capacity_cubic_meters_downstream_reservoir::Float64 = 0.0
-    maximum_capacity_cubic_meters_downstream_reservoir::Float64 = 10000000.0
-    cost_per_cubic_meter_downstream_reservoir::Float64 = 25.0
-    minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 0.0
-    maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64 = 10000.0
+    initial_reservoir_volume_fraction::Float64 = 0.5
+    minimum_volume_fraction::Float64 = 0.2
+    maximum_volume_fraction::Float64 = 1.0
+    minimum_capacity_cubic_meters::Float64 = 0.0
+    maximum_capacity_cubic_meters::Float64 = 10000000.0
+    cost_per_cubic_meter::Float64 = 25.0
+    minimum_outflow_cubic_meter_per_second::Float64 = 0.0
+    maximum_outflow_cubic_meter_per_second::Float64 = 10000.0
     om_cost_per_cubic_meter::Float64 = 0.0
     tributary_water_inflow_cubic_meter_per_second::Array=[]
     macrs_option_years::Int = 5 
@@ -88,12 +88,12 @@ REopt UpstreamReservoirStorage and Financial inputs.
 """
 struct UpstreamReservoirStorage <: AbstractWaterStorage
     tributary_water_inflow_cubic_meter_per_second::Array
-    minimum_volume_fraction_upstream_reservoir::Float64
-    maximum_volume_fraction_upstream_reservoir::Float64
-    initial_reservoir_volume_fraction_upstream_reservoir::Float64
-    minimum_capacity_cubic_meters_upstream_reservoir::Float64
-    maximum_capacity_cubic_meters_upstream_reservoir::Float64
-    cost_per_cubic_meter_upstream_reservoir::Float64
+    minimum_volume_fraction::Float64
+    maximum_volume_fraction::Float64
+    initial_reservoir_volume_fraction::Float64
+    minimum_capacity_cubic_meters::Float64
+    maximum_capacity_cubic_meters::Float64
+    cost_per_cubic_meter::Float64
     om_cost_per_cubic_meter::Float64
     macrs_option_years::Int
     macrs_bonus_fraction::Float64
@@ -114,7 +114,7 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
         end
       
         net_present_cost_per_cubic_meter = effective_cost(;
-            itc_basis = stor.cost_per_cubic_meter_upstream_reservoir,
+            itc_basis = stor.cost_per_cubic_meter,
             replacement_cost = 0.0,
             replacement_year = 100,
             discount_rate = f.owner_discount_rate_fraction,
@@ -128,21 +128,21 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
         # TODO: implement the conversion to the correct timesteps for the tributary inflow
         #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
-        if stor.maximum_volume_fraction_upstream_reservoir < stor.minimum_volume_fraction_upstream_reservoir
-            throw(@error("The 'maximum_volume_fraction_upstream_reservoir' must be greater than or equal to the 'minimum_volume_fraction_upstream_reservoir"))
+        if stor.maximum_volume_fraction < stor.minimum_volume_fraction
+            throw(@error("The 'maximum_volume_fraction' must be greater than or equal to the 'minimum_volume_fraction"))
         end
-        if (stor.initial_reservoir_volume_fraction_upstream_reservoir < stor.minimum_volume_fraction_upstream_reservoir) || (stor.initial_reservoir_volume_fraction_upstream_reservoir > stor.maximum_volume_fraction_upstream_reservoir)
-            throw(@error("The 'initial_reservoir_volume_fraction_upstream_reservoir' must be between the 'minimum_volume_fraction_upstream_reservoir' and 'maximum_volume_fraction_upstream_reservoir' "))
+        if (stor.initial_reservoir_volume_fraction < stor.minimum_volume_fraction) || (stor.initial_reservoir_volume_fraction > stor.maximum_volume_fraction)
+            throw(@error("The 'initial_reservoir_volume_fraction' must be between the 'minimum_volume_fraction' and 'maximum_volume_fraction' "))
         end
 
         return new(
             stor.tributary_water_inflow_cubic_meter_per_second,
-            stor.minimum_volume_fraction_upstream_reservoir,
-            stor.maximum_volume_fraction_upstream_reservoir,
-            stor.initial_reservoir_volume_fraction_upstream_reservoir,
-            stor.minimum_capacity_cubic_meters_upstream_reservoir,
-            stor.maximum_capacity_cubic_meters_upstream_reservoir,
-            stor.cost_per_cubic_meter_upstream_reservoir,
+            stor.minimum_volume_fraction,
+            stor.maximum_volume_fraction,
+            stor.initial_reservoir_volume_fraction,
+            stor.minimum_capacity_cubic_meters,
+            stor.maximum_capacity_cubic_meters,
+            stor.cost_per_cubic_meter,
             stor.om_cost_per_cubic_meter,
             stor.macrs_option_years,
             stor.macrs_bonus_fraction,
@@ -162,14 +162,14 @@ Construct DownstreamReservoirStorage struct from Dict with keys-val pairs from t
 REopt DownstreamReservoirStorage and Financial inputs. 
 """
 struct DownstreamReservoirStorage <: AbstractWaterStorage
-    initial_reservoir_volume_fraction_downstream_reservoir::Float64
-    minimum_volume_fraction_downstream_reservoir::Float64
-    maximum_volume_fraction_downstream_reservoir::Float64
-    minimum_capacity_cubic_meters_downstream_reservoir::Float64
-    maximum_capacity_cubic_meters_downstream_reservoir::Float64
-    cost_per_cubic_meter_downstream_reservoir::Float64
-    minimum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
-    maximum_outflow_from_downstream_reservoir_cubic_meter_per_second::Float64
+    initial_reservoir_volume_fraction::Float64
+    minimum_volume_fraction::Float64
+    maximum_volume_fraction::Float64
+    minimum_capacity_cubic_meters::Float64
+    maximum_capacity_cubic_meters::Float64
+    cost_per_cubic_meter::Float64
+    minimum_outflow_cubic_meter_per_second::Float64
+    maximum_outflow_cubic_meter_per_second::Float64
     om_cost_per_cubic_meter::Float64
     tributary_water_inflow_cubic_meter_per_second::Array
     macrs_option_years::Int
@@ -191,7 +191,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
         end        
       
         net_present_cost_per_cubic_meter = effective_cost(;
-            itc_basis = stor.cost_per_cubic_meter_downstream_reservoir,
+            itc_basis = stor.cost_per_cubic_meter,
             replacement_cost = 0.0,
             replacement_year = 100,
             discount_rate = f.owner_discount_rate_fraction,
@@ -206,14 +206,14 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
         #stor.tributary_water_inflow_cubic_meter_per_second = convert_tributary_flow_to_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
 
         return new(
-            stor.initial_reservoir_volume_fraction_downstream_reservoir,
-            stor.minimum_volume_fraction_downstream_reservoir,
-            stor.maximum_volume_fraction_downstream_reservoir,
-            stor.minimum_capacity_cubic_meters_downstream_reservoir,
-            stor.maximum_capacity_cubic_meters_downstream_reservoir,
-            stor.cost_per_cubic_meter_downstream_reservoir,
-            stor.minimum_outflow_from_downstream_reservoir_cubic_meter_per_second,
-            stor.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second,
+            stor.initial_reservoir_volume_fraction,
+            stor.minimum_volume_fraction,
+            stor.maximum_volume_fraction,
+            stor.minimum_capacity_cubic_meters,
+            stor.maximum_capacity_cubic_meters,
+            stor.cost_per_cubic_meter,
+            stor.minimum_outflow_cubic_meter_per_second,
+            stor.maximum_outflow_cubic_meter_per_second,
             stor.om_cost_per_cubic_meter,
             stor.tributary_water_inflow_cubic_meter_per_second,
             stor.macrs_option_years,

@@ -31,14 +31,14 @@ function add_water_power_constraints(m,p; _n="")
 
 	dv = "dvUpstreamReservoirCapacity"*_n
 	m[Symbol(dv)] = @variable(m, base_name=dv)
-	@constraint(m, p.s.upstream_reservoir.minimum_capacity_cubic_meters_upstream_reservoir <= m[Symbol(dv)] <= p.s.upstream_reservoir.maximum_capacity_cubic_meters_upstream_reservoir)
+	@constraint(m, p.s.upstream_reservoir.minimum_capacity_cubic_meters <= m[Symbol(dv)] <= p.s.upstream_reservoir.maximum_capacity_cubic_meters)
 	
 	# The upstream reservoir water volume must be between the max and min levels
 	@constraint(m, [ts in p.time_steps],
-		m[Symbol("dvWaterVolume"*_n)][ts] <= p.s.upstream_reservoir.maximum_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
+		m[Symbol("dvWaterVolume"*_n)][ts] <= p.s.upstream_reservoir.maximum_volume_fraction * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
 				)
 	@constraint(m, [ts in p.time_steps],
-		m[Symbol("dvWaterVolume"*_n)][ts] >= p.s.upstream_reservoir.minimum_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)] 
+		m[Symbol("dvWaterVolume"*_n)][ts] >= p.s.upstream_reservoir.minimum_volume_fraction * m[Symbol("dvUpstreamReservoirCapacity"*_n)] 
 				)
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
@@ -65,7 +65,7 @@ function add_water_power_constraints(m,p; _n="")
 					+ ((3600/p.s.settings.time_steps_per_hour) * m[Symbol("dvWaterVolumeChange"*_n)][ts])   # The (3600/p.s.settings.time_steps_per_hour) converts from m^3 per second, to m^3 per timestep
 				)
 	
-	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == p.s.upstream_reservoir.initial_reservoir_volume_fraction_upstream_reservoir * m[Symbol("dvUpstreamReservoirCapacity"*_n)]) 
+	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == p.s.upstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvUpstreamReservoirCapacity"*_n)]) 
 		
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == m[Symbol("dvWaterVolume"*_n)][maximum(p.time_steps)])
@@ -108,23 +108,23 @@ function add_water_power_constraints(m,p; _n="")
 		@constraint(m, m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][1] == m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][maximum(p.time_steps)])
 
 		# Downstream Reservoir: Minimum and maximum water volumes
-		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] >= p.s.downstream_reservoir.minimum_volume_fraction_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
-		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] <= p.s.downstream_reservoir.maximum_volume_fraction_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
+		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] >= p.s.downstream_reservoir.minimum_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
+		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] <= p.s.downstream_reservoir.maximum_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
 
 		# Downstream Reservoir: define the initial water volume
-		@constraint(m, m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][1] == p.s.downstream_reservoir.initial_reservoir_volume_fraction_downstream_reservoir * m[Symbol("dvDownstreamReservoirCapacity"*_n)]) 
+		@constraint(m, m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][1] == p.s.downstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)]) 
 
 		# Downstream Reservoir: constrain the optimized reservoir capacity
-		@constraint(m, m[Symbol("dvDownstreamReservoirCapacity"*_n)] >= p.s.downstream_reservoir.minimum_capacity_cubic_meters_downstream_reservoir) 
-		@constraint(m, m[Symbol("dvDownstreamReservoirCapacity"*_n)] <= p.s.downstream_reservoir.maximum_capacity_cubic_meters_downstream_reservoir)
+		@constraint(m, m[Symbol("dvDownstreamReservoirCapacity"*_n)] >= p.s.downstream_reservoir.minimum_capacity_cubic_meters) 
+		@constraint(m, m[Symbol("dvDownstreamReservoirCapacity"*_n)] <= p.s.downstream_reservoir.maximum_capacity_cubic_meters)
 
 		# Downstream Reservoir outflow: minimum and maximum flow rates
 		@constraint(m, [ts in p.time_steps], 
-						m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts] >= p.s.downstream_reservoir.minimum_outflow_from_downstream_reservoir_cubic_meter_per_second 
+						m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts] >= p.s.downstream_reservoir.minimum_outflow_cubic_meter_per_second 
 			   		)
 					
 		@constraint(m, [ts in p.time_steps], 
-					   m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts] <= p.s.downstream_reservoir.maximum_outflow_from_downstream_reservoir_cubic_meter_per_second
+					   m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts] <= p.s.downstream_reservoir.maximum_outflow_cubic_meter_per_second
 					)
 		
 		# The pumps cannot act as power generators

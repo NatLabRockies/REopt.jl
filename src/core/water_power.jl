@@ -148,25 +148,36 @@ mutable struct WaterPower <: AbstractWaterPower
     macrs_bonus_fraction
     macrs_itc_reduction
     total_itc_fraction
-    net_present_cost_per_kw_turbine
-    net_present_cost_per_kw_pump
 
     function WaterPower(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
         # TODO: update the struct_name for the sector-specific defaults
         set_sector_defaults!(d; struct_name="WaterPower", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
-        stor = WaterPowerDefaults(; d...)
+        water_power = WaterPowerDefaults(; d...)
         
+        # Input validation
         macrs_schedule = [0.0]
-        if stor.macrs_option_years == 5 || stor.macrs_option_years == 7
-            macrs_schedule = stor.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
-        elseif !(stor.macrs_option_years == 0)
+        if water_power.macrs_option_years == 5 || water_power.macrs_option_years == 7
+            macrs_schedule = water_power.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
+        elseif !(water_power.macrs_option_years == 0)
             throw(@error("WaterPower macrs_option_years must be 0, 5, or 7."))
         end
 
-        # TODO: implement off_grid capability for water_power
         if off_grid_flag
             throw(@error("Water power cannot currently be modeled in off grid models."))
         end
+        
+        if water_power.minimum_operating_time_steps_individual_turbine < 1
+            throw(@error("The 'minimum_operating_time_steps_individual_turbine' must be greater than or equal to 1"))
+        end
+        
+        if water_power.are_pumps_reversible && (water_power.number_of_pumps != water_power.number_of_turbines)
+            throw(@error("If the pumps are reversible, then the number_of_pumps must be equal to the number_of_turbines"))
+        end
+       
+        if water_power.number_of_turbines > 8
+            @warn("Setting the 'number_of_turbines' to a high value can increase complexity of the optimization problem and reduce solve times")
+        end
+
         #=
         if off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
             @warn "Setting Existing WaterPower can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
@@ -175,87 +186,49 @@ mutable struct WaterPower <: AbstractWaterPower
             can_export_beyond_nem_limit = false
         end
         =#
-        net_present_cost_per_kw_pump = effective_cost(;
-            itc_basis = stor.pump_cost_per_kw,
-            replacement_cost = 0.0,
-            replacement_year = 100,
-            discount_rate = f.owner_discount_rate_fraction,
-            tax_rate = f.owner_tax_rate_fraction,
-            itc = stor.total_itc_fraction,
-            macrs_schedule = macrs_schedule,
-            macrs_bonus_fraction = stor.macrs_bonus_fraction,
-            macrs_itc_reduction = stor.macrs_itc_reduction
-        ) - stor.total_rebate_per_kw_pump
-
-        net_present_cost_per_kw_turbine = effective_cost(;
-            itc_basis = stor.turbine_cost_per_kw,
-            replacement_cost = 0.0,
-            replacement_year = 100,
-            discount_rate = f.owner_discount_rate_fraction,
-            tax_rate = f.owner_tax_rate_fraction,
-            itc = stor.total_itc_fraction,
-            macrs_schedule = macrs_schedule,
-            macrs_bonus_fraction = stor.macrs_bonus_fraction,
-            macrs_itc_reduction = stor.macrs_itc_reduction
-        ) - stor.total_rebate_per_kw_turbine
-
-        # Check the inputs for errors:
-       
-        if stor.minimum_operating_time_steps_individual_turbine < 1
-            throw(@error("The 'minimum_operating_time_steps_individual_turbine' must be greater than or equal to 1"))
-        end
-        if stor.are_pumps_reversible && (stor.number_of_pumps != stor.number_of_turbines)
-            throw(@error("If the pumps are reversible, then the number_of_pumps must be equal to the number_of_turbines"))
-        end
-       
-        if stor.number_of_turbines > 8
-            @warn("Setting the 'number_of_turbines' to a high value can increase complexity of the optimization problem and reduce solve times")
-        end
 
         return new(
-            stor.number_of_turbines,
-            stor.turbine_cost_per_kw,
-            stor.turbine_max_kw,
-            stor.turbine_min_kw,
-            stor.head_turbine_meters,
-            stor.head_loss_turbine_meters,
-            stor.water_power_mathematical_representation,
-            stor.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second,
-            stor.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
-            stor.minimum_water_output_cubic_meter_per_second_per_turbine,
-            stor.maximum_water_output_cubic_meter_per_second_per_turbine,
-            stor.minimum_operating_time_steps_individual_turbine,
-            stor.minimum_operating_time_steps_at_local_maximum_turbine_output,
-            stor.minimum_turbine_off_time_steps,
-            stor.om_cost_per_kw_turbine,
-            stor.total_rebate_per_kw_turbine,
+            water_power.number_of_turbines,
+            water_power.turbine_cost_per_kw,
+            water_power.turbine_max_kw,
+            water_power.turbine_min_kw,
+            water_power.head_turbine_meters,
+            water_power.head_loss_turbine_meters,
+            water_power.water_power_mathematical_representation,
+            water_power.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second,
+            water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines,
+            water_power.minimum_water_output_cubic_meter_per_second_per_turbine,
+            water_power.maximum_water_output_cubic_meter_per_second_per_turbine,
+            water_power.minimum_operating_time_steps_individual_turbine,
+            water_power.minimum_operating_time_steps_at_local_maximum_turbine_output,
+            water_power.minimum_turbine_off_time_steps,
+            water_power.om_cost_per_kw_turbine,
+            water_power.total_rebate_per_kw_turbine,
 
-            stor.number_of_pumps,
-            stor.max_kw_pump,
-            stor.min_kw_pump,
-            stor.pump_cost_per_kw,
-            stor.head_pump_meters,
-            stor.head_loss_pump_meters,
-            stor.water_pump_average_power_conversion_kw_per_cubic_meters_per_second,
-            stor.om_cost_per_kw_pump,
-            stor.are_pumps_reversible,
-            stor.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
-            stor.minimum_water_flow_cubic_meter_per_second_per_pump,
-            stor.maximum_water_flow_cubic_meter_per_second_per_pump,
-            stor.minimum_operating_time_steps_individual_pump,
-            stor.total_rebate_per_kw_pump,
+            water_power.number_of_pumps,
+            water_power.max_kw_pump,
+            water_power.min_kw_pump,
+            water_power.pump_cost_per_kw,
+            water_power.head_pump_meters,
+            water_power.head_loss_pump_meters,
+            water_power.water_pump_average_power_conversion_kw_per_cubic_meters_per_second,
+            water_power.om_cost_per_kw_pump,
+            water_power.are_pumps_reversible,
+            water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps,
+            water_power.minimum_water_flow_cubic_meter_per_second_per_pump,
+            water_power.maximum_water_flow_cubic_meter_per_second_per_pump,
+            water_power.minimum_operating_time_steps_individual_pump,
+            water_power.total_rebate_per_kw_pump,
             
-            stor.spillway_maximum_cubic_meter_per_second,
-            stor.can_net_meter,
-            stor.can_wholesale,
-            stor.can_export_beyond_nem_limit,
-            stor.can_curtail,            
-            stor.macrs_option_years,
-            stor.macrs_bonus_fraction,
-            stor.macrs_itc_reduction,
-            stor.total_itc_fraction,
-            net_present_cost_per_kw_turbine,
-            net_present_cost_per_kw_pump
+            water_power.spillway_maximum_cubic_meter_per_second,
+            water_power.can_net_meter,
+            water_power.can_wholesale,
+            water_power.can_export_beyond_nem_limit,
+            water_power.can_curtail,            
+            water_power.macrs_option_years,
+            water_power.macrs_bonus_fraction,
+            water_power.macrs_itc_reduction,
+            water_power.total_itc_fraction
             
         )
     end
