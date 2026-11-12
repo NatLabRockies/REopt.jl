@@ -43,17 +43,17 @@ function add_water_power_constraints(m,p; _n="")
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
 	@constraint(m, [ts in p.time_steps],
-		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_flow_cubic_meter_per_second_total_of_all_turbines_and_spillway   
+		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_flow_total_of_all_turbines_and_spillway_cubic_meters_per_second   
 				)
 	
 	# Each turbine must meet the minimum water flow requirement of an individual turbine, if it is on
 	@constraint(m, [t in p.techs.water_power_turbines, ts in p.time_steps], 
-			m[Symbol("dvWaterOutFlow"*_n)][t, ts] >=  m[Symbol("binTurbineActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_cubic_meter_per_second_per_turbine  
+			m[Symbol("dvWaterOutFlow"*_n)][t, ts] >=  m[Symbol("binTurbineActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_per_turbine_cubic_meters_per_second  
 				)
 	
 	# Each turbine must operate under the maximum water flow requirement of an individual turbine
 	@constraint(m, [t in p.techs.water_power_turbines, ts in p.time_steps], 
-			m[Symbol("dvWaterOutFlow"*_n)][t, ts] <=  p.s.water_power.maximum_water_flow_cubic_meter_per_second_per_turbine  
+			m[Symbol("dvWaterOutFlow"*_n)][t, ts] <=  p.s.water_power.maximum_water_flow_per_turbine_cubic_meters_per_second  
 				)
 
 	# Upstream Reservoir: The total water volume changes based on the water flow rates
@@ -85,8 +85,8 @@ function add_water_power_constraints(m,p; _n="")
 	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[Symbol("TurbinePowerGenerationMaximum"*_n)][t,ts] >= 0)
 
 	# Limit the water flow through the spillway, if a value was input
-	if !isnothing(p.s.water_power.spillway_maximum_flow_cubic_meter_per_second)
-		@constraint(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][ts] <= p.s.water_power.spillway_maximum_flow_cubic_meter_per_second)
+	if !isnothing(p.s.water_power.spillway_maximum_flow_cubic_meters_per_second)
+		@constraint(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][ts] <= p.s.water_power.spillway_maximum_flow_cubic_meters_per_second)
 	end 
 
 	# Set the dvSize for the turbines
@@ -144,12 +144,12 @@ function add_water_power_constraints(m,p; _n="")
 		
 		# Each pump must meet the minimum water flow requirement, if it is on
 		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] >= m[Symbol("binPumpingWaterActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_cubic_meter_per_second_per_pump
+						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] >= m[Symbol("binPumpingWaterActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_cubic_meters_per_second_per_pump
 							)
 	
 		# Each pump must operate under the maximum water flow rate
 		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] <= p.s.water_power.maximum_water_flow_cubic_meter_per_second_per_pump
+						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] <= p.s.water_power.maximum_water_flow_cubic_meters_per_second_per_pump
 							)
 
 		# Set the dvSize for the pumps

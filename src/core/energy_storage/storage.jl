@@ -16,7 +16,6 @@ mutable struct StorageTypes
     thermal::Vector{String}
     hot::Vector{String}
     cold::Vector{String}
-    water::Vector{String}
 end
 ```
 """
@@ -26,7 +25,6 @@ mutable struct StorageTypes
     thermal::Vector{String}
     hot::Vector{String}
     cold::Vector{String}
-    water::Vector{String}
 
     function StorageTypes()
         new(
@@ -57,8 +55,6 @@ mutable struct StorageTypes
                     push!(hot_storage, k)
                 elseif typeof(v) <: ColdThermalStorage
                     push!(cold_storage, k)
-                elseif typeof(v) <: WaterStorage
-                    push!(water_storage, k)
                 else
                     throw(@error("Storage not labeled as Hot or Cold, Electric, or Water."))
                 end

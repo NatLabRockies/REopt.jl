@@ -20,7 +20,7 @@
 - `pumps_lifecycle_fixed_om_cost_after_tax`
 - `pumps_initial_capital_costs`
 - `pumps_water_flow_series_cubic_meters_per_second`
-- `pumps_power_rating`
+- `pumps_power_rating_kw`
 - `pumps_power_input_kw`
 - `turbine_or_pump_active`
 - `number_of_pumps_active`
@@ -30,7 +30,7 @@
 - `combined_upstream_and_downstream_reservoir_costs` the turbine input into the model capacity
 - `upstream_reservoir_water_capacity_cubic_meters`
 - `upstream_reservoir_water_volume_cubic_meters`
-- `tributary_water_flow`
+- `tributary_water_flow_cubic_meters_per_second`
 - `upstream_reservoir_lifecycle_fixed_om_cost_after_tax`
 - `upstream_reservoir_initial_capital_costs`
 
@@ -125,7 +125,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 					
 			water_turbine_results["individual_turbine_results"][string(i)*"_results"] = Dict([])
 			
-			water_turbine_results["individual_turbine_results"][string(i)*"_results"]["turbine_power_rating"] = round(value.(m[Symbol("turbine_power_rating"*_n)][i]), digits=3)
+			water_turbine_results["individual_turbine_results"][string(i)*"_results"]["turbine_power_rating_kw"] = round(value.(m[Symbol("turbine_power_rating"*_n)][i]), digits=3)
 
 			water_outflow_individual = @expression(m, [ts in p.time_steps], m[Symbol("dvWaterOutFlow"*_n)][i, ts])
 			water_turbine_results["individual_turbine_results"][string(i)*"_results"]["water_outflow_cubic_meters_per_second_series"] = round.(value.(water_outflow_individual).data, digits=3)
@@ -190,7 +190,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		sum(m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] for t in p.techs.water_power_pumps))
 		water_pump_results["pumps_water_flow_cubic_meters_per_second_series"] = round.(value.(totalPumpedWaterFlow).data, digits=3)
 		
-		water_pump_results["pumps_power_rating"] = round(sum(value.(m[Symbol("pump_power_rating"*_n)][i]) for i in p.techs.water_power_pumps), digits=3)  
+		water_pump_results["pumps_power_rating_kw"] = round(sum(value.(m[Symbol("pump_power_rating"*_n)][i]) for i in p.techs.water_power_pumps), digits=3)  
 
 		totalPumpPowerInput = @expression(m, [ts in p.time_steps],
 		sum(m[Symbol("dvPumpPowerInput"*_n)][t, ts] for t in p.techs.water_power_pumps))
@@ -207,7 +207,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		for i in p.techs.water_power_pumps		
 			water_pump_results["individual_pump_results"][string(i)*"_results"] = Dict([])
 			
-			water_pump_results["individual_pump_results"][string(i)*"_results"]["pump_power_rating"] = round(value.(m[Symbol("pump_power_rating"*_n)][i]), digits=3)
+			water_pump_results["individual_pump_results"][string(i)*"_results"]["pump_power_rating_kw"] = round(value.(m[Symbol("pump_power_rating"*_n)][i]), digits=3)
 
 			individual_pumped_water_flow = @expression(m, [ts in p.time_steps], m[Symbol("dvPumpedWaterFlow"*_n)][i, ts])
 			water_pump_results["individual_pump_results"][string(i)*"_results"]["water_flow_cubic_meters_per_second_series"] = round.(value.(individual_pumped_water_flow).data, digits=3)
@@ -219,7 +219,6 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 		end
 
 		water_power_results["WaterPumps"] = water_pump_results
-
 
 		# Add downstream reservoir results to the results dictionary
 		downstream_reservoir_results = Dict{String, Any}()
