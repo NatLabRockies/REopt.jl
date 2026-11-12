@@ -184,7 +184,7 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 		PumpsPerUnitSizeOMCosts = @expression(m, p.third_party_factor * p.pwf_om * sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_pumps))
 		water_pump_results["pumps_lifecycle_fixed_om_cost_after_tax"] = round(value(PumpsPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		water_pump_results["pumps_initial_capital_costs"] = p.s.upstream_reservoir.cost_per_cubic_meter * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_turbines)
+		water_pump_results["pumps_initial_capital_costs"] = p.s.water_power.pump_cost_per_kw * sum(m[Symbol("dvSize"*_n)][t] for t in p.techs.water_power_pumps)
 	
 		totalPumpedWaterFlow = @expression(m, [ts in p.time_steps],
 		sum(m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] for t in p.techs.water_power_pumps))

@@ -732,13 +732,13 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			end	
 		end
 
-		if p.s.water_power.minimum_turbine_off_time_steps > 1
+		if p.s.water_power.minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine > 1
 			@variable(m, indicator_turbine_turn_off[p.techs.water_power_turbines, p.time_steps], Bin)
 		end
-		if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
+		if p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output > 1
 			@variable(m, indicator_turn_down[p.techs.water_power_turbines, p.time_steps, dv in dvs], Bin)
 		end
-		if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1	
+		if p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_turbine > 1	
 			@variable(m, indicator_min_operating_time[p.techs.water_power, p.time_steps, dv in dvs], Bin)
 		end
 	end

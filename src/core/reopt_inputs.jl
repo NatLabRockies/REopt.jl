@@ -754,8 +754,8 @@ function setup_water_power_inputs(s::AbstractScenario, techs_by_exportbin, produ
         
         push!(techs.no_curtail, "WaterPower_Pump"*string(i)) # Pumps cannot curtail
         
-        max_sizes[pump_tech_name] = s.water_power.max_kw_pump
-        min_sizes[pump_tech_name] = s.water_power.min_kw_pump
+        max_sizes[pump_tech_name] = s.water_power.pump_max_kw
+        min_sizes[pump_tech_name] = s.water_power.pump_min_kw
         om_cost_per_kw[pump_tech_name] = s.water_power.om_cost_per_kw_pump
 
         cap_cost_slope[pump_tech_name] = s.water_power.pump_cost_per_kw

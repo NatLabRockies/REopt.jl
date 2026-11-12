@@ -25,10 +25,10 @@ struct Scenario <: AbstractScenario
     cooling_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}
     steam_turbine::Union{SteamTurbine, Nothing}
     electric_heater::Union{ElectricHeater, Nothing}
-    water_power::WaterPower
-    water_storage::Array{}
-    upstream_reservoir::UpstreamReservoirStorage
-    downstream_reservoir::DownstreamReservoirStorage
+    water_power::Union{WaterPower, Nothing}
+    water_storage::Vector{String}
+    upstream_reservoir::Union{UpstreamReservoirStorage, Nothing}
+    downstream_reservoir::Union{DownstreamReservoirStorage, Nothing}
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
@@ -65,7 +65,6 @@ A Scenario struct can contain the following keys:
 - [water_storage](@ref) (optional)
 - [UpstreamReservoirWaterStorage](@ref) (optional)
 - [DownstreamReservoirWaterStorage](@ref) (optional)
-- absorption_chillers_using_heating_load
 - [CST](@ref) (optional)
 - [ASHPSpaceHeater](@ref) (optional)
 - [ASHPWaterHeater](@ref) (optional)

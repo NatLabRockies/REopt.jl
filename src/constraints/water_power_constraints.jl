@@ -1,7 +1,7 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
-const WATER_DENSITY = 998
-const GRAVITATIONAL_CONSTANT = 9.81
+const WATER_DENSITY_KG_PER_CUBIC_METERS = 998
+const GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS = 9.81
 
 function add_water_power_constraints(m,p; _n="")
 	@info "Adding constraints for water_power"
@@ -11,10 +11,10 @@ function add_water_power_constraints(m,p; _n="")
 
 		for (t_i, t) in enumerate(p.techs.water_power_turbines)
 			@constraint(m, [ts in p.time_steps],
-					m[Symbol("dvRatedProduction"*_n)][t,ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
+					m[Symbol("dvRatedProduction"*_n)][t,ts] == 0.001 * WATER_DENSITY_KG_PER_CUBIC_METERS * GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS * 
 																			m[Symbol("dvWaterOutFlow"*_n)][t,ts] * 
-																			(1/p.s.water_power.water_turbine_average_power_conversion_kw_per_cubic_meters_per_second) * 
-																			(p.s.water_power.head_turbine_meters - p.s.water_power.head_loss_turbine_meters) * (1- (t_i/1000))  # the "1 - (t_i/1000)" is for turbine prioritization
+																			(1/p.s.water_power.turbine_average_power_conversion_kw_per_cubic_meters_per_second) * 
+																			(p.s.water_power.turbine_head_meters - p.s.water_power.turbine_head_loss_meters) * (1- (t_i/1000))  # the "1 - (t_i/1000)" is for turbine prioritization
 						)
 		end
 
@@ -43,14 +43,19 @@ function add_water_power_constraints(m,p; _n="")
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
 	@constraint(m, [ts in p.time_steps],
-		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway   
+		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_flow_cubic_meter_per_second_total_of_all_turbines_and_spillway   
 				)
 	
 	# Each turbine must meet the minimum water flow requirement of an individual turbine, if it is on
 	@constraint(m, [t in p.techs.water_power_turbines, ts in p.time_steps], 
-			m[Symbol("dvWaterOutFlow"*_n)][t, ts] >=  m[Symbol("binTurbineActive"*_n)][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine  
+			m[Symbol("dvWaterOutFlow"*_n)][t, ts] >=  m[Symbol("binTurbineActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_cubic_meter_per_second_per_turbine  
 				)
 	
+	# Each turbine must operate under the maximum water flow requirement of an individual turbine
+	@constraint(m, [t in p.techs.water_power_turbines, ts in p.time_steps], 
+			m[Symbol("dvWaterOutFlow"*_n)][t, ts] <=  p.s.water_power.maximum_water_flow_cubic_meter_per_second_per_turbine  
+				)
+
 	# Upstream Reservoir: The total water volume changes based on the water flow rates
 	final_time_step = Int(p.s.settings.time_steps_per_hour * 8760)
 	time_steps_without_first_time_step = p.time_steps[2:final_time_step]
@@ -80,8 +85,8 @@ function add_water_power_constraints(m,p; _n="")
 	@constraint(m, [ts in p.time_steps, t in p.techs.water_power_turbines], m[Symbol("TurbinePowerGenerationMaximum"*_n)][t,ts] >= 0)
 
 	# Limit the water flow through the spillway, if a value was input
-	if !isnothing(p.s.water_power.spillway_maximum_cubic_meter_per_second)
-		@constraint(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][ts] <= p.s.water_power.spillway_maximum_cubic_meter_per_second)
+	if !isnothing(p.s.water_power.spillway_maximum_flow_cubic_meter_per_second)
+		@constraint(m, [ts in p.time_steps], m[Symbol("dvSpillwayWaterFlow"*_n)][ts] <= p.s.water_power.spillway_maximum_flow_cubic_meter_per_second)
 	end 
 
 	# Set the dvSize for the turbines
@@ -139,9 +144,14 @@ function add_water_power_constraints(m,p; _n="")
 		
 		# Each pump must meet the minimum water flow requirement, if it is on
 		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
-						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] >= m[Symbol("binPumpingWaterActive"*_n)][t,ts]*p.s.water_power.minimum_water_output_cubic_meter_per_second_per_turbine
+						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] >= m[Symbol("binPumpingWaterActive"*_n)][t,ts]*p.s.water_power.minimum_water_flow_cubic_meter_per_second_per_pump
 							)
-		
+	
+		# Each pump must operate under the maximum water flow rate
+		@constraint(m, [t in p.techs.water_power_pumps, ts in p.time_steps], 
+						m[Symbol("dvPumpedWaterFlow"*_n)][t, ts] <= p.s.water_power.maximum_water_flow_cubic_meter_per_second_per_pump
+							)
+
 		# Set the dvSize for the pumps
 		@constraint(m, [t in p.techs.water_power_pumps],
 			m[Symbol("dvSize"*_n)][t] == m[Symbol("pump_power_rating"*_n)][t]
@@ -151,8 +161,8 @@ function add_water_power_constraints(m,p; _n="")
 		if p.s.water_power.are_pumps_reversible 
 			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] == p.s.water_power.pump_kw_to_turbine_kw_ratio_for_reversible_pumps *  m[Symbol("turbine_power_rating"*_n)][t])
 		else
-			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] >= p.s.water_power.min_kw_pump)
-			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] <= p.s.water_power.max_kw_pump)
+			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] >= p.s.water_power.pump_min_kw)
+			@constraint(m, [t in p.techs.water_power_pumps], m[Symbol("pump_power_rating"*_n)][t] <= p.s.water_power.pump_max_kw)
 		end
 
 		# The electric power input into each pump must be below the pump's electric power rating
@@ -168,10 +178,10 @@ function add_water_power_constraints(m,p; _n="")
 			# Conversion between pumped water flow rate and power input into the pump
 			for t in 1:Int(length(p.techs.water_power_pumps))
 				@constraint(m, [ts in p.time_steps], 
-										m[Symbol("dvPumpPowerInput"*_n)][p.techs.water_power_pumps[t], ts] == 0.001 * WATER_DENSITY * GRAVITATIONAL_CONSTANT * 
+										m[Symbol("dvPumpPowerInput"*_n)][p.techs.water_power_pumps[t], ts] == 0.001 * WATER_DENSITY_KG_PER_CUBIC_METERS * GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS * 
 																				m[Symbol("dvPumpedWaterFlow"*_n)][p.techs.water_power_pumps[t], ts] * 
-																				(1/p.s.water_power.water_pump_average_power_conversion_kw_per_cubic_meters_per_second) * 
-																				(p.s.water_power.head_pump_meters + p.s.water_power.head_loss_pump_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
+																				(1/p.s.water_power.pump_average_power_conversion_kw_per_cubic_meters_per_second) * 
+																				(p.s.water_power.pump_head_meters + p.s.water_power.pump_head_loss_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
 							)
 			end
 		else
@@ -198,21 +208,20 @@ function add_water_power_constraints(m,p; _n="")
 	solvers_incompatible_with_indicator_constraints = ["HiGHS", "Cbc"]
 
 	# Define the minimum operating time (in time steps) for the water_power turbine
-	if (p.s.water_power.minimum_operating_time_steps_individual_turbine > 1) || (p.s.water_power.minimum_operating_time_steps_individual_pump > 1)
-		@warn "Setting minimum_operating_time_steps_individual_turbine to greater than 1 requires an optimization solver that can handle indicator constraints."
+	if (p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_turbine > 1) || (p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_pump > 1)
+		@warn "Setting minimum_operating_time_steps_during_each_on_cycle_individual_turbine to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine is set to greater than 1")
 		end
 
-		print("\n Adding minimum operating time constraint \n")
 		for dv in dvs
 			if dv == "binTurbineActive"*_n
 				techs = p.techs.water_power_turbines
-				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_individual_turbine
+				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_turbine
 			elseif dv == "binPumpingWaterActive"*_n
 				techs = p.techs.water_power_pumps
-				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_individual_pump 
+				min_operating_timesteps = p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_pump 
 			else
 				error("Error in applying the local maximum operating time constraint")
 			end
@@ -224,26 +233,25 @@ function add_water_power_constraints(m,p; _n="")
 	end
 	
 	# Define the minimum operating time for the maximum water flow (in time steps) for a water_power turbine
-	if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
-		@warn "Setting minimum_operating_time_steps_at_local_maximum_turbine_output to greater than 1 requires an optimization solver that can handle indicator constraints."
+	if p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output > 1
+		@warn "Setting minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine is set to greater than 1")
 		end
 
-		print("\n Adding a constraint for the minimum operating time at a local maximum water flow \n")
 		for dv in dvs
 			if dv == "binTurbineActive"*_n
-				variable = Symbol("dvWaterOutFlow")
+				variable = Symbol("dvWaterOutFlow"*_n)
 				techs = p.techs.water_power_turbines
 			elseif dv == "binPumpingWaterActive"*_n
-				variable = Symbol("dvPumpedWaterFlow")
+				variable = Symbol("dvPumpedWaterFlow"*_n)
 				techs = p.techs.water_power_pumps
 			else
 				error("Error in applying the local maximum operating time constraint")
 			end
-			for t in techs, ts in (2 + p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output):Int(length(p.time_steps))
-				for i in 1:p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output
+			for t in techs, ts in (2 + p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output):Int(length(p.time_steps))
+				for i in 1:p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output
 					@constraint(m, m[Symbol("indicator_turn_down"*_n)][t, ts, dv] => {m[variable][t, ts-i] == m[variable][t,ts-i-1]})
 				end
 				@constraint(m, !m[Symbol("indicator_turn_down"*_n)][t, ts, dv] => { m[variable][t,ts] >= m[variable][t,ts-1]  })
@@ -251,16 +259,15 @@ function add_water_power_constraints(m,p; _n="")
 		end
 	end
 
-	if p.s.water_power.minimum_turbine_off_time_steps > 1
-		@warn "Setting minimum_turbine_off_time_steps to greater than 1 requires an optimization solver that can handle indicator constraints."
+	if p.s.water_power.minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine > 1
+		@warn "Setting minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine to greater than 1 requires an optimization solver that can handle indicator constraints."
 		
 		if p.s.settings.solver_name in solvers_incompatible_with_indicator_constraints
-			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps is set to greater than 1")
+			error("A solver that can handle indicator constraints must be used if minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine is set to greater than 1")
 		end
 	
-		print("\n Adding minimum off duration for the turbines \n")
-		for t in p.techs.water_power_turbines, ts in 1:Int(length(p.time_steps)- p.s.water_power.minimum_turbine_off_time_steps - 1 )
-			@constraint(m, m[Symbol("indicator_turbine_turn_off"*_n)][t, ts] =>  { sum(m[Symbol("binTurbineActive"*_n)][t,ts+i] for i in 1:p.s.water_power.minimum_turbine_off_time_steps) <= 0 } ) 
+		for t in p.techs.water_power_turbines, ts in 1:Int(length(p.time_steps)- p.s.water_power.minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine - 1 )
+			@constraint(m, m[Symbol("indicator_turbine_turn_off"*_n)][t, ts] =>  { sum(m[Symbol("binTurbineActive"*_n)][t,ts+i] for i in 1:p.s.water_power.minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine) <= 0 } ) 
 			@constraint(m, !m[Symbol("indicator_turbine_turn_off"*_n)][t, ts] => { m[Symbol("binTurbineActive"*_n)][t,ts+1] - m[Symbol("binTurbineActive"*_n)][t,ts] >= 0  } )
 		end
 	end

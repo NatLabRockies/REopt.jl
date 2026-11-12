@@ -132,9 +132,6 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		ex_name = "ExistingChillerCost"*_n
 		m[Symbol(ex_name)] = 0
 		
-		print("\n p.s.water_power is: $(p.s.water_power)")
-		print("\n p.s.water_storage is: $(p.s.water_storage)")
-
 		if !isempty(p.techs.water_power)
 			print("\n Creating variables for turbines and an upstream reservoir")
 			
@@ -201,15 +198,15 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
 			end
 
-			if p.s.water_power.minimum_turbine_off_time_steps > 1
+			if p.s.water_power.minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine > 1
 				dv = "indicator_turbine_turn_off"*_n
 				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines, ts in p.time_steps],base_name=dv, Bin)
 			end
-			if p.s.water_power.minimum_operating_time_steps_at_local_maximum_turbine_output > 1
+			if p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output > 1
 				dv = "indicator_turn_down"*_n
 				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines, ts in p.time_steps, dv in dvs], base_name=dv, Bin)	
 			end
-			if p.s.water_power.minimum_operating_time_steps_individual_turbine > 1
+			if p.s.water_power.minimum_operating_time_steps_during_each_on_cycle_individual_turbine > 1
 				dv = "indicator_min_operating_time"*_n
 				m[Symbol(dv)] = @variable(m, [t in p.techs.water_power, ts in p.time_steps, dv in dvs], base_name=dv, Bin)
 			end
