@@ -43,7 +43,7 @@ function add_water_power_constraints(m,p; _n="")
 	
 	# Water flow rate from all turbines combined is above the required minimum water flow
 	@constraint(m, [ts in p.time_steps],
-		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines   
+		 sum(m[Symbol("dvWaterOutFlow"*_n)][t, ts] for t in p.techs.water_power_turbines) + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] >= p.s.water_power.minimum_water_output_cubic_meter_per_second_total_of_all_turbines_and_spillway   
 				)
 	
 	# Each turbine must meet the minimum water flow requirement of an individual turbine, if it is on
