@@ -430,13 +430,13 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 			)
         end
 	end
-
-	if "downstream_reservoir" in p.s.water_storage
-		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter * m[:dvDownstreamReservoirCapacity] )
-	end
 	
 	if "upstream_reservoir" in p.s.water_storage
-		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter * m[:dvUpstreamReservoirCapacity] )
+		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter * m[:dvUpstreamReservoirCapacity] )
+	end
+
+	if "downstream_reservoir" in p.s.water_storage
+		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter * m[:dvDownstreamReservoirCapacity] )
 	end
 
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *

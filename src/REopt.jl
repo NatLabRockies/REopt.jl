@@ -205,7 +205,6 @@ include("results/electric_heater.jl")
 include("results/cst.jl")
 include("results/ashp.jl")
 include("results/water_power.jl")
-include("results/water_storage.jl")
 
 include("core/reopt.jl")
 include("core/reopt_multinode.jl")

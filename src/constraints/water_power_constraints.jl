@@ -13,8 +13,8 @@ function add_water_power_constraints(m,p; _n="")
 			@constraint(m, [ts in p.time_steps],
 					m[Symbol("dvRatedProduction"*_n)][t,ts] == 0.001 * WATER_DENSITY_KG_PER_CUBIC_METERS * GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS * 
 																			m[Symbol("dvWaterOutFlow"*_n)][t,ts] * 
-																			(1/p.s.water_power.turbine_average_power_conversion_kw_per_cubic_meters_per_second) * 
-																			(p.s.water_power.turbine_head_meters - p.s.water_power.turbine_head_loss_meters) * (1- (t_i/1000))  # the "1 - (t_i/1000)" is for turbine prioritization
+																			p.s.water_power.turbine_average_efficiency_fraction * 
+																			(p.s.water_power.turbine_head_meters - p.s.water_power.turbine_head_loss_meters) * (1- (t_i/10000))  # the "1 - (t_i/10000)" is for turbine prioritization
 						)
 		end
 
@@ -58,19 +58,22 @@ function add_water_power_constraints(m,p; _n="")
 
 	# Upstream Reservoir: The total water volume changes based on the water flow rates
 	final_time_step = Int(p.s.settings.time_steps_per_hour * 8760)
-	time_steps_without_first_time_step = p.time_steps[2:final_time_step]
-	
-	@constraint(m, [ts in time_steps_without_first_time_step], 
+		
+	@constraint(m, [ts in p.time_steps], 
 					m[Symbol("dvWaterVolumeChange"*_n)][ts] == p.s.upstream_reservoir.tributary_water_inflow_cubic_meter_per_second[ts] - m[Symbol("dvSpillwayWaterFlow"*_n)][ts] - sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) + sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps)
 				)
 	
-	@constraint(m, [ts in time_steps_without_first_time_step], 
+	@constraint(m, [ts in p.time_steps[1]], 
+					m[Symbol("dvWaterVolume"*_n)][ts] == 
+					(p.s.upstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvUpstreamReservoirCapacity"*_n)])  
+					+ ((3600/p.s.settings.time_steps_per_hour) * m[Symbol("dvWaterVolumeChange"*_n)][ts])   # The (3600/p.s.settings.time_steps_per_hour) converts from m^3 per second, to m^3 per timestep
+				)
+
+	@constraint(m, [ts in p.time_steps[2:final_time_step]], 
 					m[Symbol("dvWaterVolume"*_n)][ts] == 
 					m[Symbol("dvWaterVolume"*_n)][ts-1]  
 					+ ((3600/p.s.settings.time_steps_per_hour) * m[Symbol("dvWaterVolumeChange"*_n)][ts])   # The (3600/p.s.settings.time_steps_per_hour) converts from m^3 per second, to m^3 per timestep
 				)
-	
-	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == p.s.upstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvUpstreamReservoirCapacity"*_n)]) 
 		
 	# Upstream Reservoir: Total water volume must be the same in the beginning and the end
 	@constraint(m, m[Symbol("dvWaterVolume"*_n)][1] == m[Symbol("dvWaterVolume"*_n)][maximum(p.time_steps)])
@@ -91,7 +94,7 @@ function add_water_power_constraints(m,p; _n="")
 
 	# Set the dvSize for the turbines
 	@constraint(m, [t in p.techs.water_power_turbines],
-		m[Symbol("dvSize"*_n)][t] >= m[Symbol("turbine_power_rating"*_n)][t]
+		m[Symbol("dvSize"*_n)][t] == m[Symbol("turbine_power_rating"*_n)][t]
 	)
 
 	# Model a downstream reservoir
@@ -99,14 +102,22 @@ function add_water_power_constraints(m,p; _n="")
 		print("\n Adding downstream reservoir variables and constraints")
 		
 		final_time_step = Int(p.s.settings.time_steps_per_hour * 8760)
-		time_steps_without_first_time_step = p.time_steps[2:final_time_step]
-
-		@constraint(m, [ts in time_steps_without_first_time_step], 
+		
+		@constraint(m, [ts in p.time_steps], 
 						m[Symbol("dvDownstreamReservoirNetWaterFlow"*_n)][ts] == p.s.downstream_reservoir.tributary_water_inflow_cubic_meter_per_second[ts] + m[Symbol("dvSpillwayWaterFlow"*_n)][ts] + sum(m[Symbol("dvWaterOutFlow"*_n)][t,ts] for t in p.techs.water_power_turbines) - sum(m[Symbol("dvPumpedWaterFlow"*_n)][t,ts] for t in p.techs.water_power_pumps) - m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts]
 					)
 		
 		# Downstream Reservoir: The total water volume changes based on the water flow rates
-		@constraint(m, [ts in time_steps_without_first_time_step], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] == m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts-1] + ((3600/p.s.settings.time_steps_per_hour)* (m[Symbol("dvDownstreamReservoirNetWaterFlow"*_n)][ts]))
+		@constraint(m, [ts in p.time_steps[1]], 
+						m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] == 
+						(p.s.downstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)]) + 
+						((3600/p.s.settings.time_steps_per_hour)* (m[Symbol("dvDownstreamReservoirNetWaterFlow"*_n)][ts]))
+		)
+
+		@constraint(m, [ts in p.time_steps[2:final_time_step]], 
+						m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] == 
+						m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts-1] + 
+						((3600/p.s.settings.time_steps_per_hour)* (m[Symbol("dvDownstreamReservoirNetWaterFlow"*_n)][ts]))
 		)
 		
 		# Downstream Reservoir: Total water volume must be the same in the beginning and the end
@@ -115,9 +126,6 @@ function add_water_power_constraints(m,p; _n="")
 		# Downstream Reservoir: Minimum and maximum water volumes
 		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] >= p.s.downstream_reservoir.minimum_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
 		@constraint(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts] <= p.s.downstream_reservoir.maximum_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
-
-		# Downstream Reservoir: define the initial water volume
-		@constraint(m, m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][1] == p.s.downstream_reservoir.initial_reservoir_volume_fraction * m[Symbol("dvDownstreamReservoirCapacity"*_n)]) 
 
 		# Downstream Reservoir: constrain the optimized reservoir capacity
 		@constraint(m, m[Symbol("dvDownstreamReservoirCapacity"*_n)] >= p.s.downstream_reservoir.minimum_capacity_cubic_meters) 
@@ -180,7 +188,7 @@ function add_water_power_constraints(m,p; _n="")
 				@constraint(m, [ts in p.time_steps], 
 										m[Symbol("dvPumpPowerInput"*_n)][p.techs.water_power_pumps[t], ts] == 0.001 * WATER_DENSITY_KG_PER_CUBIC_METERS * GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS * 
 																				m[Symbol("dvPumpedWaterFlow"*_n)][p.techs.water_power_pumps[t], ts] * 
-																				(1/p.s.water_power.pump_average_power_conversion_kw_per_cubic_meters_per_second) * 
+																				p.s.water_power.pump_average_efficiency_fraction * 
 																				(p.s.water_power.pump_head_meters + p.s.water_power.pump_head_loss_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
 							)
 			end
@@ -272,8 +280,4 @@ function add_water_power_constraints(m,p; _n="")
 		end
 	end
 	
-	# TODO: remove this constraint, which prevents a spike in the spillway use during the first time step
-	@constraint(m, m[Symbol("dvSpillwayWaterFlow"*_n)][1] == 0)
-
 end
-

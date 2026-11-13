@@ -130,10 +130,10 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
         end
 
         if stor.maximum_volume_fraction < stor.minimum_volume_fraction
-            throw(@error("The 'maximum_volume_fraction' must be greater than or equal to the 'minimum_volume_fraction"))
+            throw(@error("For the upstream reservoir, the 'maximum_volume_fraction' must be greater than or equal to the 'minimum_volume_fraction"))
         end
         if (stor.initial_reservoir_volume_fraction < stor.minimum_volume_fraction) || (stor.initial_reservoir_volume_fraction > stor.maximum_volume_fraction)
-            throw(@error("The 'initial_reservoir_volume_fraction' must be between the 'minimum_volume_fraction' and 'maximum_volume_fraction' "))
+            throw(@error("For the upstream reservoir, the 'initial_reservoir_volume_fraction' must be between the 'minimum_volume_fraction' and 'maximum_volume_fraction' "))
         end
 
         return new(
@@ -207,6 +207,13 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             stor.tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
         end
         
+        if stor.maximum_volume_fraction < stor.minimum_volume_fraction
+            throw(@error("For the downstream reservoir, the 'maximum_volume_fraction' must be greater than or equal to the 'minimum_volume_fraction"))
+        end
+        if (stor.initial_reservoir_volume_fraction < stor.minimum_volume_fraction) || (stor.initial_reservoir_volume_fraction > stor.maximum_volume_fraction)
+            throw(@error("For the downstream reservoir, the 'initial_reservoir_volume_fraction' must be between the 'minimum_volume_fraction' and 'maximum_volume_fraction' "))
+        end
+
         return new(
             stor.initial_reservoir_volume_fraction,
             stor.minimum_volume_fraction,
