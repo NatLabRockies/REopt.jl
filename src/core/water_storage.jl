@@ -125,8 +125,11 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        if length(stor.tributary_water_inflow_cubic_meter_per_second) > 0
-            stor.tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        validated_tributary_water_inflow_cubic_meter_per_second = stor.tributary_water_inflow_cubic_meter_per_second
+        if length(validated_tributary_water_inflow_cubic_meter_per_second) > 0
+            validated_tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(validated_tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        else
+            validated_tributary_water_inflow_cubic_meter_per_second = zeros(8760*time_steps_per_hour)
         end
 
         if stor.maximum_volume_fraction < stor.minimum_volume_fraction
@@ -137,7 +140,7 @@ struct UpstreamReservoirStorage <: AbstractWaterStorage
         end
 
         return new(
-            stor.tributary_water_inflow_cubic_meter_per_second,
+            validated_tributary_water_inflow_cubic_meter_per_second,
             stor.minimum_volume_fraction,
             stor.maximum_volume_fraction,
             stor.initial_reservoir_volume_fraction,
@@ -203,8 +206,11 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             macrs_itc_reduction = stor.macrs_itc_reduction
         ) - stor.total_rebate_per_cubic_meter
         
-        if length(stor.tributary_water_inflow_cubic_meter_per_second) > 0
-            stor.tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(stor.tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        validated_tributary_water_inflow_cubic_meter_per_second = stor.tributary_water_inflow_cubic_meter_per_second
+        if length(validated_tributary_water_inflow_cubic_meter_per_second) > 0
+            validated_tributary_water_inflow_cubic_meter_per_second = verify_tributary_flow_data_has_correct_time_steps_per_hour(validated_tributary_water_inflow_cubic_meter_per_second, time_steps_per_hour)
+        else
+            validated_tributary_water_inflow_cubic_meter_per_second = zeros(8760*time_steps_per_hour)
         end
         
         if stor.maximum_volume_fraction < stor.minimum_volume_fraction
@@ -224,7 +230,7 @@ struct DownstreamReservoirStorage <: AbstractWaterStorage
             stor.minimum_outflow_cubic_meter_per_second,
             stor.maximum_outflow_cubic_meter_per_second,
             stor.om_cost_per_cubic_meter,
-            stor.tributary_water_inflow_cubic_meter_per_second,
+            validated_tributary_water_inflow_cubic_meter_per_second,
             stor.macrs_option_years,
             stor.macrs_bonus_fraction,
             stor.macrs_itc_reduction,
