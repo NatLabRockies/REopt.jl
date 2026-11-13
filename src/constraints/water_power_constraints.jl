@@ -192,8 +192,6 @@ function add_water_power_constraints(m,p; _n="")
 																				(p.s.water_power.pump_head_meters + p.s.water_power.pump_head_loss_meters) * (1- (t/1000))  # the "1 - (t/1000)" is for pump prioritization
 							)
 			end
-		else
-			error("An invalid computation type was provided")
 		end
 	else	
 		@info("Preventing use of the water pump variables because there is no downstream reservoir")
