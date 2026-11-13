@@ -10,8 +10,8 @@
     turbine_min_kw::Real=0,
     turbine_head_meters::Real=500,
     turbine_head_loss_meters::Real=20
-    water_power_mathematical_representation::String="average_power_conversion", # This input defines which mathematical representation is used for the water power system. The options are: "average_power_conversion" (which assumes a fixed conversion factor between the water flow and the electric power)
-    turbine_average_efficiency_fraction::Real=0.9, # only applied when the water_power_mathematical_representation = "average_power_conversion"   
+    water_power_mathematical_representation::String="average_efficiency", # This input defines which mathematical representation is used for the water power system. The options are: "average_efficiency" (which assumes a fixed conversion factor between the water flow and the electric power)
+    turbine_average_efficiency_fraction::Real=0.9, # only applied when the water_power_mathematical_representation = "average_efficiency"   
     minimum_water_flow_total_of_all_turbines_and_spillway_cubic_meters_per_second::Real=0,
     minimum_water_flow_per_turbine_cubic_meters_per_second::Real=0.0,
     maximum_water_flow_per_turbine_cubic_meters_per_second::Real=50.0,
@@ -28,7 +28,7 @@
     pump_cost_per_kw::Real=5000.0,
     pump_head_meters::Real=500,
     pump_head_loss_meters::Real=20,
-    pump_average_efficiency_fraction::Real=0.9, # only applied when the water_power_mathematical_representation = "average_power_conversion"   
+    pump_average_efficiency_fraction::Real=0.9, # only applied when the water_power_mathematical_representation = "average_efficiency"   
     pump_om_cost_per_kw::Real=0,
     are_pumps_reversible::Bool=false,  # If set to true, then establishes a fixed ratio of maximum power to pumps and turbines
     pump_kw_to_turbine_kw_ratio_for_reversible_pumps::Real=1.0, # Define the maximum power ratio of the pumps to the turbines, if reversible pumps are being modeled
@@ -59,7 +59,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
     turbine_min_kw::Real=0
     turbine_head_meters::Real=500
     turbine_head_loss_meters::Real=20
-    water_power_mathematical_representation::String="average_power_conversion"
+    water_power_mathematical_representation::String="average_efficiency"
     turbine_average_efficiency_fraction::Real=0.9
     minimum_water_flow_total_of_all_turbines_and_spillway_cubic_meters_per_second::Real=0
     minimum_water_flow_per_turbine_cubic_meters_per_second::Real=0.0
@@ -100,7 +100,7 @@ Base.@kwdef struct WaterPowerDefaults <: AbstractWaterPowerDefaults
 end
 
 """
-function WaterPower(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
+function WaterPower(d::Dict, f::Financial, s::Site, settings::Settings)
 
 Construct WaterPower struct from Dict with keys-val pairs from the 
 REopt WaterPower and Financial inputs. 
@@ -149,7 +149,7 @@ mutable struct WaterPower <: AbstractWaterPower
     macrs_itc_reduction
     total_itc_fraction
 
-    function WaterPower(d::Dict, f::Financial, s::Site, time_steps_per_hour::Int)
+    function WaterPower(d::Dict, f::Financial, s::Site, settings::Settings)
         # TODO: update the struct_name for the sector-specific defaults
         set_sector_defaults!(d; struct_name="WaterPower", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
         water_power = WaterPowerDefaults(; d...)
@@ -162,7 +162,7 @@ mutable struct WaterPower <: AbstractWaterPower
             throw(@error("WaterPower macrs_option_years must be 0, 5, or 7."))
         end
 
-        if s.settings.off_grid_flag
+        if settings.off_grid_flag
             throw(@error("Water power cannot currently be modeled in off grid models."))
         end
         
@@ -178,7 +178,7 @@ mutable struct WaterPower <: AbstractWaterPower
             @warn("Setting the 'number_of_turbines' to a high value can increase complexity of the optimization problem and reduce solve times")
         end
 
-        if water_power.water_power_mathematical_representation == "average_power_conversion"
+        if !(water_power.water_power_mathematical_representation in ["average_efficiency"])
 			error("An invalid water_power_mathematical_representation input was provided")
         end
 

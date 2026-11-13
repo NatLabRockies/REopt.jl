@@ -157,7 +157,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 			m[Symbol(dv)] = @variable(m, [t in p.techs.water_power_turbines], base_name=dv, lower_bound=0)
 			
 			dv = "dvWaterVolumeChange"*_n
-			m[Symbol(dv)] = @variable(m, [ts in time_steps_without_first_time_step], base_name=dv, lower_bound=-100000 )
+			m[Symbol(dv)] = @variable(m, [ts in p.time_steps], base_name=dv, lower_bound=-100000 )
 			
 
 			if "downstream_reservoir" in p.s.water_storage
@@ -188,7 +188,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 				m[Symbol(dv)] = @variable(m, base_name=dv, lower_bound=0)
 			
 				dv = "dvDownstreamReservoirNetWaterFlow"*_n
-				m[Symbol(dv)] = @variable(m, [ts in time_steps_without_first_time_step], base_name=dv, lower_bound=-100000 )
+				m[Symbol(dv)] = @variable(m, [ts in p.time_steps], base_name=dv, lower_bound=-100000 )
 
 				dv = "dvDownstreamReservoirWaterVolume"*_n
 				m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)

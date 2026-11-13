@@ -32,7 +32,6 @@ mutable struct StorageTypes
             String[],
             String[],
             String[],
-            String[],
             String[]
         )
     end
@@ -42,7 +41,6 @@ mutable struct StorageTypes
         elec_storage = String[]
         hot_storage = String[]
         cold_storage = String[]
-        water_storage = String[]
 
         for (k,v) in d
             if v.max_kw > 0.0 && v.max_kwh > 0.0
@@ -68,8 +66,7 @@ mutable struct StorageTypes
             elec_storage,
             thermal_storage,
             hot_storage,
-            cold_storage,
-            water_storage
+            cold_storage
         )
     end
 end

@@ -256,12 +256,8 @@ function verify_tributary_flow_data_has_correct_time_steps_per_hour(tributary_fl
         tributary_flow = repeat(tributary_flow, inner=time_steps_per_hour)
     #elseif
         # TODO: add more options for setting the tributary_flow variable to the correct length
-    else
-        print("\n No changes made to the tributary flow input vector \n")
     end
 
     return tributary_flow
 
 end
-
-   

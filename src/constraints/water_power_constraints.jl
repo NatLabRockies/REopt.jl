@@ -6,7 +6,7 @@ const GRAVITATIONAL_CONSTANT_METERS_PER_SQUARED_SECONDS = 9.81
 function add_water_power_constraints(m,p; _n="")
 	@info "Adding constraints for water_power"
 	
-	if p.s.water_power.water_power_mathematical_representation == "average_power_conversion" # This is a simplified constraint that uses an average conversion for water flow and kW output
+	if p.s.water_power.water_power_mathematical_representation == "average_efficiency" # This is a simplified constraint that uses an average conversion for water flow and kW output
 		@info "Adding water_power power output constraint using the average power conversion"
 
 		for (t_i, t) in enumerate(p.techs.water_power_turbines)
@@ -182,7 +182,7 @@ function add_water_power_constraints(m,p; _n="")
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[Symbol("PumpPowerInputMaximum"*_n)][t,ts] >= m[Symbol("pump_power_rating"*_n)][t] - (1000000*(1-m[Symbol("binPumpingWaterActive"*_n)][t,ts])))
 		@constraint(m, [ts in p.time_steps, t in p.techs.water_power_pumps], m[Symbol("PumpPowerInputMaximum"*_n)][t,ts] >= 0)
 
-		if p.s.water_power.water_power_mathematical_representation == "average_power_conversion"
+		if p.s.water_power.water_power_mathematical_representation == "average_efficiency"
 			# Conversion between pumped water flow rate and power input into the pump
 			for t in 1:Int(length(p.techs.water_power_pumps))
 				@constraint(m, [ts in p.time_steps], 

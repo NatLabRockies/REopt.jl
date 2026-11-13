@@ -61,26 +61,6 @@ function Techs(p::REoptInputs, s::BAUScenario)
         push!(electric_chillers, "ExistingChiller")
     end
 
-    if !isnothing(s.water_power)
-        
-            # Add a tech for each turbine separately
-            for i in 1:s.water_power.number_of_turbines
-                water_power_name_turbine = "WaterPower_Turbine"*string(i)
-                push!(all_techs, water_power_name_turbine)
-                push!(elec, water_power_name_turbine)
-                push!(water_power, water_power_name_turbine)
-                push!(water_power_turbines, water_power_name_turbine)
-            end
-                
-            # Add a tech for each pump separately
-            for i in 1:s.water_power.number_of_pumps
-                water_power_name_pump = "WaterPower_Pump"*string(i)
-                push!(all_techs, water_power_name_pump)
-                push!(water_power, water_power_name_pump)
-                push!(water_power_pumps, water_power_name_pump)
-            end
-    end
-
     cooling_techs = union(electric_chillers, absorption_chillers)
     fuel_burning_techs = union(gentechs, boiler_techs, chp_techs)
     thermal_techs = union(heating_techs, boiler_techs, cooling_techs)

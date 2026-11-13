@@ -272,12 +272,12 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
     end
 
     # Water storage technologies
-    if "downstream_reservoir" in p.s.water_storage
+    if !isempty(p.techs.water_power) && ("downstream_reservoir" in p.s.water_storage)
         add_to_expression!(m[:InitialCapexNoIncentives], 
             p.s.downstream_reservoir.cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)]
         )
     end
-    if "upstream_reservoir" in p.s.water_storage
+    if !isempty(p.techs.water_power) && ("upstream_reservoir" in p.s.water_storage)
         add_to_expression!(m[:InitialCapexNoIncentives], 
             p.s.upstream_reservoir.cost_per_cubic_meter * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
         )

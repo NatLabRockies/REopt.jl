@@ -241,7 +241,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
     if haskey(d, "WaterPower")
         water_power = WaterPower(
                         dictkeys_tosymbols(d["WaterPower"]), 
-                        financial, site, settings.time_steps_per_hour
+                        financial, site, settings
                       )
     end 
 

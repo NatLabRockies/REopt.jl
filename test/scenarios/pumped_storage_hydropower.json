@@ -1,0 +1,88 @@
+{
+    "Site": {
+        "longitude": -90.0715,
+        "latitude": 29.9511
+    },
+    "WaterPower": {
+        "water_power_mathematical_representation": "average_efficiency", 
+
+        "number_of_turbines": 1,
+        "turbine_cost_per_kw": 5,
+        "turbine_om_cost_per_kw": 10,
+        "turbine_min_kw": 10,
+        "turbine_max_kw": 5000,
+        "turbine_average_efficiency_fraction": 0.9,
+        "turbine_head_meters": 1000,
+        "turbine_head_loss_meters": 50,
+
+        "minimum_water_flow_per_turbine_cubic_meters_per_second": 0, 
+        "maximum_water_flow_per_turbine_cubic_meters_per_second": 10000,  
+        "minimum_water_flow_total_of_all_turbines_and_spillway_cubic_meters_per_second": 0, 
+        "minimum_operating_time_steps_during_each_on_cycle_individual_turbine": 1,
+        "minimum_operating_time_steps_during_each_on_cycle_peak_individual_turbine_output": 1,
+        "minimum_turbine_off_time_steps_during_each_off_cycle_individual_turbine": 1,
+
+        "number_of_pumps": 1,
+        "pump_min_kw": 10,
+        "pump_max_kw": 10000,
+        "pump_cost_per_kw": 6,
+        "pump_om_cost_per_kw": 10,
+        "pump_average_efficiency_fraction": 0.9,
+        "are_pumps_reversible": false,
+        "pump_head_meters": 1000,
+        "pump_head_loss_meters": 50,
+        "pump_kw_to_turbine_kw_ratio_for_reversible_pumps": 1.0,
+        "minimum_operating_time_steps_during_each_on_cycle_individual_pump": 1,
+        "minimum_water_flow_cubic_meters_per_second_per_pump": 0, 
+        "maximum_water_flow_cubic_meters_per_second_per_pump": 10000,
+
+        "spillway_maximum_flow_cubic_meters_per_second": 600,
+        "can_net_meter": false, 
+        "can_wholesale": true,
+        "can_export_beyond_nem_limit": false, 
+        "can_curtail": false,
+        "turbine_total_rebate_per_kw": 0,
+        "pump_total_rebate_per_kw": 0,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0,
+        "macrs_itc_reduction": 0,
+        "total_itc_fraction": 0
+    },
+    "UpstreamReservoirWaterStorage": {
+        "tributary_water_inflow_cubic_meter_per_second": [], 
+        "maximum_volume_fraction": 1.0,  
+        "minimum_volume_fraction": 0.2,  
+        "initial_reservoir_volume_fraction": 0.5, 
+        "minimum_capacity_cubic_meters": 10,
+        "maximum_capacity_cubic_meters": 10000000,
+        "cost_per_cubic_meter": 25,
+        "om_cost_per_cubic_meter": 0
+    },
+    "DownstreamReservoirWaterStorage": {
+        "initial_reservoir_volume_fraction": 0.5, 
+        "minimum_volume_fraction": 0.2,  
+        "maximum_volume_fraction": 1.0, 
+        "minimum_capacity_cubic_meters": 10,
+        "maximum_capacity_cubic_meters": 10000000,
+        "cost_per_cubic_meter": 25,
+        "om_cost_per_cubic_meter": 0,
+        "minimum_outflow_cubic_meter_per_second": 0,
+        "maximum_outflow_cubic_meter_per_second": 10000,
+        "tributary_water_inflow_cubic_meter_per_second": []
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "MediumOffice"
+    },
+    "ElectricTariff": {
+        "urdb_label": "5a592c995457a3371c423a7d"
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.0166,
+        "offtaker_discount_rate_fraction": 0.0624,
+        "owner_discount_rate_fraction": 0.0624,
+        "analysis_years": 25,
+        "offtaker_tax_rate_fraction": 0.26,
+        "owner_tax_rate_fraction": 0.26,
+        "om_cost_escalation_rate_fraction": 0.025
+    }
+}

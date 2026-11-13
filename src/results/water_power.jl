@@ -28,18 +28,19 @@
 
 `UpstreamReservoir` subdictionary results keys:
 - `combined_upstream_and_downstream_reservoir_costs` the turbine input into the model capacity
-- `upstream_reservoir_water_capacity_cubic_meters`
-- `upstream_reservoir_water_volume_cubic_meters`
+- `water_capacity_cubic_meters`
+- `water_volume_cubic_meters`
 - `tributary_water_flow_cubic_meters_per_second`
-- `upstream_reservoir_lifecycle_fixed_om_cost_after_tax`
-- `upstream_reservoir_initial_capital_costs`
+- `lifecycle_fixed_om_cost_after_tax`
+- `initial_capital_costs`
 
 `DownstreamReservoir` subdictionary results keys:
-- `downstream_reservoir_water_volume_cubic_meters` the turbine input into the model capacity
-- `downstream_reservoir_water_capacity_cubic_meters`
-- `downstream_reservoir_water_outflow_cubic_meters_per_second`
-- `downstream_reservoir_lifecycle_fixed_om_cost_after_tax`
-- `downstream_reservoir_initial_capital_costs`
+- `water_volume_cubic_meters` the turbine input into the model capacity
+- `water_capacity_cubic_meters`
+- `water_outflow_cubic_meters_per_second`
+- `lifecycle_fixed_om_cost_after_tax`
+- `initial_capital_costs`
+- `tributary_water_inflow_cubic_meters_per_second_series`
 - `combined_upstream_and_downstream_reservoir_costs`
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
@@ -161,18 +162,18 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 	upstream_reservoir_results["combined_upstream_and_downstream_reservoir_costs"] = round(value(m[Symbol("WaterStorageCapCosts"*_n)]), digits=3)
 
 	# Upstream reservoir capacity
-	upstream_reservoir_results["upstream_reservoir_water_capacity_cubic_meters"] = round(value(m[Symbol("dvUpstreamReservoirCapacity"*_n)]), digits=3)
+	upstream_reservoir_results["water_capacity_cubic_meters"] = round(value(m[Symbol("dvUpstreamReservoirCapacity"*_n)]), digits=3)
 	
-	if upstream_reservoir_results["upstream_reservoir_water_capacity_cubic_meters"] > 0
+	if upstream_reservoir_results["water_capacity_cubic_meters"] > 0
 		upstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[Symbol("dvWaterVolume"*_n)][ts])
-		upstream_reservoir_results["upstream_reservoir_water_volume_cubic_meters_series"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
+		upstream_reservoir_results["water_volume_cubic_meters_series"] = round.(value.(upstream_reservoir_volume).data, digits=3) 
 
 		# Water flow into upstream reservoir (input into the model)
 		upstream_reservoir_results["upstream_reservoir_tributary_water_inflow_cubic_meters_per_second_series"] = p.s.upstream_reservoir.tributary_water_inflow_cubic_meter_per_second
 		
 		upstream_reservoir_per_unit_size_om_costs = @expression(m, p.third_party_factor * p.pwf_om * p.s.upstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvUpstreamReservoirCapacity"*_n)])
-		upstream_reservoir_results["upstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(upstream_reservoir_per_unit_size_om_costs) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		upstream_reservoir_results["upstream_reservoir_initial_capital_costs"] = p.s.upstream_reservoir.cost_per_cubic_meter * value(m[Symbol("dvUpstreamReservoirCapacity"*_n)])
+		upstream_reservoir_results["lifecycle_fixed_om_cost_after_tax"]	= round(value(upstream_reservoir_per_unit_size_om_costs) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
+		upstream_reservoir_results["initial_capital_costs"] = p.s.upstream_reservoir.cost_per_cubic_meter * value(m[Symbol("dvUpstreamReservoirCapacity"*_n)])
 	end
 
 	water_power_results["UpstreamReservoir"] = upstream_reservoir_results
@@ -225,20 +226,20 @@ function add_water_power_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict;
 
 		# Downstream reservoir volume
 		downstream_reservoir_volume = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterVolume"*_n)][ts])
-		downstream_reservoir_results["downstream_reservoir_water_volume_cubic_meters_series"] = round.(value.(downstream_reservoir_volume).data, digits=3) 
-		downstream_reservoir_results["downstream_reservoir_water_capacity_cubic_meters"] = round(value(m[Symbol("dvDownstreamReservoirCapacity"*_n)]), digits=3)
+		downstream_reservoir_results["water_volume_cubic_meters_series"] = round.(value.(downstream_reservoir_volume).data, digits=3) 
+		downstream_reservoir_results["water_capacity_cubic_meters"] = round(value(m[Symbol("dvDownstreamReservoirCapacity"*_n)]), digits=3)
 		
 		# Water flow out of downstream reservoir
 		downstream_reservoir_water_outflow = @expression(m, [ts in p.time_steps], m[Symbol("dvDownstreamReservoirWaterOutflow"*_n)][ts])
-		downstream_reservoir_results["downstream_reservoir_water_outflow_cubic_meters_per_second_series"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
+		downstream_reservoir_results["water_outflow_cubic_meters_per_second_series"] = round.(value.(downstream_reservoir_water_outflow).data, digits = 3)
 		
 		# Water flow into downstream reservoir (input into the model)
-		downstream_reservoir_results["downstream_reservoir_tributary_water_inflow_cubic_meters_per_second_series"] = p.s.downstream_reservoir.tributary_water_inflow_cubic_meter_per_second
+		downstream_reservoir_results["tributary_water_inflow_cubic_meters_per_second_series"] = p.s.downstream_reservoir.tributary_water_inflow_cubic_meter_per_second
 		
 		# Downstream reservoir costs
 		DownstreamReservoirPerUnitSizeOMCosts = @expression(m,p.third_party_factor * p.pwf_om * p.s.downstream_reservoir.om_cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)])
-		downstream_reservoir_results["downstream_reservoir_lifecycle_fixed_om_cost_after_tax"]	= round(value(DownstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
-		downstream_reservoir_results["downstream_reservoir_initial_capital_costs"] = p.s.downstream_reservoir.cost_per_cubic_meter * value(m[Symbol("dvDownstreamReservoirCapacity"*_n)])
+		downstream_reservoir_results["lifecycle_fixed_om_cost_after_tax"]	= round(value(DownstreamReservoirPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
+		downstream_reservoir_results["initial_capital_costs"] = p.s.downstream_reservoir.cost_per_cubic_meter * value(m[Symbol("dvDownstreamReservoirCapacity"*_n)])
 		downstream_reservoir_results["combined_upstream_and_downstream_reservoir_costs"] = round(value(m[Symbol("WaterStorageCapCosts"*_n)]), digits=3)
 		
 		water_power_results["DownstreamReservoir"] = downstream_reservoir_results

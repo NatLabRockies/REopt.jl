@@ -431,13 +431,17 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         end
 	end
 	
-	if "upstream_reservoir" in p.s.water_storage
-		@expression(m, WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter * m[:dvUpstreamReservoirCapacity] )
-	end
+	WaterStorageCapCosts = JuMP.AffExpr(0.0)
+	if !isempty(p.techs.water_power)
+		if "upstream_reservoir" in p.s.water_storage
+			add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.upstream_reservoir.cost_per_cubic_meter * m[:dvUpstreamReservoirCapacity] )
+		end
 
-	if "downstream_reservoir" in p.s.water_storage
-		add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter * m[:dvDownstreamReservoirCapacity] )
+		if "downstream_reservoir" in p.s.water_storage
+			add_to_expression!(WaterStorageCapCosts, p.third_party_factor * p.s.downstream_reservoir.cost_per_cubic_meter * m[:dvDownstreamReservoirCapacity] )
+		end
 	end
+	m[:WaterStorageCapCosts] = WaterStorageCapCosts
 
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
 		sum( p.om_cost_per_kw[t] * m[:dvSize][t] for t in p.techs.all )
@@ -560,7 +564,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		add_to_expression!(Costs, m[:Lifecycle_Emissions_Cost_Health])
 	end
 
-	if "upstream_reservoir" in p.s.water_storage
+	if !isempty(p.techs.water_power) && ("upstream_reservoir" in p.s.water_storage)
 		print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
 		add_to_expression!(Costs, sum(m[:dvSpillwayWaterFlow][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 	end
@@ -712,7 +716,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binTurbineActive[p.techs.water_power_turbines, p.time_steps], Bin
 			ReservoirHead[p.time_steps] >= 0
 			dvSpillwayWaterFlow[p.time_steps] >= 0
-			dvWaterVolumeChange[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000
+			dvWaterVolumeChange[p.time_steps] >= -100000
 			TurbinePowerGenerationMaximum[p.techs.water_power_turbines, p.time_steps] >= 0
 			turbine_power_rating[p.techs.water_power_turbines] >= 0
 		end
@@ -728,7 +732,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 				PumpPowerInputMaximum[p.techs.water_power_pumps, p.time_steps] >= 0
 				pump_power_rating[p.techs.water_power_pumps] >= 0
 				dvDownstreamReservoirCapacity >= 0  
-				dvDownstreamReservoirNetWaterFlow[p.time_steps[2:Int(p.s.settings.time_steps_per_hour * 8760)]] >= -100000 
+				dvDownstreamReservoirNetWaterFlow[p.time_steps] >= -100000 
 			end	
 		end
 
