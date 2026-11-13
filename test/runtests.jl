@@ -41,10 +41,10 @@ else  # run HiGHS tests
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
             @test s.financial.offtaker_tax_rate_fraction == 0.26
-            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0348
-            @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0464
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0253
             @test s.financial.om_cost_escalation_rate_fraction == 0.025
-            @test s.financial.offtaker_discount_rate_fraction == 0.0624
+            @test s.financial.offtaker_discount_rate_fraction == 0.0586
             for tech_struct in (s.pvs[1], s.wind, s.chps[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0

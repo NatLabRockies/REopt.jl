@@ -165,7 +165,7 @@
         "offtaker_discount_rate_fraction": 0.045,
         "third_party_ownership": true,
         "owner_tax_rate_fraction": 0.26,
-        "owner_discount_rate_fraction": 0.0624
+        "owner_discount_rate_fraction": 0.0586
       },
       "CHP": {
         "macrs_option_years": 0,
@@ -264,7 +264,7 @@
         "offtaker_discount_rate_fraction": 0.045,
         "third_party_ownership": true,
         "owner_tax_rate_fraction": 0.26,
-        "owner_discount_rate_fraction": 0.0624
+        "owner_discount_rate_fraction": 0.0586
       },
       "CHP": {
         "macrs_option_years": 5,
@@ -300,16 +300,16 @@
   "commercial/industrial" : {
       "Financial": {
         "om_cost_escalation_rate_fraction": 0.025,
-        "elec_cost_escalation_rate_fraction": 0.0166,
-        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.0348,
-        "boiler_fuel_cost_escalation_rate_fraction": 0.0348,
-        "chp_fuel_cost_escalation_rate_fraction": 0.0348,
-        "generator_fuel_cost_escalation_rate_fraction": 0.0197,
+        "elec_cost_escalation_rate_fraction": 0.0253,
+        "existing_boiler_fuel_cost_escalation_rate_fraction": 0.0464,
+        "boiler_fuel_cost_escalation_rate_fraction": 0.0464,
+        "chp_fuel_cost_escalation_rate_fraction": 0.0464,
+        "generator_fuel_cost_escalation_rate_fraction": 0.0206,
         "offtaker_tax_rate_fraction": 0.26,
-        "offtaker_discount_rate_fraction": 0.0624,
+        "offtaker_discount_rate_fraction": 0.0586,
         "third_party_ownership": false,
         "owner_tax_rate_fraction": 0.26,
-        "owner_discount_rate_fraction": 0.0624
+        "owner_discount_rate_fraction": 0.0586
       },
       "CHP": {
         "macrs_option_years": 5,
