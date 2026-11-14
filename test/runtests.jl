@@ -1524,14 +1524,16 @@ else  # run HiGHS tests
             d = JSON.parsefile("scenarios/pumped_storage_hydropower.json");
             results = run_reopt([m1,m2], d)
 
-            #@test results["Financial"]["lcc"] ≈ 1.239179e7 rtol=1e-5
-           
+            @test results["WaterPower"]["WaterPumps"]["pumps_power_rating_kw"] ≈ 243.329 rtol=1e-3
+            @test results["WaterPower"]["WaterTurbines"]["turbines_size_kw"] ≈ 281.651 rtol=1e-3
+            @test results["WaterPower"]["WaterTurbines"]["turbines_initial_capital_costs"] ≈ 1480.25 rtol=1e-3
+            @test results["WaterPower"]["Financial"]["npv"] ≈ 375099.9 rtol=1e-3
+            
             finalize(backend(m1))
             empty!(m1)
             finalize(backend(m2))
             empty!(m2)
             GC.gc()
-
 
         end
 

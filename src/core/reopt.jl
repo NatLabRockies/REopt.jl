@@ -565,7 +565,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	end
 
 	if !isempty(p.techs.water_power) && ("upstream_reservoir" in p.s.water_storage)
-		print("\n Adding spillway water flow to the objective function to minimize the spillway water flow")
 		add_to_expression!(Costs, sum(m[:dvSpillwayWaterFlow][ts] for ts in p.time_steps)) # minimize the water that is released in the spillway
 	end
 

@@ -99,8 +99,7 @@ function add_water_power_constraints(m,p; _n="")
 
 	# Model a downstream reservoir
 	if "downstream_reservoir" in p.s.water_storage
-		print("\n Adding downstream reservoir variables and constraints")
-		
+				
 		final_time_step = Int(p.s.settings.time_steps_per_hour * 8760)
 		
 		@constraint(m, [ts in p.time_steps], 

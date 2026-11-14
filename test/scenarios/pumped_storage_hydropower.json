@@ -3,6 +3,9 @@
         "longitude": -90.0715,
         "latitude": 29.9511
     },
+    "Settings": {
+        "solver_name": "Xpress"
+    },
     "WaterPower": {
         "water_power_mathematical_representation": "average_efficiency", 
 
