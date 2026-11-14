@@ -259,6 +259,30 @@ function initial_capex_no_incentives(m::JuMP.AbstractModel, p::REoptInputs; _n="
         )
     end
 
+    # Water power technologies
+    if !isempty(p.techs.water_power_pumps)
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            sum(p.s.water_power.pump_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pump] for pump in p.techs.water_power_pumps)
+        )
+    end
+    if !isempty(p.techs.water_power_turbines)
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+           sum(p.s.water_power.turbine_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][turbine] for turbine in p.techs.water_power_turbines)
+        )
+    end
+
+    # Water storage technologies
+    if !isempty(p.techs.water_power) && ("downstream_reservoir" in p.s.water_storage)
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.downstream_reservoir.cost_per_cubic_meter * m[Symbol("dvDownstreamReservoirCapacity"*_n)]
+        )
+    end
+    if !isempty(p.techs.water_power) && ("upstream_reservoir" in p.s.water_storage)
+        add_to_expression!(m[:InitialCapexNoIncentives], 
+            p.s.upstream_reservoir.cost_per_cubic_meter * m[Symbol("dvUpstreamReservoirCapacity"*_n)]
+        )
+    end
+
     if !isempty(p.s.electric_utility.outage_durations)
         add_to_expression!(m[:InitialCapexNoIncentives], 
             m[:mgTotalTechUpgradeCost] + m[:dvMGStorageUpgradeCost]

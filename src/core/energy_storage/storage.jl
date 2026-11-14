@@ -26,7 +26,6 @@ mutable struct StorageTypes
     hot::Vector{String}
     cold::Vector{String}
 
-
     function StorageTypes()
         new(
             String[],
@@ -55,7 +54,7 @@ mutable struct StorageTypes
                 elseif typeof(v) <: ColdThermalStorage
                     push!(cold_storage, k)
                 else
-                    throw(@error("Storage not labeled as Hot or Cold, or Electric."))
+                    throw(@error("Storage not labeled as Hot or Cold, Electric, or Water."))
                 end
             end
         end

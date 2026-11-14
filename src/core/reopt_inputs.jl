@@ -66,6 +66,7 @@ struct REoptInputs <: AbstractInputs
     cooling_cf::Dict{String, Array{<:Real, 1}} # (techs.ashp)
     heating_loads_kw::Dict{String, <:Real} # (heating_loads)
     unavailability::Dict{String, Array{Float64,1}}  # Dict by tech of unavailability profile
+    avoided_capex_by_ashp_present_value::Dict{String, <:Real} # HVAC upgrade costs avoided (ASHP)
 end
 ```
 """
@@ -267,7 +268,6 @@ function REoptInputs(s::AbstractScenario)
         end
     end
     unavailability = get_unavailability_by_tech(s, techs, time_steps)
-
     REoptInputs(
         s,
         techs,
@@ -489,6 +489,10 @@ function setup_tech_inputs(s::AbstractScenario, time_steps)
 
     if "CST" in techs.all
         setup_cst_inputs(s, max_sizes, min_sizes, cap_cost_slope, om_cost_per_kw, heating_cop, heating_cf)
+    end
+    
+    if "WaterPower_Turbine1" in techs.all   # Note: the setup_water_power_inputs function adds inputs for the other turbine numbers
+        setup_water_power_inputs(s, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
     end
 
     # filling export_bins_by_tech MUST be done after techs_by_exportbin has been filled in
@@ -725,6 +729,41 @@ function setup_wind_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_s
     return nothing
 end
 
+function setup_water_power_inputs(s::AbstractScenario, techs_by_exportbin, production_factor, techs, cap_cost_slope, tech_renewable_energy_fraction, max_sizes, min_sizes, existing_sizes, om_cost_per_kw)
+   
+    for i in 1:s.water_power.number_of_turbines
+        turbine_tech_name = "WaterPower_Turbine"*string(i)
+        production_factor[turbine_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
+        fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Turbine"*string(i))
+        
+        max_sizes[turbine_tech_name] = s.water_power.turbine_max_kw
+        min_sizes[turbine_tech_name] = s.water_power.turbine_min_kw
+        om_cost_per_kw[turbine_tech_name] = s.water_power.turbine_om_cost_per_kw
+
+        if !(s.water_power.can_curtail)
+            push!(techs.no_curtail, "WaterPower_Turbine"*string(i))
+        end
+        cap_cost_slope[turbine_tech_name] = s.water_power.turbine_cost_per_kw
+        tech_renewable_energy_fraction[turbine_tech_name] = 1.0
+    end
+
+    for i in 1:s.water_power.number_of_pumps
+        pump_tech_name = "WaterPower_Pump"*string(i)
+        production_factor[pump_tech_name,:] = ones(8760 * s.settings.time_steps_per_hour) # get_production_factor(s.water_power; s.settings.time_steps_per_hour)
+        fillin_techs_by_exportbin(techs_by_exportbin, s.water_power, "WaterPower_Pump"*string(i))
+        
+        push!(techs.no_curtail, "WaterPower_Pump"*string(i)) # Pumps cannot curtail
+        
+        max_sizes[pump_tech_name] = s.water_power.pump_max_kw
+        min_sizes[pump_tech_name] = s.water_power.pump_min_kw
+        om_cost_per_kw[pump_tech_name] = s.water_power.pump_om_cost_per_kw
+
+        cap_cost_slope[pump_tech_name] = s.water_power.pump_cost_per_kw
+        tech_renewable_energy_fraction[pump_tech_name] = 0.0 # set to zero because the pumps only consume power
+    end
+
+    return nothing 
+end
 
 function setup_gen_inputs(s::AbstractScenario, max_sizes, min_sizes, existing_sizes,
     cap_cost_slope, om_cost_per_kw, production_factor, techs_by_exportbin,
@@ -1280,7 +1319,6 @@ function fillin_techs_by_exportbin(techs_by_exportbin::Dict, tech::AbstractTech,
             push!(techs_by_exportbin[:EXC], tech_name)
         end
     end
-    
     if tech.can_wholesale && :WHL in keys(techs_by_exportbin)
         push!(techs_by_exportbin[:WHL], tech_name)
     end
