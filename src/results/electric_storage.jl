@@ -36,7 +36,7 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
         r["initial_capital_cost"] = r["size_kwh"] * p.s.storage.attr[b].installed_cost_per_kwh +
             r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
             p.s.storage.attr[b].installed_cost_constant
-
+ 
         if p.s.storage.attr[b].model_degradation
             r["state_of_health_series_fraction"] = round.(value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
@@ -60,10 +60,12 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
                 end
             end
             r["residual_value"] = value(m[:residual_value])
-        end
+         end
+        
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_kw"] = []
+        r["storage_to_grid_series_kw"] = []
     end
 
     d[b] = r

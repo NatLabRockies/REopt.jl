@@ -25,6 +25,10 @@ struct Scenario <: AbstractScenario
     cooling_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}
     steam_turbine::Union{SteamTurbine, Nothing}
     electric_heater::Union{ElectricHeater, Nothing}
+    water_power::Union{WaterPower, Nothing}
+    water_storage::Vector{String}
+    upstream_reservoir::Union{UpstreamReservoirStorage, Nothing}
+    downstream_reservoir::Union{DownstreamReservoirStorage, Nothing}
     cst::Union{CST, Nothing}
     ashp::Union{ASHP, Nothing}
     ashp_wh::Union{ASHP, Nothing}
@@ -57,6 +61,10 @@ A Scenario struct can contain the following keys:
 - [GHP](@ref) (optional, can be Array)
 - [SteamTurbine](@ref) (optional)
 - [ElectricHeater](@ref) (optional)
+- [WaterPower](@ref) (optional)
+- [water_storage](@ref) (optional)
+- [UpstreamReservoirWaterStorage](@ref) (optional)
+- [DownstreamReservoirWaterStorage](@ref) (optional)
 - [CST](@ref) (optional)
 - [ASHPSpaceHeater](@ref) (optional)
 - [ASHPWaterHeater](@ref) (optional)
@@ -229,6 +237,33 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                                                 )
     end
     storage = Storage(storage_structs)
+    
+    if haskey(d, "WaterPower")
+        water_power = WaterPower(
+                        dictkeys_tosymbols(d["WaterPower"]), 
+                        financial, site, settings
+                      )
+    end 
+
+    water_storage = []  
+    if haskey(d, "UpstreamReservoirWaterStorage")
+        push!(water_storage, "upstream_reservoir")
+        upstream_reservoir = UpstreamReservoirStorage(
+                                dictkeys_tosymbols(d["UpstreamReservoirWaterStorage"]), 
+                                financial, site, settings.time_steps_per_hour
+                            )
+    else
+        upstream_reservoir = nothing
+    end
+    if haskey(d, "DownstreamReservoirWaterStorage")
+        push!(water_storage, "downstream_reservoir")
+        downstream_reservoir = DownstreamReservoirStorage(
+                                    dictkeys_tosymbols(d["DownstreamReservoirWaterStorage"]), 
+                                    financial, site, settings.time_steps_per_hour
+                                )
+    else
+        downstream_reservoir = nothing              
+    end
 
     if haskey(d, "Wind")
         wind = Wind(; dictkeys_tosymbols(d["Wind"])..., off_grid_flag=settings.off_grid_flag,
@@ -1064,6 +1099,10 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
         cooling_thermal_load_reduction_with_ghp_kw,
         steam_turbine,
         electric_heater,
+        water_power,
+        water_storage,
+        upstream_reservoir,
+        downstream_reservoir,
         cst,
         ashp,
         ashp_wh
