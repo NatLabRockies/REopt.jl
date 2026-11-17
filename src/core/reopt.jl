@@ -708,7 +708,6 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 	end
 
 	if !isempty(p.techs.water_power)
-		print("\n Creating variables for existing water_power")
 		@variables m begin
 			dvWaterVolume[p.time_steps] >= 0			
 			dvWaterOutFlow[p.techs.water_power_turbines, p.time_steps] >= 0  
