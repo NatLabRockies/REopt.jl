@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 Captures high-level inputs affecting the optimization.
 
@@ -23,4 +23,5 @@ Base.@kwdef struct Settings
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
     facilitymeter_node::String = ""
     phase_numbers::Array=[1] # indicates the phase numbers for the load (relevant for multinode models only); default is single phase using phase 1; three phase is represented by [1,2,3]
+    include_export_cost_series_in_results::Bool = false # set to true to add electricity export compensation rate timeseries under electric tariff results.
 end

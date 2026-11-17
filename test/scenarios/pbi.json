@@ -1,0 +1,83 @@
+{
+    "Site": {
+        "longitude": -118.1164613,
+        "latitude": 34.5794343
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "RetailStore", 
+        "annual_kwh": 876000.0
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_mmbtu": 8.760
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.10,
+        "blended_annual_demand_rate": 0
+    },
+    "Financial": {
+        "elec_cost_escalation_rate_fraction": 0.026,
+        "analysis_years": 20, 
+        "offtaker_tax_rate_fraction": 0, 
+        "om_cost_escalation_rate_fraction": 0.025
+    },
+    "Wind": {
+        "min_kw": 100,
+        "max_kw": 100,
+        "production_incentive_per_kwh": 0.05,
+        "production_incentive_max_benefit": 1000000,
+        "production_incentive_years": 1,
+        "production_incentive_max_kw": 200
+    },
+    "Generator" : {
+        "min_kw": 10, 
+        "max_kw": 10,
+        "production_incentive_per_kwh": 0.08,
+        "production_incentive_max_benefit": 100,
+        "production_incentive_years": 7,
+        "production_incentive_max_kw": 10
+    },
+    "CHP" : {
+        "min_kw": 10, 
+        "max_kw": 10,
+        "prime_mover": "recip_engine",
+        "production_incentive_per_kwh": 0.02,
+        "production_incentive_max_benefit": 10000,
+        "production_incentive_years": 7,
+        "production_incentive_max_kw": 10,
+        "fuel_cost_per_mmbtu": 500
+    },
+    "PV" : {
+        "min_kw": 100, 
+        "max_kw": 100,
+        "production_incentive_per_kwh": 0.1,
+        "production_incentive_max_benefit": 10,
+        "production_incentive_years": 7,
+        "production_incentive_max_kw": 500
+    },
+    "SteamTurbine" : {
+        "min_kw": 100, 
+        "max_kw": 100,
+        "production_incentive_per_kwh": 0.07,
+        "production_incentive_max_benefit": 1000,
+        "production_incentive_years": 10,
+        "production_incentive_max_kw": 50,
+        "is_condensing": false,
+        "inlet_steam_pressure_psig": 600.0,
+        "inlet_steam_temperature_degF": 575.0,
+        "outlet_steam_pressure_psig": 150.0,
+        "outlet_steam_min_vapor_fraction": 0.8,                         
+        "isentropic_efficiency": 0.612,
+        "gearbox_generator_efficiency": 0.94,
+        "net_to_gross_electric_ratio": 0.9,
+        "installed_cost_per_kw": 682.0,
+        "om_cost_per_kw": 0.0,
+        "om_cost_per_kwh": 0.009,
+        "can_wholesale": false,
+		"can_curtail": false
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 500,
+        "can_supply_steam_turbine": true
+    }
+}

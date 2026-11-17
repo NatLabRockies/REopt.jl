@@ -1,9 +1,10 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricUtility` results keys:
 - `annual_energy_supplied_kwh` # Total energy supplied from the grid in an average year.
 - `electric_to_load_series_kw` # Vector of power drawn from the grid to serve load.
 - `electric_to_storage_series_kw` # Vector of power drawn from the grid to charge the battery.
+- `annual_renewable_electricity_supplied_kwh` # Total renewable electricity supplied from the grid in an average year.
 - `annual_emissions_tonnes_CO2` # Average annual total tons of CO2 emissions associated with the site's grid-purchased electricity. If include_exported_elec_emissions_in_total is False, this value only reflects grid purchases. Otherwise, it accounts for emissions offset from any export to the grid.
 - `annual_emissions_tonnes_NOx` # Average annual total tons of NOx emissions associated with the site's grid-purchased electricity. If include_exported_elec_emissions_in_total is False, this value only reflects grid purchases. Otherwise, it accounts for emissions offset from any export to the grid.
 - `annual_emissions_tonnes_SO2` # Average annual total tons of SO2 emissions associated with the site's grid-purchased electricity. If include_exported_elec_emissions_in_total is False, this value only reflects grid purchases. Otherwise, it accounts for emissions offset from any export to the grid.
@@ -14,7 +15,7 @@
 - `lifecycle_emissions_tonnes_PM25` # Total tons of PM2.5 emissions associated with the site's grid-purchased electricity over the analysis period. If include_exported_elec_emissions_in_total is False, this value only reflects grid purchaes. Otherwise, it accounts for emissions offset from any export to the grid.
 - `avert_emissions_region` # EPA AVERT region of the site. Used for health-related emissions from grid electricity (populated if default emissions values are used) and climate emissions if "co2_from_avert" is set to true. 
 - `distance_to_avert_emissions_region_meters` # Distance in meters from the site to the nearest AVERT emissions region.
-- `cambium_emissions_region` # NREL Cambium region of the site. Used for climate-related emissions from grid electricity (populated only if default (Cambium) climate emissions values are used)
+- `cambium_region` # NLR Cambium region of the site. Used for climate-related emissions from grid electricity (populated only if default (Cambium) climate emissions values are used)
 
 !!! note "'Series' and 'Annual' energy and emissions outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -36,7 +37,7 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::AbstractInputs, 
     if :WHL in p.s.electric_tariff.export_bins
         if abs(sum(value.(m[Symbol("WHL_benefit"*_n)])) - 10*sum([ld*rate for (ld,rate) in zip(p.s.electric_load.loads_kw, p.s.electric_tariff.export_rates[:WHL])]) / value(m[Symbol("WHL_benefit"*_n)]))  <= 1e-3
             @warn """Wholesale benefit is at the maximum allowable by the model; the problem is likely unbounded without this 
-            limit in place.  Check the inputs to ensure that there are practical limits for max system sizes and that 
+            limit in place. Check the inputs to ensure that there are practical limits for max system sizes and that 
             the wholesale and retail electricity rates are accurate."""
         end
     end
@@ -44,7 +45,7 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::AbstractInputs, 
     Year1UtilityEnergy = p.hours_per_time_step * sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] 
         for ts in p.time_steps, tier in 1:p.s.electric_tariff.n_energy_tiers)
     r["annual_energy_supplied_kwh"] = round(value(Year1UtilityEnergy), digits=2)
-    
+
     if !isempty(p.s.storage.types.elec)
         GridToLoad = (sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) 
                   - sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) 
@@ -60,11 +61,11 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::AbstractInputs, 
     r["electric_to_load_series_kw"] = round.(value.(GridToLoad), digits=3)
     r["electric_to_storage_series_kw"] = round.(value.(GridToBatt), digits=3)
 
-    if _n=="" #only output emissions results if not a multinode model
-        r["lifecycle_emissions_tonnes_CO2"] = round(value(m[:yr1_emissions_from_elec_grid_net_if_selected_lbs_CO2]*TONNE_PER_LB*p.pwf_grid_emissions["CO2"]), digits=2)
-        r["lifecycle_emissions_tonnes_NOx"] = round(value(m[:yr1_emissions_from_elec_grid_net_if_selected_lbs_NOx]*TONNE_PER_LB*p.pwf_grid_emissions["NOx"]), digits=2)
-        r["lifecycle_emissions_tonnes_SO2"] = round(value(m[:yr1_emissions_from_elec_grid_net_if_selected_lbs_SO2]*TONNE_PER_LB*p.pwf_grid_emissions["SO2"]), digits=2)
-        r["lifecycle_emissions_tonnes_PM25"] = round(value(m[:yr1_emissions_from_elec_grid_net_if_selected_lbs_PM25]*TONNE_PER_LB*p.pwf_grid_emissions["PM25"]), digits=2)
+    if _n=="" #only output emissions and RE results if not a multinode model
+        r["lifecycle_emissions_tonnes_CO2"] = round(value(m[:Lifecycle_Emissions_Lbs_CO2_grid_net_if_selected]*TONNE_PER_LB), digits=2)
+        r["lifecycle_emissions_tonnes_NOx"] = round(value(m[:Lifecycle_Emissions_Lbs_NOx_grid_net_if_selected]*TONNE_PER_LB), digits=2)
+        r["lifecycle_emissions_tonnes_SO2"] = round(value(m[:Lifecycle_Emissions_Lbs_SO2_grid_net_if_selected]*TONNE_PER_LB), digits=2)
+        r["lifecycle_emissions_tonnes_PM25"] = round(value(m[:Lifecycle_Emissions_Lbs_PM25_grid_net_if_selected]*TONNE_PER_LB), digits=2)
         r["annual_emissions_tonnes_CO2"] = r["lifecycle_emissions_tonnes_CO2"] / p.s.financial.analysis_years
         r["annual_emissions_tonnes_NOx"] = r["lifecycle_emissions_tonnes_NOx"] / p.s.financial.analysis_years
         r["annual_emissions_tonnes_SO2"] = r["lifecycle_emissions_tonnes_SO2"] / p.s.financial.analysis_years
@@ -72,7 +73,9 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::AbstractInputs, 
 
         r["avert_emissions_region"] = p.s.electric_utility.avert_emissions_region
         r["distance_to_avert_emissions_region_meters"] = p.s.electric_utility.distance_to_avert_emissions_region_meters
-        r["cambium_emissions_region"] = p.s.electric_utility.cambium_emissions_region
+        r["cambium_region"] = p.s.electric_utility.cambium_region
+
+        r["annual_renewable_electricity_supplied_kwh"] = round(value(m[:AnnualGridREEleckWh]), digits=3)
     end
 
     d["ElectricUtility"] = r
@@ -83,8 +86,8 @@ end
 """
 MPC `ElectricUtility` results keys:
 - `energy_supplied_kwh` 
-- `to_battery_series_kw`
-- `to_load_series_kw`
+- `electric_to_storage_series_kw`
+- `electric_to_load_series_kw`
 """
 function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict; _n="")
     r = Dict{String, Any}()
@@ -98,15 +101,16 @@ function add_electric_utility_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
         GridToBatt = @expression(m, [ts in p.time_steps], 
             sum(m[Symbol("dvGridToStorage"*_n)][b, ts] for b in p.s.storage.types.elec) 
 		)
-        r["to_battery_series_kw"] = round.(value.(GridToBatt), digits=3).data
     else
         GridToBatt = zeros(length(p.time_steps))
     end
+    r["electric_to_storage_series_kw"] = results_array(round.(value.(GridToBatt), digits=3))
+
     GridToLoad = @expression(m, [ts in p.time_steps], 
         sum(m[Symbol("dvGridPurchase"*_n)][ts, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) - 
         GridToBatt[ts]
     )
-    r["to_load_series_kw"] = round.(value.(GridToLoad), digits=3).data
+    r["electric_to_load_series_kw"] = results_array(round.(value.(GridToLoad), digits=3))
 
     d["ElectricUtility"] = r
     nothing

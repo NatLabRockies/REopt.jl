@@ -22,3 +22,7 @@ For describing how to use more complicated inputs use a `note` admonition like:
 All of the results functions should have a list of output fields with descriptions in a bulleted list in the function doc string. 
 When adding a new results function it should be added to the docs/reopt/outputs.md file so that it shows up in the online documentation.
 There is no need to include the function signature in the doc string.
+
+
+## Testing Documentation
+Test documentation changes locally to confirm they are working as intended. See docs/README.md for instructions. If Documenter cannot find your doc strings, ensure that there is no extra line between the doc string and the function. 

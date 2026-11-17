@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     Metrics
 
@@ -33,7 +33,8 @@ return Dict(
     "offtaker_discounted_annual_free_cashflows" => Float64[],
     "offtaker_discounted_annual_free_cashflows_bau" => Float64[],
     "developer_annual_free_cashflows" => Float64[],
-    "initial_capital_costs_after_incentives_without_macrs" => 0.0 # Initial capital costs after ibi, cbi, and ITC incentives
+    "capital_costs_after_non_discounted_incentives_without_macrs" => 0.0 # Capital costs after (non-discounted) ibi, cbi, and ITC incentives, including present value of replacement costs
+    "capital_costs_after_non_discounted_incentives" => 0.0 # Capital costs after ibi, cbi, ITC, and MACRS incentives but without discounting out-year ITC and MACRS
 )
 """
 function proforma_results(p::REoptInputs, d::Dict)
@@ -47,7 +48,8 @@ function proforma_results(p::REoptInputs, d::Dict)
         "offtaker_discounted_annual_free_cashflows" => Float64[],
         "offtaker_discounted_annual_free_cashflows_bau" => Float64[],
         "developer_annual_free_cashflows" => Float64[],
-        "initial_capital_costs_after_incentives_without_macrs" => 0.0
+        "capital_costs_after_non_discounted_incentives_without_macrs" => 0.0,
+        "capital_costs_after_non_discounted_incentives" => 0.0
     )
     years = p.s.financial.analysis_years
     escalate_elec(val) = [-1 * val * (1 + p.s.financial.elec_cost_escalation_rate_fraction)^yr for yr in 1:years]
@@ -69,16 +71,22 @@ function proforma_results(p::REoptInputs, d::Dict)
     end
 
     # calculate Storage o+m costs, incentives, and depreciation
+    battery_replacement_cost = 0.0
+    battery_replacement_year = 0.0
     if "ElectricStorage" in keys(d) && d["ElectricStorage"]["size_kw"] > 0
         # TODO handle other types of storage
         storage = p.s.storage.attr["ElectricStorage"]
         total_kw = d["ElectricStorage"]["size_kw"]
         total_kwh = d["ElectricStorage"]["size_kwh"]
-        capital_cost = total_kw * storage.installed_cost_per_kw + total_kwh * storage.installed_cost_per_kwh
+        capital_cost = total_kw * storage.installed_cost_per_kw + total_kwh * storage.installed_cost_per_kwh + storage.installed_cost_constant
         battery_replacement_year = storage.battery_replacement_year
-        battery_replacement_cost = -1 * ((total_kw * storage.replace_cost_per_kw) + (
-                    total_kwh * storage.replace_cost_per_kwh))
+        battery_replacement_cost = -1 * ((total_kw * storage.replace_cost_per_kw) + 
+                    (total_kwh * storage.replace_cost_per_kwh) + 
+                    storage.replace_cost_constant)
         m.om_series += [yr != battery_replacement_year ? 0 : battery_replacement_cost for yr in 1:years]
+
+        battery_om_cost = capital_cost * storage.om_cost_fraction_of_installed_cost
+        m.om_series += escalate_om(-1 * battery_om_cost)
 
         # storage only has cbi in the API
         cbi = total_kw * storage.total_rebate_per_kw + total_kwh * storage.total_rebate_per_kwh
@@ -125,13 +133,19 @@ function proforma_results(p::REoptInputs, d::Dict)
     end
 
     # calculate CHP o+m costs, incentives, and depreciation
-    if "CHP" in keys(d) && d["CHP"]["size_kw"] > 0
-        update_metrics(m, p, p.s.chp, "CHP", d, third_party)
+    for chp_name in p.techs.chp
+        if chp_name in keys(d) && get(d[chp_name], "size_kw", 0) > 0
+            # Find the CHP object for this name
+            chp_idx = findfirst(chp -> chp.name == chp_name, p.s.chps)
+            if !isnothing(chp_idx)
+                update_metrics(m, p, p.s.chps[chp_idx], chp_name, d, third_party)
+            end
+        end
     end
 
     # calculate ExistingBoiler o+m costs (just fuel, no non-fuel operating costs currently)
     # the optional installed_cost inputs assume net present cost so no option for MACRS or incentives
-    if "ExistingBoiler" in keys(d) && d["ExistingBoiler"]["size_mmbtu_per_hour"] > 0
+    if "ExistingBoiler" in keys(d)
         fuel_cost = d["ExistingBoiler"]["year_one_fuel_cost_before_tax"]
         m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, p.s.financial.existing_boiler_fuel_cost_escalation_rate_fraction)
         var_om = 0.0
@@ -228,14 +242,17 @@ function proforma_results(p::REoptInputs, d::Dict)
     # Optimal Case calculations
     electricity_bill_series = escalate_elec(d["ElectricTariff"]["year_one_bill_before_tax"])
     export_credit_series = escalate_elec(-d["ElectricTariff"]["year_one_export_benefit_before_tax"])
+    standby_charges_series = escalate_elec(d["Financial"]["year_one_chp_standby_cost_before_tax"])
 
     # In the two party case the electricity and export credits are incurred by the offtaker not the developer
     if third_party
         total_operating_expenses = m.om_series
         tax_rate_fraction = p.s.financial.owner_tax_rate_fraction
+        discount_rate_for_battery_replacement_pv = p.s.financial.owner_discount_rate_fraction
     else
-        total_operating_expenses = electricity_bill_series + export_credit_series + m.om_series + m.fuel_cost_series
+        total_operating_expenses = electricity_bill_series + export_credit_series + m.om_series + m.fuel_cost_series + standby_charges_series
         tax_rate_fraction = p.s.financial.offtaker_tax_rate_fraction
+        discount_rate_for_battery_replacement_pv = p.s.financial.offtaker_discount_rate_fraction
     end
 
     # Apply taxes to operating expenses
@@ -250,7 +267,10 @@ function proforma_results(p::REoptInputs, d::Dict)
     total_cash_incentives = m.total_pbi * (1 - tax_rate_fraction)
     free_cashflow_without_year_zero = m.total_depreciation * tax_rate_fraction + total_cash_incentives + operating_expenses_after_tax
     free_cashflow_without_year_zero[1] += m.federal_itc
-    r["initial_capital_costs_after_incentives_without_macrs"] = d["Financial"]["initial_capital_costs"] - m.total_ibi_and_cbi - m.federal_itc
+    battery_replacement_net_present_cost = -1*battery_replacement_cost * (1 - tax_rate_fraction) / (1 + discount_rate_for_battery_replacement_pv) ^ battery_replacement_year  # battery_replacement_cost is negative, from above
+    r["capital_costs_after_non_discounted_incentives_without_macrs"] = d["Financial"]["initial_capital_costs"] - m.total_ibi_and_cbi - m.federal_itc + battery_replacement_net_present_cost
+    r["capital_costs_after_non_discounted_incentives"] = r["capital_costs_after_non_discounted_incentives_without_macrs"] - sum(m.total_depreciation * tax_rate_fraction)
+    # Note, free_cashflow_bau[1] (below) now has possible non-zero costs from ExistingBoiler/Chiller
     free_cashflow = append!([(-1 * d["Financial"]["initial_capital_costs"]) + m.total_ibi_and_cbi], free_cashflow_without_year_zero)
 
     # At this point the logic branches based on third-party ownership or not - see comments    
@@ -284,7 +304,7 @@ function proforma_results(p::REoptInputs, d::Dict)
         annual_income_from_host_series = repeat([-1 * r["annualized_payment_to_third_party"]], years)
 
         r["offtaker_annual_free_cashflows"] = append!([0.0], 
-            electricity_bill_series + export_credit_series + m.fuel_cost_series + annual_income_from_host_series + m.om_series_bau
+            electricity_bill_series + export_credit_series + m.fuel_cost_series + annual_income_from_host_series + m.om_series_bau + standby_charges_series
         )
         r["offtaker_annual_free_cashflows_bau"] = append!([0.0], 
             electricity_bill_series_bau + export_credit_series_bau + m.fuel_cost_series_bau + m.om_series_bau
@@ -305,7 +325,8 @@ function proforma_results(p::REoptInputs, d::Dict)
         operating_expenses_after_tax_bau = total_operating_expenses_bau - deductable_operating_expenses_series_bau + 
                     deductable_operating_expenses_series_bau * (1 - p.s.financial.offtaker_tax_rate_fraction)
         free_cashflow_bau = operating_expenses_after_tax_bau + total_cash_incentives_bau
-        free_cashflow_bau = append!([0.0], free_cashflow_bau)
+        lifecycle_capital_costs_bau = get(d["Financial"], "lifecycle_capital_costs_bau", 0.0)
+        free_cashflow_bau = append!([-1 * lifecycle_capital_costs_bau], free_cashflow_bau)
         r["offtaker_annual_free_cashflows"] = round.(free_cashflow, digits=2)
         r["offtaker_discounted_annual_free_cashflows"] = [round(
             v / ((1 + p.s.financial.offtaker_discount_rate_fraction)^(yr-1)), 
@@ -351,17 +372,19 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     total_kw = results[tech_name]["size_kw"]
     existing_kw = :existing_kw in fieldnames(typeof(tech)) ? tech.existing_kw : 0
     new_kw = total_kw - existing_kw
-    if tech_name == "CHP"
-        capital_cost = get_chp_initial_capex(p, results["CHP"]["size_kw"])
+    if tech_name in [chp.name for chp in p.s.chps]
+        capital_cost = results[tech_name]["initial_capital_costs"]
+    elseif tech_name in [pv.name for pv in p.s.pvs]  # Check if it's a PV technology
+        capital_cost = get_tech_initial_capex(tech, new_kw)
     else
         capital_cost = new_kw * tech.installed_cost_per_kw
     end
 
     # owner is responsible for only new technologies operating and maintenance cost in optimal case
     # CHP doesn't have existing CHP, and it has different O&M cost parameters
-    if tech_name == "CHP"
-        hours_operating = sum(results["CHP"]["electric_production_series_kw"] .> 0.0) / (8760 * p.s.settings.time_steps_per_hour)
-        annual_om = -1 * (results["CHP"]["annual_electric_production_kwh"] * tech.om_cost_per_kwh + 
+    if tech_name in [chp.name for chp in p.s.chps]
+        hours_operating = sum(results[tech_name]["electric_production_series_kw"] .> 0.0) * p.hours_per_time_step
+        annual_om = -1 * (results[tech_name]["annual_electric_production_kwh"] * tech.om_cost_per_kwh + 
                             new_kw * tech.om_cost_per_kw + 
                             new_kw * tech.om_cost_per_hr_per_kw_rated * hours_operating)
     elseif third_party
@@ -374,10 +397,13 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     m.om_series += escalate_om(annual_om)
     m.om_series_bau += escalate_om(-1 * existing_kw * tech.om_cost_per_kw)
 
-    if tech_name == "CHP"
+    if tech_name in [chp.name for chp in p.s.chps]
         escalate_fuel(val, esc_rate) = [val * (1 + esc_rate)^yr for yr in 1:years]
-        fuel_cost = results["CHP"]["year_one_fuel_cost_before_tax"]
-        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, p.s.financial.chp_fuel_cost_escalation_rate_fraction)
+        fuel_cost = results[tech_name]["year_one_fuel_cost_before_tax"]
+        escalation_rate = isnothing(tech.fuel_cost_escalation_rate_fraction) ?
+            p.s.financial.chp_fuel_cost_escalation_rate_fraction :
+            tech.fuel_cost_escalation_rate_fraction
+        m.fuel_cost_series += escalate_fuel(-1 * fuel_cost, escalation_rate)
     end
 
     # incentive calculations, in the spreadsheet utility incentives are applied first
@@ -394,7 +420,7 @@ function update_metrics(m::Metrics, p::REoptInputs, tech::AbstractTech, tech_nam
     pbi_series = Float64[]
     pbi_series_bau = Float64[]
     existing_energy_bau = third_party ? get(results[tech_name], "year_one_energy_produced_kwh_bau", 0) : 0
-    if tech_name == "CHP"
+    if tech_name in [chp.name for chp in p.s.chps]
         year_one_energy = results[tech_name]["annual_electric_production_kwh"]
     else
         year_one_energy = "year_one_energy_produced_kwh" in keys(results[tech_name]) ? results[tech_name]["year_one_energy_produced_kwh"] : results[tech_name]["annual_energy_produced_kwh"]

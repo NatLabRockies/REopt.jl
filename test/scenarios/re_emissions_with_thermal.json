@@ -69,8 +69,11 @@
     "max_kwh": 0.0,
     "installed_cost_per_kw": 840.0,
     "installed_cost_per_kwh": 420.0,
+    "installed_cost_constant": 0.0,
     "replace_cost_per_kw": 410.0,
-    "replace_cost_per_kwh": 200.0
+    "replace_cost_per_kwh": 200.0,
+    "replace_cost_constant": 0.0,
+    "om_cost_fraction_of_installed_cost": 0.0
   },
   "ColdThermalStorage": {
     "min_gal": 30000.0 ,

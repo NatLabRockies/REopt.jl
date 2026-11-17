@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 struct Boiler <: AbstractThermalTech
     min_kw::Real
@@ -15,6 +15,7 @@ struct Boiler <: AbstractThermalTech
     can_serve_dhw::Bool
     can_serve_space_heating::Bool
     can_serve_process_heat::Bool
+    fuel_renewable_energy_fraction::Real
     emissions_factor_lb_CO2_per_mmbtu::Real
     emissions_factor_lb_NOx_per_mmbtu::Real
     emissions_factor_lb_SO2_per_mmbtu::Real
@@ -46,6 +47,7 @@ function Boiler(;
     can_serve_dhw::Bool = true # If Boiler can supply heat to the domestic hot water load
     can_serve_space_heating::Bool = true # If Boiler can supply heat to the space heating load
     can_serve_process_heat::Bool = true # If Boiler can supply heat to the process heating load
+    fuel_renewable_energy_fraction::Real = get(FUEL_DEFAULTS["fuel_renewable_energy_fraction"],fuel_type,0) # fraction of renewable-sourced fuel input to boiler
     emissions_factor_lb_CO2_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_CO2_per_mmbtu"],fuel_type,0)
     emissions_factor_lb_NOx_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"],fuel_type,0)
     emissions_factor_lb_SO2_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"],fuel_type,0)
@@ -69,6 +71,7 @@ function Boiler(;
         can_serve_dhw::Bool = true,
         can_serve_space_heating::Bool = true,
         can_serve_process_heat::Bool = true,
+        fuel_renewable_energy_fraction::Real = get(FUEL_DEFAULTS["fuel_renewable_energy_fraction"],fuel_type,0),
         emissions_factor_lb_CO2_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_CO2_per_mmbtu"],fuel_type,0),
         emissions_factor_lb_NOx_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"],fuel_type,0),
         emissions_factor_lb_SO2_per_mmbtu::Real = get(FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"],fuel_type,0),
@@ -102,6 +105,7 @@ function Boiler(;
         can_serve_dhw,
         can_serve_space_heating,
         can_serve_process_heat,
+        fuel_renewable_energy_fraction,
         emissions_factor_lb_CO2_per_mmbtu,
         emissions_factor_lb_NOx_per_mmbtu,
         emissions_factor_lb_SO2_per_mmbtu,

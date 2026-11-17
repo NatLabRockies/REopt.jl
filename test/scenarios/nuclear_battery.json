@@ -1,0 +1,28 @@
+{
+    "Site": {
+        "latitude": 37.78, 
+        "longitude": -122.45
+    },
+    "ElectricLoad": {},
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 10.0
+    },
+    "CHP": {
+        "fuel_cost_per_mmbtu": 0.1,
+        "prime_mover": "combustion_turbine",
+        "installed_cost_per_kw": 12000.0,
+        "om_cost_per_kw": 150.0,
+        "om_cost_per_kwh": 0.0,
+        "electric_efficiency_full_load": 0.25,
+        "electric_efficiency_half_load": 0.25,
+        "min_turn_down_fraction": 0.0,
+        "is_electric_only": true,
+        "can_curtail": false,
+        "unavailability_periods": [{"month":1,
+                                    "start_week_of_month":2,
+                                    "start_day_of_week":1,
+                                    "start_hour":1, 
+                                    "duration_hours":0}]
+    }
+}

@@ -3,10 +3,10 @@
 You must `Pkg.dev REopt` in the docs Project for the docs to update using the following method. The python server does not pick up on changes dynamically so the process below must be repeated to show changes.
 ```bash
 [~/.julia/dev/REopt/docs]
-nlaws-> rm -rf build/
+username-> rm -rf build/
 
 [~/.julia/dev/REopt/docs]
-nlaws-> julia --project=. make.jl 
+username-> julia --project=. make.jl 
 [ Info: SetupBuildDirectory: setting up build directory.
 [ Info: Doctest: running doctests.
 [ Info: ExpandTemplates: expanding markdown templates.
@@ -19,18 +19,18 @@ nlaws-> julia --project=. make.jl
 └ @ Documenter ~/.julia/packages/Documenter/bFHi4/src/deployconfig.jl:75
 
 [~/.julia/dev/REopt/docs]
-nlaws-> cd build/
+username-> cd build/
 
 [~/.julia/dev/REopt/docs/build]
-nlaws-> python3 -m http.server --bind localhost
+username-> python3 -m http.server --bind localhost
 Serving HTTP on ::1 port 8000 (http://[::1]:8000/) ...
 ```
 
 Alternatively, you can use `LiveServer.jl` to host the documentation locally by running `docs/src/devdeploy.jl`; e.g.: 
 ```julia
 [~/.julia/dev/REopt/docs]
-(REopt) pkg> activate .
-(REopt) pkg> dev REopt
+(docs) pkg> activate .
+(docs) pkg> dev REopt
 julia> include("devdeploy.jl")
 [ Info: Precompiling REopt [d36ad4e8-d74a-4f7a-ace1-eaea049febf6]
 ...

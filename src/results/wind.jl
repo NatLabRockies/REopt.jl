@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Wind` results keys:
 - `size_kw` Optimal Wind capacity [kW]
@@ -8,7 +8,7 @@
 - `electric_to_grid_series_kw` Vector of power exported to the grid over an average year
 - `annual_energy_exported_kwh` Average annual energy exported to the grid
 - `electric_to_load_series_kw` Vector of power used to meet load over an average year
-- `annual_energy_produced_kwh` Average annual energy produced
+- `annual_energy_produced_kwh` Average annual energy produced, accounting for degradation. Includes curtailed energy.
 - `lcoe_per_kwh` Levelized Cost of Energy produced by the PV system
 - `electric_curtailed_series_kw` Vector of power curtailed over an average year
 - `production_factor_series` Wind production factor in each time step, either provided by user or obtained from SAM

@@ -1,33 +1,5 @@
-# *********************************************************************************
-# REopt, Copyright (c) 2019-2020, Alliance for Sustainable Energy, LLC.
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
-#
-# Redistributions of source code must retain the above copyright notice, this list
-# of conditions and the following disclaimer.
-#
-# Redistributions in binary form must reproduce the above copyright notice, this
-# list of conditions and the following disclaimer in the documentation and/or other
-# materials provided with the distribution.
-#
-# Neither the name of the copyright holder nor the names of its contributors may be
-# used to endorse or promote products derived from this software without specific
-# prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
-# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
-# OF THE POSSIBILITY OF SUCH DAMAGE.
-# *********************************************************************************
-function add_fuel_burn_constraints(m,p; _n="")
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
+function add_fuel_burn_constraints(m,p)
 	fuel_slope_gal_per_kwhe, fuel_intercept_gal_per_hr = fuel_slope_and_intercept(
 		electric_efficiency_full_load=p.s.generator.electric_efficiency_full_load, 
 		electric_efficiency_half_load=p.s.generator.electric_efficiency_half_load,
@@ -64,8 +36,7 @@ function add_binGenIsOnInTS_constraints(m,p; _n="")
 	end 
 end
 
-
-function add_gen_can_run_constraints(m,p; _n="")
+function add_gen_can_run_constraints(m,p)
 	if p.s.generator.only_runs_during_grid_outage
 		for ts in p.time_steps_with_grid, t in p.techs.gen
 			fix(m[Symbol("dvRatedProduction"*_n)][t, ts], 0.0, force=true)
@@ -86,6 +57,38 @@ function add_gen_rated_prod_constraint(m, p; _n="")
 	)
 end
 
+"""
+    add_generator_hourly_om_charges(m, p)
+
+- add decision variable "dvOMByHourBySizeGen" for the hourly Generator operations and maintenance costs
+- add the cost to TotalPerUnitHourOMCosts
+"""
+function add_generator_hourly_om_charges(m, p)
+    dv = "dvOMByHourBySizeGen"
+    m[Symbol(dv)] = @variable(m, [p.techs.gen, p.time_steps], base_name=dv, lower_bound=0)
+
+    #Constraint Generator-hourly-om-a: om per hour, per time step >= per_unit_size_cost * size for when on, >= zero when off
+	@constraint(m, GeneratorHourlyOMBySizeA[t in p.techs.gen, ts in p.time_steps],
+        p.s.generator.om_cost_per_hr_per_kw_rated * m[Symbol("dvSize")][t] -
+        (p.s.generator.existing_kw + p.s.generator.max_kw) * p.s.generator.om_cost_per_hr_per_kw_rated * (1-m[Symbol("binGenIsOnInTS")][t,ts])
+            <= m[Symbol("dvOMByHourBySizeGen")][t, ts]
+    )
+	#Constraint Generator-hourly-om-b: om per hour, per time step <= per_unit_size_cost * size for each hour
+	@constraint(m, GeneratorHourlyOMBySizeB[t in p.techs.gen, ts in p.time_steps],
+        p.s.generator.om_cost_per_hr_per_kw_rated * m[Symbol("dvSize")][t]
+            >= m[Symbol("dvOMByHourBySizeGen")][t, ts]
+    )
+	#Constraint Generator-hourly-om-c: om per hour, per time step <= zero when off, <= per_unit_size_cost*max_size
+	@constraint(m, GeneratorHourlyOMBySizeC[t in p.techs.gen, ts in p.time_steps],
+        (p.s.generator.existing_kw + p.s.generator.max_kw) * p.s.generator.om_cost_per_hr_per_kw_rated * m[Symbol("binGenIsOnInTS")][t,ts]
+            >= m[Symbol("dvOMByHourBySizeGen")][t, ts]
+    )
+    
+    m[:TotalHourlyGenOMCosts] = @expression(m, p.third_party_factor * p.pwf_om * 
+    	sum(m[Symbol(dv)][t, ts] * p.hours_per_time_step for t in p.techs.gen, ts in p.time_steps))
+    nothing
+end
+
 
 """
     add_gen_constraints(m, p)
@@ -98,7 +101,12 @@ function add_gen_constraints(m, p; _n="")
     add_gen_can_run_constraints(m,p, _n=_n)
     add_gen_rated_prod_constraint(m,p, _n=_n)
 
-    m[Symbol("TotalGenPerUnitProdOMCosts"*_n)] = @expression(m, p.third_party_factor * p.pwf_om *
+	m[:TotalHourlyGenOMCosts] = 0
+	if p.s.generator.om_cost_per_hr_per_kw_rated > 1.0E-7
+        add_generator_hourly_om_charges(m, p)
+    end
+
+    m[:TotalGenPerUnitProdOMCosts] = @expression(m, p.third_party_factor * p.pwf_om *
         sum(p.s.generator.om_cost_per_kwh * p.hours_per_time_step *
         m[Symbol("dvRatedProduction"*_n)][t, ts] for t in p.techs.gen, ts in p.time_steps)
     )

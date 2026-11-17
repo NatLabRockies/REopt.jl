@@ -17,5 +17,7 @@
     "ElectricUtility" : {
         "co2_from_avert" : true
     },
-    "PV":{}
+    "PV":{
+        "installed_cost_per_kw": 1790.0
+    }
 }

@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     struct ElectricTariff
 
@@ -35,6 +35,9 @@ struct ElectricTariff
     coincident_peak_load_active_time_steps::AbstractVector{AbstractVector{Int64}}
     coincident_peak_load_charge_per_kw::AbstractVector{Float64}
     coincpeak_periods::AbstractVector{Int64}
+
+    urdb_metadata::Dict{Symbol, Any}
+
 end
 
 
@@ -45,7 +48,8 @@ end
     urdb_response::Dict=Dict(), # Response JSON for URDB rates. Note: if creating your own urdb_response, ensure periods are zero-indexed.
     urdb_utility_name::String="",
     urdb_rate_name::String="",
-    wholesale_rate::T1=nothing, # Price of electricity sold back to the grid in absence of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour.
+    urdb_metadata::Dict=Dict(), # Meta data about the URDB rate, from the URDB API response
+    wholesale_rate::T1=nothing, # Price of electricity [\$ per kWh] sold back to the grid in absence of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour.
     export_rate_beyond_net_metering_limit::T2=nothing, # Price of electricity sold back to the grid beyond total annual grid purchases, regardless of net metering. Can be a scalar value, which applies for all-time, or an array with time-sensitive values. If an array is input then it must have a length of 8760, 17520, or 35040. The inputed array values are up/down-sampled using mean values to match the Settings.time_steps_per_hour
     monthly_energy_rates::Array=[], # Array (length of 12) of blended energy rates in dollars per kWh
     monthly_demand_rates::Array=[], # Array (length of 12) of blended demand charges in dollars per kW
@@ -93,6 +97,7 @@ function ElectricTariff(;
     urdb_response::Dict=Dict(),
     urdb_utility_name::String="",
     urdb_rate_name::String="",
+    urdb_metadata::Dict=Dict(),
     year::Union{Int, Nothing}=nothing,   # Passed from ElectricLoad
     time_steps_per_hour::Int=1,
     NEM::Bool=false,
@@ -238,11 +243,31 @@ function ElectricTariff(;
         tou_demand_tier_limits = u.tou_demand_tier_limits
         n_tou_demand_tiers = u.n_tou_demand_tiers
 
+        urdb_metadata = Dict{Symbol, Any}(
+            :label => u.label,
+            :rate_name => u.rate_name,
+            :utility => u.utility,
+            :rate_effective_date => u.rate_effective_date,
+            :voltage_level => u.voltage_level,
+            :rate_description => u.rate_description,
+            :peak_kw_capacity_min => u.peak_kw_capacity_min,
+            :peak_kw_capacity_max => u.peak_kw_capacity_max,
+            :rate_additional_info => u.rate_additional_info,
+            :energy_comments => u.energy_comments,
+            :demand_comments => u.demand_comments,
+            :url_link => u.url_link
+        ) 
+
         if remove_tiers
             energy_rates, monthly_demand_rates, tou_demand_rates = remove_tiers_from_urdb_rate(u)
             energy_tier_limits, monthly_demand_tier_limits, tou_demand_tier_limits = 
                 Array{Float64,2}(undef, 0, 0), Array{Float64,2}(undef, 0, 0), Array{Float64,2}(undef, 0, 0)
-            n_energy_tiers, n_monthly_demand_tiers, n_tou_demand_tiers = 1, 1, 1
+            # Energy always collapses to one tier when remove_tiers is true.
+            n_energy_tiers = 1
+
+            # Preserve whether demand structures exist in the URDB tariff.
+            n_monthly_demand_tiers = u.n_monthly_demand_tiers > 0 ? 1 : 0
+            n_tou_demand_tiers = u.n_tou_demand_tiers > 0 ? 1 : 0
         end
 
         tou_demand_ratchet_time_steps = u.tou_demand_ratchet_time_steps
@@ -349,7 +374,8 @@ function ElectricTariff(;
         export_bins,
         coincident_peak_load_active_time_steps,
         coincident_peak_load_charge_per_kw,
-        coincpeak_periods
+        coincpeak_periods,
+        urdb_metadata
     )
 end
 
@@ -395,7 +421,7 @@ Check length of e and upsample if length(e) != N
 """
 function create_export_rate(e::AbstractArray{<:Real, 1}, N::Int, ts_per_hour::Int=1)
     Ne = length(e)
-    if Ne != Int(N/ts_per_hour) || Ne != N
+    if Ne != Int(N/ts_per_hour) && Ne != N
         throw(@error("Export rates do not have correct number of entries. Must be $(N) or $(Int(N/ts_per_hour))."))
     end
     if Ne != N  # upsample
@@ -413,13 +439,13 @@ function remove_tiers_from_urdb_rate(u::URDBrate)
     if length(u.energy_tier_limits) > 1
         @warn "Energy rate contains tiers. Using the first tier!"
     end
-    elec_rates = u.energy_rates[:,1]
+    elec_rates = u.energy_rates[:,1:1] # Keep 2D shape (N x 1) to satisfy ElectricTariff field types.
 
     if u.n_monthly_demand_tiers > 1
         @warn "Monthly demand rate contains tiers. Using the last tier!"
     end
     if u.n_monthly_demand_tiers > 0
-        demand_rates_monthly = u.monthly_demand_rates[:,u.n_monthly_demand_tiers]
+        demand_rates_monthly = u.monthly_demand_rates[:,u.n_monthly_demand_tiers:u.n_monthly_demand_tiers]
     else
         demand_rates_monthly = u.monthly_demand_rates  # 0×0 Array{Float64,2}
     end
@@ -428,7 +454,7 @@ function remove_tiers_from_urdb_rate(u::URDBrate)
         @warn "TOU demand rate contains tiers. Using the last tier!"
     end
     if u.n_tou_demand_tiers > 0
-        demand_rates = u.tou_demand_rates[:,u.n_tou_demand_tiers]
+        demand_rates = u.tou_demand_rates[:,u.n_tou_demand_tiers:u.n_tou_demand_tiers]
     else
         demand_rates = u.tou_demand_rates
     end

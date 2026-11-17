@@ -1,15 +1,18 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `ElectricStorage` results keys:
 - `size_kw` Optimal inverter capacity
 - `size_kwh` Optimal storage capacity
-- `soc_series_fraction` Vector of normalized (0-1) state of charge values over the first year
-- `storage_to_load_series_kw` Vector of power used to meet load over the first year
+- `soc_series_fraction` Vector of normalized (0-1) state of charge values over an average year
+- `storage_to_load_series_kw` Vector of power used to meet load over an average year
+- `storage_to_grid_series_kw` Vector of power exported to the grid over an average year
 - `initial_capital_cost` Upfront capital cost for storage and inverter
 # The following results are reported if storage degradation is modeled:
-- `state_of_health`
+- `state_of_health_series_fraction`
 - `maintenance_cost`
-- `replacement_month`
+- `replacement_month` # only applies is maintenance_strategy = "replacement"
+- `residual_value`
+- `total_residual_kwh` # only applies is maintenance_strategy = "replacement"
 
 !!! note "'Series' and 'Annual' energy outputs are average annual"
 	REopt performs load balances using average annual production values for technologies that include degradation. 
@@ -24,23 +27,56 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
     r["size_kwh"] = round(value(m[Symbol("dvStorageEnergy"*_n)][b]), digits=2)
     r["size_kw"] = round(value(m[Symbol("dvStoragePower"*_n)][b]), digits=2)
 
+    storage_tech = p.s.storage.attr[b]
+    if !isnothing(storage_tech.size_class) && !isempty(storage_tech.size_class_bounds_kw)
+        min_size = storage_tech.size_class_bounds_kw[1]
+        max_size = storage_tech.size_class_bounds_kw[2]
+        if r["size_kw"] < min_size || r["size_kw"] > max_size
+            @warn "ElectricStorage $(b): Optimal size ($(round(r["size_kw"], digits=1)) kW) doesn't match size class $(storage_tech.size_class) range ($(round(min_size, digits=1))-$(round(max_size, digits=1)) kW). For more accurate results, rerun with an appropriate size class or define the installed cost. Ignore if using custom costs instead of default size class costs."
+        end
+    end
+
     if r["size_kwh"] != 0
     	soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
         r["soc_series_fraction"] = round.(value.(soc) ./ r["size_kwh"], digits=3)
 
-        discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
-        r["storage_to_load_series_kw"] = round.(value.(discharge), digits=3)
+        r["storage_to_grid_series_kw"] = zeros(size(r["soc_series_fraction"]))
+        if !isempty(p.s.electric_tariff.export_bins)
+            StorageToGrid = @expression(m, [ts in p.time_steps],
+                sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]))
+            r["storage_to_grid_series_kw"] = results_array(round.(value.(StorageToGrid), digits=3))
+        end
+
+        StorageToLoad = ( m[Symbol("dvDischargeFromStorage"*_n)][b, ts] 
+                         - r["storage_to_grid_series_kw"][ts] for ts in p.time_steps
+        )
+        r["storage_to_load_series_kw"] = round.(value.(StorageToLoad), digits=3)
 
         r["initial_capital_cost"] = r["size_kwh"] * p.s.storage.attr[b].installed_cost_per_kwh +
-            r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw
+            r["size_kw"] * p.s.storage.attr[b].installed_cost_per_kw +
+            p.s.storage.attr[b].installed_cost_constant
 
         if p.s.storage.attr[b].model_degradation
-            r["state_of_health"] = value.(m[:SOH]).data / value.(m[:dvStorageEnergy])["ElectricStorage"];
+            r["state_of_health_series_fraction"] = round.(results_array(value.(m[:SOH])) / value.(m[:dvStorageEnergy])["ElectricStorage"], digits=3)
             r["maintenance_cost"] = value(m[:degr_cost])
             if p.s.storage.attr[b].degradation.maintenance_strategy == "replacement"
                 r["replacement_month"] = round(Int, value(
                     sum(mth * m[:binSOHIndicatorChange][mth] for mth in 1:p.s.financial.analysis_years*12)
                 ))
+                # Calculate total healthy BESS capacity at end of analysis period.
+                # Determine fraction of useful life left assuming same replacement frequency.
+                # Multiply by 0.2 to scale residual useful life since entire BESS is replaced when SOH drops below 80%.
+                # Total BESS capacity residual is (0.8 + residual useful fraction) * BESS capacity
+                # If no replacements happen then useful capacity is SOH[end]*BESS capacity.
+                if iszero(r["replacement_month"])
+                    r["total_residual_kwh"] = r["state_of_health_series_fraction"][end]*r["size_kwh"]
+                else
+                    # SOH[end] can be negative, so alternate method to calculate residual healthy SOH.
+                    total_replacements = (p.s.financial.analysis_years*12)/r["replacement_month"]
+                    r["total_residual_kwh"] = r["size_kwh"]*(
+                        0.2*(1 - (total_replacements - floor(total_replacements))) + 0.8
+                    )
+                end
             end
             r["residual_value"] = value(m[:residual_value])
          end
@@ -61,6 +97,8 @@ end
 """
 MPC `ElectricStorage` results keys:
 - `soc_series_fraction` Vector of normalized (0-1) state of charge values over time horizon
+- `storage_to_load_series_kw` Vector of power used to meet load
+- `storage_to_grid_series_kw` Vector of power exported to the grid
 """
 function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Dict, b::String; _n="")
     r = Dict{String, Any}()
@@ -68,8 +106,18 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::MPCInputs, d::Di
     soc = (m[Symbol("dvStoredEnergy"*_n)][b, ts] for ts in p.time_steps)
     r["soc_series_fraction"] = round.(value.(soc) ./ p.s.storage.attr[b].size_kwh, digits=3)
 
-    discharge = (m[Symbol("dvDischargeFromStorage"*_n)][b, ts] for ts in p.time_steps)
-    r["to_load_series_kw"] = round.(value.(discharge), digits=3)
+    r["storage_to_grid_series_kw"] = zeros(size(r["soc_series_fraction"]))
+    if !isempty(p.s.electric_tariff.export_bins)
+        StorageToGrid = @expression(m, [ts in p.time_steps],
+            sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]))
+        r["storage_to_grid_series_kw"] = results_array(round.(value.(StorageToGrid), digits=3))
+    end
+
+    r["storage_to_load_series_kw"] = zeros(size(r["soc_series_fraction"]))
+    StorageToLoad = ( m[Symbol("dvDischargeFromStorage"*_n)][b, ts] 
+                        - r["storage_to_grid_series_kw"][ts] for ts in p.time_steps
+    )
+    r["storage_to_load_series_kw"] = round.(value.(StorageToLoad), digits=3)
 
     d[b] = r
     nothing

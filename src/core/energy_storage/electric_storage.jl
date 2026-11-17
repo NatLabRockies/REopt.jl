@@ -1,21 +1,25 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     Degradation
 
 Inputs used when `ElectricStorage.model_degradation` is `true`:
 ```julia
 Base.@kwdef mutable struct Degradation
-    calendar_fade_coefficient::Real = 2.46E-03
-    cycle_fade_coefficient::Real = 7.82E-05
-    time_exponent::Real = 0.5
-    installed_cost_per_kwh_declination_rate::Float64 = 0.05
+    calendar_fade_coefficient::Real = 1.16E-03
+    cycle_fade_coefficient::Vector{<:Real} = [2.46E-05]
+    cycle_fade_fraction::Vector{<:Real} = [1.0]
+    time_exponent::Real = 0.428
+    installed_cost_per_kwh_declination_rate::Real = 0.05
     maintenance_strategy::String = "augmentation"  # one of ["augmentation", "replacement"]
     maintenance_cost_per_kwh::Vector{<:Real} = Real[]
 end
 ```
 
 None of the above values are required. If `ElectricStorage.model_degradation` is `true` then the 
-defaults above are used. If the `maintenance_cost_per_kwh` is not provided then it is determined using the `ElectricStorage.installed_cost_per_kwh` and the `installed_cost_per_kwh_declination_rate` along with a present worth factor ``f`` to account for the present cost of buying a battery in the future. The present worth factor for each day is:
+defaults above are used. If the `maintenance_cost_per_kwh` is not provided then it is determined 
+using the `ElectricStorage.installed_cost_per_kwh` and the `installed_cost_per_kwh_declination_rate` 
+along with a present worth factor ``f`` to account for the present cost of buying a battery in the 
+future. The present worth factor for each day is:
 
 ``
 f(day) = \\frac{ (1-r_g)^\\frac{day}{365} } { (1+r_d)^\\frac{day}{365} }
@@ -31,7 +35,9 @@ worth factor is used in the same manner irrespective of the `maintenance_strateg
     When modeling degradation the following ElectricStorage inputs are not used:
     - `replace_cost_per_kwh`
     - `battery_replacement_year`
-    The are replaced by the `maintenance_cost_per_kwh` vector.
+    - `replace_cost_constant`
+    - `cost_constant_replacement_year`
+    They are replaced by the `maintenance_cost_per_kwh` vector.
     Inverter replacement costs and inverter replacement year should still be used to model scheduled replacement of inverter.
 
 !!! note
@@ -129,9 +135,11 @@ The following shows how one would use the degradation model in REopt via the [Sc
         ...
         "model_degradation": true,
         "degradation": {
-            "calendar_fade_coefficient": 2.86E-03,
-            "cycle_fade_coefficient": 6.22E-05,
-            "installed_cost_per_kwh_declination_rate": 0.06,
+            "calendar_fade_coefficient": 1.16E-03,
+            "cycle_fade_coefficient": [2.46E-05],
+            "cycle_fade_fraction": [1.0],
+            "time_exponent": 0.428
+            "installed_cost_per_kwh_declination_rate": 0.05,
             "maintenance_strategy": "replacement",
             ...
         }
@@ -140,12 +148,13 @@ The following shows how one would use the degradation model in REopt via the [Sc
 }
 ```
 Note that not all of the above inputs are necessary. When not providing `calendar_fade_coefficient` for example the default value will be used.
-"""
 
+"""
 Base.@kwdef mutable struct Degradation
-    calendar_fade_coefficient::Real = 2.55E-03
-    cycle_fade_coefficient::Real = 9.83E-05
-    time_exponent::Real = 0.42
+    calendar_fade_coefficient::Real = 1.16E-03
+    cycle_fade_coefficient::Vector{<:Real} = [2.46E-05]
+    cycle_fade_fraction::Vector{<:Real} = [1.0]
+    time_exponent::Real = 0.428
     installed_cost_per_kwh_declination_rate::Real = 0.05
     maintenance_strategy::String = "augmentation"  # one of ["augmentation", "replacement"]
     maintenance_cost_per_kwh::Vector{<:Real} = Real[]
@@ -153,65 +162,95 @@ end
 
 
 """
-`ElectricStorage` is an optional optional REopt input with the following keys and default values:
+`ElectricStorage` is an optional REopt input with the following keys and default values:
 
 ```julia
     min_kw::Real = 0.0
-    max_kw::Real = 1.0e4
+    max_kw::Real = 1.0e5
     min_kwh::Real = 0.0
     max_kwh::Real = 1.0e6
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    soc_min_fraction::Float64 = 0.2
-    soc_min_applies_during_outages::Bool = false
-    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
     can_grid_charge::Bool = off_grid_flag ? false : true
-    can_export_to_grid::Bool = false
-    installed_cost_per_kw::Real = 910.0
-    installed_cost_per_kwh::Real = 455.0
-    replace_cost_per_kw::Real = 715.0
-    replace_cost_per_kwh::Real = 318.0
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
+    installed_cost_per_kw::Union{Real, Nothing} = nothing # defaults to average cost for determined size class.
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing # Cost of energy components (e.g., battery pack)
+    installed_cost_constant::Union{Real, Nothing} = nothing # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
+    replace_cost_per_kw::Real = 0.0
+    replace_cost_per_kwh::Real = 0.0
+    replace_cost_constant::Real = 0.0
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
-    macrs_option_years::Int = 7
-    macrs_bonus_fraction::Float64 = 0.6
+    cost_constant_replacement_year::Int = 10
+    om_cost_fraction_of_installed_cost::Float64 = 0.04 # Annual O&M cost as a fraction of installed cost
+    macrs_option_years::Int = 5 #Note: default may change if Site.sector is not "commercial/industrial"
+    macrs_bonus_fraction::Float64 = 1.0 #Note: default may change if Site.sector is not "commercial/industrial"
     macrs_itc_reduction::Float64 = 0.5
-    total_itc_fraction::Float64 = 0.3
+    total_itc_fraction::Float64 = 0.3 #Note: default may change if Site.sector is not "commercial/industrial"
     total_rebate_per_kw::Real = 0.0
     total_rebate_per_kwh::Real = 0.0
     charge_efficiency::Float64 = rectifier_efficiency_fraction * internal_efficiency_fraction^0.5
     discharge_efficiency::Float64 = inverter_efficiency_fraction * internal_efficiency_fraction^0.5
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     model_degradation::Bool = false
-    degradation::Dict = Dict()
-    minimum_avg_soc_fraction::Float64 = 0.0
+    degradation::Dict = Dict() 
     min_duration_hours::Real = 0.0 # Minimum amount of time storage can discharge at its rated power capacity
     max_duration_hours::Real = 100000.0 # Maximum amount of time storage can discharge at its rated power capacity (ratio of ElectricStorage size_kwh to size_kw)
+    
+    # Dispatch-related inputs
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+    soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
+    soc_min_applies_during_outages::Bool = false
+    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
+    minimum_avg_soc_fraction::Float64 = 0.0
+    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC.
+    # SOC inputs relevant if dispatch_strategy = "custom_soc"
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing # If provided, SOC (as fraction of total energy capacity) will not be optimized and will instead be fixed to the values provided here +- the absolute fixed_soc_series_fraction_tolerance. Must be an array of values 0-1 with length equal to 8760*time_steps_per_hour.
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing # Absolute tolerance on fixed_soc_series_fraction to avoid infeasible solutions when fixed_soc_series_fraction is provided.
+    size_class::Union{Int, Nothing} = nothing, # Size class for cost curve selection
+    electric_load_annual_peak::Real = 0.0, # Annual electric load peak (kW) for size class determination
+    electric_load_average::Real = 0.0, # Annual electric load average (kW) for size class determination
 ```
+    
+!!! note "Dispatch Strategy Options"
+	The following dispatch strategies are available via the `dispatch_strategy` input:
+    - `optimized`: Storage dispatch is optimized to minimize the total lifecycle cost of energy for the site. The model has perfect foresight into loads and modeled variable generation potential over the entire year. 
+    - `peak_shaving_look_ahead`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look-ahead (perfect prediction) of load and solar resource. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `peak_shaving_look_behind`: Uses SAM's Peak Shaving dispatch heuristic with a one-day look behind for the load and solar resource to introduce forecast uncertainty. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values) 
+    - `self_consumption`: Uses SAM's Self-Consumption dispatch heuristic to maximize the onsite use of PV generation. To use this option in REopt.jl, users must specify BESS (and PV if included) sizing (by setting min and max values)
+    - `backup`: Storage is reserved to meet load during grid outages by changing the default soc_min_fraction to 0.8.
+    - `daily_foresight_optimized`: This option is only available via the REopt API (not available in REopt.jl)
+    - `custom_soc`: User must provide a fixed_soc_series_fraction and can optionally tailor the fixed_soc_series_fraction_tolerance. 
+
 """
 Base.@kwdef struct ElectricStorageDefaults
     off_grid_flag::Bool = false
     min_kw::Real = 0.0
-    max_kw::Real = 1.0e4
+    max_kw::Real = 1.0e5
     min_kwh::Real = 0.0
     max_kwh::Real = 1.0e6
     internal_efficiency_fraction::Float64 = 0.975
     inverter_efficiency_fraction::Float64 = 0.96
     rectifier_efficiency_fraction::Float64 = 0.96
-    soc_min_fraction::Float64 = 0.2
-    soc_min_applies_during_outages::Bool = false
-    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
     can_grid_charge::Bool = off_grid_flag ? false : true
-    can_export_to_grid::Bool = false
-    installed_cost_per_kw::Real = 910.0
-    installed_cost_per_kwh::Real = 455.0
-    replace_cost_per_kw::Real = 715.0
-    replace_cost_per_kwh::Real = 318.0
+    can_net_meter::Bool = false
+    can_wholesale::Bool = false
+    can_export_beyond_nem_limit::Bool = false
+    installed_cost_per_kw::Union{Real, Nothing} = nothing # defaults to average cost for determined size class. 
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing # Cost of energy components (e.g., battery pack)
+    installed_cost_constant::Union{Real, Nothing} = nothing # "+c" constant cost that is added to total ElectricStorage installed costs if a battery is included. Accounts for costs not expected to scale with power or energy capacity.
+    replace_cost_per_kw::Real = 0.0
+    replace_cost_per_kwh::Real = 0.0
+    replace_cost_constant::Real = 0.0
     inverter_replacement_year::Int = 10
     battery_replacement_year::Int = 10
-    macrs_option_years::Int = 7
-    macrs_bonus_fraction::Float64 = 0.6
+    cost_constant_replacement_year::Int = 10
+    om_cost_fraction_of_installed_cost::Float64 = 0.04
+    macrs_option_years::Int = 5
+    macrs_bonus_fraction::Float64 = 1.0
     macrs_itc_reduction::Float64 = 0.5
     total_itc_fraction::Float64 = 0.3
     total_rebate_per_kw::Real = 0.0
@@ -221,14 +260,24 @@ Base.@kwdef struct ElectricStorageDefaults
     grid_charge_efficiency::Float64 = can_grid_charge ? charge_efficiency : 0.0
     model_degradation::Bool = false
     degradation::Dict = Dict()
-    minimum_avg_soc_fraction::Float64 = 0.0
     min_duration_hours::Real = 0.0
     max_duration_hours::Real = 100000.0
+    dispatch_strategy::String = "optimized" # can be one of ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"]
+    soc_min_fraction::Float64 = dispatch_strategy == "backup" ? 0.8 : 0.2
+    soc_min_applies_during_outages::Bool = false
+    soc_init_fraction::Float64 = off_grid_flag ? 1.0 : 0.5
+    minimum_avg_soc_fraction::Float64 = 0.0
+    optimize_soc_init_fraction::Bool = false # If true, soc_init_fraction will not apply. Model will optimize initial SOC and constrain initial SOC = final SOC.
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}} = nothing
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real} = !isnothing(fixed_soc_series_fraction) ? 0.02 : nothing
+    size_class::Union{Int, Nothing} = nothing # Size class for cost curve selection
+    electric_load_annual_peak::Real = 0.0 # Annual electric load peak (kW) for size class determination
+    electric_load_average::Real = 0.0 # Annual electric load average (kW) for size class determination
 end
 
 
 """
-    function ElectricStorage(d::Dict, f::Financial, settings::Settings)
+    function ElectricStorage(d::Dict, f::Financial, s::Site)
 
 Construct ElectricStorage struct from Dict with keys-val pairs from the 
 REopt ElectricStorage and Financial inputs.
@@ -241,17 +290,20 @@ struct ElectricStorage <: AbstractElectricStorage
     internal_efficiency_fraction::Float64
     inverter_efficiency_fraction::Float64
     rectifier_efficiency_fraction::Float64
-    soc_min_fraction::Float64
-    soc_min_applies_during_outages::Bool
-    soc_init_fraction::Float64
     can_grid_charge::Bool
-    can_export_to_grid::Bool
-    installed_cost_per_kw::Real
-    installed_cost_per_kwh::Real
+    can_net_meter::Bool
+    can_wholesale::Bool
+    can_export_beyond_nem_limit::Bool
+    installed_cost_per_kw::Union{Real, Nothing}
+    installed_cost_per_kwh::Union{Real, Nothing}
+    installed_cost_constant::Union{Real, Nothing}
     replace_cost_per_kw::Real
     replace_cost_per_kwh::Real
+    replace_cost_constant::Real
     inverter_replacement_year::Int
     battery_replacement_year::Int
+    cost_constant_replacement_year::Int
+    om_cost_fraction_of_installed_cost::Float64
     macrs_option_years::Int
     macrs_bonus_fraction::Float64
     macrs_itc_reduction::Float64
@@ -263,105 +315,482 @@ struct ElectricStorage <: AbstractElectricStorage
     grid_charge_efficiency::Float64
     net_present_cost_per_kw::Real
     net_present_cost_per_kwh::Real
+    net_present_cost_cost_constant::Real
     model_degradation::Bool
     degradation::Degradation
-    minimum_avg_soc_fraction::Float64
     min_duration_hours::Real
     max_duration_hours::Real
-    
-    function ElectricStorage(d::Dict, f::Financial)  
-        s = ElectricStorageDefaults(;d...)
+    dispatch_strategy::String
+    soc_min_fraction::Float64
+    soc_min_applies_during_outages::Bool
+    soc_init_fraction::Float64
+    minimum_avg_soc_fraction::Float64
+    optimize_soc_init_fraction::Bool
+    fixed_soc_series_fraction::Union{Nothing, Array{<:Real,1}}
+    fixed_soc_series_fraction_tolerance::Union{Nothing, Real}
+    size_class::Union{Int, Nothing}
+    size_class_bounds_kw::AbstractVector
+    electric_load_annual_peak::Real
+    electric_load_average::Real
 
-        if s.inverter_replacement_year >= f.analysis_years
+    function ElectricStorage(d::Dict, f::Financial, s::Site, l::ElectricLoad, pvs::Vector{PV}, time_steps_per_hour::Int, net_metering_limit_kw::Real)  
+        set_sector_defaults!(d; struct_name="Storage", sector=s.sector, federal_procurement_type=s.federal_procurement_type)
+        stor = ElectricStorageDefaults(;d...)
+
+        if stor.inverter_replacement_year >= f.analysis_years
             @warn "Battery inverter replacement costs (per_kw) will not be considered because inverter_replacement_year is greater than or equal to analysis_years."
         end
 
-        if s.battery_replacement_year >= f.analysis_years
+        if stor.battery_replacement_year >= f.analysis_years
             @warn "Battery replacement costs (per_kwh) will not be considered because battery_replacement_year is greater than or equal to analysis_years."
         end
 
-        # copy the replace_costs in case we need to change them
-        replace_cost_per_kw = s.replace_cost_per_kw 
-        replace_cost_per_kwh = s.replace_cost_per_kwh
-        if s.model_degradation
-            if haskey(d, :replace_cost_per_kwh) && d[:replace_cost_per_kwh] != 0.0
-                @warn "Setting ElectricStorage replacement costs to zero. \nUsing degradation.maintenance_cost_per_kwh instead."
-            end
-            replace_cost_per_kwh = 0.0 # Always modeled using maintenance_cost_vector in degradation model.
-            # replace_cost_per_kw is unchanged here.
+        if !s.include_exported_renewable_electricity_in_total && (stor.can_net_meter || stor.can_wholesale)
+            @warn "include_exported_renewable_electricity_in_total = false, but ElectricStorage can_net_meter or can_wholesale is true. REopt's calculation of onsite renewable electricity does not currently accurately account for exported renewable electricity via the battery and will thus overestimate onsite renewable electricity."
         end
 
-        if s.min_duration_hours > s.max_duration_hours
+        can_net_meter = stor.can_net_meter
+        can_wholesale = stor.can_wholesale
+        can_export_beyond_nem_limit = stor.can_export_beyond_nem_limit  
+        if stor.off_grid_flag && (can_net_meter || can_wholesale || can_export_beyond_nem_limit)
+            @warn "Setting ElectricStorage can_net_meter, can_wholesale, and can_export_beyond_nem_limit to False because `off_grid_flag` is true."
+            can_net_meter = false
+            can_wholesale = false
+            can_export_beyond_nem_limit = false
+        end
+        
+        if stor.min_duration_hours > stor.max_duration_hours
             throw(@error("ElectricStorage min_duration_hours must be less than max_duration_hours."))
         end
 
-        net_present_cost_per_kw = effective_cost(;
-            itc_basis = s.installed_cost_per_kw,
-            replacement_cost = s.inverter_replacement_year >= f.analysis_years ? 0.0 : replace_cost_per_kw,
-            replacement_year = s.inverter_replacement_year,
-            discount_rate = f.owner_discount_rate_fraction,
-            tax_rate = f.owner_tax_rate_fraction,
-            itc = s.total_itc_fraction,
-            macrs_schedule = s.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year,
-            macrs_bonus_fraction = s.macrs_bonus_fraction,
-            macrs_itc_reduction = s.macrs_itc_reduction,
-            rebate_per_kw = s.total_rebate_per_kw
-        )
-        net_present_cost_per_kwh = effective_cost(;
-            itc_basis = s.installed_cost_per_kwh,
-            replacement_cost = s.battery_replacement_year >= f.analysis_years ? 0.0 : replace_cost_per_kwh,
-            replacement_year = s.battery_replacement_year,
-            discount_rate = f.owner_discount_rate_fraction,
-            tax_rate = f.owner_tax_rate_fraction,
-            itc = s.total_itc_fraction,
-            macrs_schedule = s.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year,
-            macrs_bonus_fraction = s.macrs_bonus_fraction,
-            macrs_itc_reduction = s.macrs_itc_reduction
+        # Dispatch validation
+        valid_dispatch_strategies = ["optimized", "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"]
+        dispatch_strategy = stor.dispatch_strategy
+        if !(dispatch_strategy in valid_dispatch_strategies)
+            throw(@error("ElectricStorage dispatch_strategy must be one of the following: $(valid_dispatch_strategies)"))
+        end
+        if dispatch_strategy == "custom_soc" && isnothing(stor.fixed_soc_series_fraction)
+            throw(@error("ElectricStorage fixed_soc_series_fraction must be provided when dispatch_strategy is custom_soc."))
+        end
+        if dispatch_strategy != "custom_soc" && !isnothing(stor.fixed_soc_series_fraction)
+            @warn "Updating ElectricStorage dispatch_strategy to custom_soc since fixed_soc_series_fraction is provided."
+            dispatch_strategy = "custom_soc"
+        end
+        requires_fixed_sizing = ["peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption"]
+        if dispatch_strategy in requires_fixed_sizing && (stor.min_kw != stor.max_kw || stor.min_kwh != stor.max_kwh || stor.max_kw == 0 || stor.max_kwh == 0)
+            throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires fixed non-zero storage sizing. Please fix the sizing by setting min_kw=max_kw, and min_kwh=max_kwh."))
+        end
+
+        # SAM dispatch strategies require fixed PV sizes. The self_consumption option additionally requires a non-zero total PV size.
+        if dispatch_strategy in requires_fixed_sizing
+            sized_pvs = [pv.name for pv in pvs if pv.min_kw != pv.max_kw]
+            if !isempty(sized_pvs)
+                throw(@error("ElectricStorage dispatch_strategy $(dispatch_strategy) requires all PV arrays to have a fixed size. The following PV array(s) are not fixed: $(join(sized_pvs, ", ")). Please set min_kw = max_kw for each PV array."))
+            end
+            if dispatch_strategy == "self_consumption"
+                total_pv_kw = sum(pv.existing_kw + pv.max_kw for pv in pvs; init=0.0)
+                if total_pv_kw <= 0
+                    throw(@error("ElectricStorage dispatch_strategy self_consumption requires a non-zero PV size. Please include PV with existing_kw > 0 or fixed new sizing (min_kw = max_kw > 0)."))
+                end
+            end
+        end
+
+        # SAM dispatch strategies overwrite these values from physics-based calculations for the battery's DC-DC RTE
+        internal_efficiency_fraction = stor.internal_efficiency_fraction
+        charge_efficiency = stor.charge_efficiency
+        discharge_efficiency = stor.discharge_efficiency
+        grid_charge_efficiency = stor.grid_charge_efficiency
+        fixed_soc_series_fraction = stor.fixed_soc_series_fraction
+        fixed_soc_series_fraction_tolerance = stor.fixed_soc_series_fraction_tolerance
+
+        # Call SAM for peak_shaving_look_ahead, peak_shaving_look_behind, and self_consumption dispatch strategies
+        if dispatch_strategy == "peak_shaving_look_ahead" || dispatch_strategy == "peak_shaving_look_behind" || dispatch_strategy == "self_consumption"
+            @info "Using a SAM dispatch strategy for ElectricStorage: $(dispatch_strategy)"
+            # If a SAM dispatch strategy is specified, pre-populate production_factor_series if not specified by the user
+            if !isempty(pvs)
+                for pv in pvs
+                    if isnothing(pv.production_factor_series)
+                        pv.production_factor_series = get_production_factor(pv, s.latitude, s.longitude;
+                                                                            time_steps_per_hour=time_steps_per_hour)
+                    end
+                end
+            end
+
+            # Calculate PV levelization factors 
+            pv_levelization_factor = Dict{String, Float64}(
+                pv.name => levelization_factor(
+                    f.analysis_years,
+                    f.elec_cost_escalation_rate_fraction,
+                    f.offtaker_discount_rate_fraction,
+                    pv.degradation_fraction
+                ) for pv in pvs
+            )
+
+            # Run SAM SSC to get battery dispatch 
+            ssc_battery_response = run_ssc_battery(;
+                batt_kw = stor.max_kw,
+                batt_kwh = stor.max_kwh,
+                dispatch_strategy = dispatch_strategy,
+                soc_init_fraction = stor.soc_init_fraction,
+                soc_min_fraction = stor.soc_min_fraction,
+                inverter_efficiency_fraction = stor.inverter_efficiency_fraction,
+                rectifier_efficiency_fraction = stor.rectifier_efficiency_fraction,
+                internal_efficiency_fraction = stor.internal_efficiency_fraction,
+                can_grid_charge = stor.can_grid_charge,
+                loads_kw = l.loads_kw,
+                pvs = pvs,
+                time_steps_per_hour = time_steps_per_hour,
+                can_net_meter = can_net_meter,
+                can_wholesale = can_wholesale,
+                net_metering_limit_kw = net_metering_limit_kw,
+                pv_levelization_factor = pv_levelization_factor
+            )
+            if ssc_battery_response["error"] != ""
+                throw(@error("SAM battery dispatch failed: $(ssc_battery_response["error"])"))
+            end
+
+            # Fix the battery SOC to SAM's dispatch output
+            fixed_soc_series_fraction = ssc_battery_response["soc_series_fraction"]
+            if isnothing(fixed_soc_series_fraction_tolerance)
+                fixed_soc_series_fraction_tolerance = 0.02
+            end
+
+            # Overwrite REopt's internal_efficiency_fraction with SAM-calculated output
+            internal_efficiency_fraction = ssc_battery_response["internal_efficiency_fraction"]
+            charge_efficiency = stor.rectifier_efficiency_fraction * internal_efficiency_fraction^0.5
+            discharge_efficiency = stor.inverter_efficiency_fraction * internal_efficiency_fraction^0.5
+            grid_charge_efficiency = stor.can_grid_charge ? charge_efficiency : 0.0
+            @info "Overwriting ElectricStorage internal_efficiency_fraction with SAM-calculated value: $(round(internal_efficiency_fraction, digits=4))"
+
+        end
+
+        # Copy SOC input in case we need to change them
+        soc_init_fraction = stor.soc_init_fraction
+        soc_min_fraction = stor.soc_min_fraction
+        optimize_soc_init_fraction = stor.optimize_soc_init_fraction
+        minimum_avg_soc_fraction = stor.minimum_avg_soc_fraction
+        if !isnothing(fixed_soc_series_fraction)
+            fixed_soc_series_fraction = check_and_adjust_load_length(fixed_soc_series_fraction, time_steps_per_hour, "ElectricStorage.fixed_soc_series_fraction") # using load function to clean this series.
+            @warn "Fixing ElectricStorage soc_series_fraction to the fixed_soc_series_fraction. Other SOC inputs will be ignored."
+            error_if_series_vals_not_0_to_1(fixed_soc_series_fraction, "ElectricStorage", "fixed_soc_series_fraction")
+            if fixed_soc_series_fraction_tolerance < 0
+                throw(@error("fixed_soc_series_fraction_tolerance must be non-negative."))
+            end
+            soc_init_fraction = fixed_soc_series_fraction[1]
+            soc_min_fraction = 0.0
+            optimize_soc_init_fraction = false
+            minimum_avg_soc_fraction = 0.0
+        end
+        
+        macrs_schedule = [0.0]
+        if stor.macrs_option_years == 5 || stor.macrs_option_years == 7
+            macrs_schedule = stor.macrs_option_years == 7 ? f.macrs_seven_year : f.macrs_five_year
+        elseif !(stor.macrs_option_years == 0)
+            throw(@error("ElectricStorage macrs_option_years must be 0, 5, or 7."))
+        end
+
+        installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, size_class,
+        size_kw_for_size_class, electric_load_based_sizing_kw, size_class_bounds_kw = get_electric_storage_cost_params(;
+            installed_cost_per_kw = stor.installed_cost_per_kw,
+            installed_cost_per_kwh = stor.installed_cost_per_kwh,
+            installed_cost_constant = stor.installed_cost_constant, 
+            size_class = stor.size_class,
+            electric_load_annual_peak = stor.electric_load_annual_peak,
+            electric_load_average = stor.electric_load_average,
+            min_kw = stor.min_kw,
+            max_kw = stor.max_kw
         )
 
-        net_present_cost_per_kwh -= s.total_rebate_per_kwh
+        net_present_cost_per_kw = effective_cost(;
+            itc_basis = installed_cost_per_kw,
+            replacement_cost = stor.inverter_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kw,
+            replacement_year = stor.inverter_replacement_year,
+            discount_rate = f.owner_discount_rate_fraction,
+            tax_rate = f.owner_tax_rate_fraction,
+            itc = stor.total_itc_fraction,
+            macrs_schedule = macrs_schedule,
+            macrs_bonus_fraction = stor.macrs_bonus_fraction,
+            macrs_itc_reduction = stor.macrs_itc_reduction,
+            rebate_per_kw = stor.total_rebate_per_kw
+        )
+        net_present_cost_per_kwh = effective_cost(;
+            itc_basis = installed_cost_per_kwh,
+            replacement_cost = stor.battery_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_per_kwh,
+            replacement_year = stor.battery_replacement_year,
+            discount_rate = f.owner_discount_rate_fraction,
+            tax_rate = f.owner_tax_rate_fraction,
+            itc = stor.total_itc_fraction,
+            macrs_schedule = macrs_schedule,
+            macrs_bonus_fraction = stor.macrs_bonus_fraction,
+            macrs_itc_reduction = stor.macrs_itc_reduction
+        )
+
+        net_present_cost_per_kwh -= stor.total_rebate_per_kwh
+
+	    if (installed_cost_constant != 0) || (stor.replace_cost_constant != 0)
+            net_present_cost_cost_constant = effective_cost(;
+                itc_basis = installed_cost_constant,
+                replacement_cost = stor.cost_constant_replacement_year >= f.analysis_years ? 0.0 : stor.replace_cost_constant,
+                replacement_year = stor.cost_constant_replacement_year,
+                discount_rate = f.owner_discount_rate_fraction,
+                tax_rate = f.owner_tax_rate_fraction,
+                itc = stor.total_itc_fraction,
+                macrs_schedule = macrs_schedule,
+                macrs_bonus_fraction = stor.macrs_bonus_fraction,
+                macrs_itc_reduction = stor.macrs_itc_reduction
+            )
+        else
+            net_present_cost_cost_constant = 0
+        end
 
         if haskey(d, :degradation)
             degr = Degradation(;dictkeys_tosymbols(d[:degradation])...)
+            if length(degr.cycle_fade_coefficient) != length(degr.cycle_fade_fraction)
+                throw(@error("The fields cycle_fade_coefficient and cycle_fade_fraction in ElectricStorage Degradation inputs must have equal length."))
+            end
+            if length(degr.cycle_fade_coefficient) > 1
+                @info "Modeling segmented cycle fade battery degradation costing"
+            end
         else
             degr = Degradation()
         end
+
+        # Handle replacement costs for degradation model.
+        replace_cost_per_kw = stor.replace_cost_per_kw
+        replace_cost_per_kwh = stor.replace_cost_per_kwh
+        replace_cost_constant = stor.replace_cost_constant
+        if stor.model_degradation
+            if haskey(d, :replace_cost_per_kw) && d[:replace_cost_per_kw] != 0.0 || 
+                haskey(d, :replace_cost_per_kwh) && d[:replace_cost_per_kwh] != 0.0 ||
+                haskey(d, :replace_cost_constant) && d[:replace_cost_constant] != 0.0
+                @warn "Setting ElectricStorage replacement costs to zero. Using degradation.maintenance_cost_per_kwh instead."
+            end
+            replace_cost_per_kw = 0.0
+            replace_cost_per_kwh = 0.0
+            replace_cost_constant = 0.0
+        end
     
         return new(
-            s.min_kw,
-            s.max_kw,
-            s.min_kwh,
-            s.max_kwh,
-            s.internal_efficiency_fraction,
-            s.inverter_efficiency_fraction,
-            s.rectifier_efficiency_fraction,
-            s.soc_min_fraction,
-            s.soc_min_applies_during_outages,
-            s.soc_init_fraction,
-            s.can_grid_charge,
-            s.can_export_to_grid,
-            s.installed_cost_per_kw,
-            s.installed_cost_per_kwh,
+            stor.min_kw,
+            stor.max_kw,
+            stor.min_kwh,
+            stor.max_kwh,
+            internal_efficiency_fraction,
+            stor.inverter_efficiency_fraction,
+            stor.rectifier_efficiency_fraction,
+            stor.can_grid_charge,
+            can_net_meter,
+            can_wholesale,
+            can_export_beyond_nem_limit,
+            installed_cost_per_kw,
+            installed_cost_per_kwh,
+            installed_cost_constant,
             replace_cost_per_kw,
             replace_cost_per_kwh,
-            s.inverter_replacement_year,
-            s.battery_replacement_year,
-            s.macrs_option_years,
-            s.macrs_bonus_fraction,
-            s.macrs_itc_reduction,
-            s.total_itc_fraction,
-            s.total_rebate_per_kw,
-            s.total_rebate_per_kwh,
-            s.charge_efficiency,
-            s.discharge_efficiency,
-            s.grid_charge_efficiency,
+            replace_cost_constant,
+            stor.inverter_replacement_year,
+            stor.battery_replacement_year,
+            stor.cost_constant_replacement_year,
+            stor.om_cost_fraction_of_installed_cost,
+            stor.macrs_option_years,
+            stor.macrs_bonus_fraction,
+            stor.macrs_itc_reduction,
+            stor.total_itc_fraction,
+            stor.total_rebate_per_kw,
+            stor.total_rebate_per_kwh,
+            charge_efficiency,
+            discharge_efficiency,
+            grid_charge_efficiency,
             net_present_cost_per_kw,
             net_present_cost_per_kwh,
-            s.model_degradation,
+            net_present_cost_cost_constant,
+            stor.model_degradation,
             degr,
-            s.minimum_avg_soc_fraction,
-            s.min_duration_hours,
-            s.max_duration_hours
+            stor.min_duration_hours,
+            stor.max_duration_hours,
+            dispatch_strategy,
+            soc_min_fraction,
+            stor.soc_min_applies_during_outages,
+            soc_init_fraction,
+            minimum_avg_soc_fraction,
+            optimize_soc_init_fraction,
+            fixed_soc_series_fraction,
+            fixed_soc_series_fraction_tolerance,
+            size_class,
+            size_class_bounds_kw,
+            stor.electric_load_annual_peak,
+            stor.electric_load_average
         )
     end
+end
+
+"""
+    get_electric_storage_cost_params(; installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant,
+                                size_class, min_kw, max_kw, electric_load_annual_peak, electric_load_average)
+
+Processes and determines the cost scaling parameters for a Battery system, including installed cost per kW, 
+installed cost per kWh, installed cost constant and size class.
+
+# Arguments
+- `installed_cost_per_kw`::Union{Real, Nothing} = nothing,
+- `installed_cost_per_kwh`::Union{Real, Nothing} = nothing,
+- `installed_cost_constant`::Union{Real, Nothing} = nothing,
+- `size_class`::Union{Int, Nothing} = nothing,
+- `min_kw`::Real = 0.0,
+- `max_kw`::Real = 1.0e9,
+- `electric_load_annual_peak`::Real = 0.0,
+- `electric_load_average`::Real = 0.0
+
+# Returns
+Values:
+1. `installed_cost_per_kw`: Final installed cost per kW.
+2. `installed_cost_per_kwh`: Final installed cost per kWh.
+3. `installed_cost_constant`: Final installed cost constant.
+4. `size_class`: Determined size class.
+5. `size_kw_for_size_class`: Calculated size_kw used to determine size class. This value accounts for minimum of maximum kw parameters.
+6. `electric_load_based_sizing_kw`: Calculated size_kw used to determine size class based on input electric load profile.
+7. `size_class_bounds_kw`: kW bounds for chosen size class.
+
+# Notes
+- If `size_class` is not provided, it is determined based on max(peak demand - average demand, average demand) and `min_kw` or `max_kw` input parameters.
+
+"""
+function get_electric_storage_cost_params(; 
+    installed_cost_per_kw::Union{Real, Nothing} = nothing,
+    installed_cost_per_kwh::Union{Real, Nothing} = nothing,
+    installed_cost_constant::Union{Real, Nothing} = nothing,
+    size_class::Union{Int, Nothing} = nothing,
+    min_kw::Real = 0.0,
+    max_kw::Real = 1.0e9,
+    electric_load_annual_peak::Real = 0.0,
+    electric_load_average::Real = 0.0
+)
+
+    # Get defaults and determine mount type
+    defaults = get_electric_storage_defaults_size_class()
+
+    # Initialize variables needed for processing
+    local determined_size_class
+    local size_kw_for_size_class = 0 # defaults to 0 and set only if size class is undefined.
+    local electric_load_based_sizing_kw = 0  # defaults to 0 and set only if size class is undefined.
+
+    kw_tech_sizes = [c["size_class_bounds_kw"] for c in defaults]
+    reopt_identified_size_class, size_kw_for_size_class, electric_load_based_sizing_kw = get_electric_storage_size_class(
+            electric_load_annual_peak,
+            electric_load_average,
+            kw_tech_sizes;
+            min_kw=min_kw,
+            max_kw=max_kw
+        )
+
+    # STEP 1: Determine size class
+    determined_size_class = if !isnothing(size_class)
+        # User explicitly set size class - validate boundaries
+        if size_class < 1
+            @warn "Size class $size_class is less than 1, using size class 1 instead"
+            1
+        elseif size_class > length(defaults)
+            @warn "Size class $size_class exceeds maximum ($(length(defaults))), using largest size class instead"
+            length(defaults)
+        else
+            size_class
+        end
+    elseif typeof(installed_cost_per_kw) <: Real
+        # Single cost value provided - size class not needed. Set to REopt identified size class
+        reopt_identified_size_class
+    else
+        # Default case: no costs or size_class information provided.
+        reopt_identified_size_class
+    end
+
+    # Get default data for determined size class
+    class_defaults = if !isnothing(determined_size_class)            
+        matching_default = findfirst(d -> d["size_class"] == determined_size_class, defaults)            
+        if isnothing(matching_default)
+            throw(ErrorException("Could not find matching defaults for size class $(determined_size_class)"))
+        end
+        defaults[matching_default]
+    end
+
+    installed_cost_constant = isnothing(installed_cost_constant) ? 0 : installed_cost_constant
+
+    # STEP 2: Handle installed costs
+    installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant = if (
+        typeof(installed_cost_per_kw) <: Real && typeof(installed_cost_per_kwh) <: Real && typeof(installed_cost_constant) <: Real
+    )
+        # Single cost value provided by user
+        convert(Float64, installed_cost_per_kw), convert(Float64, installed_cost_per_kwh), convert(Float64, installed_cost_constant)
+    elseif !isnothing(class_defaults)
+        class_defaults["installed_cost_per_kw"], class_defaults["installed_cost_per_kwh"], class_defaults["installed_cost_constant"]
+    else
+        throw(ErrorException("No installed costs provided and no size class determined"))
+    end
+
+    size_class_bounds_kw = if !isnothing(determined_size_class) && !isnothing(class_defaults)
+        convert(Vector{Float64}, class_defaults["size_class_bounds_kw"])
+    else
+        Float64[]
+    end
+
+    return installed_cost_per_kw, installed_cost_per_kwh, installed_cost_constant, determined_size_class, round(size_kw_for_size_class, digits=0), round(electric_load_based_sizing_kw, digits=0), size_class_bounds_kw
+end
+
+# TODO combine functions to load size class defaults for eligible techs.
+# Load ElectricStorage default size class data from JSON file
+function get_electric_storage_defaults_size_class()
+    electric_storage_defaults_path = joinpath(@__DIR__, "..", "..", "..", "data", "energy_storage", "electric_storage", "electric_storage_defaults.json")
+    if !isfile(electric_storage_defaults_path)
+        throw(ErrorException("electric_storage_defaults.json not found at path: $electric_storage_defaults_path"))
+    end
+    
+    electric_storage_defaults_all = JSON.parsefile(electric_storage_defaults_path)
+    return electric_storage_defaults_all["size_classes"]
+end
+
+
+# Determine appropriate size class based on system parameters
+function get_electric_storage_size_class(
+    electric_load_annual_peak::Real,
+    electric_load_average::Real,
+    size_class_bounds_kw::AbstractVector;
+    min_kw::Real=0.0,
+    max_kw::Real=1.0e9
+    )
+
+    size_class = nothing
+    size_kw_for_size_class = nothing
+
+    # Estimate size based on electric load and estimated (max_kw - avg_kw) value
+    electric_load_based_sizing_kw = max(electric_load_annual_peak - electric_load_average, electric_load_average)
+    # if default min/max kw have been updated, factor those in.
+    if max_kw != 1.0e9 
+        size_kw_for_size_class = min(electric_load_based_sizing_kw, max_kw)
+    end
+    if min_kw != 0.0
+        size_kw_for_size_class = max(electric_load_based_sizing_kw, min_kw)
+    end
+    if isnothing(size_kw_for_size_class)
+        size_kw_for_size_class = electric_load_based_sizing_kw
+    end
+    # Find the appropriate kw size class for the effective size
+    for (i, size_range) in enumerate(size_class_bounds_kw)
+        min_size = convert(Float64, size_range[1])
+        max_size = convert(Float64, size_range[2])
+        
+        if size_kw_for_size_class >= min_size && size_kw_for_size_class <= max_size
+            size_class = i
+        end
+    end
+    if isnothing(size_class)
+        # Handle edge cases -> highest size class returned.
+        if size_kw_for_size_class > convert(Float64, size_class_bounds_kw[end][2])
+            size_class = length(size_class_bounds_kw)
+            @warn "Sizing metric $size_kw_for_size_class is greater than largest size class upper bound, using size class $size_class instead"
+        else
+            size_class = 1  # Default to smallest size class
+            @warn "Size class was not set using REopt logic, using size class 1 instead"
+        end
+    end
+
+    return size_class, size_kw_for_size_class, electric_load_based_sizing_kw
 end

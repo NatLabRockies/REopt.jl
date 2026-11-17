@@ -5,14 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Guidelines
-- When working in feature branch, start a new double-hash header with the name of the branch and record changes under that
-- When merging `develop` into a feature branch, keep the feature branch section and the "Develop" section separate to simplify merge conflicts
-- When making a Pull Request into `develop`, merge the feature branch section into the "Develop" section (if it exists), else rename the feature branch header to "Develop"
-- When making a Pull Request into `master` change "Develop" to the next version number
+- When working in a feature branch, start a new double-hash header with the name of the branch and record changes under that section.
+- When merging `master` into the feature branch (to keep up-to-date), keep the feature branch section separate from any other branch sections that are already in `master` to avoid merge conflicts.
+- When making a Pull Request for merging into `master`, note that we will merge new changelog items into a new version heading later (after merging) when we want to release a new registered version.
 
 ### Formatting
 - Use **bold** markup for field and model names (i.e. **outage_start_time_step**)
-- Use `code` markup for  REopt-specific file names, classes and endpoints (e.g. `src/REopt.jl`)
+- Use `code` markup for  REopt-specific file names, functions, and endpoints (e.g. `src/REopt.jl`)
 - Use _italic_ for code terms (i.e. _list_)
 - Prepend change with tag(s) directing where it is in the repository:  
 `src`,`constraints`,`*.jl`
@@ -25,6 +24,296 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## v1.0.1
+### Changed
+- Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.
+- Temporarily commented out failing Cambium tests due to recent API request limitation
+### Fixed
+- `src/results`: Corrected **GHP** thermal production results when serving DHW so total annual thermal production includes space heating and DHW and accounts for hours per time step.
+- `src/core`: Preserve **CoolingLoad.annual_tonhour** and **CoolingLoad.monthly_tonhour** when a user supplies **ExistingChiller.cop**, including for blended DOE reference profiles, by using the same COP for thermal-to-electric and electric-to-thermal load conversions.
+
+## v1.0.0
+### Added
+- Optional inputs **PV.outage_production_fraction** and **Wind.outage_production_fraction** to reduce production during modeled outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
+- Size classes for `ElectricStorage` based on 2025 ATB.
+- `src/results`: Added **CHP** output **size_supplementary_firing_ratio** defined as total fired thermal capacity (unfired + supplementary firing) divided by unfired CHP thermal capacity.
+- `src/results`: Added **CHP** output **annual_supplementary_firing_thermal_production_mmbtu** for annual supplementary firing thermal production.
+### Changed
+- Updated default values for `ElectricStorage` (`src\data\energy_storage\electric_storage\electric_storage_defaults.json`), `PV` (`src\data\pv\pv_defaults.json`) and `Wind` (`src\core\wind.jl`) cost values per ATB 2025. Costs from ATB for year 2025 were escalated from 2023dollars to 2025dollars at 6% rate using BLS inflation data.
+- Changed **ElectricStorage.max_kw** to default to 1.0e5 instead of previous default of 1.0e4.
+- `src/core/chp.jl`: Updated **CHP** supplementary-firing input naming and semantics to use **supplementary_firing_max_ratio** (replacing **supplementary_firing_max_steam_ratio**) and **supplementary_firing_installed_cost_per_mmbtu_per_hour** (replacing per-kW-style naming), with supplementary-firing capex consistently applied on an incremental thermal-capacity basis [\$/MMBtu/hr].
+- `src/core/urdb.jl` now reads the URDB API key from the **URDB_API_KEY** environment variable only, and throws a descriptive error if it is not set (the hardcoded fallback key was removed)
+- Updated to Julia version 1.13 for CI (GitHub Actions) tests and the package's Manifest.toml dependencies
+### Removed
+- Removed the `test/.env` file from version control (it contained API credentials) and added it to `.gitignore`; a `test/.env.example` template is now committed instead, and CI supplies **NLR_DEVELOPER_API_KEY**, **URDB_API_KEY**, and **NLR_DEVELOPER_EMAIL** from GitHub repository secrets
+
+## v0.61.1
+### Fixed
+- Avoid double-multiplication of production_factor_series with electrical load-following
+
+## v0.61.0
+### Added
+- Expanded **CHP** modeling to support multiple independently-configured CHPs, existing capacity (i.e. in BAU scenario), off-grid operation including the option for CHP to either require or supply operating reserves, user-defined production factors, ramp-rate limits, and heating load following thermal dispatch.
+- Added **CHP** inputs **name** (to label the type of system you are modeling), **existing_kw**, **ramp_rate_fraction_per_hour**, **operating_reserve_required_fraction**, **production_factor_series**, **fuel_cost_escalation_rate_fraction**, and **follow_heating_load**. When **follow_heating_load** is `true`, each CHP independently follows its eligible heating load at unfired thermal capacity; **ExistingBoiler** is restricted when CHP capacity exceeds that load, while other onsite heating resources can contribute and supplementary firing remains available only as incremental heat.
+- Added **CHP** outputs **name**, **electric_curtailed_series_kw**, and **annual_thermal_curtailed_mmbtu**. Multiple CHP systems are returned as a list of per-unit results under **CHP**, identified by **name**.
+- Added **CHP** BAU outputs **size_kw_bau**, **annual_fuel_consumption_mmbtu_bau**, **annual_electric_production_kwh_bau**, **annual_thermal_production_mmbtu_bau**, **annual_thermal_curtailed_mmbtu_bau**, **year_one_fuel_cost_before_tax_bau**, **year_one_fuel_cost_after_tax_bau**, **lifecycle_fuel_cost_after_tax_bau**, **year_one_standby_cost_before_tax_bau**, **year_one_standby_cost_after_tax_bau**, and **lifecycle_standby_cost_after_tax_bau**.
+
+## v0.60.0
+### Changed
+- MPC dispatch series for PV, Generator, and ElectricUtility to include "electric_" (e.g., **PV.to_curtailed_series_kw** changed to **PV.electric_to_curtailed_series_kw**)
+- Aligned MPC net metering and wholesale export with `src/core`: MPC now enables net metering via **ElectricUtility.net_metering_limit_kw** > 0 and each tech's can_net_meter input (instead of **ElectricTariff.net_metering** = true, with all techs assumed to have the same net metering rules).
+- MPC **ElectricTariff.export_rates** to **ElectricTariff.wholesale_rate** to align with `src/core`
+- Updated the CHP load-following constraints so that grid purchase is not allowed if the CHP system size exceeds the electric load in a given time period.  This partially addresses the fix above, but also allows for other generators on site to be included (such as PV, wind, or storage) and they can operate while CHP balances the load with these techs, rather than just running at the site load.
+- Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
+- Added temporary backwards compatibility with old environment variable names and a warning for user to update
+### Added
+- `can_net_meter` and `can_wholesale` inputs to **MPCPV**, **MPCGenerator**, and **MPCElectricStorage**
+- **ElectricStorage** input field **dispatch_strategy** with options ["optimized" (default), "peak_shaving_look_ahead", "peak_shaving_look_behind", "self_consumption", "backup", "custom_soc"] # Note: "daily_foresight_optimized" is available only via the REopt API
+- Allow **ElectricStorage** to export to the grid with input options for grid export: `can_net_meter`, `can_wholesale`, `can_export_beyond_nem_limit`and associated decision variable **dvStorageToGrid**
+- Add result **ElectricStorage** `storage_to_grid_series_kw` 
+### Fixed
+- Fixed a bug in `cost_curve_constraints.jl` where **m[:PVCapexNoIncentives]** was being added to **m[:InitialCapexNoIncentives]** twice in the PV capex for loop. Updated Multiple PVs test in `runtests.jl` to validate **initial_capital_cost** equals **initial_capital_cost_after_incentives** when all PV incentives are zeroed out.
+- Fixed a bug in which CHP vented heat instead of sending it to the absorption chiller when both the electrical-load-following policy and the absorption-chiller-only policy were enforced.
+- Bug in max benefit constraint for WHL export; bug allowing for both WHL and NEM to be used 
+
+## v0.59.2
+### Fixed
+- Restrictive validation to let CHP heuristic sizing parameters (avg heating and cooling values) be zero
+- Zeroed out arbitrary non-zero `thermal_to_load` results
+
+## v0.59.1
+### Fixed
+- `constraints/thermal_tech_constraints.jl`: In `add_heating_tech_constraints`, updated waste heat constraints to include **dvHeatToAbsorptionChiller** in the total heat output, so that `dvProductionToWaste + dvHeatToAbsorptionChiller <= dvHeatingProduction`. Previously, heat dispatched to the absorption chiller was unconstrained by total production.
+- `core/techs.jl`: In `Techs(s::Scenario)`, prevented zeroing out `can_serve_dhw`, `can_serve_space_heating`, and `can_serve_process_heat` technology lists when the corresponding direct load is zero, if an **AbsorptionChiller** is using that heating quality as its heat source. This ensures heating technologies remain available to supply heat to the absorption chiller even when no direct heating load exists.
+### Changed
+- Renamed argument `include_cooling_in_chp_size` to `include_cooling_in_chp_size` within a few methods in `CHP`
+
+## v0.59.0
+### Added
+- Added two new size classes for **SteamTurbine** tech with new tech size ranges.
+- Add **ElectricStorage** inputs field **fixed_soc_series_fraction** and  **fixed_soc_series_fraction_tolerance** to allow users to fix the SOC timeseries within a chosen absolute tolerance
+### Changed
+- **ElectricStorage** **state_of_health** to **state_of_health_series_fraction**
+- Updated **CHP.installed_cost_per_kw** and **CHP.om_cost_per_kwh** default values for size classes for recip_engine, combustion turbine, and microturbine prime mover types.
+- Updated default values for **SteamTurbine** size classes.
+- Reduced the number of size classes in **AbsorptionChiller** technology to five for single effect and four for double effect and updated installed and O&M costs accordingly.
+
+## v0.58.2
+### Added
+- **Generator** **om_cost_per_hr_per_kw_rated**: Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated (default of 0.0)
+  
+### Changed
+- Refactored some results expressions so that `value.` isn't called within them.
+
+### Fixed
+- Fixed an error creating results for flows from hot TES to the steam turbine.
+- Fixed an bug preventing `include_cooling_in_chp_size` from being included in CHP inputs.
+
+## v0.58.1 
+### Fixed
+- Calculation of offgrid_microgrid_lcoe_dollars_per_kwh for sub-hourly runs.
+- Switched to use maximum value of **dvCoolingProduction** for **ExistingChiller**'s size instead of **dvSize**. This fixed the issue with **ExistingChiller**'s size being applied **max_thermal_factor_on_peak_load** twice in some cases.
+
+## v0.58.0
+### Added
+- New optional attributes for **CHP** object **CHP.serve_absorption_chiller_only**, **CHP.months_serving_absorption_chiller_only**, and **CHP.follow_electrical_load**, which impose constraints on CHP operations if selected.  The default is set to `false` for both attributes.
+- New result **thermal_to_absorption_chiller_series_mmbtu_per_hour** added to heating technologies and new result **storage_to_absorption_chiller_series_mmbtu_per_hour** for hot thermal storage technologies.  This result is included as a part of the thermal site loads served, i.e., the adding this result does not change the existing results.
+- Added results fields to **HighTempThermalStorage** to match those of **HotThermalStorage**.
+
+### Changed
+- Updated heating dispatch results by separating heat flows to absorption chiller from heating load served (formerly, these were aggregated).
+- **HotThermalStorage** and **HighTempThermalStorage** output **storage_to_turbine_series_mmbtu_per_hour** to **storage_to_steamturbine_series_mmbtu_per_hour**
+
+### Fixed
+- Fixed a bug in which the CHP system requires a **DomesticHotWater** load.
+- Fixed a bug in which the storage to steam turbine flow was included in the thermal heating load served.
+
+## v0.57.0
+### Fixed
+- Include boiler emissions in emissions calculations
+- Update links that broke with NLR domain change and update other references to NREL
+### Changed
+- Updated defaults for **Financial** inputs **elec_cost_escalation_rate_fraction**, **boiler_fuel_cost_escalation_rate_fraction**, **existing_boiler_fuel_cost_escalation_rate_fraction**, **chp_fuel_cost_escalation_rate_fraction**, **generator_fuel_cost_escalation_rate_fraction**, **om_cost_escalation_rate_fraction**, and **offtaker_discount_rate_fraction** when **sector** is "federal" (based on the 2025 NIST Handbook and Annual Supplement)
+- Changed expected best dataset determined from Solar Dataset Query API in response to addition of Polar data to NSRDB
+### Added
+- Created a default PR template
+
+## v0.56.4
+### Fixed
+- Bug where storage input with only _Int_ values restricted _Dict_ subtype passed into `set_sector_defaults!` and caused _InexactError_
+- Bug where **ElectricStorage** input with only _Real_ values restricted _Dict_ subtype, causing **off_grid_flag** to be added as an _Int_ instead of _Bool_, leading to a conversion error in **ElectricStorageDefaults**
+- Fixed a bug in the type handling of **emissions_factor_series_lb_XXX_per_kwh** in which `xxx` is in the group **[CO2, SO2, NOx, PM25]**.
+- Handle "HIMS" region incorrectly named "HI" in avert_102008.shp
+
+## v0.56.3
+### Fixed
+- Correctly escape the \$ symbol in docstring for `REopt.add_electric_tariff_results` in `results/electric_tariff.jl`
+
+## v0.56.2
+### Fixed
+- Robust fix for type error with `ElectricLoad.monthly_peaks_kw` so that it now converts Vector{Any} to Vector{Float64} in scenario.jl before constructing `ElectricLoad`. Also converted `ElectricLoad.monthly_totals_kwh` to Vector{Float64} for good measure even though we weren't getting errors with that.
+
+## v0.56.1
+### Fixed
+- `CST` bypassing constraints for not serving (`can_serve_.. = false`) heating load types by going through the `HighTempThermalStorage`
+- Type error with `ElectricLoad.monthly_peaks_kw` so that it now converts Vector{Any} to Vector{<:Real}
+- `ElectricTariff.urdb_metadata.rate_effective_date` with the right URDB parameter
+
+## v0.56.0
+### Added
+- **ElectricLoad** input **monthly_peaks_kw**. Can be used to scale loads_kw or doe_reference loads to monthly peaks while maintaining monthly energy.
+- Ability to use monthly energy and peak scaling with timesteps_per_hour > 1
+- `ElectricTariff` and `ElectricLoad` inputs and outputs; mostly outputs related to monthly and per-timestep series rates and costs, and `urdb_metadata` which contains additional information about the URDB rate.
+- New function in **utils.jl** called get_load_metrics() which gets the annual and monthly energy and peak load values (units depends on the input `load_profile`, so that it can be used with any load type).
+
+## v0.55.2
+### Fixed 
+- fixed a bug in which demand and energy charges are applied to incorrect tiers in instances where tiered rates decrease as consumption increases, and the limits on the last tier are very large.
+
+## v0.55.1
+### Fixed
+- Updated from the deprecated NSRDB API call to the suggested new URL which uses the GOES dataset
+- Added `CST` to `Financial.initial_capital_costs` output
+### Changed
+- The solar resource data for CST changed with the new API call for the GOES dataset
+
+## v0.55.0
+### Added
+- Added **Site** inputs **sector**, **federal_sector_state**, and **federal_procurement_type**
+- Alternative defaults used when **sector** is "federal"
+- **GHPOutputs** fields **hybrid_solution_type**, **solve_time_min**, **number_of_boreholes_nonhybrid**, **number_of_boreholes_auto_guess**,
+**number_of_boreholes_flipped_guess**, **iterations_nonhybrid**, **iterations_auto_guess**, **iterations_flipped_guess**
+### Changed
+- Change hybrid GHP workflow from (1) running a 2-year simulation to guess if an auxiliary heating or cooling unit is required and outputting results to (2) running non-hybrid first in all hybrid runs and comparing to hybrid outputs to guarantee an actual hybrid solution where possible
+
+## v0.54.1
+### Added 
+- Added attribute `can_waste_heat` to CST module, allowing for CST to curtail heat.
+### Changed
+- Use ARM version of SAM library file if processor architecture is ARM
+- Fixed some docstrings in the CST source code.
+### Fixed
+- Fix `CHP` and `Boiler` results when there is HighTempThermalStorage
+
+## v0.54.0
+### Changed
+Update the following inputs from the previous --> new values:
+- `Financial.offtaker_discount_rate_fraction`: 0.0638 --> 0.0624
+- `Financial.owner_discount_rate_fraction`: 0.0638 --> 0.0624
+- `Financial.elec_cost_escalation_rate_fraction`: 0.017 --> 0.0166
+- `Financial.existing_boiler_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.boiler_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.chp_fuel_cost_escalation_rate_fraction `: 0.015 --> 0.0348
+- `Financial.generator_fuel_cost_escalation_rate_fraction `: 0.012 --> 0.0197
+- `Generator.fuel_cost_per_gallon`: 3.61 --> 2.25
+- `ColdThermalStorage`, `HotThermalStorage`, `ElectricStorage` `macrs_option_years`: 7 --> 5
+-  `CHP`, `ColdThermalStorage`, `HotThermalStorage`, `ElectricStorage`, `PV`, `Wind` `macrs_bonus_fraction` 0.6 --> 1.0
+- `GHP.macrs_bonus_fraction`: 0.4 --> 0.0
+- `GHP.macrs_option_years`: 5 --> 0
+- `SteamTurbine.macrs_bonus_fraction`: 0 --> 1.0 
+- `SteamTurbine.macrs_option_years`: 0 --> 5 (in order for 100% bonus depr to apply)
+- `CHP.federal_itc_fraction`: 0.3 --> 0.0
+- `Wind.om_cost_per_kw`: 36.0 --> 42.0 
+- `Wind.size_class_to_installed_cost` = Dict(
+        "residential"=> 6339.0, --> 7692.0
+        "commercial"=> 4760.0, --> 5776.0
+        "medium"=> 3137.0, --> 3807.0
+        "large"=> 2386.0 --> 2896.0)
+- Changed **cycle_fade_coefficient** input to be a vector and accept vector of inputs.
+- Changed default inputs for degradation module to match parameters for NMC-Gr Kokam 75Ah cell.
+- Changed residual battery fraction calculation to calculate useful healthy capacity for residual value and capacity calculations.
+- Require NREL Developer API email set as ENV["NREL_DEVELOPER_EMAIL"] = 'your contact email' for CST runs (also requires ENV["NREL_DEVELOPER_API_KEY"])
+### Added
+- Added constraints in `src/constraints/battery_degradation.jl` to allow use of segmented cycle fade coefficients in the model.
+- Added **cycle_fade_fraction** as an input for portion of BESS that is tied to each cycle fade coefficient.
+- Added **total_residual_kwh** output which captures healthy residual battery capacity due to degradation and the replacement strategy
+- Added ARM version of SAM library file `src/sam/libssc_arm.dylib`, which can be renamed to `libssc.dylib` for running REopt.jl locally on an ARM Mac.
+- Added new file `src/core/cst.jl` with new technology **CST**, which provides heating as output; technology-specific sets and results have been updated and added accordingly.
+- Added new file `src/core/cst_ssc.jl` to interface with SAM when populating inputs (i.e., performance profile) with new technology **CST**.
+- Added to file `src/core/energy_storage/thermal_storage.jl` with new technology **HighTempThermalStorage**, which stores heat for industrial processes primarily; technology-specific sets have been updated and added accordingly.
+- Added new file `src/results/cst.jl` to provide results from new technology **CST**.
+- Added to file `src/results/thermal_storage.jl` to provide results from new storage technology **HighTempThermalStorage**.
+- Added new file `test/scenarios/cst.json` with new test for technologies **CST**.
+### Fixed
+- Corrected pv_defaults.jl "Small Commercial" "om_premium" from 0.95 to 1.0 
+
+## v0.53.2
+### Fixed
+- `PV` `size_class` and cost defaults not updating correctly when both `max_kw` and the site's land or roof space are input
+
+## v0.53.1
+### Fixed
+- Issue with `CHP` and `PV` cost curves when with-incentives segments is greater than no-incentives segments
+
+## v0.53.0
+### Added
+- Add new **ElectricStorage** input fields **installed_cost_constant**, **replace_cost_constant** (both default to 0), and **cost_constant_replacement_year** (defaults to year 10).
+- Added new binary variable **binIncludeStorageCostConstant** which is indexed on `p.s.storage.types.elec`
+- Added `ElectricStorage.om_cost_fraction_of_installed_cost` input, default, and model expression as the main battery O&M
+- New inputs for `PV` to determine default cost parameters and optional piece-wise linear (PWL) cost curves: `size_class`, `tech_sizes_for_cost_curve`, and `use_detailed_cost_curve`. The `installed_cost_per_kw` can also now be an array to go along with the `tech_sizes_for_cost_curve` input.
+- New function for calculating `PV` size class and cost parameters from other inputs
+- Memory-clearing commands after each JuMP model instance in `runtests.jl` to avoid memory buildup which were slowing down Actions test job
+- Added back `ubuntu` OS as an additional runner OS for the tests Action job, now that memory buildup is reduced (removed a year ago due to memory crashing the runner)
+- Add `installed_cost...` for `ExistingBoiler` and `ExistingChiller` which is incurred in the BAU scenario, and may be avoided with other heating and cooling technologies in the Optimal scenario.
+### Changed
+- Updated default `ElectricStorage` cost values per ATB 2024
+- Zeroed-out `ElectricStorage` replacement costs because they are now included in the default O&M as fraction of installed cost
+- `PV.installed_cost_per_kw` and `PV.om_cost_per_kw` does not have a fixed default value, and instead it is dependent on other inputs such as the `ElectricLoad.annual_kwh` and `Site.roof_squarefeet` to determine the `size_class` based on an estimated `PV` size which is calculated from those inputs.
+- The default `installed_cost_per_kw` is a fixed/single value for the calculated `size_class`, but if `use_detailed_cost_curve` is set to `true`, then it will use a 2-point PWL cost curve with `tech_sizes_for_cost_curve`.
+### Fixed
+- Correctly apply zero/no MACRS for `ElectricStorage`, `HotThermalStorage`, and `ColdThermalStorage` which were always using 5 years MACRS schedules if not the default 7
+- Fixed bug by setting `min_initial_capital_costs_before_incentives` and `max_initial_capital_costs_before_incentives` to nothing for BAU Scenario
+- Fixed handling of non-hourly (e.g. 15-min interval) fuel cost
+
+## v0.52.0
+### Added
+- Add **Financial** inputs `min_initial_capital_costs_before_incentives` and `max_initial_capital_costs_before_incentives` which, when provided, provide upper and lower bounds on initial capital costs for all technologies.
+- Add **SteamTurbine** inputs `production_incentive_per_kwh`, `production_incentive_max_benefit`, `production_incentive_years`, and `production_incentive_max_kw`
+- Add **CHP** output `initial_capital_costs`
+### Fixed
+- Fix implementation of production-based incentives
+
+## v0.51.1
+### Added
+- Added the following output fields: `year_one_fuel_cost_after_tax` for `ExistingBoiler`, `CHP`, `Generator`, and `Boiler`; `ElectricTariff`: `year_one_bill_after_tax` and `year_one_export_benefit_after_tax`, `Financial`: `capital_costs_after_non_discounted_incentives`, `year_one_total_operating_cost_savings_before_tax`, `year_one_total_operating_cost_savings_after_tax`, `year_one_total_operating_cost_before_tax`, `year_one_total_operating_cost_after_tax`, `year_one_fuel_cost_before_tax`, `year_one_fuel_cost_after_tax`, `year_one_chp_standby_cost_after_tax`, `year_one_chp_standby_cost_after_tax`, `GHP.avoided_capex_by_ghp_present_value`
+- Add a warning so that when **SteamTurbine** is included, renewable energy fractions may not be accurate.
+- Added new attribute **fuel_renewable_energy_fraction** to the technology **Boiler**.
+### Changed
+- Updated and fixed some `docs` pages: improved setup, using HiGHS solver, fixed docstrings 
+- Changed the name of the following output fields: `Financial.capital_costs_after_incentives_without_macrs` to `Financial.capital_costs_after_non_discounted_incentives_without_macrs`
+### Fixed
+- Update the **REoptInputs** parameter **tech_renewable_energy_fraction** so that only electricity-producing and fuel-burning heating technologies are included (instead of all technologies).
+- Included the following in the `Financial.lifecycle_capital_costs` and `Financial.initial_capital_costs`: `m[Symbol("OffgridOtherCapexAfterDepr"*_n)] - m[Symbol("AvoidedCapexByGHP"*_n)] - m[Symbol("ResidualGHXCapCost"*_n)] - m[Symbol("AvoidedCapexByASHP"*_n)]`
+
+## v0.51.0
+### Added 
+- Add the following inputs to account for the clean or renewable energy fraction of grid-purchased electricity: 
+  - **ElectricUtility** **cambium_cef_metric** to utilize clean energy data from NREL's Cambium database
+  - **ElectricUtility** **renewable_energy_fraction_series** to supply a custom grid clean or renewable energy scalar or series
+  - **Site** **include_grid_renewable_fraction_in_RE_constraints** - to allow user to choose whether to include grid RE in min max constraints
+- Add the following outputs: 
+  - **ElectricUtility** **annual_renewable_electricity_supplied_kwh**
+  - **Site** **onsite_and_grid_renewable_electricity_fraction_of_elec_load**
+  - **Site** **onsite_and_grid_renewable_energy_fraction_of_total_load**
+  - **ElectricLoad** **annual_electric_load_with_thermal_conversions_kwh** which calculates end-use electrical load after including electric consumption by heaters and chillers
+- Add input option **optimize_soc_init_fraction** (defaults to false) to **ElectricStorage**, which makes the optimization choose the inital SOC (equal to final SOC) instead of using soc_init_fraction. The initial SOC is also constrained to equal the final SOC, which eliminates the "free energy" issue. We currently do not fix SOC when soc_init_fraction is used because this has caused infeasibility.
+### Changed
+- Change name of the following inputs: 
+  - **ElectricUtility** input **cambium_metric_col** changed to **cambium_co2_metric**
+- Change name of the following outputs:
+  - **ElectricUtility** **cambium_emissions_region** changed to **cambium_region**
+  - **Site** **annual_renewable_electricity_kwh** changed to **annual_onsite_renewable_electricity_kwh**
+  - **Site** **renewable_electricity_fraction** changed to **onsite_renewable_electricity_fraction_of_elec_load** 
+  - **Site** **total_renewable_energy_fraction** changed to **onsite_renewable_energy_fraction_of_total_load**
+- Change name of function (also available as endpoint through REopt API) from **cambium_emissions_profile** to **cambium_profile**
+- Update AVERT emissions data to v4.3, which uses Regional Data Files for year 2023 for CONUS. For Alaska and Hawaii (regions AKGD, HIMS, HIOA), updated eGRID data to eGRID2022 datafile, adjusted to CO2e values. Emissions profiles are saved in `data/emissions/AVERT_Data`. 
+- Update Cambium API call for CO2e emissions within CONUS to Cambium 2023 dataset. This includes updates to the default values and valid options for the following **ElectricUtility** inputs:  **cambium_scenario**, **cambium_location_type**, and **cambium_start_year**
+- Update EMISSIONS_DECREASE_DEFAULTS from 0.02163 to 0.0459 based on Cambium 2023 data
+- Update Julia version
+### Fixed
+- Make **ElectricTariff** **export_rate_beyond_net_metering_limit** and **wholesale_rate** with sub-hour time step work
+- Update the expression `m[:AnnualEleckWh]` to include electrified thermal loads
+- Update expressions `m[:AnnualREHeatkWh]` and `m[:AnnualHeatkWh]` so that only non-electrified thermal loads are included and storage losses are proportional to the contribution of fuel-burning technologies to charging storage
 
 ## v0.50.0
 ### Added
@@ -52,6 +341,7 @@ Classify the change according to the following categories:
 
 ## v0.48.2
 ### Added
+- Add new optional parameter **max_ton** to GHP module to allow user to size GHP smaller than peak load
 - Battery residual value if choosing replacement strategy for degradation
 - Add new **ElectricStorage** parameters **max_duration_hours** and **min_duration_hours** to bound the energy duration of battery storage
 ### Changed
@@ -130,7 +420,7 @@ Classify the change according to the following categories:
 - Refactored various functions to ensure **ProcessHeatLoad** is processed correctly in line with other heating loads.
 - When the URDB response `energyratestructure` has a "unit" value that is not "kWh", throw an error instead of averaging rates in each energy tier.
 - Refactored heating flow constraints to be in ./src/constraints/thermal_tech_constraints.jl instead of its previous separate locations in the storage and turbine constraints.
-- Changed default Financial **owner_tax_rate_fraction** and **offtaker_tax_rate_fraction** from 0.257 to 0.26 to align with API and user manual defaults.
+- Changed default Financial **owner_tax_rate_fraction** and **offtaker_tax_rate_fraction** from 0.257 to 0.26 to align with API and user manual defaults. 
 ### Fixed
 - Updated the PV result **lifecycle_om_cost_after_tax** to account for the third-party factor for third-party ownership analyses.
 - Convert `max_electric_load_kw` to _Float64_ before passing to function `get_chp_defaults_prime_mover_size_class`

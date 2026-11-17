@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 struct ElectricHeater <: AbstractThermalTech
     min_kw::Real
@@ -12,6 +12,7 @@ struct ElectricHeater <: AbstractThermalTech
     can_serve_dhw::Bool
     can_serve_space_heating::Bool
     can_serve_process_heat::Bool
+    charge_storage_only::Bool
 end
 
 
@@ -49,7 +50,8 @@ function ElectricHeater(;
         cop::Union{Real, Nothing} = nothing,
         can_serve_dhw::Bool = true,
         can_serve_space_heating::Bool = true,
-        can_serve_process_heat::Bool = true
+        can_serve_process_heat::Bool = true,
+        charge_storage_only::Bool = false
     )
 
     defaults = get_electric_heater_defaults()
@@ -88,7 +90,8 @@ function ElectricHeater(;
         cop,
         can_serve_dhw,
         can_serve_space_heating,
-        can_serve_process_heat
+        can_serve_process_heat,
+        charge_storage_only
     )
 end
 

@@ -40,7 +40,7 @@ end
 The set maps are best explained with an example. The `techs_by_exportbin` map uses each technology'sattributes (eg. `PV`) to map each technology to which export bins that technology can access. The export bins include:
 1. `:NEM` (Net Energy Metering)
 2. `:WHL` (Wholesale)
-3. `:EXC` (Excess, beyond NEM))
+3. `:EXC` (Excess, beyond NEM)
 The bins that a technology can access are determined by the technologies attributes `can_net_meter`, `can_wholesale`, and `can_export_beyond_nem_limit`. So if `PV.can_net_meter = true`, `Wind.can_net_meter = true` and all the other attributes are `false` then the `techs_by_exportbin` will only have one non-empty key:
 ```julia
 techs_by_exportbin = Dict(

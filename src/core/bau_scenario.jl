@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     OutageOutputs
 
@@ -33,7 +33,8 @@ struct BAUScenario <: AbstractScenario
     cooling_load::CoolingLoad
     ghp_option_list::Array{Union{GHP, Nothing}, 1}  # List of GHP objects (often just 1 element, but can be more)
     space_heating_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}
-    cooling_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}    
+    cooling_thermal_load_reduction_with_ghp_kw::Union{Vector{Float64}, Nothing}
+    chps::Array{CHP, 1}
 end
 
 
@@ -71,6 +72,7 @@ Constructs the BAUScenario (used to create the Business-as-usual inputs) based o
 The following assumptions are made for the BAU scenario: 
 - sets the `PV` and `Generator` min_kw and max_kw values to the existing_kw values
 - sets wind and storage max_kw values to zero (existing wind and storage cannot be modeled)
+- only includes `PV`, `Generator`, and `CHP` systems that have existing_kw > 0
 """
 function BAUScenario(s::Scenario)
 
@@ -95,6 +97,11 @@ function BAUScenario(s::Scenario)
     ghp_option_list = []
     space_heating_thermal_load_reduction_with_ghp_kw = zeros(8760 * s.settings.time_steps_per_hour)
     cooling_thermal_load_reduction_with_ghp_kw = zeros(8760 * s.settings.time_steps_per_hour)
+
+    # No min or max capital cost constraints 
+    financial = deepcopy(s.financial)
+    financial.min_initial_capital_costs_before_incentives = nothing
+    financial.max_initial_capital_costs_before_incentives = nothing
     
     t0, tf = s.electric_utility.outage_start_time_step, s.electric_utility.outage_end_time_step
     #=
@@ -124,6 +131,15 @@ function BAUScenario(s::Scenario)
     =#
     site = bau_site(s.site)
 
+    chps = CHP[]
+    for chp in s.chps
+        if chp.existing_kw > 0
+            bau_chp = deepcopy(chp)
+            bau_chp.supplementary_firing_installed_cost_per_mmbtu_per_hour = 0.0
+            push!(chps, bau_chp)
+        end
+    end
+
     return BAUScenario(
         s.settings,
         site, 
@@ -133,7 +149,7 @@ function BAUScenario(s::Scenario)
         s.electric_tariff, 
         elec_load, 
         s.electric_utility, 
-        s.financial,
+        financial,
         generator,
         s.dhw_load,
         s.space_heating_load,
@@ -145,6 +161,7 @@ function BAUScenario(s::Scenario)
         s.cooling_load,
         ghp_option_list,
         space_heating_thermal_load_reduction_with_ghp_kw,
-        cooling_thermal_load_reduction_with_ghp_kw
+        cooling_thermal_load_reduction_with_ghp_kw,
+        chps
     )
 end

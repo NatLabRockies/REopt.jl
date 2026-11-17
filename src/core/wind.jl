@@ -1,11 +1,11 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
 `Wind` is an optional REopt input with the following keys and default values:
 ```julia
     min_kw = 0.0,
     max_kw = 1.0e9,
     installed_cost_per_kw = nothing,
-    om_cost_per_kw = 36.0,
+    om_cost_per_kw = 43.0,
     production_factor_series = nothing, # Optional user-defined production factors. Must be normalized to units of kW-AC/kW-DC nameplate. The series must be one year (January through December) of hourly, 30-minute, or 15-minute generation data.
     size_class = "",
     wind_meters_per_sec = [],
@@ -13,10 +13,10 @@
     temperature_celsius = [],
     pressure_atmospheres = [],
     acres_per_kw = 0.03, # assuming a power density of 30 acres per MW for turbine sizes >= 1.5 MW. No size constraint applied to turbines below 1.5 MW capacity. (not exposed in API)
-    macrs_option_years = 5,
-    macrs_bonus_fraction = 0.6,
+    macrs_option_years = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_option_years", 5),
+    macrs_bonus_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_bonus_fraction", 1.0),
     macrs_itc_reduction = 0.5,
-    federal_itc_fraction = 0.3,
+    federal_itc_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "federal_itc_fraction", 0.3),
     federal_rebate_per_kw = 0.0,
     state_ibi_fraction = 0.0,
     state_ibi_max = 1.0e10,
@@ -26,14 +26,15 @@
     utility_ibi_max = 1.0e10,
     utility_rebate_per_kw = 0.0,
     utility_rebate_max = 1.0e10,
-    production_incentive_per_kwh = 0.0,
-    production_incentive_max_benefit = 1.0e9,
-    production_incentive_years = 1,
-    production_incentive_max_kw = 1.0e9,
+    production_incentive_per_kwh::Float64 = 0.0 # revenue from production incentive per kWh electricity produced, including curtailment
+    production_incentive_max_benefit::Float64 = 1.0e9 # maximum allowable annual revenue from production incentives
+    production_incentive_years::Int = 1 # number of year in which production incentives are paid
+    production_incentive_max_kw::Float64 = 1.0e9 # maximum allowable system size to receive production incentives
     can_net_meter = true,
     can_wholesale = true,
     can_export_beyond_nem_limit = true
     operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+    outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
 ```
 !!! note "Default assumptions" 
     `size_class` must be one of ["residential", "commercial", "medium", "large"]. If `size_class` is not provided then it is determined based on the average electric load.
@@ -41,18 +42,18 @@
     If no `installed_cost_per_kw` is provided then it is determined from:
     ```julia
     size_class_to_installed_cost = Dict(
-        "residential"=> 6339.0,
-        "commercial"=> 4760.0,
-        "medium"=> 3137.0,
-        "large"=> 2386.0
+        "residential"=> 8960.0,
+        "commercial"=> 6728.0,
+        "medium"=> 4368.0,
+        "large"=> 3477.0
     )
     ```
-    If the `production_factor_series` is not provided then NREL's System Advisor Model (SAM) is used to get the wind turbine 
+    If the `production_factor_series` is not provided then NLR's System Advisor Model (SAM) is used to get the wind turbine 
     production factor.
 
 !!! note "Wind resource value inputs"
     Wind resource values are optional (i.e., `wind_meters_per_sec`, `wind_direction_degrees`, `temperature_celsius`, and `pressure_atmospheres`).
-    If not provided then the resource values are downloaded from NREL's Wind Toolkit.
+    If not provided then the resource values are downloaded from NLR's Wind Toolkit.
     These values are passed to SAM to get the turbine production factor.
     
 !!! note "Wind sizing and land constraint" 
@@ -96,13 +97,16 @@ struct Wind <: AbstractTech
     can_export_beyond_nem_limit::Bool
     can_curtail::Bool
     operating_reserve_required_fraction::Real
+    outage_production_fraction::Real
 
     function Wind(;
         off_grid_flag::Bool = false,
+        sector::String = "commercial/industrial",
+        federal_procurement_type::String = "",
         min_kw = 0.0,
         max_kw = 1.0e9,
         installed_cost_per_kw = nothing,
-        om_cost_per_kw = 36.0,
+        om_cost_per_kw = 43.0,
         production_factor_series = nothing,
         size_class = "",
         wind_meters_per_sec = [],
@@ -110,10 +114,10 @@ struct Wind <: AbstractTech
         temperature_celsius = [],
         pressure_atmospheres = [],
         acres_per_kw = 0.03, # assuming a power density of 30 acres per MW for turbine sizes >= 1.5 MW. No size constraint applied to turbines below 1.5 MW capacity.
-        macrs_option_years = 5,
-        macrs_bonus_fraction = 0.6,
+        macrs_option_years = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_option_years", 5),
+        macrs_bonus_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "macrs_bonus_fraction", 1.0),
         macrs_itc_reduction = 0.5,
-        federal_itc_fraction = 0.3,
+        federal_itc_fraction = get(get_sector_defaults(; sector=sector, federal_procurement_type=federal_procurement_type, struct_name="Wind"), "federal_itc_fraction", 0.3),
         federal_rebate_per_kw = 0.0,
         state_ibi_fraction = 0.0,
         state_ibi_max = 1.0e10,
@@ -133,6 +137,7 @@ struct Wind <: AbstractTech
         can_curtail= true,
         average_elec_load = 0.0,
         operating_reserve_required_fraction::Real = off_grid_flag ? 0.50 : 0.0, # Only applicable when `off_grid_flag` is true. Applied to each time_step as a % of wind generation serving load.
+        outage_production_fraction::Real = 1.0, # Fraction of production available during outages. Only applies with multiple outage modeling using inputs outage_start_time_steps and outage_durations.
         )
         size_class_to_hub_height = Dict(
             "residential"=> 20,
@@ -141,10 +146,10 @@ struct Wind <: AbstractTech
             "large"=> 80
         )
         size_class_to_installed_cost = Dict(
-            "residential"=> 6339.0,
-            "commercial"=> 4760.0,
-            "medium"=> 3137.0,
-            "large"=> 2386.0
+            "residential"=> 8960.0,
+            "commercial"=> 6728.0,
+            "medium"=> 4368.0,
+            "large"=> 3477.0
         )
         
         if size_class == ""
@@ -177,6 +182,10 @@ struct Wind <: AbstractTech
             can_net_meter = false
             can_wholesale = false
             can_export_beyond_nem_limit = false
+        end
+
+        if !(0.0 <= outage_production_fraction <= 1.0)
+            throw(@error("Invalid Wind argument values: outage_production_fraction must satisfy 0 <= outage_production_fraction <= 1, got $(outage_production_fraction)"))
         end
 
         new(
@@ -213,7 +222,8 @@ struct Wind <: AbstractTech
             can_wholesale,
             can_export_beyond_nem_limit,
             can_curtail,
-            operating_reserve_required_fraction
+            operating_reserve_required_fraction,
+            outage_production_fraction
         )
     end
 end

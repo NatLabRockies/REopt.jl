@@ -1,0 +1,62 @@
+{
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_kwh": 10000000.0
+    },
+    "Financial": {
+        "owner_tax_rate_fraction": 0.0,
+        "offtaker_tax_rate_fraction": 0.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_mmbtu": 1000
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_mmbtu": 1000
+    },    
+    "CoolingLoad": {
+        "doe_reference_name": "FlatLoad",
+        "annual_tonhour": 20000.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.1,
+        "blended_annual_demand_rate": 10,
+        "wholesale_rate": 0.08
+    },
+    "ExistingChiller": {
+    },
+    "ElectricUtility" : {
+        "co2_from_avert" : true
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 11,
+        "production_type": "hot_water"
+    },
+    "GHP": {
+        "require_ghp_purchase": true,
+        "building_sqft": 50000.0,
+        "can_serve_dhw": false,
+        "installed_cost_heatpump_per_ton" : 0.0,
+        "installed_cost_wwhp_heating_pump_per_ton": 0.0,
+        "installed_cost_wwhp_cooling_pump_per_ton": 0.0,
+        "installed_cost_ghx_per_ft": 0.0,
+        "installed_cost_building_hydronic_loop_per_sqft": 0.0,
+        "om_cost_per_sqft_year": 0.0,
+        "space_heating_efficiency_thermal_factor": 1.0,
+        "cooling_efficiency_thermal_factor": 1.0,
+        "ghpghx_inputs": [{
+            "borehole_depth_ft": 400.0,
+            "simulation_years": 20,
+            "solver_eft_tolerance_f": 2.0,
+            "ghx_model": "TESS",
+            "tess_ghx_minimum_timesteps_per_hour": 1,
+            "max_sizing_iterations": 10,
+            "init_sizing_factor_ft_per_peak_ton": 300.0   
+        }]
+    }
+}

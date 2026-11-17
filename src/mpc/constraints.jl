@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 function add_previous_monthly_peak_constraint(m::JuMP.AbstractModel, p::MPCInputs; _n="")
 	## Constraint (11d): Monthly peak demand is >= demand at each time step in the month
 	@constraint(m, [mth in p.months, ts in p.s.electric_tariff.time_steps_monthly[mth]],
@@ -24,12 +24,17 @@ function add_grid_draw_limits(m::JuMP.AbstractModel, p::MPCInputs; _n="")
     )
 end
 
-
 function add_export_limits(m::JuMP.AbstractModel, p::MPCInputs; _n="")
     @constraint(m, [ts in p.time_steps],
         sum(
-            sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t])
-            for t in p.techs.elec
+            sum(m[Symbol("dvProductionToGrid"*_n)][t, u, ts] for u in p.export_bins_by_tech[t]; init=0.0)
+            for t in p.techs.elec;
+            init=0.0
+        ) +
+        sum(
+            sum(m[Symbol("dvStorageToGrid"*_n)][b, u, ts] for u in p.export_bins_by_storage[b]; init=0.0)
+            for b in p.s.storage.types.elec;
+            init=0.0
         ) <= p.s.limits.export_limit_kw_by_time_step[ts]
     )
 end

@@ -1,8 +1,8 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 """
     add_prod_incent_vars_and_constraints(m, p)
 
-When pbi_techs is not empty this function is called to add the variables and constraints for modeling production based
+When techs.pbi is not empty this function is called to add the variables and constraints for modeling production based
 incentives.
 """
 function add_prod_incent_vars_and_constraints(m, p)

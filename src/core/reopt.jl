@@ -1,11 +1,10 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     REoptInputs(d::Dict)
 
 Return REoptInputs(s) where s in `Scenario` defined in dict `d`.
 """
-
 function REoptInputs(d::Dict)
 
 	# Keep try catch to support API v3 call to `REoptInputs`
@@ -88,8 +87,8 @@ end
 Method for use with Threads when running BAU in parallel with optimal scenario.
 """
 function run_reopt(t::Tuple{JuMP.AbstractModel, AbstractInputs})
-	run_reopt(t[1], t[2]; organize_pvs=false)
-	# must organize_pvs after adding proforma results
+	run_reopt(t[1], t[2]; organize_pvs=false, organize_chps=false)
+# must organize_pvs/chps after adding proforma results
 end
 
 
@@ -148,8 +147,12 @@ function run_reopt(ms::AbstractArray{T, 1}, p::REoptInputs) where T <: JuMP.Abst
 			# TODO when a model is infeasible the JuMP.Model is returned from run_reopt (and not the results Dict)
 			results_dict = combine_results(p, rs[1], rs[2], bau_inputs.s)
 			results_dict["Financial"] = merge(results_dict["Financial"], proforma_results(p, results_dict))
+
 			if !isempty(p.techs.pv)
 				organize_multiple_pv_results(p, results_dict)
+			end
+			if !isempty(p.techs.chp)
+				organize_multiple_chp_results(p, results_dict)
 			end
 			return results_dict
 		else
@@ -192,18 +195,19 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 			fix(m[:dvGridPurchase][ts, tier] , 0.0, force=true)
 		end
 
-		for t in p.s.storage.types.elec
-			fix(m[:dvGridToStorage][t, ts], 0.0, force=true)
-			fix(m[:dvStorageToGrid][t, ts], 0.0, force=true)
+		for b in p.s.storage.types.elec
+			fix(m[:dvGridToStorage][b, ts], 0.0, force=true)
 		end
 
         if !isempty(p.s.electric_tariff.export_bins)
             for t in p.techs.elec, u in p.export_bins_by_tech[t]
                 fix(m[:dvProductionToGrid][t, u, ts], 0.0, force=true)
             end
+			for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]
+                fix(m[:dvStorageToGrid][b, u, ts], 0.0, force=true)
+            end
         end
 	end
-
 	for b in p.s.storage.types.all
 		if p.s.storage.attr[b].max_kw == 0 || p.s.storage.attr[b].max_kwh == 0
 			@constraint(m, [ts in p.time_steps], m[:dvStoredEnergy][b, ts] == 0)
@@ -216,30 +220,21 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 						m[:dvProductionToStorage][b, t, ts] == 0)
 				@constraint(m, [ts in p.time_steps], m[Symbol("dvStorageToGrid")][b, ts] == 0) 
 			elseif b in p.s.storage.types.hot
-				@constraint(m, [q in q in setdiff(p.heating_loads, p.heating_loads_served_by_tes[b]), ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0)
-				if "DomesticHotWater" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_dhw), ts in p.time_steps], m[:dvHeatToStorage][b,t,"DomesticHotWater",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"DomesticHotWater",ts] == 0)
-				end
-				if "SpaceHeating" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_space_heating), ts in p.time_steps], m[:dvHeatToStorage][b,t,"SpaceHeating",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"SpaceHeating",ts] == 0)
-				end
-				if "ProcessHeat" in p.heating_loads_served_by_tes[b]
-					@constraint(m, [t in setdiff(p.heating_techs, p.techs_can_serve_process_heat), ts in p.time_steps], m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0)
-				else
-					@constraint(m, [t in p.heating_techs, ts in p.time_steps], m[:dvHeatToStorage][b,t,"ProcessHeat",ts] == 0)
-				end
+				@constraint(m, [q in p.heating_loads, ts in p.time_steps], m[:dvHeatFromStorage][b,q,ts] == 0)
+				@constraint(m, [t in union(p.techs.heating, p.techs.chp), q in p.heating_loads, ts in p.time_steps], m[:dvHeatToStorage][b,t,q,ts] == 0)
 			end
 		else
 			add_storage_size_constraints(m, p, b)
 			add_general_storage_dispatch_constraints(m, p, b)
 			if b in p.s.storage.types.elec
 				add_elec_storage_dispatch_constraints(m, p, b)
+				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+					@warn "Adding binary variable to model ElectricStorage cost constant"
+					add_elec_storage_cost_constant_constraints(m, p, b)
+				end
 			elseif b in p.s.storage.types.hot
 				add_hot_thermal_storage_dispatch_constraints(m, p, b)
+				add_hot_tes_flow_restrictions!(m, p, b)
 			elseif b in p.s.storage.types.cold
 				add_cold_thermal_storage_dispatch_constraints(m, p, b)
 			else
@@ -271,6 +266,10 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 	m[:AvoidedCapexByASHP] = 0.0
 	m[:ResidualGHXCapCost] = 0.0
 	m[:ObjectivePenalties] = 0.0
+	m[:ExistingBoilerCost] = 0.0
+	m[:ExistingChillerCost] = 0.0
+	m[:ElectricStorageCapCost] = 0.0
+	m[:ElectricStorageOMCost] = 0.0
 
 	if !isempty(p.techs.all) || !isempty(p.techs.ghp)
 		if !isempty(p.techs.all)
@@ -285,6 +284,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_gen_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalGenPerUnitProdOMCosts]
             m[:TotalFuelCosts] += m[:TotalGenFuelCosts]
+			m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyGenOMCosts]
         end
 
         if !isempty(p.techs.chp)
@@ -293,11 +293,18 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             m[:TotalFuelCosts] += m[:TotalCHPFuelCosts]        
             m[:TotalPerUnitHourOMCosts] += m[:TotalHourlyCHPOMCosts]
 
-			if p.s.chp.standby_rate_per_kw_per_month > 1.0e-7
-				m[:TotalCHPStandbyCharges] += sum(p.pwf_e * 12 * p.s.chp.standby_rate_per_kw_per_month * m[:dvSize][t] for t in p.techs.chp)
+			# Add standby charges for each CHP
+			for chp in p.s.chps
+				if chp.standby_rate_per_kw_per_month > 1.0e-7
+					m[:TotalCHPStandbyCharges] += p.pwf_e * 12 * chp.standby_rate_per_kw_per_month * m[:dvSize][chp.name]
+				end
 			end
 
-			m[:TotalTechCapCosts] += sum(p.s.chp.supplementary_firing_capital_cost_per_kw * m[:dvSupplementaryFiringSize][t] for t in p.techs.chp)
+			# Add supplementary firing capital costs for each CHP
+			for chp in p.s.chps
+				m[:TotalTechCapCosts] += chp.supplementary_firing_installed_cost_per_mmbtu_per_hour *
+					m[:dvSupplementaryFiringSize][chp.name] / KWH_PER_MMBTU
+			end
         end
 
         if !isempty(setdiff(p.techs.heating, p.techs.elec))
@@ -314,10 +321,16 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
             add_boiler_tech_constraints(m, p)
 			m[:TotalPerUnitProdOMCosts] += m[:TotalBoilerPerUnitProdOMCosts]
 			m[:TotalFuelCosts] += m[:TotalBoilerFuelCosts]
+			if ("ExistingBoiler" in p.techs.boiler) && (p.s.existing_boiler.installed_cost_dollars > 0.0)
+				add_existing_boiler_capex_constraints(m, p)
+			end			
         end
 
 		if !isempty(p.techs.cooling)
             add_cooling_tech_constraints(m, p)
+			if ("ExistingChiller" in p.techs.cooling) && (p.s.existing_chiller.installed_cost_dollars > 0.0)
+				add_existing_chiller_capex_constraints(m, p)
+			end
         end
 
 		# Zero out ExistingChiller production if retire_in_optimal; setdiff avoids zeroing for BAU 
@@ -348,10 +361,6 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         if !isempty(p.techs.steam_turbine)
             add_steam_turbine_constraints(m, p)
             m[:TotalPerUnitProdOMCosts] += m[:TotalSteamTurbinePerUnitProdOMCosts]
-			#TODO: review this constraint and see if it's intended.  This matches the legacy implementation and tests pass but should the turbine be allowed to send heat to waste in order to generate electricity?
-			@constraint(m, steamTurbineNoWaste[t in p.techs.steam_turbine, q in p.heating_loads, ts in p.time_steps],
-				m[:dvProductionToWaste][t,q,ts] == 0.0
-			)
         end
 
         if !isempty(p.techs.pbi)
@@ -403,7 +412,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         @warn "Adding binary variable(s) to model cost curves"
         add_cost_curve_vars_and_constraints(m, p)
         for t in p.techs.segmented  # cannot have this for statement in sum( ... for t in ...) ???
-            m[:TotalTechCapCosts] += p.third_party_factor * (
+			m[:TotalTechCapCosts] += p.third_party_factor * (
                 sum(p.cap_cost_slope[t][s] * m[Symbol("dvSegmentSystemSize"*t)][s] + 
                     p.seg_yint[t][s] * m[Symbol("binSegment"*t)][s] for s in 1:p.n_segs_by_tech[t])
             )
@@ -414,7 +423,29 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		sum( p.s.storage.attr[b].net_present_cost_per_kw * m[:dvStoragePower][b] for b in p.s.storage.types.elec) + 
 		sum( p.s.storage.attr[b].net_present_cost_per_kwh * m[:dvStorageEnergy][b] for b in p.s.storage.types.all )
 	))
-	
+
+	for b in p.s.storage.types.elec
+		# ElectricStorageCapCost used for calculating O&M and is based on initial costs, not net present costs
+		# If costing battery degradation, omit installed_cost_per_kwh here, its accounted for in degr_cost expression
+		m[:ElectricStorageCapCost] += (
+			p.s.storage.attr[b].installed_cost_per_kw * m[:dvStoragePower][b] + 
+			p.s.storage.attr[b].installed_cost_per_kwh * m[:dvStorageEnergy][b]
+		)
+		if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+			add_to_expression!(TotalStorageCapCosts, p.third_party_factor * sum(p.s.storage.attr[b].net_present_cost_cost_constant * m[:binIncludeStorageCostConstant][b] ))
+			m[:ElectricStorageCapCost] += sum(p.s.storage.attr[b].installed_cost_constant * m[:binIncludeStorageCostConstant][b])
+		end
+		m[:ElectricStorageOMCost] += p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * m[:ElectricStorageCapCost]
+
+		degr_bool = p.s.storage.attr[b].model_degradation
+		if degr_bool
+			@info "Battery energy capacity degradation costs for $b are being modeled using REopt's Degradation model. ElectricStorageOMCost will include costs incurred for power electronics [per kW] and the cost constant, but not for the per kWh components."
+            add_to_expression!(
+				m[:ElectricStorageOMCost], -1.0 * p.third_party_factor * p.pwf_om * p.s.storage.attr[b].om_cost_fraction_of_installed_cost * p.s.storage.attr[b].installed_cost_per_kwh * m[:dvStorageEnergy][b]
+			)
+        end
+	end
+
 	@expression(m, TotalPerUnitSizeOMCosts, p.third_party_factor * p.pwf_om *
 		sum( p.om_cost_per_kw[t] * m[:dvSize][t] for t in p.techs.all )
 	)
@@ -446,14 +477,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		if !isempty(p.techs.chp)
 			add_MG_CHP_fuel_burn_constraints(m,p)
 			add_binMGCHPIsOnInTS_constraints(m,p)
-		else
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:binMGCHPIsOnInTS][s, tz, ts] == 0
-			)
-			@constraint(m, [s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps, ts in p.s.electric_utility.outage_time_steps],
-				m[:dvMGCHPFuelBurnYIntercept][s, tz] == 0
-			)            
-		end        
+		end
 		
 		if p.s.site.min_resil_time_steps > 0
 			add_min_hours_crit_ld_met_constraint(m,p)
@@ -482,13 +506,19 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 		end
 	end
 
+	# Get CAPEX expressions and optionally constrain CAPEX 
+	initial_capex_no_incentives(m, p)
+	if !isnothing(p.s.financial.min_initial_capital_costs_before_incentives) || !isnothing(p.s.financial.max_initial_capital_costs_before_incentives)
+		add_capex_constraints(m, p)
+	end 
+
 	#################################  Objective Function   ########################################
 	@expression(m, Costs,
 		# Capital Costs
 		m[:TotalTechCapCosts] + TotalStorageCapCosts + m[:GHPCapCosts] +
 
 		# Fixed O&M, tax deductible for owner
-		(TotalPerUnitSizeOMCosts + m[:GHPOMCosts]) * (1 - p.s.financial.owner_tax_rate_fraction) +
+		(TotalPerUnitSizeOMCosts + m[:GHPOMCosts] + m[:ElectricStorageOMCost]) * (1 - p.s.financial.owner_tax_rate_fraction) +
 
 		# Variable O&M, tax deductible for owner
 		(m[:TotalPerUnitProdOMCosts] + m[:TotalPerUnitHourOMCosts]) * (1 - p.s.financial.owner_tax_rate_fraction) +
@@ -553,6 +583,14 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 			for s in p.s.electric_utility.scenarios, tz in p.s.electric_utility.outage_start_time_steps)
 	end
 
+	if "ExistingBoiler" in p.techs.all && (p.s.existing_boiler.installed_cost_dollars > 0.0)
+		add_to_expression!(Costs, m[:ExistingBoilerCost])
+	end
+
+	if "ExistingChiller" in p.techs.all && (p.s.existing_chiller.installed_cost_dollars > 0.0)
+		add_to_expression!(Costs, m[:ExistingChillerCost])
+	end
+
 	# Set model objective 
 	@objective(m, Min, m[:Costs] + m[:ObjectivePenalties] )
     
@@ -560,7 +598,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
 end
 
 
-function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
+function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true, organize_chps=true)
 
 	try
 		build_reopt!(m, p)
@@ -590,6 +628,9 @@ function run_reopt(m::JuMP.AbstractModel, p::REoptInputs; organize_pvs=true)
 
 		if organize_pvs && !isempty(p.techs.pv)  # do not want to organize_pvs when running BAU case in parallel b/c then proform code fails
 			organize_multiple_pv_results(p, results)
+		end
+		if organize_chps && !isempty(p.techs.chp)  # same logic as PV
+			organize_multiple_chp_results(p, results)
 		end
 
 		# add error messages (if any) and warnings to results dict
@@ -632,10 +673,17 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
         binGHP[p.ghp_options], Bin  # Can be <= 1 if require_ghp_purchase=0, and is ==1 if require_ghp_purchase=1
 	end
 
-	#if !isempty(p.s.storage.types.elec_no_simultaneous_charge_discharge)
-	#	@warn "Adding binary variable to prevent simultaneous battery charge/discharge. Some solvers are very slow with integer variables."
-	#end
-
+	if !isempty(p.s.storage.types.elec)
+		for b in p.s.storage.types.elec
+			if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
+				@warn "Adding binary variable for the battery cost constant. Some solvers are slow with binaries."	
+				dv = "binIncludeStorageCostConstant"
+				m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec], base_name=dv, binary=true)
+				break # If one of the elec storages has a battery constant, then do not need to create another binIncludeStorageCostConstraint because by default the binIncludeStorageCostConstraint is index on all elec storage types
+			end
+		end
+	end
+	
 	if !isempty(p.techs.gen)  # Problem becomes a MILP
 		@warn "Adding binary variable to model gas generator. Some solvers are very slow with integer variables."
 		@variables m begin
@@ -649,6 +697,7 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 
     if !isempty(p.s.electric_tariff.export_bins)
         @variable(m, dvProductionToGrid[p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
+		@variable(m, dvStorageToGrid[p.s.storage.types.elec, p.s.electric_tariff.export_bins, p.time_steps] >= 0)
     end
 
 	if !(p.s.electric_utility.allow_simultaneous_export_import) & !isempty(p.s.electric_tariff.export_bins)
@@ -659,27 +708,42 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
     if !isempty(union(p.techs.heating, p.techs.chp))
         @variable(m, dvHeatingProduction[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
 		@variable(m, dvProductionToWaste[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
+		@variable(m, dvHeatToAbsorptionChiller[union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0)
         if !isempty(p.techs.chp)
 			@variables m begin
 				dvSupplementaryThermalProduction[p.techs.chp, p.time_steps] >= 0
-				dvSupplementaryFiringSize[p.techs.chp] >= 0  #X^{\sigma db}_{t}: System size of CHP with supplementary firing [kW]
+				dvSupplementaryFiringSize[p.techs.chp] >= 0  # X^{\sigma db}_{t}: Incremental CHP supplementary firing thermal capacity [kWth]
 			end
         end
 		if !isempty(p.s.storage.types.hot)
+			# TODO introduce these as sparse variables, add a set of techs charging storage?
 			@variable(m, dvHeatToStorage[p.s.storage.types.hot, union(p.techs.heating, p.techs.chp), p.heating_loads, p.time_steps] >= 0) # Power charged to hot storage b at quality q [kW]
 			@variable(m, dvHeatFromStorage[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0) # Power discharged from hot storage system b for load q [kW]
+			if !isempty(p.techs.steam_turbine)
+				@variable(m, dvHeatFromStorageToTurbine[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
+			end
+			@variable(m, dvHeatFromStorageToAbsorptionChiller[p.s.storage.types.hot, p.heating_loads, p.time_steps] >= 0)
     	end
 	end
 
 	if !isempty(p.techs.cooling)
 		@variable(m, dvCoolingProduction[p.techs.cooling, p.time_steps] >= 0)
+		add_absorption_chiller_load_constraints(m, p)
+	else
+		for t in union(p.techs.heating, p.techs.chp)
+            for q in p.heating_loads
+                for ts in p.time_steps
+                    fix(m[:dvHeatToAbsorptionChiller][t,q,ts], 0.0, force=true)
+                end
+            end
+        end
 	end
 
     if !isempty(p.techs.steam_turbine)
 		if !isempty(p.techs.can_supply_steam_turbine)
 	        @variable(m, dvThermalToSteamTurbine[p.techs.can_supply_steam_turbine, p.heating_loads, p.time_steps] >= 0)
-		else
-			throw(@error("Steam turbine is present, but set p.techs.can_supply_steam_turbine is empty."))
+		elseif !any(p.s.storage.attr[b].can_supply_steam_turbine for b in p.s.storage.types.hot)
+			throw(@error("Steam turbine is present, but set p.techs.can_supply_steam_turbine is empty and no storage is compatible with steam turbine."))
 		end
     end
 
@@ -711,8 +775,8 @@ function add_variables!(m::JuMP.AbstractModel, p::REoptInputs)
 			binMGStorageUsed, Bin # 1 if MG storage battery used, 0 otherwise
 			binMGTechUsed[p.techs.elec], Bin # 1 if MG tech used, 0 otherwise
 			binMGGenIsOnInTS[S, tZeros, outage_time_steps], Bin
-            binMGCHPIsOnInTS[S, tZeros, outage_time_steps], Bin
-            dvMGCHPFuelBurnYIntercept[S, tZeros] >= 0
+            binMGCHPIsOnInTS[p.techs.chp, S, tZeros, outage_time_steps], Bin
+            dvMGCHPOnSize[p.techs.chp, S, tZeros, outage_time_steps] >= 0
 		end
 	end
 

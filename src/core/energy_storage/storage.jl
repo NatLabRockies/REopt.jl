@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 
 """
     mutable struct StorageTypes
@@ -53,10 +53,7 @@ mutable struct StorageTypes
 
                 if typeof(v) <: AbstractElectricStorage
                     push!(elec_storage, k)
-                    #if !v.allow_simultaneous_charge_discharge
-                    #    push!(elec_storage_no_simul_charge_discharge, k)
-                    #end
-                elseif typeof(v) <: HotThermalStorage
+                elseif typeof(v) <: HotThermalStorage || typeof(v) <: HighTempThermalStorage
                     push!(hot_storage, k)
                 elseif typeof(v) <: ColdThermalStorage
                     push!(cold_storage, k)

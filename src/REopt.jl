@@ -1,4 +1,4 @@
-# REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
+# REopt®, Copyright (c) Alliance for Energy Innovation, LLC. See also https://github.com/NatLabRockies/REopt.jl/blob/master/LICENSE.
 module REopt
 
 export
@@ -21,11 +21,14 @@ export
     simulated_load,
     get_absorption_chiller_defaults,
     avert_emissions_profiles,
-    cambium_emissions_profile,
+    cambium_profile,
     easiur_data,
     get_existing_chiller_default_cop,
     get_electric_heater_defaults,
-    get_ashp_defaults
+    get_ashp_defaults,
+    get_pv_cost_params,
+    get_sector_defaults,
+    get_load_metrics
 
 import HTTP
 import JSON
@@ -59,15 +62,17 @@ function __init__()
 end
 
 const EXISTING_BOILER_EFFICIENCY = 0.8
-const GAL_PER_M3 = 264.172  # [gal/m^3]
-const KWH_PER_GAL_DIESEL = 40.7  # [kWh/gal_diesel] higher heating value of diesel
-const KWH_PER_MMBTU = 293.07107  # [kWh/mmbtu]
+const GAL_PER_M3 = 264.172              # [gal/m^3]
+const KWH_PER_GAL_DIESEL = 40.7         # [kWh/gal_diesel] higher heating value of diesel
+const KWH_PER_MMBTU = 293.07107         # [kWh/mmbtu]
 const KWH_THERMAL_PER_TONHOUR = 3.51685
-const TONNE_PER_LB = 1/2204.62  # [tonne/lb]
+const TONNE_PER_LB = 1/2204.62          # [tonne/lb]
+const TONNE_PER_MMBTU_HOUR = 0.012      # [tonne/mmbtu-hour]
 const FUEL_TYPES = ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil"]
 const BIG_NUMBER = 1.0e10  #used for max size.  TODO use this number elsewhere.
 const PRIME_MOVERS = ["recip_engine", "micro_turbine", "combustion_turbine", "fuel_cell"]  #TODO replace `prime_movers` references in CHP code
 const HOT_WATER_OR_STEAM = ["steam", "hot_water"]  #TODO replace references to this list in chp, boiler
+const CST_TYPES = ["ptc", "lf", "mst", "swh_evactube", "swh_flatplate"]
 const FUEL_DEFAULTS = Dict(
     "fuel_renewable_energy_fraction" => Dict(
         "natural_gas"=>0.0,
@@ -101,10 +106,10 @@ const FUEL_DEFAULTS = Dict(
     )
 )
 const EMISSIONS_DECREASE_DEFAULTS = Dict(
-    "CO2e" => 0.02163,
-    "NOx" => 0.02163,
-    "SO2" => 0.02163,
-    "PM25" => 0.02163
+    "CO2e" => 0.0459,
+    "NOx" => 0.0459,
+    "SO2" => 0.0459,
+    "PM25" => 0.0459
 )
 const INDICATOR_COMPATIBLE_SOLVERS = ["CPLEX","Xpress"]
 
@@ -118,12 +123,12 @@ include("core/site.jl")
 include("core/financial.jl")
 include("core/pv.jl")
 include("core/wind.jl")
+include("core/electric_load.jl")
 include("core/energy_storage/storage.jl")
 include("core/energy_storage/electric_storage.jl")
 include("core/energy_storage/thermal_storage.jl")
 include("core/generator.jl")
 include("core/doe_commercial_reference_building_loads.jl")
-include("core/electric_load.jl")
 include("core/existing_boiler.jl")
 include("core/boiler.jl")
 include("core/existing_chiller.jl")
@@ -138,6 +143,8 @@ include("core/chp.jl")
 include("core/ghp.jl")
 include("core/steam_turbine.jl")
 include("core/electric_heater.jl")
+include("core/cst_ssc.jl")
+include("core/cst.jl")
 include("core/ashp.jl")
 include("core/scenario.jl")
 include("core/bau_scenario.jl")
@@ -145,6 +152,7 @@ include("core/reopt_inputs.jl")
 include("core/bau_inputs.jl")
 include("core/cost_curve.jl")
 include("core/simulated_load.jl")
+include("core/battery_ssc.jl")
 
 include("constraints/outage_constraints.jl")
 include("constraints/storage_constraints.jl")
@@ -193,6 +201,7 @@ include("results/flexible_hvac.jl")
 include("results/ghp.jl")
 include("results/steam_turbine.jl")
 include("results/electric_heater.jl")
+include("results/cst.jl")
 include("results/ashp.jl")
 
 include("core/reopt.jl")

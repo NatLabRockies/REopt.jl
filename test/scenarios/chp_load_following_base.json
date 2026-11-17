@@ -1,0 +1,42 @@
+{
+    "Settings": {
+        "solver_name": "HiGHS",
+        "time_steps_per_hour": 1
+    },
+    "Site": {
+        "latitude": 39.7436,
+        "longitude": -105.1686
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "MidriseApartment",
+        "annual_kwh": 1000000.0
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.12,
+        "blended_annual_demand_rate": 15.0
+    },
+    "SpaceHeatingLoad": {
+        "doe_reference_name": "MidriseApartment",
+        "annual_mmbtu": 3000.0
+    },
+    "DomesticHotWaterLoad": {
+        "doe_reference_name": "MidriseApartment",
+        "annual_mmbtu": 800.0
+    },
+    "CHP": {
+        "prime_mover": "recip_engine",
+        "size_class": 0,
+        "fuel_cost_per_mmbtu": 8.0,
+        "min_kw": 200.0,
+        "max_kw": 200.0,
+        "min_allowable_kw": 200.0,
+        "min_turn_down_fraction": 0.0,
+        "federal_itc_fraction": 0.3,
+        "follow_electrical_load": true,
+        "can_serve_dhw": true,
+        "can_serve_space_heating": true
+    },
+    "ExistingBoiler": {
+        "fuel_cost_per_mmbtu": 10.0
+    }
+}

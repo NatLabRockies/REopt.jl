@@ -2,8 +2,8 @@
 At a high level each REopt model consists of four major components:
 1. The [Scenario](@ref) as defined by the user's inputs and default values.
 2. The [REoptInputs](@ref), which convert the `Scenario` into the necessary values for the REopt mathematical program.
-3. The REopt Model (built [here](https://github.com/NREL/REopt/blob/master/src/core/reopt.jl)), which includes all the constraints and the objective function that are built using the [REoptInputs](@ref)
-4. And the [results](https://github.com/NREL/REopt/blob/master/src/results/results.jl), which are returned to the user and derived from the optimal solution of the REopt Model.
+3. The REopt Model (built [here](https://github.com/NatLabRockies/REopt/blob/master/src/core/reopt.jl)), which includes all the constraints and the objective function that are built using the [REoptInputs](@ref)
+4. And the [results](https://github.com/NatLabRockies/REopt/blob/master/src/results/results.jl), which are returned to the user and derived from the optimal solution of the REopt Model.
 
 The REopt Model is built via the [build_reopt!](@ref) method. However, the [run_reopt](@ref) method includes `build_reopt!` within it so typically a user does not need to directly call `build_reopt!` (unless they wish to modify the model before solving it, eg. by adding a constraint).
 
