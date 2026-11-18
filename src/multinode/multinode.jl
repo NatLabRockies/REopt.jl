@@ -1399,7 +1399,7 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
     REoptInputs_Combined = REopt_inputs_combined 
     Multinode_Inputs.display_information_during_modeling_run ? print("\n The REopt nodes are: $(REopt_nodes)") : nothing
     print("\n Building the REopt model\n")
-    REopt.build_reopt!(m, REoptInputs_Combined) # Pass the PMD JuMP model (with the PowerModelsDistribution variables and constraints) as the JuMP model that REopt should build onto
+    REopt.build_reopt!(m, REoptInputs_Combined, Multinode_Inputs) # Pass the PMD JuMP model (with the PowerModelsDistribution variables and constraints) as the JuMP model that REopt should build onto
     
     CreateREoptTotalExportVariables(m, REoptInputs_Combined)
 
@@ -1712,23 +1712,11 @@ end
 
 
 function LimitGeneratorOperatingTimes(m, Multinode_Inputs, REoptInputs_Combined)
-    # Prevent the generators from generating power during times that aren't a grid outage
-    NonOutageTimeSteps = []
-
-    if Multinode_Inputs.model_outages_with_outages_vector == false
-        NonOutageTimeSteps = vcat(collect(1:Multinode_Inputs.single_outage_start_time_step), collect(Multinode_Inputs.single_outage_end_time_step:(8760*Multinode_Inputs.time_steps_per_hour)))
-    elseif Multinode_Inputs.model_outages_with_outages_vector == true
-        for i in 1:(8760*Multinode_Inputs.time_steps_per_hour)
-            if !(i in Multinode_Inputs.outages_vector) 
-                push!(NonOutageTimeSteps, i)
-            end
-        end
-    end
-
+    # Prevent the generators from generating power during times when grid power supply is available
     for p in REoptInputs_Combined
         _n = "_"*string(p.s.site.node)
         if "Generator" in p.techs.elec
-            for ts in NonOutageTimeSteps
+            for ts in Multinode_Inputs.grid_available_timesteps
 			    fix(m[Symbol("dvRatedProduction"*_n)]["Generator", ts], 0.0, force=true)
             end       
         end

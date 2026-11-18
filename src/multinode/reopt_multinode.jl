@@ -187,7 +187,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 end
 
 
-function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
+function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}, d) where T <: AbstractScenario
     add_variables!(m, ps)
 	@warn "Emissions and renewable energy fractions are not currently modeled in multinode mode."
 
@@ -218,6 +218,12 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
     				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
 						add_elec_storage_cost_constant_constraints(m, p, b; _n=_n)
 					end
+					# Constraint for min battery state of charge during non-outage times.
+					@constraint(m, [ts in d.grid_available_timesteps],
+                            m[Symbol("dvStoredEnergy"*_n)][b,ts] >=  d.battery_min_soc_fraction_during_non_outage_times * m[Symbol("dvStorageEnergy"*_n)][b])
+					# Constraint for min battery state of charge during grid-outage times.
+					@constraint(m, [ts in d.grid_outage_timesteps],
+                            m[Symbol("dvStoredEnergy"*_n)][b,ts] >=  d.battery_min_soc_fraction_during_grid_outage_times * m[Symbol("dvStorageEnergy"*_n)][b])
 				elseif b in p.s.storage.types.hot
 					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				elseif b in p.s.storage.types.cold

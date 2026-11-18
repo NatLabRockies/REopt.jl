@@ -53,10 +53,12 @@
     time_steps_per_hour::Real=0,
     generator_fuel_gallon_available::Dict=Dict(),
     generators_only_run_during_grid_outage::Bool=false,
+    battery_min_soc_fraction_during_non_outage_times::Real=0.2,
+    battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
     generate_CSV_of_outputs::Bool=false,
     generate_dictionary_for_plotting::Bool=false,
     number_of_plots_from_outage_simulator::Real=0,
-
+  
     generate_same_pv_production_profile_for_each_node::Bool=false,
     pv_inputs_for_standardized_pv_production_profile::Dict=Dict(), 
     
@@ -122,6 +124,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
     time_steps_per_hour
     generator_fuel_gallon_available
     generators_only_run_during_grid_outage
+    battery_min_soc_fraction_during_non_outage_times
+    battery_min_soc_fraction_during_grid_outage_times
     generate_CSV_of_outputs
     generate_dictionary_for_plotting
     number_of_plots_from_outage_simulator
@@ -139,7 +143,9 @@ mutable struct MultinodeInputs <: AbstractMultinode
     run_Xpress_model_presolve  
     run_IIS_on_nonoptimal_models
     load_profiles_for_outage_sim_if_using_the_fraction_method
-
+    grid_available_timesteps,
+    grid_outage_timesteps
+   
     function MultinodeInputs(;
         folder_location::String="",
         bus_coordinates::String="",  
@@ -187,7 +193,9 @@ mutable struct MultinodeInputs <: AbstractMultinode
         time_steps_per_hour::Real=0,
         generator_fuel_gallon_available::Dict=Dict(),
         generators_only_run_during_grid_outage::Bool=false,
-        generate_CSV_of_outputs::Bool=false,
+        battery_min_soc_fraction_during_non_outage_times::Real=0.2,
+        battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
+        generate_CSV_of_outputs::Bool=false,  
         generate_dictionary_for_plotting::Bool=false,
         number_of_plots_from_outage_simulator::Real=0,
         generate_same_pv_production_profile_for_each_node::Bool=false,
@@ -203,7 +211,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
         cost_per_kwh_dropped_load::Real=100,
         run_Xpress_model_presolve::Bool=true,  
         run_IIS_on_nonoptimal_models::Bool=false,
-        load_profiles_for_outage_sim_if_using_the_fraction_method::Array=[]
+        load_profiles_for_outage_sim_if_using_the_fraction_method::Array=[],
         )
     
     if generate_same_pv_production_profile_for_each_node
@@ -239,6 +247,22 @@ mutable struct MultinodeInputs <: AbstractMultinode
         bus_phase_voltage_lower_bound_per_unit = 0.0
         bus_neutral_voltage_upper_bound_per_unit = 10.0
     end
+
+    if battery_min_soc_fraction_during_grid_outage_times > battery_min_soc_fraction_during_non_outage_times
+        throw(@error("The code is currently not compatible with the battery_min_soc_fraction_during_grid_outage_times being higher than battery_min_soc_fraction_during_non_outage_times."))
+    end
+
+    all_timesteps = collect(1:Int(8760 * time_steps_per_hour))
+    
+    if model_outages_with_outages_vector
+        grid_outage_timesteps = sort(unique(intersect(all_timesteps, outages_vector)))
+    elseif (model_outages_with_outages_vector == false) && (single_outage_end_time_step - single_outage_start_time_step > 0)
+        grid_outage_timesteps = collect(Int(single_outage_start_time_step): Int(single_outage_end_time_step))
+    else
+        grid_outage_timesteps = Int[]
+    end
+
+    grid_available_timesteps = setdiff(all_timesteps, grid_outage_timesteps)
 
     new(
         folder_location,
@@ -287,6 +311,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
         time_steps_per_hour,
         generator_fuel_gallon_available,
         generators_only_run_during_grid_outage,
+        battery_min_soc_fraction_during_non_outage_times,
+        battery_min_soc_fraction_during_grid_outage_times,
         generate_CSV_of_outputs,
         generate_dictionary_for_plotting,
         number_of_plots_from_outage_simulator,
@@ -303,7 +329,9 @@ mutable struct MultinodeInputs <: AbstractMultinode
         cost_per_kwh_dropped_load,
         run_Xpress_model_presolve,  
         run_IIS_on_nonoptimal_models,
-        load_profiles_for_outage_sim_if_using_the_fraction_method
+        load_profiles_for_outage_sim_if_using_the_fraction_method,
+        grid_available_timesteps,
+        grid_outage_timesteps
     )
    
     end

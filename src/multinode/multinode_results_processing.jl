@@ -58,7 +58,7 @@ function Results_Processing_REopt_PMD_Model(m, results, data_math_mn, REoptInput
     # Generate inputs that will be used for the multinode outage simulator
     if Multinode_Inputs.run_outage_simulator
         print("\n Generating inputs for the outage simulator \n")
-        DataDictionaryForEachNodeForOutageSimulator = REopt.GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results)
+        DataDictionaryForEachNodeForOutageSimulator = REopt.GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REoptInputs_Combined)
         print("\n Completed generating inputs for the outage simulator \n")
     else
         DataDictionaryForEachNodeForOutageSimulator = "N/A"
