@@ -143,7 +143,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
     run_Xpress_model_presolve  
     run_IIS_on_nonoptimal_models
     load_profiles_for_outage_sim_if_using_the_fraction_method
-    grid_available_timesteps,
+    grid_available_timesteps
     grid_outage_timesteps
    
     function MultinodeInputs(;
