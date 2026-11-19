@@ -727,7 +727,7 @@ function CreateREoptTotalExportVariables(m, REoptInputs_Combined)
                     m[Symbol("dvProductionToGrid"*_n)][t,u,ts] 
                     for t in p.techs.elec, u in p.export_bins_by_tech[t]
                 )
-                + sum(m[Symbol("dvStorageToGrid"*_n)][b,ts] for b in p.s.storage.types.all ) # This line includes battery export in the total export
+                + sum(m[Symbol("dvStorageToGrid"*_n)][b,u,ts] for b in p.s.storage.types.elec, u in p.export_bins_by_storage[b]; init=0.0) # This line includes battery export in the total export
             )
         else
             print("\n Not creating a total export variable for node $(p.s.site.node) because this node is the facility meter node.")

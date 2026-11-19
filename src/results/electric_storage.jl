@@ -80,9 +80,6 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
             end
             r["residual_value"] = value(m[:residual_value])
          end
-         
-         BattExport = (m[Symbol("dvStorageToGrid"*_n)][b, ts] for ts in p.time_steps)
-         r["storage_to_grid_series_kw"] = round.(value.(BattExport), digits = 3)
 
     else
         r["soc_series_fraction"] = []
