@@ -228,8 +228,6 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}},
 					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				elseif b in p.s.storage.types.cold
 					add_cold_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
-				elseif b in p.s.storage.types.hot
-					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				else
 					throw(@error("Invalid storage does not fall in a thermal or electrical set"))
 				end
@@ -290,7 +288,7 @@ function add_objective!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 	nothing
 end
 
-
+#=
 function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 
 	build_reopt!(m, ps)
@@ -321,7 +319,7 @@ function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) wh
 	results["solver_seconds"] = opt_time
 	return results
 end
-
+=#
 
 function reopt_results(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 	# TODO address Warning: The addition operator has been used on JuMP expressions a large number of times.

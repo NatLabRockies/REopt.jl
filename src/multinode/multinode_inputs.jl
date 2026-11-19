@@ -13,7 +13,7 @@
     optimizer::Any, # Such as HiGHS.Optimizer
     optimizer_tolerance::Float64=0.001, # Only works for Xpress, HiGHS, and Gurobi
     log_solver_output_to_console::Bool=true, # Log the output from the solver to the console
-    PMD_time_steps::Any=[1:24], # By default, apply the PMD model to the first 24 timesteps of the model
+    PMD_time_steps::Any=collect(1:24), # By default, apply the PMD model to the first 24 timesteps of the model
     apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD::Bool=true,
     REopt_inputs_list::Array=[],
     
@@ -46,8 +46,8 @@
     outage_simulator_generator_gallons_per_kwh::Real=0.02457,
     length_of_simulated_outages_time_steps::Array=[],
     critical_load_method::String="Fraction",
-    critical_load_fraction::Real=0.0,
-    critical_load_timeseries::Array=[],
+    critical_load_fraction::Dict=Dict(), # Keys are the node numbers (as strings), values are the critical load fractions
+    critical_load_timeseries::Dict=Dict(), # Keys are the node numbers (as strings), values are the critical load time series
     number_of_outages_to_simulate::Real=0,
     
     time_steps_per_hour::Real=0,
@@ -73,8 +73,11 @@
     allow_dropped_load_in_main_optimization::Bool=false,
     cost_per_kwh_dropped_load::Real=100,
     run_Xpress_model_presolve::Bool=true,  
-    run_IIS_on_nonoptimal_models::Bool=false
-    
+    run_IIS_on_nonoptimal_models::Bool=false,
+    load_profiles_for_outage_sim_if_using_the_fraction_method::Array=[]
+
+The `grid_available_timesteps` and `grid_outage_timesteps` fields of the struct are not inputs. They are derived from 
+`single_outage_start_time_step`, `single_outage_end_time_step`, `model_outages_with_outages_vector`, and `outages_vector`.
 """
 
 mutable struct MultinodeInputs <: AbstractMultinode
@@ -157,7 +160,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
         optimizer::Any, 
         optimizer_tolerance::Float64=0.001,
         log_solver_output_to_console::Bool=true,
-        PMD_time_steps::Any=[1:24],
+        PMD_time_steps::Any=collect(1:24),
         apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD::Bool=true,
         REopt_inputs_list::Array=[],
         number_of_phases::Real=1,
@@ -256,8 +259,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
     
     if model_outages_with_outages_vector
         grid_outage_timesteps = sort(unique(intersect(all_timesteps, outages_vector)))
-    elseif (model_outages_with_outages_vector == false) && (single_outage_end_time_step - single_outage_start_time_step > 0)
-        grid_outage_timesteps = collect(Int(single_outage_start_time_step): Int(single_outage_end_time_step))
+    elseif single_outage_end_time_step - single_outage_start_time_step > 0
+        grid_outage_timesteps = intersect(all_timesteps, Int(single_outage_start_time_step):Int(single_outage_end_time_step))
     else
         grid_outage_timesteps = Int[]
     end
