@@ -337,7 +337,8 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
 
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("BatteryCharge_"*n)][ts] .<= Batterykwh )
 
-    battery_min_charge_kwh = min(Multinode_Inputs.battery_min_soc_fraction_during_grid_outage_times * Batterykwh)
+    # The minimum is capped at the starting charge so that rounding in the starting charge cannot make the first time step infeasible
+    battery_min_charge_kwh = Multinode_Inputs.battery_min_soc_fraction_during_grid_outage_times * Batterykwh
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("BatteryCharge_"*n)][ts] .>= battery_min_charge_kwh)
     
     
@@ -690,9 +691,10 @@ function PrepareInputsForOutageSimulator(Multinode_Inputs, OutageLength_TimeStep
     NumberOfTimeSteps = Multinode_Inputs.time_steps_per_hour * 8760
     RunNumber_limit = NumberOfTimeSteps - (OutageLength_TimeSteps_Input+1) 
     outage_start_timesteps_filtered = outage_start_timesteps[outage_start_timesteps .< RunNumber_limit]
+    RunNumber_limit = length(outage_start_timesteps_filtered) # The number of start time steps that are available to test
 
     if RunNumber_limit < NumberOfOutagesToTest
-        @warn "The number of possible outages to test is less than the number of outages requested by the user. $(RunNumber) will be evaluated instead of $(NumberOfOutagesToTest)."
+        @warn "The number of possible outages to test is less than the number of outages requested by the user. $(RunNumber_limit) will be evaluated instead of $(NumberOfOutagesToTest)."
         RunNumber = RunNumber_limit
     else
         RunNumber = NumberOfOutagesToTest
