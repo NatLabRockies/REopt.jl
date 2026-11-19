@@ -291,7 +291,6 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
     Batterykw = DataDictionaryForEachNode[n]["Battery_kw"]
     Batterykwh = DataDictionaryForEachNode[n]["Battery_kwh"]
     
-    #BatteryRoundTripEfficiencyFraction = DataDictionaryForEachNode[n]["battery_roundtrip_efficiency"]
     BatteryChargeEfficiencyFraction = DataDictionaryForEachNode[n]["battery_charge_efficiency"]
     BatteryDischargeEfficiencyFraction = DataDictionaryForEachNode[n]["battery_discharge_efficiency"]
         
@@ -327,7 +326,7 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]],  m_outagesimulator[Symbol("SumOfBatFlows_"*n)][ts] .== 
                                                         m_outagesimulator[Symbol("dvBatToLoad_"*n)][ts] + 
                                                         m_outagesimulator[Symbol("dvBatToGrid_"*n)][ts]  - 
-                                                        (BatteryChargeEfficiencyFraction * (m_outagesimulator[Symbol("dvPVToBat_"*n)][ts] - 
+                                                        (BatteryChargeEfficiencyFraction * (m_outagesimulator[Symbol("dvPVToBat_"*n)][ts] + 
                                                                                            m_outagesimulator[Symbol("dvGridToBat_"*n)][ts])))
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("SumOfBatFlows_"*n)][ts] .<= Batterykw)
     
@@ -601,7 +600,7 @@ function GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REopt
     end
 
     # Enter data into the dictionary
-    charge_efficiency, discharge_efficiency = GetBatteryEfficiencies(REoptInputs_Combined, NodeList[1])
+    charge_efficiency, discharge_efficiency = RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, NodeList[1])
     DataDictionaryForEachNode = Dict([
         (NodeList[1],Dict([
             ("loads_kw", critical_loads_kw[NodeList[1]]), 
@@ -634,7 +633,7 @@ function GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REopt
             Batterykwh_B = 0
         end
 
-        charge_efficiency, discharge_efficiency = GetBatteryEfficiencies(REoptInputs_Combined, NodeList[i]) 
+        charge_efficiency, discharge_efficiency = RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, NodeList[i]) 
 
         if "PV" in keys(results[NodeList[i]])
             if results[NodeList[i]]["PV"]["size_kw"] > 0
