@@ -150,7 +150,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
 		if !isempty(p.techs.gen)
             add_gen_constraints(m, p; _n = _n )
-            m[Symbol("TotalPerUnitProdOMCosts"*_n)] += m[Symbol("TotalGenPerUnitProdOMCosts"*_n)]
+            m[Symbol("TotalPerUnitProdOMCosts"*_n)] += m[Symbol("TotalGenPerUnitProdOMCosts"*_n)] + m[Symbol("TotalHourlyGenOMCosts"*_n)]
             m[Symbol("TotalFuelCosts"*_n)] += m[Symbol("TotalGenFuelCosts"*_n)]
 		end	
 
