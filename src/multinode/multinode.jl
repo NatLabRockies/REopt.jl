@@ -409,8 +409,28 @@ function model_transformer_upgrades(pm, Multinode_Inputs)
 end
 
 
+function SetElectricStorageMinimumSOCFractionForEachNode(Multinode_Inputs)
+    # This function was generated with the assistance of AI
+    # The minimum battery state of charge is applied through battery_min_soc_fraction_during_non_outage_times and 
+    # battery_min_soc_fraction_during_grid_outage_times. REopt's soc_min_fraction input applies to every time step (including grid outages), 
+    # so it would override a lower grid outage minimum. Therefore, it is set to 0 unless the user provides a value.
+    for i in 1:length(Multinode_Inputs.REopt_inputs_list)
+        if "ElectricStorage" in keys(Multinode_Inputs.REopt_inputs_list[i])
+            electric_storage_inputs = Multinode_Inputs.REopt_inputs_list[i]["ElectricStorage"]
+            if !("soc_min_fraction" in keys(electric_storage_inputs))
+                electric_storage_inputs["soc_min_fraction"] = 0.0
+            elseif electric_storage_inputs["soc_min_fraction"] != 0.0
+                @warn "The ElectricStorage soc_min_fraction for the REopt inputs at position $(i) of REopt_inputs_list is $(electric_storage_inputs["soc_min_fraction"]), which is nonzero. This minimum state of charge applies to all time steps, including grid outages, so it takes precedence over battery_min_soc_fraction_during_grid_outage_times and battery_min_soc_fraction_during_non_outage_times when it is larger. Consider setting soc_min_fraction to 0 and using the multinode battery_min_soc_fraction inputs instead."
+            end
+        end
+    end
+end
+
+
 function PrepareREoptInputs(Multinode_Inputs, time_results)  
     # Generate the scenarios, REoptInputs, and list of REoptInputs
+
+    SetElectricStorageMinimumSOCFractionForEachNode(Multinode_Inputs)
        
     print("\n    Creating the REopt scenarios")
     scenarios = Dict([])

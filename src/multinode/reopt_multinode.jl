@@ -16,8 +16,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		"dvStorageEnergy"
 	]
 	dvs_idx_on_storagetypes_time_steps = String[
-		"dvDischargeFromStorage",
-		"dvStorageToGrid"
+		"dvDischargeFromStorage"
 	]
 	
 	for p in ps
@@ -69,7 +68,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		m[Symbol(dv)] = @variable(m, [p.techs.gen, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
 	
 		dv = "binGenIsOnInTS"*_n
-		m[Symbol(dv)] = @variable(m, [p.techs.gen, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
+		m[Symbol(dv)] = @variable(m, [p.techs.gen, 0:p.time_steps[end]], base_name=dv, lower_bound=0, upper_bound=1)
 		
 		#if !isempty(p.s.storage.types.elec_no_simultaneous_charge_discharge)
 		#	@warn "Adding binary variable to prevent simultaneous battery charge/discharge. Some solvers are very slow with integer variables."
@@ -173,11 +172,13 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 			m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] +  
 			
 			## Fixed O&M, tax deductible for owner
-			m[Symbol("TotalPerUnitSizeOMCosts"*_n)] * (1 - p.s.financial.owner_tax_rate_fraction) +
+			(m[Symbol("TotalPerUnitSizeOMCosts"*_n)] + m[Symbol("ElectricStorageOMCost"*_n)]) * (1 - p.s.financial.owner_tax_rate_fraction) +
 
-			# Production O&M cost and fuel costs
-			m[Symbol("TotalFuelCosts"*_n)] + 
-			m[Symbol("TotalPerUnitProdOMCosts"*_n)] +
+			# Variable O&M (including hourly generator O&M), tax deductible for owner
+			m[Symbol("TotalPerUnitProdOMCosts"*_n)] * (1 - p.s.financial.owner_tax_rate_fraction) +
+
+			# Fuel costs, tax deductible for offtaker
+			m[Symbol("TotalFuelCosts"*_n)] * (1 - p.s.financial.offtaker_tax_rate_fraction) +
 
 			# Utility Bill, tax deductible for offtaker, including export benefit
 			m[Symbol("TotalElecBill"*_n)] * (1 - p.s.financial.offtaker_tax_rate_fraction)

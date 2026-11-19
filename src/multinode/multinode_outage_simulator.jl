@@ -523,7 +523,7 @@ end
 function RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, node)
     # This function was written with the support of AI
     for p in REoptInputs_Combined
-        if string(p.s.site_node) == string(node) && haskey(p.s.storage.attr, "ElectricStorage")
+        if string(p.s.site.node) == string(node) && haskey(p.s.storage.attr, "ElectricStorage")
             attr = p.s.storage.attr["ElectricStorage"]
             return attr.charge_efficiency, attr.discharge_efficiency
         end

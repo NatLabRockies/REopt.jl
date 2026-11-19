@@ -255,6 +255,14 @@ mutable struct MultinodeInputs <: AbstractMultinode
         throw(@error("The code is currently not compatible with the battery_min_soc_fraction_during_grid_outage_times being higher than battery_min_soc_fraction_during_non_outage_times."))
     end
 
+    for (node_index, node_inputs) in enumerate(REopt_inputs_list)
+        for thermal_storage_name in ["HotThermalStorage", "ColdThermalStorage", "HighTempThermalStorage"]
+            if thermal_storage_name in keys(node_inputs)
+                throw(@error("The REopt inputs at position $(node_index) of REopt_inputs_list include $(thermal_storage_name), but thermal storage is not supported in the multinode model. Please remove it from the REopt inputs."))
+            end
+        end
+    end
+
     all_timesteps = collect(1:Int(8760 * time_steps_per_hour))
     
     if model_outages_with_outages_vector
