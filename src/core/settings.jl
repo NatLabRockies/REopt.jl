@@ -10,6 +10,8 @@ Captures high-level inputs affecting the optimization.
     include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model's objective function
     include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model's objective function
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
+    facilitymeter_node::String = ""
+    phase_numbers::Array=[1] # indicates the phase numbers for the load (relevant for multinode models only); default is single phase using phase 1; three phase is represented by [1,2,3]
 ```
 """
 Base.@kwdef struct Settings
@@ -19,5 +21,7 @@ Base.@kwdef struct Settings
     include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model's objective function
     include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model's objective function
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
+    facilitymeter_node::String = ""
+    phase_numbers::Array=[1] # indicates the phase numbers for the load (relevant for multinode models only); default is single phase using phase 1; three phase is represented by [1,2,3]
     include_export_cost_series_in_results::Bool = false # set to true to add electricity export compensation rate timeseries under electric tariff results.
 end

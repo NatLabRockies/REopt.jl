@@ -153,7 +153,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 		"dvRatedProduction",
 	]
 	dvs_idx_on_storagetypes_time_steps = String[
-		"dvDischargeFromStorage"
+		"dvDischargeFromStorage"	
 	]
 	for p in ps
 		_n = string("_", p.s.node)
@@ -177,9 +177,16 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{MPCInputs})
 			m[Symbol(x)] = @variable(m, [p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
 		end
 
+		# Temporary definition and constraint for dvStorageToGrid
+		dv = "dvStorageToGrid"*_n
+		m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
+		for t in p.s.storage.types.elec
+			@constraint(m, [ts in p.time_steps], m[Symbol("dvStorageToGrid"*_n)][t, ts] == 0)
+		end
+
 		dv = "dvGridToStorage"*_n
 		m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
-
+		
 		dv = "dvGridPurchase"*_n
 		m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
 

@@ -2,7 +2,7 @@
 
 
 function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
-	
+	print(" Adding variables\n")
 	dvs_idx_on_techs = String[
 		"dvSize",
 		"dvPurchaseSize",
@@ -21,6 +21,7 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 	
 	for p in ps
 		_n = string("_", p.s.site.node)
+
 		for dv in dvs_idx_on_techs
 			x = dv*_n
 			m[Symbol(x)] = @variable(m, [p.techs.all], base_name=x, lower_bound=0)
@@ -32,13 +33,14 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		end
 
 		for dv in dvs_idx_on_storagetypes
-			x = dv*_n
+			x = dv*_n 
 			m[Symbol(x)] = @variable(m, [p.s.storage.types.elec], base_name=x, lower_bound=0)
-		end
+		end 
 
 		for dv in dvs_idx_on_storagetypes_time_steps
-			x = dv*_n
+			x = dv*_n 
 			m[Symbol(x)] = @variable(m, [p.s.storage.types.all, p.time_steps], base_name=x, lower_bound=0)
+			# add in the definition 
 		end
 
 		dv = "dvGridToStorage"*_n
@@ -62,7 +64,20 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		dv = "MinChargeAdder"*_n
 		m[Symbol(dv)] = @variable(m, base_name=dv, lower_bound=0)
 
-        if !isempty(p.s.electric_tariff.export_bins)
+		dv = "dvFuelUsage"*_n
+		m[Symbol(dv)] = @variable(m, [p.techs.gen, 0:p.time_steps[end]], base_name=dv, lower_bound=0)
+	
+		dv = "binGenIsOnInTS"*_n
+		m[Symbol(dv)] = @variable(m, [p.techs.gen, 0:p.time_steps[end]], base_name=dv, lower_bound=0, upper_bound=1)
+		
+		#if !isempty(p.s.storage.types.elec_no_simultaneous_charge_discharge)
+		#	@warn "Adding binary variable to prevent simultaneous battery charge/discharge. Some solvers are very slow with integer variables."
+		#end
+
+		#dv = "binBattCharging"*_n
+		#m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec_no_simultaneous_charge_discharge, p.time_steps], base_name=dv, Bin)
+		
+		if !isempty(p.s.electric_tariff.export_bins)
             dv = "dvProductionToGrid"*_n
             m[Symbol(dv)] = @variable(m, [p.techs.elec, p.s.electric_tariff.export_bins, p.time_steps], base_name=dv, lower_bound=0)
 			dv = "dvStorageToGrid"*_n
@@ -125,7 +140,23 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 
         ex_name = "TotalPerUnitProdOMCosts"*_n
 		m[Symbol(ex_name)] = 0
-	
+
+		ex_name = "TotalFuelCosts"*_n
+		m[Symbol(ex_name)] = 0
+
+		ex_name = "TotalFuelCosts"
+		m[Symbol(ex_name)] = 0
+
+		if !isempty(p.techs.gen)
+            add_gen_constraints(m, p; _n = _n )
+            m[Symbol("TotalPerUnitProdOMCosts"*_n)] += m[Symbol("TotalGenPerUnitProdOMCosts"*_n)] + m[Symbol("TotalHourlyGenOMCosts"*_n)]
+            m[Symbol("TotalFuelCosts"*_n)] += m[Symbol("TotalGenFuelCosts"*_n)]
+		end	
+
+		if !isempty(p.s.electric_tariff.export_bins)
+        		add_export_constraints(m, p; _n=_n)
+		end
+
 		add_elec_utility_expressions(m, p; _n=_n)
 
 		# Existing HVAC Cost NOT hooked up for multi-node; this is a patch to avoid errors
@@ -141,26 +172,33 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 			m[Symbol("TotalTechCapCosts"*_n)] + m[Symbol("TotalStorageCapCosts"*_n)] +  
 			
 			## Fixed O&M, tax deductible for owner
-			m[Symbol("TotalPerUnitSizeOMCosts"*_n)] * (1 - p.s.financial.owner_tax_rate_fraction) +
-	
+			(m[Symbol("TotalPerUnitSizeOMCosts"*_n)] + m[Symbol("ElectricStorageOMCost"*_n)]) * (1 - p.s.financial.owner_tax_rate_fraction) +
+
+			# Variable O&M (including hourly generator O&M), tax deductible for owner
+			m[Symbol("TotalPerUnitProdOMCosts"*_n)] * (1 - p.s.financial.owner_tax_rate_fraction) +
+
+			# Fuel costs, tax deductible for offtaker
+			m[Symbol("TotalFuelCosts"*_n)] * (1 - p.s.financial.offtaker_tax_rate_fraction) +
+
 			# Utility Bill, tax deductible for offtaker, including export benefit
 			m[Symbol("TotalElecBill"*_n)] * (1 - p.s.financial.offtaker_tax_rate_fraction)
+			
 		);
     end
 end
 
 
-function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
+function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}, d) where T <: AbstractScenario
     add_variables!(m, ps)
-    @warn "Outages are not currently modeled in multinode mode."
-    @warn "Diesel generators are not currently modeled in multinode mode."
-	@warn "Emissions and renewable energy fractions are not currently modeling in multinode mode."
+	@warn "Emissions and renewable energy fractions are not currently modeled in multinode mode."
+
     for p in ps
         _n = string("_", p.s.site.node)
-
-        for b in p.s.storage.types.all
+		
+		for b in p.s.storage.types.all
             if p.s.storage.attr[b].max_kw == 0 || p.s.storage.attr[b].max_kwh == 0
-                @constraint(m, [ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][b, ts] == 0)
+                @info "\n For node $(_n), the storage input size was 0 kW or 0 kWh, so the battery will not be used"
+				@constraint(m, [ts in p.time_steps], m[Symbol("dvStoredEnergy"*_n)][b, ts] == 0)
                 @constraint(m, m[Symbol("dvStorageEnergy"*_n)][b] == 0)
                 @constraint(m, m[Symbol("dvStoragePower"*_n)][b] == 0)
                 @constraint(m, [t in p.techs.elec, ts in p.time_steps_with_grid],
@@ -181,12 +219,16 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
     				if (p.s.storage.attr[b].installed_cost_constant != 0) || (p.s.storage.attr[b].replace_cost_constant != 0)
 						add_elec_storage_cost_constant_constraints(m, p, b; _n=_n)
 					end
+					# Constraint for min battery state of charge during non-outage times.
+					@constraint(m, [ts in d.grid_available_timesteps],
+                            m[Symbol("dvStoredEnergy"*_n)][b,ts] >=  d.battery_min_soc_fraction_during_non_outage_times * m[Symbol("dvStorageEnergy"*_n)][b])
+					# Constraint for min battery state of charge during grid-outage times.
+					@constraint(m, [ts in d.grid_outage_timesteps],
+                            m[Symbol("dvStoredEnergy"*_n)][b,ts] >=  d.battery_min_soc_fraction_during_grid_outage_times * m[Symbol("dvStorageEnergy"*_n)][b])
 				elseif b in p.s.storage.types.hot
 					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				elseif b in p.s.storage.types.cold
 					add_cold_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
-				elseif b in p.s.storage.types.hot
-					add_hot_thermal_storage_dispatch_constraints(m, p, b; _n=_n)
 				else
 					throw(@error("Invalid storage does not fall in a thermal or electrical set"))
 				end
@@ -197,21 +239,21 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}})
             add_storage_sum_grid_constraints(m, p; _n=_n)
         end
     
-        add_production_constraints(m, p; _n=_n)
-    
         if !isempty(p.techs.all)
             add_tech_size_constraints(m, p; _n=_n)
             if !isempty(p.techs.no_curtail)
                 add_no_curtail_constraints(m, p; _n=_n)
             end
         end
-    
-        add_elec_load_balance_constraints(m, p; _n=_n)
-    
-        if !isempty(p.s.electric_tariff.export_bins)
-            add_export_constraints(m, p; _n=_n)
-        end
-    
+		
+		# Only apply the load balance constraint to nodes that aren't the facility meter node. The facility meter node may be used as a meter for the multinode network, so the "grid_import" is set to the power flow through the line upstream of that node
+		if string(p.s.site.node) != p.s.settings.facilitymeter_node  
+			add_elec_load_balance_constraints(m, p; _n=_n)
+			add_production_constraints(m, p; _n=_n)
+		else
+			print("\n Not applying the REopt load balance constraint to the node $(_n) because it is the facility meter node. No technologies should be applied to it. \n")
+		end       
+        
         if !isempty(p.s.electric_tariff.monthly_demand_rates)
             add_monthly_peak_constraint(m, p; _n=_n)
         end
@@ -247,7 +289,7 @@ function add_objective!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 	nothing
 end
 
-
+#=
 function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 
 	build_reopt!(m, ps)
@@ -278,7 +320,7 @@ function run_reopt(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) wh
 	results["solver_seconds"] = opt_time
 	return results
 end
-
+=#
 
 function reopt_results(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}}) where T <: AbstractScenario
 	# TODO address Warning: The addition operator has been used on JuMP expressions a large number of times.

@@ -1,0 +1,32 @@
+clear
+
+Set DefaultBaseFrequency = 60
+
+New object=circuit.OptimizationCircuit
+~ basekv=22.7 pu=1.0  r1=0.001  x1=0.01  r0=0.001  x0=0.01  !basekv=22.7 ISC3=629276  ISC1=1048
+~ baseMVA=1
+
+! LineCodes
+New linecode.410Amp nphases=1 R1=0.057 X1=0.855 R0=0.0 X0=0.0 C1=0 C0=0 Units=kft normamps=3000 emergamps=3000  !rmatrix = [1.2] xmatrix = [.001] 
+
+! Transformers
+New Transformer.1b phases=1 Buses=[2 3] kVs=[22.7 4.16] kVAs=[1000 1000] Conns=[Wye Wye] %rs=[0 0] %LoadLoss=0.01  !The 2-element vectors have one value for each winding
+
+! Loads (note: Don't apply a load to REopt's facility meter node)
+New Load.Load4 Phases=1 Bus1=4.1 kV=4.16 kW=1.0 PF=0.95 
+New Load.Load5 Phases=1 Bus1=5.1 kV=4.16 kW=1.0 PF=0.95 
+New Load.Load6 Phases=1 Bus1=6.1 kV=4.16 kW=1.0 PF=0.95 
+New Load.Load7 Phases=1 Bus1=7.1 kV=4.16 kW=1.0 PF=0.95 
+
+! Lines
+New Line.line0_1     Phases=1 Bus1=sourcebus        Bus2=1        LineCode=410Amp   Length=0.1 Units=kft
+New Line.line1_2     Phases=1 Bus1=1        Bus2=2        LineCode=410Amp   Length=0.1 Units=kft
+New Line.line3_4     Phases=1 Bus1=3        Bus2=4        LineCode=410Amp   Length=0.1 Units=kft
+New Line.line4_5     Phases=1 Bus1=4        Bus2=5        LineCode=410Amp   Length=0.1 Units=kft
+New Line.line4_6     Phases=1 Bus1=4        Bus2=6        LineCode=410Amp   Length=0.1 Units=kft
+New Line.line4_7     Phases=1 Bus1=4        Bus2=7        LineCode=410Amp   Length=0.1 Units=kft
+
+Set Tolerance=0.03
+
+Set voltagebases=[22.7 4.16]
+
