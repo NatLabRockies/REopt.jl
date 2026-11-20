@@ -41,28 +41,14 @@ function run_PowerModelsDistribution_using_just_dss_file(dss_file_path::String, 
 	# end of section that was developed using AI
 
 	if PMD_model_subtype == "LPUBFDiagPowerModel"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.LPUBFDiagPowerModel, PowerModelsDistribution.build_mn_mc_opf) # Note: instantiate_mc_model automatically converts the "engineering" model into a "mathematical" model
-    elseif PMD_model_subtype == "NFAUPowerModel_pf"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.NFAUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-		results = PowerModelsDistribution.solve_mc_pf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
+		results = PowerModelsDistribution.solve_mc_pf(eng_model, PowerModelsDistribution.LPUBFDiagPowerModel, optimizer)
+	elseif PMD_model_subtype == "NFAUPowerModel_pf"
+        results = PowerModelsDistribution.solve_mc_pf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
     elseif PMD_model_subtype == "NFAUPowerModel_opf"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.NFAUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-		results = PowerModelsDistribution.solve_mc_opf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
-
-	elseif PMD_model_subtype == "ACPUPowerModel"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.ACPUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-    elseif PMD_model_subtype == "ACRUPowerModel"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.ACRUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-    elseif PMD_model_subtype == "IVRUPowerModel"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.IVRUPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-    elseif PMD_model_subtype == "SOCNLPUBFPowerModel"                                      
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.SOCNLPUBFPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-    elseif PMD_model_subtype == "SOCConicUBFPowerModel"
-        #pm = PowerModelsDistribution.instantiate_mc_model(data_math_mn, PowerModelsDistribution.SOCConicUBFPowerModel, PowerModelsDistribution.build_mn_mc_opf)
-    else
-        throw(@error("The PMD subtype is not valid"))
+        results = PowerModelsDistribution.solve_mc_opf(eng_model, PowerModelsDistribution.NFAUPowerModel, optimizer)
+	elseif PMD_model_subtype in ["ACPUPowerModel","ACRUPowerModel","IVRUPowerModel","SOCNLPUBFPowerModel","SOCConicUBFPowerModel"]
+        throw(@error("The PMD subtype is not supported with REopt multinode at this time."))
     end
-
 
 	# start of a section of code that was developed using assistance from AI
 	if "set_all_transformers_to_infinite_kVA_and_detect_if_any_transformers_exceed_the_original_power_limit" in options
@@ -167,22 +153,20 @@ function change_object_syntax(line)
 	else
 		return line
 	end
-
-	return 
 end
 
 
 function set_kw_and_kvar_loads_to_1_if_there_is_an_associated_REopt_node(Multinode_Inputs, input_dss_file, output_dss_file)
 	# This funcition was generated with the assistance of ChatGPT
 	
-	REopt_nodes = lowercase.(REopt.GenerateREoptNodesList(Multinode_Inputs))
-
-	REopt_nodes = []
+	# REopt nodes can be defined as integers or strings, so they are converted to lowercase strings before they are compared with the bus names
+	REopt_nodes = String[]
 	REopt_phases = Dict()
     for i in Multinode_Inputs.REopt_inputs_list
         if string(i["Site"]["node"]) != Multinode_Inputs.facilitymeter_node
-            push!(REopt_nodes, i["Site"]["node"])
-			REopt_phases[lowercase(i["Site"]["node"])] = i["Settings"]["phase_numbers"]
+            node_name = lowercase(string(i["Site"]["node"]))
+            push!(REopt_nodes, node_name)
+			REopt_phases[node_name] = get(get(i, "Settings", Dict()), "phase_numbers", [1]) # The default phase_numbers in REopt is [1]
         end
     end
 
@@ -332,8 +316,8 @@ end
 
 
 function extract_prop(text::String, key::String, default::String)
-	# This function was generated with the assistance of ChatGPT
-	m = match(Regex("(?i)$key\\s*=\\s*([^\\s]+)"), text)
+	# This function was generated with the assistance of AI
+	m = match(Regex("(?i)\\b$key\\s*=\\s*([^\\s]+)"), text) # \b prevents the key from matching the end of another property name (such as "r" matching "kvar=")
 	return m == nothing ? default : m.captures[1]
 end
 
@@ -446,6 +430,7 @@ function rename_load_names_to_names_of_busses_with_phase_label(input_filepath::S
 	# NOTE: this function will not handle multiphase busses (e.g. Bus1=9.1.2.3). This assumes that all loads have been assigned to a single phase bus (which is what currently is required for multinode)
 
 	load_to_bus_mapping = Dict{String, Tuple{String,String}}()
+	original_load_name_for_each_new_name = Dict{String, String}() # Used to detect two loads that would be given the same name (OpenDSS names are not case sensitive)
 
 	open(output_filepath, "w") do output
 		open(input_filepath, "r") do input
@@ -468,6 +453,12 @@ function rename_load_names_to_names_of_busses_with_phase_label(input_filepath::S
 						phase_id = length(parts) > 1 ? parts[2] : "1"  # assume the phase ID is 1 by default
 
 						new_name = "Load$(bus_id)_phase$(phase_id)"
+
+						# Each bus and phase can only have one load, otherwise the loads would be given the same name
+						if haskey(original_load_name_for_each_new_name, lowercase(new_name))
+							throw(@error("The loads \"$(original_load_name_for_each_new_name[lowercase(new_name)])\" and \"$(orig_name)\" are both connected to bus $(bus_id) on phase $(phase_id) in the dss file. Multinode requires at most one load for each bus and phase. Please combine these loads into one load or move one of them to a different bus."))
+						end
+						original_load_name_for_each_new_name[lowercase(new_name)] = orig_name
 
 						# Store the mapping
 						load_to_bus_mapping[orig_name] = (new_name, bus_full)
@@ -503,6 +494,14 @@ end
 
 
 """
+is_load_connection_line(name) -> Bool
+Returns true for stub lines that connect a load to the network (lines whose name starts with `"loadconn_"`).
+This line of code was generated using AI
+"""
+is_load_connection_line(name) = startswith(lowercase(string(name)), "loadconn_")
+
+
+"""
 Note: this function was generated using AI
 
     detect_network_loops(data_eng; kwargs...) -> (has_loops::Bool, loop_edges::Vector)
@@ -526,6 +525,11 @@ feeder no loops will be found.
 - `phase_filter` (default `nothing`): if set to an integer (1=A, 2=B, 3=C), only edges
   that carry that phase are included. Edges with no phase information are always included.
   Use this to check loop connectivity on a single phase.
+- `skip_load_connection_lines` (default `true`): ignore the load connection stub lines (named
+  `"loadconn_*"`). These lines only attach a load to a bus, so they are not part of the network
+  topology, and a stub that is parallel to another connection would be reported as a false loop.
+  `detect_islanded_buses` has the opposite default because a stub is a real connection when
+  determining which buses are reachable.
 
 # Returns
 - `has_loops::Bool` – `true` if at least one loop was found.
@@ -539,6 +543,7 @@ function detect_network_loops(
     only_enabled::Bool                = true,
     verbose::Bool                     = true,
     phase_filter::Union{Nothing, Int} = nothing,
+    skip_load_connection_lines::Bool  = true,
 )
     # ------------------------------------------------------------------ #
     # 1.  Build edge list                                                  #
@@ -557,18 +562,11 @@ function detect_network_loops(
         return string(status) == "DISABLED"
     end
 
-    # Helper: convert integer phase list to a readable string ("A", "AB", "ABC", etc.)
-    _phase_label = Dict(1 => "A", 2 => "B", 3 => "C", 0 => "N")
-    function phases_str(phases::Vector{Int})
-        isempty(phases) && return "?"
-        return join([get(_phase_label, p, string(p)) for p in sort(phases)])
-    end
-
     # --- Lines (includes overhead lines, underground cables, and any        ---
     #     stub lines created by the REopt DSS pre-processor)                  #
     for (name, line) in get(data_eng, "line", Dict())
         is_disabled(line) && continue
-        startswith(name, "loadconn_") && continue
+        skip_load_connection_lines && is_load_connection_line(name) && continue
         !include_switches && startswith(name, "sw_") && continue
 
         f_bus = get(line, "f_bus", nothing)
@@ -710,6 +708,10 @@ isolated together versus individually.
   that carry that phase are used to build the connectivity graph. Edges with no phase
   information are always included. Use this to detect per-phase islands in systems where
   some buses are connected on one phase but not another.
+- `skip_load_connection_lines` (default `false`): ignore the load connection stub lines (named
+  `"loadconn_*"`). The default is `false` because these stubs are real connections, so skipping them
+  would report the buses that are only reached through a stub as islanded. `detect_network_loops`
+  has the opposite default.
 
 # Returns
 - `has_islands::Bool`                    – `true` if any islanded bus was found.
@@ -724,6 +726,7 @@ function detect_islanded_buses(
     only_enabled::Bool                = true,
     verbose::Bool                     = true,
     phase_filter::Union{Nothing, Int} = nothing,
+    skip_load_connection_lines::Bool  = false,
 )
     # ------------------------------------------------------------------ #
     # 1.  Collect all buses present in the model                           #
@@ -742,7 +745,7 @@ function detect_islanded_buses(
     end
 
     # ------------------------------------------------------------------ #
-    # 2.  Build edge list (same logic as detect_network_loops)             #
+    # 2.  Build edge list (same logic as detect_network_loops, except for the default of skip_load_connection_lines) #
     # ------------------------------------------------------------------ #
     function is_disabled(comp::Dict)
         only_enabled || return false
@@ -755,6 +758,7 @@ function detect_islanded_buses(
 
     for (name, line) in get(data_eng, "line", Dict())
         is_disabled(line) && continue
+        skip_load_connection_lines && is_load_connection_line(name) && continue
         !include_switches && startswith(name, "sw_") && continue
         f = get(line, "f_bus", nothing)
         t = get(line, "t_bus", nothing)
