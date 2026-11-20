@@ -84,8 +84,10 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
             
             GC.gc()
 
+            model_BAU = pm_No_Techs.model # The BAU model is used for the solve time and is returned with the results
+
             ComputationTime_EntireModel = "N/A"
-            system_results_BAU = REopt.Results_Compilation(pm_No_Techs.model, REopt_Results_BAU, PMD_Results, Outage_Results_No_Techs, Multinode_Inputs_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, PMD_Dictionary_LineFlow_Power_Series_No_Techs, TimeStamp, ComputationTime_EntireModel; system_results_BAU = "")
+            system_results_BAU = REopt.Results_Compilation(pm_No_Techs.model, REopt_Results_BAU, PMD_Results_No_Techs, Outage_Results_No_Techs, Multinode_Inputs_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, PMD_Dictionary_LineFlow_Power_Series_No_Techs, TimeStamp, ComputationTime_EntireModel; system_results_BAU = "", data_eng = data_eng_No_Techs)
             time_results["Step $(length(keys(time_results))+1): BAU_model_solve_time_minutes"] = round(JuMP.solve_time(model_BAU)/60, digits = 2)
             print("\n Completed running the BAU case")
         else
@@ -113,7 +115,7 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
             all_line_powerflow_results = combine_PMD_and_simple_powerflow_results(Multinode_Inputs, pm.model, data_eng, PMD_Dictionary_LineFlow_Power_Series, simple_powerflow_model_results)
         end
         print("\n Compiling all the results")
-        system_results = REopt.Results_Compilation(pm.model, REopt_Results, PMD_Results, Outage_Results, Multinode_Inputs, DataFrame_PMD_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, TimeStamp, StartTime_EntireModel; bau_model = model_BAU, system_results_BAU = system_results_BAU, outage_simulator_time = outage_simulator_time_minutes, all_line_powerflow_results = all_line_powerflow_results, simple_powerflow_model_results=simple_powerflow_model_results)
+        system_results = REopt.Results_Compilation(pm.model, REopt_Results, PMD_Results, Outage_Results, Multinode_Inputs, DataFrame_PMD_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, TimeStamp, StartTime_EntireModel; bau_model = model_BAU, system_results_BAU = system_results_BAU, outage_simulator_time = outage_simulator_time_minutes, all_line_powerflow_results = all_line_powerflow_results, simple_powerflow_model_results=simple_powerflow_model_results, data_eng = data_eng)
 
         ComputationTime_EntireModel_Milliseconds, ComputationTime_EntireModel_Minutes = CalculateComputationTime(StartTime_EntireModel)
         time_results["ComputationTime_EntireModel_Minutes"] = ComputationTime_EntireModel_Minutes
