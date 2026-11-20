@@ -82,6 +82,10 @@ function Multinode_OutageSimulator(DataDictionaryForEachNode, REopt_dictionary, 
     # Cache PMD information across outage iterations (because the network, REopt node generator mapping, and phase mapping are the same for all of the outages)
     cached_pmd_info = nothing
 
+    if !OutageSimulatorSolverSupportsIndicatorConstraints(Multinode_Inputs)
+        @warn "The battery may charge and discharge at the same time in the outage simulator because the solver is not compatible with indicator constraints."
+    end
+
     for x in 1:RunNumber
         print("\n Outage Simulation Run # "*string(x)*"  of  "*string(RunNumber)*" runs")
         RunsTested = RunsTested + 1
@@ -123,7 +127,8 @@ function Multinode_OutageSimulator(DataDictionaryForEachNode, REopt_dictionary, 
         if !(Multinode_Inputs.allow_dropped_load)
             @objective(pm.model, FEASIBILITY_SENSE, 0)
         elseif Multinode_Inputs.allow_dropped_load
-            @objective(pm.model, Max, (sum(sum(pm.model[Symbol("dvLoadMetMultiplier_"*n)] for n in NodeList)))) # If allowing dropped load, the objective is to maximize the non-dropped load
+            # If allowing dropped load, the objective is to maximize the non-dropped load (weighted by the size of the load)
+            @objective(pm.model, Max, sum(DataDictionaryForEachNode[n]["loads_kw"][i + ts - 1] * pm.model[Symbol("dvLoadMetMultiplier_"*n)][ts] for n in NodeList, ts in 1:OutageLength_TimeSteps_Input))
         else
             throw(@error("The input for allow_dropped_load is invalid. It must be true or false."))
         end
@@ -223,6 +228,12 @@ function SummarizeDroppedLoadResults(Multinode_Inputs, dropped_load_results)
 end
 
 
+function OutageSimulatorSolverSupportsIndicatorConstraints(Multinode_Inputs)
+    # Note: This function was generated with the assistance of AI.
+    return string(Multinode_Inputs.optimizer) in ["Xpress.Optimizer", "Gurobi.Optimizer"]
+end
+
+
 function AddVariablesOutageSimulator(Multinode_Inputs, m_outagesimulator, TimeSteps, DataDictionaryForEachNode, n)
 
     Batterykw = DataDictionaryForEachNode[n]["Battery_kw"]
@@ -256,9 +267,11 @@ function AddVariablesOutageSimulator(Multinode_Inputs, m_outagesimulator, TimeSt
     dv = "SumOfBatFlows_"*n
     m_outagesimulator[Symbol(dv)] = @variable(m_outagesimulator, [1:TimeSteps], base_name = dv)
 
-    # Binary used to prevent battery from charging and discharging at the same time
-    dv = "Binary_"*n
-    m_outagesimulator[Symbol(dv)] = @variable(m_outagesimulator, [1:TimeSteps], base_name = dv, Bin)
+    # Binary used to prevent battery from charging and discharging at the same time. It is only needed for solvers that support indicator constraints.
+    if OutageSimulatorSolverSupportsIndicatorConstraints(Multinode_Inputs)
+        dv = "Binary_"*n
+        m_outagesimulator[Symbol(dv)] = @variable(m_outagesimulator, [1:TimeSteps], base_name = dv, Bin)
+    end
 
     dv = "TotalExport_"*n
     m_outagesimulator[Symbol(dv)] = @variable(m_outagesimulator, [1:TimeSteps], base_name=dv) 
@@ -287,7 +300,8 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
     GenPowerRating = DataDictionaryForEachNode[n]["GeneratorSize"]  
     GalPerkwh = Multinode_Inputs.outage_simulator_generator_gallons_per_kwh 
     
-    BatteryChargeStart = DataDictionaryForEachNode[n]["Battery_charge_kwh"][i]
+    # The outage begins at the start of time step i, so the starting charge is the charge at the end of time step i-1
+    BatteryChargeStart = i > 1 ? DataDictionaryForEachNode[n]["Battery_charge_kwh"][i-1] : DataDictionaryForEachNode[n]["Battery_initial_charge_kwh"]
     Batterykw = DataDictionaryForEachNode[n]["Battery_kw"]
     Batterykwh = DataDictionaryForEachNode[n]["Battery_kwh"]
     
@@ -328,7 +342,8 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
                                                         m_outagesimulator[Symbol("dvBatToGrid_"*n)][ts]  - 
                                                         (BatteryChargeEfficiencyFraction * (m_outagesimulator[Symbol("dvPVToBat_"*n)][ts] + 
                                                                                            m_outagesimulator[Symbol("dvGridToBat_"*n)][ts])))
-    @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("SumOfBatFlows_"*n)][ts] .<= Batterykw)
+    @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("dvPVToBat_"*n)][ts] + m_outagesimulator[Symbol("dvGridToBat_"*n)][ts] .<= Batterykw)
+    @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("dvBatToLoad_"*n)][ts] + m_outagesimulator[Symbol("dvBatToGrid_"*n)][ts] .<= Batterykw)
     
     for t in 1:(TimeSteps-1)
         @constraint(m_outagesimulator, m_outagesimulator[Symbol("BatteryCharge_"*n)][t+1] ==  m_outagesimulator[Symbol("BatteryCharge_"*n)][t] - 
@@ -337,12 +352,16 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
 
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("BatteryCharge_"*n)][ts] .<= Batterykwh )
 
-    # The minimum is capped at the starting charge so that rounding in the starting charge cannot make the first time step infeasible
     battery_min_charge_kwh = Multinode_Inputs.battery_min_soc_fraction_during_grid_outage_times * Batterykwh
     @constraint(m_outagesimulator, [ts in [1:TimeSteps]], m_outagesimulator[Symbol("BatteryCharge_"*n)][ts] .>= battery_min_charge_kwh)
+
+    # The charge at the end of the last time step must also be within the battery limits
+    battery_charge_end_of_last_time_step = m_outagesimulator[Symbol("BatteryCharge_"*n)][TimeSteps] - m_outagesimulator[Symbol("SumOfBatFlows_"*n)][TimeSteps]/time_steps_per_hour
+    @constraint(m_outagesimulator, battery_charge_end_of_last_time_step >= battery_min_charge_kwh)
+    @constraint(m_outagesimulator, battery_charge_end_of_last_time_step <= Batterykwh)
     
     
-    if (string(Multinode_Inputs.optimizer) == "Xpress.Optimizer") || (string(Multinode_Inputs.optimizer) == "Gurobi.Optimizer") # only apply the indicator constraints if using a solver that is compatible with indicator constraints
+    if OutageSimulatorSolverSupportsIndicatorConstraints(Multinode_Inputs) # only apply the indicator constraints if using a solver that is compatible with indicator constraints
         # Use a binary to prohibit charging and discharging at the same time.
                 
         binary_var      = m_outagesimulator[Symbol("Binary_"*n)]
@@ -354,8 +373,6 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
         @constraint(m_outagesimulator, [ts=1:TimeSteps],  binary_var[ts] => {pv_to_bat_var[ts]   == 0.0})
         @constraint(m_outagesimulator, [ts=1:TimeSteps], !binary_var[ts] => {bat_to_load_var[ts] == 0.0})
         @constraint(m_outagesimulator, [ts=1:TimeSteps], !binary_var[ts] => {bat_to_grid_var[ts] == 0.0})
-    else
-        @warn "The battery may charge and discharge at the same time in the outage simulator because the solver is not compatible with indicator constraints."
     end
     #print("\n OutageLength_TimeSteps_Input are: $(OutageLength_TimeSteps_Input)")
     #print("\n Timesteps are: $(TimeSteps)")
@@ -457,15 +474,16 @@ function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_T
             q_to = [PowerModelsDistribution.var(pm, PMD_time_step, :q, t_idx)[c] for c in t_connections]
         end
 
-        JuMP.@constraint(pm.model, [phase in f_connections], p_fr[phase] .== 0)  # The _fr and _to variables are just indicating power flow in either direction on the line. In PMD, there is a constraint that requires  p_to = -p_fr 
-        JuMP.@constraint(pm.model, [phase in t_connections], p_to[phase] .== 0)  # TODO test removing the "fr" constraints here in order to reduce the # of constraints in the model
+        # p_fr, p_to, q_fr, and q_to are vectors ordered like f_connections and t_connections, so they are indexed by position (the connection numbers are not necessarily 1, 2, 3)
+        JuMP.@constraint(pm.model, [k in eachindex(p_fr)], p_fr[k] == 0)  # The _fr and _to variables are just indicating power flow in either direction on the line. In PMD, there is a constraint that requires  p_to = -p_fr 
+        JuMP.@constraint(pm.model, [k in eachindex(p_to)], p_to[k] == 0)  # TODO test removing the "fr" constraints here in order to reduce the # of constraints in the model
         if Multinode_Inputs.model_subtype != "NFAUPowerModel"
             if Multinode_Inputs.number_of_phases == 1        
-                JuMP.@constraint(pm.model, [phase in f_connections], q_fr[phase] .== 0)
-                JuMP.@constraint(pm.model, [phase in t_connections], q_to[phase] .== 0)
+                JuMP.@constraint(pm.model, [k in eachindex(q_fr)], q_fr[k] == 0)
+                JuMP.@constraint(pm.model, [k in eachindex(q_to)], q_to[k] == 0)
             else
-                JuMP.@constraint(pm.model, [phase in f_connections], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar .<= q_fr[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
-                JuMP.@constraint(pm.model, [phase in t_connections], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar .<= q_to[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)    
+                JuMP.@constraint(pm.model, [k in eachindex(q_fr)], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar <= q_fr[k] <= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
+                JuMP.@constraint(pm.model, [k in eachindex(q_to)], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar <= q_to[k] <= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)    
             end
         end
     end
@@ -501,14 +519,14 @@ function AddConstraintsFromLineUpgrades(pm, OutageLength_TimeSteps_Input, LineIn
             p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
             p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
             
-            for phase in f_connections
-                @constraint(pm.model, p_fr[phase] <=  power_limit)
-                @constraint(pm.model, p_fr[phase] >= -power_limit)
+            for k in eachindex(p_fr)
+                @constraint(pm.model, p_fr[k] <=  power_limit)
+                @constraint(pm.model, p_fr[k] >= -power_limit)
             end
 
-            for phase in t_connections
-                @constraint(pm.model, p_to[phase] <=  power_limit) 
-                @constraint(pm.model, p_to[phase] >= -power_limit) 
+            for k in eachindex(p_to)
+                @constraint(pm.model, p_to[k] <=  power_limit) 
+                @constraint(pm.model, p_to[k] >= -power_limit) 
             end
         end
     end
@@ -530,6 +548,23 @@ function RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, node)
         end
     end
     return 1.0, 1.0  # No battery at this node
+end
+
+
+function RetrieveBatteryInitialChargeForEachNode(REoptInputs_Combined, node, battery_charge_series_kwh, battery_size_kwh)
+    # Note: this function was generated with the assistance of AI.
+    # Returns the battery charge (kWh) at the start of the first time step of the main model
+    for p in REoptInputs_Combined
+        if string(p.s.site.node) == string(node) && haskey(p.s.storage.attr, "ElectricStorage")
+            attr = p.s.storage.attr["ElectricStorage"]
+            if hasproperty(attr, :optimize_soc_init_fraction) && attr.optimize_soc_init_fraction
+                return battery_charge_series_kwh[end] # The main model constrains the initial charge to equal the final charge
+            else
+                return attr.soc_init_fraction * battery_size_kwh
+            end
+        end
+    end
+    return 0.0  # No battery at this node
 end
 
 
@@ -602,12 +637,14 @@ function GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REopt
 
     # Enter data into the dictionary
     charge_efficiency, discharge_efficiency = RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, NodeList[1])
+    initial_battery_charge_kwh = RetrieveBatteryInitialChargeForEachNode(REoptInputs_Combined, NodeList[1], BatteryChargekwh, Batterykwh)
     DataDictionaryForEachNode = Dict([
         (NodeList[1],Dict([
             ("loads_kw", critical_loads_kw[NodeList[1]]), 
             ("PVproductionprofile",  PVProductionProfile_results ),
             ("GeneratorSize", GeneratorSize_results),
             ("Battery_charge_kwh",  BatteryChargekwh),
+            ("Battery_initial_charge_kwh", initial_battery_charge_kwh),
             ("Battery_kw", Batterykw),
             ("Battery_kwh", Batterykwh),
             ("Fuel_tank_capacity_gal", generator_fuel_gallon_available),
@@ -635,6 +672,7 @@ function GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REopt
         end
 
         charge_efficiency, discharge_efficiency = RetrieveBatteryEfficienciesForEachNode(REoptInputs_Combined, NodeList[i]) 
+        initial_battery_charge_kwh_B = RetrieveBatteryInitialChargeForEachNode(REoptInputs_Combined, NodeList[i], BatteryChargekwh_B, Batterykwh_B)
 
         if "PV" in keys(results[NodeList[i]])
             if results[NodeList[i]]["PV"]["size_kw"] > 0
@@ -663,6 +701,7 @@ function GenerateInputsForOutageSimulator(Multinode_Inputs, REopt_results, REopt
                 ("PVproductionprofile", PVProductionProfile_results_B),
                 ("GeneratorSize", GeneratorSize_results_B),
                 ("Battery_charge_kwh", BatteryChargekwh_B),
+                ("Battery_initial_charge_kwh", initial_battery_charge_kwh_B),
                 ("Battery_kw", Batterykw_B),
                 ("Battery_kwh", Batterykwh_B),
                 ("Fuel_tank_capacity_gal", generator_fuel_gallon_available),
