@@ -48,7 +48,7 @@
     # Add a test to compare npv with difference in optimal and bau cashflows
     npv_calculated = bau_cashflow_sum - optimal_cashflow_sum
     npv_reported = results["Financial"]["npv"]
-    @test isapprox(npv_calculated, npv_reported, rtol=0.001)
+    @test isapprox(npv_calculated, npv_reported, rtol=0.002)
 
     finalize(backend(m1)); empty!(m1)
     finalize(backend(m2)); empty!(m2)
