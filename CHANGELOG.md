@@ -24,6 +24,18 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## dual-fuel-chp
+### Added
+- `src/core/chp.jl`: optional dual-fuel **CHP** inputs. A second fuel is set with **fuel2_type**, **fuel2_cost_per_mmbtu**, **fuel2_cost_escalation_rate_fraction**, **fuel2_renewable_energy_fraction** and **fuel2_emissions_factor_lb_{CO2,NOx,SO2,PM25}_per_mmbtu**. It is used either to top up a limited fuel 1, with **fuel_max_period** (`"hour"`, `"day"`, `"week"` or `"month"`) and **fuel_max_mmbtu_per_period**, or in place of fuel 1 from **fuel2_switch_start_year** on. **fuel_max_period** without a fuel 2 is a cap on the CHP fuel use. `"custom"` is now an allowed **fuel_type** and **fuel2_type**, with the escalation rate and emissions factors provided as inputs (the renewable fraction defaults to 0.0).
+- `src/constraints/chp_dual_fuel_constraints.jl` (new file) and `src/constraints/emissions_constraints.jl`: dispatch, fuel cost and emissions accounting for the dual-fuel modes.
+- `src/results/chp.jl`: **annual_fuel2_consumption_mmbtu**, **year_one_fuel2_cost_before_tax**, **year_one_fuel2_cost_after_tax** and **lifecycle_fuel2_cost_after_tax** for dual-fuel CHPs. The existing **annual_fuel_consumption_mmbtu**, **year_one_fuel_cost_before_tax**, **year_one_fuel_cost_after_tax** and **lifecycle_fuel_cost_after_tax** are unchanged for single-fuel CHPs and are the fuel 1 + fuel 2 totals for dual-fuel CHPs.
+- `src/results/financial.jl`, `src/results/chp.jl`, `src/results/pv.jl`: report the present worth factors. **Financial**: **pwf_e**, **pwf_om**, **pwf_offtaker**, **pwf_owner**, **third_party_factor**, **pwf_fuel_{existing_boiler,boiler,generator}**, **pwf_emissions_cost_{CO2,NOx,SO2,PM25}_{grid,onsite}** and **pwf_grid_emissions_{CO2,NOx,SO2,PM25}**. **CHP**: **pwf_fuel** and, if dual fuel, **pwf_fuel2**. **PV**: **levelization_factor**.
+- `src/core/utils.jl`: `get_time_steps_by_period` and `annuity_split_periods`.
+- `test/scenarios/chp_dual_fuel.json` and a `"Dual Fuel CHP"` testset in `test/test_chp.jl`; a **levelization_factor** check in the `"Multiple PVs"` testset in `test/runtests.jl`.
+
+### Fixed
+- `src/constraints/emissions_constraints.jl`: fixed the onsite fuel burn emissions (and monetized emissions) of all fuel-burning technologies for `time_steps_per_hour` > 1. `dvFuelUsage` is already the energy used in each time step, but the emissions were multiplied by the time step length again, understating them. Results for sub-hourly time steps change; hourly results do not.
+
 ## v1.0.1
 ### Changed
 - Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.

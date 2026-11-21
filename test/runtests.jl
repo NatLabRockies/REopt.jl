@@ -2226,6 +2226,9 @@ else  # run HiGHS tests
                 @test ground_pv["annual_energy_produced_kwh"] ≈ 26799.26 atol=0.1
                 @test roof_west["annual_energy_produced_kwh"] ≈ 10719.51 atol=0.1
                 @test roof_east["annual_energy_produced_kwh"] ≈ 6685.95 atol=0.1
+                for pv in [ground_pv, roof_west, roof_east]
+                    @test pv["annual_energy_produced_kwh"] ≈ pv["year_one_energy_produced_kwh"] * pv["levelization_factor"] rtol=1e-3
+                end
                 finalize(backend(m1))
                 empty!(m1)
                 finalize(backend(m2))

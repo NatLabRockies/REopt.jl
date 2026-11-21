@@ -12,6 +12,7 @@
 - `electric_curtailed_series_kw` Vector of power curtailed over an average year
 - `annual_energy_exported_kwh` Average annual energy exported to the grid
 - `production_factor_series` PV production factor in each time step, either provided by user or obtained from PVWatts
+- `levelization_factor` Ratio of the present worth factor of the PV production with degradation to the electricity present worth factor (`pwf_e` in the `Financial` results). It is multiplied by `year_one_energy_produced_kwh` to get `annual_energy_produced_kwh`.
 
 !!! warn
     The key(s) used to access PV outputs in the results dictionary is determined by the `PV.name` value to allow for modeling multiple PV options. (The default `PV.name` is "PV".)
@@ -81,6 +82,7 @@ function add_pv_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _n="")
 		Year1PvProd = (sum(m[Symbol("dvRatedProduction"*_n)][t,ts] * p.production_factor[t, ts] for ts in p.time_steps) * p.hours_per_time_step)
 		r["year_one_energy_produced_kwh"] = round(value(Year1PvProd), digits=0)
         r["annual_energy_produced_kwh"] = round(r["year_one_energy_produced_kwh"] * p.levelization_factor[t], digits=2)
+        r["levelization_factor"] = round(p.levelization_factor[t], digits=4)
         r["om_cost_per_kw"] = p.om_cost_per_kw[t]
 		PVPerUnitSizeOMCosts = p.third_party_factor * p.om_cost_per_kw[t] * p.pwf_om * m[Symbol("dvSize"*_n)][t]
 		r["lifecycle_om_cost_after_tax"] = round(value(PVPerUnitSizeOMCosts) * (1 - p.s.financial.owner_tax_rate_fraction), digits=0)
