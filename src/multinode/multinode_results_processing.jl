@@ -1,15 +1,5 @@
 # REopt®, Copyright (c) Alliance for Sustainable Energy, LLC. See also https://github.com/NREL/REopt.jl/blob/master/LICENSE.
 
-function CreateOutputsFolder(Multinode_Inputs, TimeStamp)
-    # Create a folder for the outputs if saving results
-    if Multinode_Inputs.generate_CSV_of_outputs == true
-        @info "Creating a folder for the results"
-        mkpath(Multinode_Inputs.folder_location*"/results_"*TimeStamp) # mkpath does not error if the folder already exists (such as when two runs start in the same minute)
-    end
-
-end
-
-
 function CalculateComputationTime(StartTime)
     # Function to calculate the elapsed time between a time (input into the function) and the current time
     EndTime = now()
@@ -228,11 +218,6 @@ function Process_Line_Upgrades(m, line_upgrade_options_each_line, Multinode_Inpu
         UpgradeCost      = col_UpgradeCost,
     )
 
-    # Save line upgrade results to a csv 
-    if Multinode_Inputs.generate_CSV_of_outputs
-        CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/Results_Line_Upgrade_Summary_"*TimeStamp*".csv", line_upgrade_results)
-    end
-
     return line_upgrade_results
 end
  
@@ -245,6 +230,7 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
 
     # Compute system-level outputs
     system_results = Dict{String, Any}() # Float64}()
+    dataframes = Dict{String, Any}() # The dataframes of results (which can be saved to csv files by the user), which are returned from this function
     
     # Initialize the results variables
     total_lifecycle_capital_cost = 0 # includes replacements and incentives
@@ -312,21 +298,10 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
         end
     end
 
-    # Check that the REopt and PMD results are aligned. This is a diagnostic, so a failure of the check is reported as a warning instead of stopping the run.
-    try
-        system_results["REopt_PMD_alignment"] = CheckREoptAndPMDAlignment(model, PMD_Results, Multinode_Inputs, PMD_Dictionary_LineFlow_Power_Series)
-        if !system_results["REopt_PMD_alignment"]["all_aligned"]
-            @warn "The REopt and PMD results are not aligned within the tolerance. See the alignment check results in the system results for details."
-        end
-    catch alignment_error
-        @warn "The REopt and PMD alignment check could not be completed: $(sprint(showerror, alignment_error))"
-        system_results["REopt_PMD_alignment"] = Dict("all_aligned" => "Not evaluated", "error" => sprint(showerror, alignment_error))
-    end
-
-    # Generate a csv file with outputs from the model if the "generate_CSV_of_outputs" field is set to true
+    # Generate the dataframes of results (these are not saved to csv files by REopt; they are returned so that the user can save them)
     if system_results_BAU != ""
-        if Multinode_Inputs.generate_CSV_of_outputs == true
-            @info "Generating CSV of outputs"
+        try
+            @info "Generating the dataframes of results"
             DataLabels = []
             Data = []
             
@@ -496,31 +471,6 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
                 push!(Data, round(mean(simple_powerflow_model_results["lines"][lowercase(LineFromSubstationToFacilityMeter)]["line_power_flow_series"]),digits=0))
             end
 
-            # Add the REopt and PMD alignment check results, only if the check identified an alignment issue (or could not be completed)
-                # This section was added with the assistance of AI.
-            alignment = system_results["REopt_PMD_alignment"]
-            if alignment["all_aligned"] != true
-                push!(DataLabels, "----REopt and PMD Alignment Issues----")
-                push!(Data, "")
-                if alignment["all_aligned"] == "Not evaluated"
-                    push!(DataLabels, "  The alignment check was not completed")
-                    push!(Data, alignment["error"])
-                else
-                    push!(DataLabels, "  Tolerance: the larger of (kW) and (fraction of the node's peak power)")
-                    push!(Data, string(alignment["tolerance_kw"])*" kW and "*string(alignment["tolerance_fraction"]))
-                    for row in eachrow(alignment["node_alignment"])
-                        if row.Status != "Aligned"
-                            push!(DataLabels, "  Node $(row.Node): maximum absolute mismatch between REopt and PMD node power (kW), as a fraction of the node's peak power, status")
-                            push!(Data, string(row.Maximum_Absolute_Mismatch_kW)*", "*string(row.Maximum_Mismatch_Fraction_Of_Peak)*", "*row.Status)
-                        end
-                    end
-                    if alignment["power_balance_status"] != "Aligned"
-                        push!(DataLabels, "  PMD power balance: minimum and maximum network losses, calculated as the substation line flow plus the total power from the REopt nodes (kW), status")
-                        push!(Data, string(alignment["power_balance_minimum_kw"])*", "*string(alignment["power_balance_maximum_kw"])*", "*alignment["power_balance_status"])
-                    end
-                end
-            end
-
             # Add the multinode outage results to the dataframe
             push!(DataLabels, "----Multinode Outage Simulator Results----")
             push!(Data, "")
@@ -624,29 +574,18 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
                 end 
             end
             
-            # Save the results summary dataframe as a csv document
-            dataframe_results = DataFrame(Labels = DataLabels, Data = Data)
-            CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/Results_Summary_"*TimeStamp*".csv", dataframe_results)
+            # Store the results summary dataframe
+            dataframes["Results_Summary"] = DataFrame(Labels = DataLabels, Data = Data)
             
-            # Save the Line Flow summary to a different csv
-            CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/PMD_Results_Line_Powerflow_Summary_"*TimeStamp*".csv", DataFrame_LineFlow_Summary)
+            # Store the Line Flow summary
+            dataframes["PMD_Results_Line_Powerflow_Summary"] = DataFrame_LineFlow_Summary
             
-            # Save the bus voltage summary to a different csv
+            # Store the bus voltage summary
             if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/PMD_Results_Bus_Voltages_Summary_"*TimeStamp*".csv", DataFrame_BusVoltages_Summary)
+                dataframes["PMD_Results_Bus_Voltages_Summary"] = DataFrame_BusVoltages_Summary
             end
 
-            # Save the REopt and PMD alignment results for each node to a different csv, only if the alignment check identified an issue
-            if alignment["all_aligned"] == false
-                CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/REopt_PMD_Alignment_Summary_"*TimeStamp*".csv", alignment["node_alignment"])
-            end
-
-            # Save the transformer upgrade results to a csv
-            if Multinode_Inputs.model_transformer_upgrades
-                CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/Results_Transformer_Upgrade_Summary_"*TimeStamp*".csv", dataframe_transformer_upgrade_summary)
-            end
-            
-            # Generate CSV summarizing the line power flow for each line
+            # Generate a dataframe summarizing the line power flow for each line
             line_powerflow_data = DataFrame()
             
             line_powerflow_data[!,"REopt_time_steps"] = Multinode_Inputs.PMD_time_steps  # Note: The PMD_time_steps input is expressed in REopt time steps
@@ -672,12 +611,14 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
             
             line_powerflow_data = line_powerflow_data[:,sortperm(names(line_powerflow_data))] # Sort the dataframe by the header title
 
-            CSV.write(Multinode_Inputs.folder_location*"/results_"*TimeStamp*"/PMD_Results_Line_Powerflow_Data_"*TimeStamp*".csv", line_powerflow_data)
+            dataframes["PMD_Results_Line_Powerflow_Data"] = line_powerflow_data
             
+        catch dataframe_error
+            @warn "The dataframes of results could not be completely generated: $(sprint(showerror, dataframe_error))"
         end 
 
     end
-    return system_results    
+    return system_results, dataframes
 end
 
 
@@ -1084,114 +1025,6 @@ function VoltageResultsSummaryMultiphase(results, data_eng)
 end
 
 
-function CheckREoptAndPMDAlignment(model, PMD_Results, Multinode_Inputs, PMD_Dictionary_LineFlow_Power_Series; tolerance_kw = 0.1, tolerance_fraction = 0.005)
-    # This function was generated with the assistance of AI.
-    # Checks that the REopt and PMD results are aligned (that the models are linked properly), in two ways:
-    #   1. Node power: for each REopt node, the net power injected into the network according to REopt (total export minus grid purchase) is
-    #      compared with the power from the PMD generators that represent the node (summed over the phases of the node), at each PMD time step.
-    #   2. PMD power balance: the active power flow on the substation line should equal the power consumed by the REopt nodes plus the network losses, 
-    #      so (substation line flow + total power from the REopt generators) is the network loss, which should not be negative. 
-    #      This assumes that the substation line is defined with the substation on the "from" side, so that a positive flow is power entering the network.
-    # A mismatch at a node is flagged if it is larger than the greater of tolerance_kw and tolerance_fraction times the peak power at the node.
-    # Note: the node power is split evenly across the phases of a node using a factor that is rounded to three digits (for example, 0.333 for three phases), 
-    # so a mismatch of up to about 0.1% of the node's power is expected for nodes with three phases.
-
-    REopt_time_steps = Multinode_Inputs.PMD_time_steps
-    PMD_time_step_keys = sort(collect(keys(PMD_Results["nw"])), by = x -> parse(Int, string(x)))
-    if length(PMD_time_step_keys) != length(REopt_time_steps)
-        throw(@error("The number of PMD time steps ($(length(PMD_time_step_keys))) is not equal to the number of PMD_time_steps in the inputs ($(length(REopt_time_steps)))"))
-    end
-
-    generators_in_PMD_results = [PMD_Results["nw"][string(k)]["generator"] for k in PMD_time_step_keys]
-    generator_names_by_lowercase_name = Dict(lowercase(string(name)) => name for name in keys(generators_in_PMD_results[1]))
-    total_PMD_generator_power = zeros(length(PMD_time_step_keys))
-
-    node_column = String[]
-    maximum_mismatch_column = Float64[]
-    average_mismatch_column = Float64[]
-    peak_power_column = Float64[]
-    fraction_column = Float64[]
-    time_step_column = Any[]
-    status_column = String[]
-
-    for node_inputs in Multinode_Inputs.REopt_inputs_list
-        node = node_inputs["Site"]["node"]
-        if string(node) == Multinode_Inputs.facilitymeter_node
-            continue # The facility meter node is not linked to a PMD generator
-        end
-
-        phases = get(get(node_inputs, "Settings", Dict()), "phase_numbers", [1])
-        if Multinode_Inputs.number_of_phases == 1
-            generator_names = ["REopt_gen_$(node)"]
-        else
-            generator_names = ["REopt_gen_node$(node)_phase$(phase)" for phase in phases]
-        end
-        generator_keys = [get(generator_names_by_lowercase_name, lowercase(name), nothing) for name in generator_names]
-
-        if any(isnothing, generator_keys)
-            push!(node_column, string(node)); push!(maximum_mismatch_column, NaN); push!(average_mismatch_column, NaN)
-            push!(peak_power_column, NaN); push!(fraction_column, NaN); push!(time_step_column, "N/A")
-            push!(status_column, "Not evaluated (PMD generator not found in the results)")
-            continue
-        end
-
-        # The REopt net power injection into the network at the PMD time steps (positive is power exported from the node, negative is power imported by the node)
-        total_export = value.(model[Symbol("TotalExport_"*string(node))])
-        grid_purchase = value.(model[Symbol("dvGridPurchase_"*string(node))])
-        REopt_injection = [total_export[ts] - (ndims(grid_purchase) == 2 ? sum(grid_purchase[ts, :]) : grid_purchase[ts]) for ts in REopt_time_steps]
-
-        PMD_power = [sum(sum(generators_in_PMD_results[k][key]["pg"]) for key in generator_keys) for k in eachindex(PMD_time_step_keys)]
-        total_PMD_generator_power .+= PMD_power
-
-        mismatch = PMD_power .- REopt_injection
-        maximum_mismatch, index_of_maximum_mismatch = findmax(abs.(mismatch))
-        peak_power = maximum(abs.(REopt_injection))
-        tolerance = max(tolerance_kw, tolerance_fraction * peak_power)
-
-        push!(node_column, string(node))
-        push!(maximum_mismatch_column, round(maximum_mismatch, digits = 4))
-        push!(average_mismatch_column, round(mean(abs.(mismatch)), digits = 4))
-        push!(peak_power_column, round(peak_power, digits = 4))
-        push!(fraction_column, peak_power > 0 ? round(maximum_mismatch / peak_power, digits = 6) : NaN)
-        push!(time_step_column, REopt_time_steps[index_of_maximum_mismatch])
-        push!(status_column, maximum_mismatch <= tolerance ? "Aligned" : "Mismatch")
-    end
-
-    node_alignment = DataFrame(Node = node_column,
-                               Maximum_Absolute_Mismatch_kW = maximum_mismatch_column,
-                               Average_Absolute_Mismatch_kW = average_mismatch_column,
-                               Peak_REopt_Node_Power_kW = peak_power_column,
-                               Maximum_Mismatch_Fraction_Of_Peak = fraction_column,
-                               REopt_Time_Step_Of_Maximum_Mismatch = time_step_column,
-                               Status = status_column)
-
-    # PMD power balance
-    substation_line = lowercase(Multinode_Inputs.substation_line)
-    if haskey(PMD_Dictionary_LineFlow_Power_Series, substation_line)
-        substation_line_flow = PMD_Dictionary_LineFlow_Power_Series[substation_line]["ActiveLineFlow"]
-        network_losses = substation_line_flow .+ total_PMD_generator_power
-        power_balance_minimum_kw = round(minimum(network_losses), digits = 4)
-        power_balance_maximum_kw = round(maximum(network_losses), digits = 4)
-        power_balance_status = power_balance_minimum_kw >= -tolerance_kw ? "Aligned" : "Mismatch"
-    else
-        power_balance_minimum_kw = NaN
-        power_balance_maximum_kw = NaN
-        power_balance_status = "Not evaluated (substation line not found in the PMD results)"
-    end
-
-    evaluated_maximum_mismatches = filter(!isnan, maximum_mismatch_column)
-
-    return Dict("all_aligned" => all(==("Aligned"), vcat(status_column, [power_balance_status])),
-                "tolerance_kw" => tolerance_kw,
-                "tolerance_fraction" => tolerance_fraction,
-                "maximum_absolute_mismatch_kw" => isempty(evaluated_maximum_mismatches) ? NaN : maximum(evaluated_maximum_mismatches),
-                "node_alignment" => node_alignment,
-                "power_balance_minimum_kw" => power_balance_minimum_kw,
-                "power_balance_maximum_kw" => power_balance_maximum_kw,
-                "power_balance_status" => power_balance_status)
-end
-
-
 function CollectMapInformation(results, Multinode_Inputs, all_lines_including_transformers_as_lines, lines_in_PMD, data_eng_lines, busses_in_PMD)
 
     if Multinode_Inputs.model_type == "PowerModelsDistribution"
@@ -1336,7 +1169,7 @@ end
 
 
 function DeterminePathToSourcebus(neighbors, Multinode_Inputs)
-    # Acknowledgement: This function was built with the assistance of ChatGPT
+    # Acknowledgement: This function was built with the assistance of AI
     parent_dict = Dict()
     path_dict = Dict()
     substation_bus = Multinode_Inputs.substation_node #"sourcebus"
@@ -1471,34 +1304,4 @@ function modified_calc_connected_components_eng(data; edges::Vector{<:String}=St
 
     return neighbors_with_keys_as_strings 
 end
-
-
-function Check_REopt_PMD_Alignment(m, PMD_results, node, line, phase)
-    # Compare the REopt and PMD results to ensure the models are linked
-        # Note the calculations below are only valid if there are not any REopt nodes or PMD loads downstream of the node being evaluated
-    
-    Node = node # This is for the REopt data
-    Line = line # This is for the PMD data
-    Phase = phase # This data is for the PMD data
-
-    # Save REopt data to variables for comparison with PMD:
-    TotalExport = JuMP.value.(m[Symbol("TotalExport_"*string(Node))]) #[1]
-    TotalImport = JuMP.value.(m[Symbol("dvGridPurchase_"*string(Node))]) #[1] If needed, define the time step in the brackets appended to this line
-    REopt_power_injection = TotalImport - TotalExport
-
-    # Save the power injection data from PMD into a vector for the line
-    PowerFlow_line = []
-    for i in 1:length(PMD_results["nw"])
-        push!(PowerFlow_line, PMD_results["nw"][string(i)]["line"][Line]["pf"][Phase]) # for other PMD formulations, the "pf" might be "Pf" instead
-    end
-
-    # This calculation compares the power flow through the Line (From PMD), to the power injection into the Node (From REopt). If the PMD and REopt models are connected, this should be zero or very close to zero.
-    Mismatch_in_expected_powerflow = PowerFlow_line - REopt_power_injection[1:length(PMD_results["nw"])].data   # This is only valid for the model with only one REopt load on node 1
-
-    # Visualize the mismatch to ensure the results are zero for each time step
-    Plots.plot(collect(1:length(PMD_results["nw"])), Mismatch_in_expected_powerflow)
-    Plots.xlabel!("Timestep")
-    Plots.ylabel!("Mismatch between REopt and PMD (kW)")
-    display(Plots.title!("REopt and PMD Mismatch: Node $(Node), Phase $(Phase)"))
-end 
 

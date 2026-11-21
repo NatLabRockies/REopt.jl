@@ -114,6 +114,7 @@ function Multinode_OutageSimulator(DataDictionaryForEachNode, REopt_dictionary, 
                 cached_pmd_info = generate_PMD_information(Multinode_Inputs, REopt_nodes_for_cache, REopt_inputs_combined, data_math_mn)
             end
             Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined; cached_pmd_info=cached_pmd_info)
+            AddTransformerPowerLimitsToPMDTimesteps(pm, data_eng, data_math_mn)
         end
 
         if Multinode_Inputs.model_line_upgrades
@@ -500,8 +501,8 @@ function AddConstraintsFromLineUpgrades(pm, OutageLength_TimeSteps_Input, LineIn
     for line in keys(line_upgrade_options_each_line)
 
         max_amps_line = max_amps_by_line[line]
-        voltage_kv    = line_upgrade_options_each_line[line]["voltage_kv"]
-        power_limit   = max_amps_line * voltage_kv 
+        voltage_kv    = LineInfo[line]["line_to_neutral_voltage_kv"] # From the PMD model, as is done in the main model
+        power_limit   = max_amps_line * voltage_kv # The limit for each phase
 
         i = LineInfo[line]["index"]
 

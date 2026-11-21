@@ -6,13 +6,11 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
     StartTime_EntireModel = now() # Record the start time for the computation
     TimeStamp = Dates.format(now(), "mm-dd-yyyy")*"_"*Dates.format(now(), "HH-MM")
     time_results = Dict()
+
+    Multinode_Settings_for_BAU = deepcopy(Multinode_Settings)
+    Multinode_Settings = deepcopy(Multinode_Settings)
    
     Multinode_Inputs = REopt.MultinodeInputs(; REopt.dictkeys_tosymbols(Multinode_Settings)...)
-    
-    if Multinode_Inputs.generate_CSV_of_outputs
-        cd(Multinode_Inputs.folder_location)
-        CreateOutputsFolder(Multinode_Inputs, TimeStamp)
-    end
 
     print("\n Preparing the electric loads")
     Start_time_prepare_electric_loads = now()
@@ -68,9 +66,10 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
 
         if Multinode_Inputs.run_BAU_case
             print("\n Running the BAU case")
-            Multinode_Settings_No_Techs = SetTechSizesToZero(Multinode_Settings)
+            Multinode_Settings_No_Techs = SetTechSizesToZero(Multinode_Settings_for_BAU)
             Multinode_Inputs_No_Techs = REopt.MultinodeInputs(; REopt.dictkeys_tosymbols(Multinode_Settings_No_Techs)...)
             PrepareElectricLoads(Multinode_Inputs_No_Techs)
+            REopt_inputs_combined_No_Techs = PrepareREoptInputs(Multinode_Inputs_No_Techs, Dict()) # The REopt inputs for the BAU case are generated from the inputs without the technologies
             
             Outage_Results_No_Techs = Dict(["NoOutagesTested" => Dict(["Not evaluated" => "Not evaluated"])])
             
@@ -80,15 +79,20 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
                 data_math_mn_No_Techs, pm_No_Techs, line_upgrade_options_each_line_NoTechs, 
                 line_upgrade_results_NoTechs, load_phase_dictionary_NoTechs, gen_ind_e_to_REopt_node_noTechs, 
                 REopt_gen_ind_e_noTechs, connections_noTechs, connections_upstream_noTechs, 
-                connections_downstream_noTechs = build_run_and_process_results(Multinode_Inputs_No_Techs, REopt_inputs_combined, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades=false, BAU_case=true)
+                connections_downstream_noTechs = build_run_and_process_results(Multinode_Inputs_No_Techs, REopt_inputs_combined_No_Techs, PMD_number_of_timesteps, TimeStamp, time_results; allow_upgrades=false, BAU_case=true)
             
             GC.gc()
 
             model_BAU = pm_No_Techs.model # The BAU model is used for the solve time and is returned with the results
 
-            ComputationTime_EntireModel = "N/A"
-            system_results_BAU = REopt.Results_Compilation(pm_No_Techs.model, REopt_Results_BAU, PMD_Results_No_Techs, Outage_Results_No_Techs, Multinode_Inputs_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, PMD_Dictionary_LineFlow_Power_Series_No_Techs, TimeStamp, ComputationTime_EntireModel; system_results_BAU = "", data_eng = data_eng_No_Techs)
-            time_results["Step $(length(keys(time_results))+1): BAU_model_solve_time_minutes"] = round(JuMP.solve_time(model_BAU)/60, digits = 2)
+            if REopt_Results_BAU == "N/A"
+                @warn "The BAU case did not solve to optimality, so the net present value will not be calculated."
+                system_results_BAU = "none"
+            else
+                ComputationTime_EntireModel = "N/A"
+                system_results_BAU, _ = REopt.Results_Compilation(pm_No_Techs.model, REopt_Results_BAU, PMD_Results_No_Techs, Outage_Results_No_Techs, Multinode_Inputs_No_Techs, DataFrame_PMD_LineFlow_Summary_No_Techs, PMD_Dictionary_LineFlow_Power_Series_No_Techs, TimeStamp, ComputationTime_EntireModel; system_results_BAU = "", data_eng = data_eng_No_Techs)
+                time_results["Step $(length(keys(time_results))+1): BAU_model_solve_time_minutes"] = round(JuMP.solve_time(model_BAU)/60, digits = 2)
+            end
             print("\n Completed running the BAU case")
         else
             system_results_BAU = "none"
@@ -115,7 +119,10 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
             all_line_powerflow_results = combine_PMD_and_simple_powerflow_results(Multinode_Inputs, pm.model, data_eng, PMD_Dictionary_LineFlow_Power_Series, simple_powerflow_model_results)
         end
         print("\n Compiling all the results")
-        system_results = REopt.Results_Compilation(pm.model, REopt_Results, PMD_Results, Outage_Results, Multinode_Inputs, DataFrame_PMD_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, TimeStamp, StartTime_EntireModel; bau_model = model_BAU, system_results_BAU = system_results_BAU, outage_simulator_time = outage_simulator_time_minutes, all_line_powerflow_results = all_line_powerflow_results, simple_powerflow_model_results=simple_powerflow_model_results, data_eng = data_eng)
+        system_results, DataFrames_of_Results = REopt.Results_Compilation(pm.model, REopt_Results, PMD_Results, Outage_Results, Multinode_Inputs, DataFrame_PMD_LineFlow_Summary, PMD_Dictionary_LineFlow_Power_Series, TimeStamp, StartTime_EntireModel; bau_model = model_BAU, system_results_BAU = system_results_BAU, outage_simulator_time = outage_simulator_time_minutes, all_line_powerflow_results = all_line_powerflow_results, simple_powerflow_model_results=simple_powerflow_model_results, data_eng = data_eng)
+        if line_upgrade_results isa DataFrame
+            DataFrames_of_Results["Results_Line_Upgrade_Summary"] = line_upgrade_results
+        end
 
         ComputationTime_EntireModel_Milliseconds, ComputationTime_EntireModel_Minutes = CalculateComputationTime(StartTime_EntireModel)
         time_results["ComputationTime_EntireModel_Minutes"] = ComputationTime_EntireModel_Minutes
@@ -123,6 +130,7 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
         # Compile output data into a dictionary to return from the dictionary
         CompiledResults = Dict([("System_Results", system_results),
                                 ("System_Results_BAU", system_results_BAU),
+                                ("DataFrames_of_Results", DataFrames_of_Results), # The dataframes of results (can be saved as csv files by the user in their analysis script)
                                 ("DataDictionaryForEachNode", DataDictionaryForEachNode),
                                 ("Multinode_Inputs", Multinode_Inputs), 
                                 ("Dictionary_LineFlow_Power_Series", all_line_powerflow_results), 
@@ -169,16 +177,10 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
             data_dictionary_for_plots = "N/A"
         end
         print("\n Completed compiling all the results")
+    else
+        throw(@error("The model_type input, $(Multinode_Inputs.model_type), is not valid. The only option currently available is \"PowerModelsDistribution\"."))
     end
        
-    # Optional code for saving the outputs from the SOCNLPUBFPowerModel model
-    #if (Multinode_Inputs.model_subtype == "SOCNLPUBFPowerModel") && (Multinode_Inputs.generate_CSV_of_outputs == true)
-    #    FilePathAndName = Multinode_Inputs.folder_location*"/Results.json"
-    #    open(FilePathAndName,"w") do x
-    #        JSON.print(x, PMD_Results)
-    #    end
-    #end
-
     return CompiledResults, pm.model, model_BAU, data_dictionary_for_plots
 end
 
@@ -191,7 +193,7 @@ function PrepareElectricLoads(Multinode_Inputs)
     if  Multinode_Inputs.critical_load_method == "Fraction"
         load_profiles_for_outage_sim_if_using_the_fraction_method = Dict([])
         for REopt_inputs in REopt_inputs_all_nodes
-            load_profiles_for_outage_sim_if_using_the_fraction_method[REopt_inputs["Site"]["node"]] = deepcopy( REopt_inputs["ElectricLoad"]["loads_kw"] )
+            load_profiles_for_outage_sim_if_using_the_fraction_method[string(REopt_inputs["Site"]["node"])] = deepcopy( REopt_inputs["ElectricLoad"]["loads_kw"] ) # The outage simulator looks up the nodes as strings
         end
         Multinode_Inputs.load_profiles_for_outage_sim_if_using_the_fraction_method = load_profiles_for_outage_sim_if_using_the_fraction_method
     else
@@ -206,6 +208,19 @@ function PrepareElectricLoads(Multinode_Inputs)
                 if sum(Multinode_Inputs.REopt_inputs_list[i]["ElectricLoad"]["loads_kw"]) > 0 # only apply the critical load fraction if there is a load on the node
 
                     node = Multinode_Inputs.REopt_inputs_list[i]["Site"]["node"]
+
+                    # Check that the critical load inputs for the node are defined
+                    if Multinode_Inputs.critical_load_method == "Fraction"
+                        if !(string(node) in keys(Multinode_Inputs.critical_load_fraction))
+                            throw(@error("Node $(node) is not listed in the critical_load_fraction dictionary"))
+                        end
+                    elseif Multinode_Inputs.critical_load_method == "TimeSeries"
+                        if !(string(node) in keys(Multinode_Inputs.critical_load_timeseries))
+                            throw(@error("Node $(node) is not listed in the critical_load_timeseries dictionary"))
+                        end
+                    elseif Multinode_Inputs.critical_load_method != "N/A" # With "N/A", the loads are not changed during the outages
+                        throw(@error("Invalid method for generating a critical load was provided"))
+                    end
                     
                     load_segment_initial = deepcopy(Multinode_Inputs.REopt_inputs_list[i]["ElectricLoad"]["loads_kw"])
                     for outage_timestep in Multinode_Inputs.outages_vector
@@ -220,8 +235,8 @@ function PrepareElectricLoads(Multinode_Inputs)
         end
     elseif Multinode_Inputs.single_outage_end_time_step - Multinode_Inputs.single_outage_start_time_step > 0
         
-        OutageStart = Multinode_Inputs.single_outage_start_time_step
-        OutageEnd = Multinode_Inputs.single_outage_end_time_step
+        OutageStart = Int(Multinode_Inputs.single_outage_start_time_step)
+        OutageEnd = Int(Multinode_Inputs.single_outage_end_time_step)
 
         for i in 1:length(Multinode_Inputs.REopt_inputs_list)
             
@@ -242,7 +257,7 @@ function PrepareElectricLoads(Multinode_Inputs)
                 if sum(Multinode_Inputs.REopt_inputs_list[i]["ElectricLoad"]["loads_kw"]) > 0 
                     load_segment_initial = deepcopy(Multinode_Inputs.REopt_inputs_list[i]["ElectricLoad"]["loads_kw"])
                     load_segment_modified = deepcopy(load_segment_initial)
-                    if !(string(node) in keys(critical_load_timeseries))
+                    if !(string(node) in keys(Multinode_Inputs.critical_load_timeseries))
                         throw(@error("Node $(node) is not listed in the critical_load_timeseries dictionary"))
                     end
                     load_segment_modified[OutageStart:OutageEnd] = Multinode_Inputs.critical_load_timeseries[string(node)][OutageStart:OutageEnd]                    
@@ -298,13 +313,13 @@ end
 
 
 function create_list_of_upgradable_lines(Multinode_Inputs)
-    # Create a list lines that are upgradable
+    # Create a list lines that are upgradable (a line is upgradable if it is listed in the locations of any of the upgrade options)
 
-    lines_for_upgrades_temp = []
+    lines_for_upgrades = []
     for i in keys(Multinode_Inputs.line_upgrade_options)
-        push!(lines_for_upgrades_temp, Multinode_Inputs.line_upgrade_options[i]["locations"]) 
+        append!(lines_for_upgrades, Multinode_Inputs.line_upgrade_options[i]["locations"]) 
     end
-    lines_for_upgrades = unique!(lines_for_upgrades_temp)[1]
+    lines_for_upgrades = unique(lines_for_upgrades)
 
     return lines_for_upgrades
 end
@@ -324,8 +339,7 @@ function CreateDictionaryOfLineUpgradeOptions(Multinode_Inputs)
                 if line ∉ keys(line_upgrade_options_each_line) # create a new entry for that line if it is not in the line_upgrade_options_each_line dictionary
 
                     line_upgrade_options_each_line[line] = Dict([("max_amperage", [Multinode_Inputs.line_upgrade_options[i]["max_amps"]]),
-                                                                    ("cost_per_length", [Multinode_Inputs.line_upgrade_options[i]["cost_per_meter"]]),
-                                                                    ("voltage_kv", Multinode_Inputs.line_upgrade_options[i]["voltage_kv"]) # all upgrade options for a given line should have the same voltage
+                                                                    ("cost_per_length", [Multinode_Inputs.line_upgrade_options[i]["cost_per_meter"]])
                                                                     #("rvalues", [Multinode_Inputs.line_upgrade_options[i]["rvalues"]]),
                                                                     #("xvalues", [Multinode_Inputs.line_upgrade_options[i]["xvalues"]])
                                                                             ])            
@@ -369,7 +383,7 @@ function model_line_upgrades(pm, Multinode_Inputs, LineInfo, data_eng)
 
         # Constraint for limiting the power flow through line xxxx to the line_max_amps variable constrained
         i = LineInfo[line]["index"]
-        
+        line_to_neutral_voltage_kv = LineInfo[line]["line_to_neutral_voltage_kv"] # From the PMD model, so the user does not need to enter a voltage
         # Based off of code in line 470 of PMD's src>core>constraint_template
         timestep = 1 # collect the network configuration information from timestep 1, which assumes that the network is not changing (fair to assume with the REopt integration)
         branch = PowerModelsDistribution.ref(pm, timestep, :branch, i)
@@ -385,18 +399,20 @@ function model_line_upgrades(pm, Multinode_Inputs, LineInfo, data_eng)
             print("\n The t_idx for line $(line) is $(t_idx)")
         end
 
-        for timestep in Multinode_Inputs.PMD_time_steps
-            PMD_time_step = findall(x -> x==timestep, Multinode_Inputs.PMD_time_steps)[1] #use the [1] to convert the 1-element vector into an integer
-            
+        for PMD_time_step in 1:length(Multinode_Inputs.PMD_time_steps)
             p_fr = [PowerModelsDistribution.var(pm, PMD_time_step, :p, f_idx)[c] for c in f_connections]
             p_to = [PowerModelsDistribution.var(pm, PMD_time_step, :p, t_idx)[c] for c in t_connections]
             
-            @constraint(pm.model, p_fr[1] <= pm.model[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"])
-            @constraint(pm.model, p_fr[1] >= -pm.model[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"])
+            # The vectors are indexed by position, and the power flow on every phase of the line is limited. The limit for each phase is the current rating multiplied by the line-to-neutral voltage from the PMD model
+            for k in eachindex(p_fr)
+                @constraint(pm.model, p_fr[k] <= pm.model[:line_max_amps][line] * line_to_neutral_voltage_kv)
+                @constraint(pm.model, p_fr[k] >= -pm.model[:line_max_amps][line] * line_to_neutral_voltage_kv)
+            end
 
-            @constraint(pm.model, p_to[1] <= pm.model[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"]) 
-            @constraint(pm.model, p_to[1] >= -pm.model[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"]) 
-            
+            for k in eachindex(p_to)
+                @constraint(pm.model, p_to[k] <= pm.model[:line_max_amps][line] * line_to_neutral_voltage_kv) 
+                @constraint(pm.model, p_to[k] >= -pm.model[:line_max_amps][line] * line_to_neutral_voltage_kv) 
+            end
         end
     end
     
@@ -467,9 +483,10 @@ end
 function SetTechSizesToZero(Multinode_Settings)
     
     Multinode_Settings_No_Techs = deepcopy(Multinode_Settings)
+    facilitymeter_node = string(Multinode_Settings["facilitymeter_node"])
 
     for i in 1:length(Multinode_Settings_No_Techs["REopt_inputs_list"])
-        if ("PV" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])) && (string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != Multinode_Settings["facilitymeter_node"])
+        if ("PV" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])) && (string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != facilitymeter_node)
             delete!(Multinode_Settings_No_Techs["REopt_inputs_list"][i], "PV")
         end
         if "ElectricStorage" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])
@@ -478,18 +495,18 @@ function SetTechSizesToZero(Multinode_Settings)
         if "Generator" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])
             delete!(Multinode_Settings_No_Techs["REopt_inputs_list"][i], "Generator")
         end
-        if string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != Multinode_Settings["facilitymeter_node"]
-            Multinode_Settings_No_Techs["REopt_inputs_list"][i]["ElectricUtility"]["net_metering_limit_kw"] = 0
-            Multinode_Settings_No_Techs["REopt_inputs_list"][i]["ElectricUtility"]["interconnection_limit_kw"] = 0
+        if string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != facilitymeter_node
+            electric_utility_inputs["net_metering_limit_kw"] = 0
+            electric_utility_inputs["interconnection_limit_kw"] = 0
             #Multinode_Settings_No_Techs["REopt_inputs_list"][i]["PV"]["can_net_meter"] = false
         end
     end
     
     Multinode_Settings_No_Techs["single_outage_start_time_step"] = 5
     Multinode_Settings_No_Techs["single_outage_end_time_step"] = 5 # set to same time as outage start time step so a single outage is not modeled
+    Multinode_Settings_No_Techs["model_outages_with_outages_vector"] = false
     Multinode_Settings_No_Techs["outages_vector"] = []
     Multinode_Settings_No_Techs["run_outage_simulator"] = false
-    Multinode_Settings_No_Techs["generate_CSV_of_outputs"] = false
     Multinode_Settings_No_Techs["model_line_upgrades"] = false
     Multinode_Settings_No_Techs["model_transformer_upgrades"] = false
     Multinode_Settings_No_Techs["allow_export_beyond_substation"] = false
@@ -507,6 +524,7 @@ function ApplyDataEngSettings(data_eng, Multinode_Inputs)
     # Apply several miscellaneous settings to the data_eng dictionary
 
     data_eng["settings"]["sbase_default"] = 1.0*1E3/data_eng["settings"]["power_scale_factor"] # Set the power base (sbase) equal to 1 kW
+    
     data_eng["voltage_source"]["source"]["bus"] = Multinode_Inputs.substation_node # "sourcebus"
     data_eng["settings"]["name"] = "OptimizationModel" 
     
@@ -517,6 +535,15 @@ function ApplyDataEngSettings(data_eng, Multinode_Inputs)
         neutral_ub_pu = Multinode_Inputs.bus_neutral_voltage_upper_bound_per_unit
     )
 
+end
+
+
+function CheckThatPMDLoadExists(data_eng, load_name, node)
+    # This function was generated with the assistance of AI.
+    # Each REopt node needs a load with the expected name in the PMD network
+    if !haskey(data_eng["load"], load_name)
+        throw(@error("The load \"$(load_name)\" for REopt node $(node) is not in the PMD network. The loads in the network are: $(sort(collect(keys(data_eng["load"]))))"))
+    end
 end
 
 
@@ -531,6 +558,7 @@ function ApplyLoadProfileToPMDModel(Multinode_Inputs, data_eng, PMD_number_of_ti
 
     if Multinode_Inputs.number_of_phases == 1
         for i in REopt_nodes
+            CheckThatPMDLoadExists(data_eng, "load$(i)", i)
             data_eng["load"]["load$(i)"]["time_series"] = Dict(
                     "pd_nom"=>"normalized_load_profile",
                     "qd_nom"=> "normalized_load_profile"
@@ -544,6 +572,7 @@ function ApplyLoadProfileToPMDModel(Multinode_Inputs, data_eng, PMD_number_of_ti
                     if Multinode_Inputs.display_information_during_modeling_run
                         print("\n Adding PMD load empty time series to REopt node $(node), phase $(phase)")
                     end
+                    CheckThatPMDLoadExists(data_eng, "load$(node)_phase$(phase)", node)
                     data_eng["load"]["load$(node)_phase$(phase)"]["time_series"] = Dict(
                             "pd_nom"=>"normalized_load_profile",
                             "qd_nom"=> "normalized_load_profile"
@@ -590,7 +619,24 @@ function CreatePMDGenerators(Multinode_Inputs, data_eng, REopt_nodes; combined_R
             end
         end
     else
-        throw(@error("The number_of_phases for node $(i) is invalid"))
+        throw(@error("The number_of_phases, $(Multinode_Inputs.number_of_phases), is invalid"))
+    end
+end
+
+
+function RemoveCurrentLimitsFromUpgradableLines!(data_eng, Multinode_Inputs)
+    # Note: This function was generated with the assistance of AI.
+    # The current limit (cm_ub) of the lines that can be upgraded is removed so that the original rating does not cap the power flow after an upgrade. 
+    # The limit with the upgrade is applied through the line upgrade constraints.
+    for line in create_list_of_upgradable_lines(Multinode_Inputs)
+        if !haskey(get(data_eng, "line", Dict()), line)
+            continue # The line name is checked in RunDataChecks
+        end
+        line_data = data_eng["line"][line]
+        # The linecode is applied to the line first, and then removed from it, because PMD would otherwise copy the cm_ub from the linecode back to the line when creating the math model
+        PowerModelsDistribution._apply_linecode!(line_data, data_eng)
+        delete!(line_data, "linecode")
+        delete!(line_data, "cm_ub")
     end
 end
 
@@ -599,16 +645,19 @@ function Create_PMD_Model_For_REopt_Integration(Multinode_Inputs, PMD_number_of_
     
     if typeof(Multinode_Inputs.PMD_network_input) == String 
         print("\n Parsing the network input file \n")
-        data_eng = PowerModelsDistribution.parse_file(Multinode_Inputs.PMD_network_input, transformations=[PowerModelsDistribution.remove_all_bounds!])
+        data_eng = PowerModelsDistribution.parse_file(Multinode_Inputs.PMD_network_input) #, transformations=[PowerModelsDistribution.remove_all_bounds!])
         @info "Completed parsing the .dss file"
-    elseif typeof(Multinode_Inputs.PMD_network_input) == Dict{String, Any}
-        print("\n Saving the PMD network input as a variable")
-        data_eng = Multinode_Inputs.PMD_network_input
-        print("\n Completed the PMD network input as a variable")
+    elseif Multinode_Inputs.PMD_network_input isa AbstractDict
+        print("\n Saving the already-parsed PMD network input as a variable")
+        data_eng = deepcopy(Multinode_Inputs.PMD_network_input) # A copy is used because the data_eng dictionary is modified below, and this function is called multiple times (such as for each outage simulation)
+        print("\n Completed saving the PMD network input as a variable")
     else
         throw(@error("The PMD_network_input input format is not valid"))
     end 
-    
+
+    PowerModelsDistribution.remove_all_bounds!(data_eng; exclude = ["cm_ub","sm_ub","energy_ub"]) # Note: voltage bounds are manually applied later
+    RemoveCurrentLimitsFromUpgradableLines!(data_eng, Multinode_Inputs)
+
     data_eng_keys = keys(data_eng)
     print("\n The data_eng keys are $(data_eng_keys)")
     #print("\n The data_eng bus keys are $(keys(data_eng["bus"]))")
@@ -738,6 +787,19 @@ function Create_PMD_Model_For_REopt_Integration(Multinode_Inputs, PMD_number_of_
 end
 
 
+function TotalGridPurchaseAtNode(m, node, time_step)
+    # This function was generated with the assistance of AI.
+    # The total power purchased from the grid at a REopt node in a time step. The facility meter node is indexed by energy tier (and the total is the sum over the tiers), 
+    # and the other nodes are not indexed by energy tier because tiered energy rates are only supported at the facility meter node
+    grid_purchase = m[Symbol("dvGridPurchase_"*string(node))]
+    if ndims(grid_purchase) == 1
+        return grid_purchase[time_step]
+    else
+        return sum(grid_purchase[time_step, tier] for tier in axes(grid_purchase, 2))
+    end
+end
+
+
 function CreateREoptTotalExportVariables(m, REoptInputs_Combined)
     # Create Total Export variables for each REopt node, except for the facility meter node
 
@@ -832,8 +894,10 @@ function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REo
 
         REopt_gen_ind_e = []
         
-        print("\n Gen name to index: ")
-        print(gen_name2ind)
+        if Multinode_Inputs.display_information_during_modeling_run
+            print("\n Gen name to index: ")
+            print(gen_name2ind)
+        end
 
         for e in REopt_nodes
             for phase in load_phase_dictionary[e]
@@ -867,7 +931,7 @@ function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REo
         
         # Note: evenly split the total export and import across each phase associated with that load (aka REopt node, aka PMD generator)
         JuMP.@constraint(m, [k in PMDTimeSteps_Indeces],  
-                            PowerModelsDistribution.var(pm, k, :pg, e).data[1] .== round((1/number_of_phases_at_load), digits = 3) * (m[Symbol("TotalExport_"*string(gen_ind_e_to_REopt_node[e]))][PMDTimeSteps_InREoptTimes[k]] - m[Symbol("dvGridPurchase_"*string(gen_ind_e_to_REopt_node[e]))][PMDTimeSteps_InREoptTimes[k]])   # negative power "generation" is a load
+                            PowerModelsDistribution.var(pm, k, :pg, e).data[1] .== round((1/number_of_phases_at_load), digits = 6) * (m[Symbol("TotalExport_"*string(gen_ind_e_to_REopt_node[e]))][PMDTimeSteps_InREoptTimes[k]] - TotalGridPurchaseAtNode(m, gen_ind_e_to_REopt_node[e], PMDTimeSteps_InREoptTimes[k]))   # negative power "generation" is a load
         )
         
         # TODO: add reactive power to the REopt nodes
@@ -886,7 +950,7 @@ end
 function add_transformer_lines_to_the_dictionary(data_eng, lines, phases_for_each_line)
     # Represent transformers as lines because voltage is not modeled in the simple powerflow representation without PMD
 
-    transformers = collect(keys(data_eng["transformer"]))
+    transformers = collect(keys(get(data_eng, "transformer", Dict()))) # The network might not have any transformers
     transformer_busses = Dict()
     for transformer_name in transformers
         transformer_bus1 = data_eng["transformer"][transformer_name]["bus"][1]
@@ -899,12 +963,15 @@ function add_transformer_lines_to_the_dictionary(data_eng, lines, phases_for_eac
             print("\n Not adding $(transformer_line) to the lines vector because it already exists. This is likely due to a multiple single phase transformers (or voltage regulators) connecting the same busses. The total power rating for these may need to be added together in the model inputs.")
         end
 
+        # Remove the 4 connection (the neutral I think) for the purposes of this simple powerflow equation. Note: filter (not filter!) is used so that the transformer connections in data_eng are not modified
+        transformer_phases = filter(x -> x != 4, data_eng["transformer"][transformer_name]["connections"][1])
+
         # Add the phases for the transformer line to dictionary:
         if !(transformer_line in collect(keys(phases_for_each_line)))  # use this conditional to avoid adding multiple lines for the same connection between two nodes (could occur if there are single phase transformers or voltage regulators connecting each of of two adjacent three-phase busses)
-            phases_for_each_line[transformer_line] = filter!(x -> x != 4, data_eng["transformer"][transformer_name]["connections"][1]) # Remove the 4 connection (the neutral I think) for the purposes of this simple powerflow equation
+            phases_for_each_line[transformer_line] = transformer_phases
         else
             # Add the phase to the existing line between the two busses (which is from another transformer or voltage regulator, likely a single phase transformer connecting the same two busses)
-            append!(phases_for_each_line[transformer_line], filter!(x -> x != 4, data_eng["transformer"][transformer_name]["connections"][1])) 
+            phases_for_each_line[transformer_line] = unique(vcat(phases_for_each_line[transformer_line], transformer_phases))
         end
     end
 
@@ -1093,7 +1160,7 @@ function create_dictionary_of_phases_for_each_line(data_eng)
     data = Dict([])
 
     for line in keys(data_eng["line"])
-        data[line] = data_eng["line"][line]["t_connections"]
+        data[line] = filter(x -> x != 4, data_eng["line"][line]["t_connections"]) # remove the 4 (the neutral) to get the phase numbers, as is done for the busses and transformers. A new array is created so that data_eng is not modified
     end
     
     return data
@@ -1108,6 +1175,121 @@ function create_dictionary_of_phases_for_each_bus(data_eng)
     end
 
     return data
+end
+
+
+function BusNameMismatchMessage(node, bus_names)
+    # This function was generated with the assistance of AI.
+    # Generates an error message for a REopt node that is not a bus in the PMD network. Bus names are case sensitive, and are converted to lowercase when a .dss file is parsed
+    case_insensitive_matches = filter(bus -> lowercase(bus) == lowercase(string(node)), string.(bus_names))
+    message = "The REopt node $(node) is not a bus in the PMD network."
+    if !isempty(case_insensitive_matches)
+        message *= " A bus named $(case_insensitive_matches) was found, so the node needs to be entered with the same capitalization as the bus name. Note that bus names are converted to lowercase when a .dss file is parsed."
+    else
+        message *= " The busses in the PMD network are: $(sort(string.(bus_names)))"
+    end
+    return message
+end
+
+
+function CheckThatREoptNodesAreBusses(Multinode_Inputs, data_eng)
+    # This function was generated with the assistance of AI.
+    # Check that each REopt node (the facility meter node is not included) is a bus in the PMD network, with the same name
+    bus_names = string.(collect(keys(data_eng["bus"])))
+    for node in GenerateREoptNodesList(Multinode_Inputs)
+        if !(string(node) in bus_names)
+            throw(@error(BusNameMismatchMessage(node, bus_names)))
+        end
+    end
+end
+
+
+function BusPhasesForREoptNode(phases_for_each_bus, node)
+    # This function was generated with the assistance of AI.
+    # The phases of the bus that is associated with a REopt node
+    if !haskey(phases_for_each_bus, string(node))
+        throw(@error(BusNameMismatchMessage(node, collect(keys(phases_for_each_bus)))))
+    end
+    return phases_for_each_bus[string(node)]
+end
+
+
+function TransformerRatingPerPhaseKw(transformer)
+    # Note: this function was generated by AI
+    # The nominal power rating (sm_nom, in kVA) of the first winding of the transformer, divided evenly across the phases of the transformer (the neutral, terminal 4, is not a phase). 
+    # Returns Inf if the transformer does not have a rating
+    phases = filter(x -> x != 4, transformer["connections"][1])
+    has_rating = haskey(transformer, "sm_nom") && !ismissing(transformer["sm_nom"]) && !isempty(transformer["sm_nom"])
+    rating_kva = has_rating ? Float64(first(transformer["sm_nom"])) : Inf
+    return rating_kva / length(phases), phases
+end
+
+
+function CreateTransformerPowerLimitsForEachPhase(data_eng)
+    # Note: this function was generated by AI
+    # Creates a dictionary of the power limit (in kW) of each phase for each transformer line (the lines that represent transformers in the simple powerflow model). 
+    # The limit is based on the nominal power rating (sm_nom, in kVA) of the first winding of each transformer, divided evenly across the phases of the transformer. 
+    # If multiple transformers are represented by the same line (such as single phase transformers), their limits are added for each phase. 
+    # A transformer without a rating has no limit (Inf), which makes the limit infinite for the phases of that transformer.
+    # Note that the real power limit is set equal to the apparent power rating (kVA), which assumes a power factor of one.
+    limits = Dict{String, Dict{Int, Float64}}()
+    for (transformer_name, transformer) in get(data_eng, "transformer", Dict())
+        transformer_line = "xfmr_line_"*string(transformer["bus"][1])*"_"*string(transformer["bus"][2])
+        rating_per_phase_kw, phases = TransformerRatingPerPhaseKw(transformer)
+        limits_for_line = get!(limits, transformer_line, Dict{Int, Float64}())
+        for phase in phases
+            limits_for_line[phase] = get(limits_for_line, phase, 0.0) + rating_per_phase_kw
+        end
+    end
+    return limits
+end
+
+
+function AddTransformerPowerLimitsToPMDTimesteps(pm, data_eng, data_math_mn)
+    # Note: this function was generated by AI
+    # Adds linear limits to the real power through each phase of the PMD transformers, which are the same limits that the simple power flow model uses (the nominal kVA rating divided by the number of phases). 
+    # PMD only limits each phase of a transformer to the full rating of the transformer (sm_ub), which does not limit the transformer to the rating divided by the number of phases.
+    # The ratings are from data_eng, and each transformer in the PMD model is matched to a transformer in data_eng by its name. A transformer in the PMD model is either 
+    # named the same as the transformer in data_eng or, when the loss model is used, it is a "_virtual_transformer.<name>.<winding number>" for each winding
+    rating_per_phase_kw = Dict{String, Float64}()
+    for (transformer_name, transformer) in get(data_eng, "transformer", Dict())
+        rating, _ = TransformerRatingPerPhaseKw(transformer)
+        if rating < Inf
+            rating_per_phase_kw[string(transformer_name)] = rating
+            for winding in eachindex(transformer["bus"])
+                rating_per_phase_kw["_virtual_transformer.$(transformer_name).$(winding)"] = rating
+            end
+        end
+    end
+
+    sbase = get(data_math_mn["nw"]["1"]["settings"], "sbase", 1.0) # The PMD power variables are in per unit, and the base power is in kW (as is used in CreateLineInfoDictionary)
+    number_of_limits = 0
+
+    for nw in PowerModelsDistribution.nw_ids(pm)
+        pt = PowerModelsDistribution.var(pm, nw, :pt)
+        connections = Dict((l,i,j) => conns for (bus, entry) in PowerModelsDistribution.ref(pm, nw, :bus_arcs_conns_transformer) for ((l,i,j), conns) in entry)
+
+        for (l, transformer) in PowerModelsDistribution.ref(pm, nw, :transformer)
+            name = string(get(transformer, "name", ""))
+            if !haskey(rating_per_phase_kw, name)
+                continue # No limit, because the transformer does not have a rating
+            end
+            limit = rating_per_phase_kw[name] / sbase
+
+            for arc in [(l, transformer["f_bus"], transformer["t_bus"]), (l, transformer["t_bus"], transformer["f_bus"])]
+                for c in connections[arc]
+                    if c == 4
+                        continue # the neutral
+                    end
+                    @constraint(pm.model, pt[arc][c] <= limit)
+                    @constraint(pm.model, pt[arc][c] >= -limit)
+                    number_of_limits += 2
+                end
+            end
+        end
+    end
+
+    print("\n Added $(number_of_limits) transformer power limits to the PMD timesteps")
 end
 
 
@@ -1173,34 +1355,27 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
     print("\n Completed dvP variable generation")
        
     phases_for_each_line = phases_for_each_line_and_transformer_line
+
+    # The power limit for each phase of the lines that represent transformers, based on the transformer ratings. Phases of transformers without a rating are not limited (the 100000000 kW is a large number that represents no limit)
+    transformer_power_limits = CreateTransformerPowerLimitsForEachPhase(data_eng)
+    transformer_limit_kw(line, phase) = min(get(get(transformer_power_limits, line, Dict{Int,Float64}()), phase, Inf), 100000000.0)
     
-    # Add constraints for maximum power through each line
+    # Add constraints for maximum power through each line. The power flow variables are per phase, so the limit for each phase of a line is the current rating of the line multiplied by the line-to-neutral voltage (LineInfo[line]["maximum_power_kw"] is also the limit for each phase)
     if Multinode_Inputs.model_line_upgrades
         print("Adding simple powerflow constraints to allow for line upgrades")
         line_upgrade_options_each_line = CreateDictionaryOfLineUpgradeOptions(Multinode_Inputs)
         for line in lines
-            
-            if line in collect(keys(phases_for_each_line)) # prevent looking for a line if it is a virtual line part of a transformer
-                if length(phases_for_each_line[line]) == 3 
-                    multiphase_multiplier = sqrt(3) # Use the sqrt(3) factor for three-phase lines
-                else
-                    # Don't use the sqrt(3) factor for single phase or two phase lines. This assumes that a two-phase system is a 4-wire two phase system where each phase has its own nuetral (instead of a 3-wire two phase system)
-                    multiphase_multiplier = 1
-                end
-            else
-                multiphase_multiplier = 1
-            end
 
             if line in keys(line_upgrade_options_each_line)
               
-                # Note: line amperage ratings are for each conductor in a multiphase system
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], dvPline[line, phase, t] <= m[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"] * multiphase_multiplier)
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], dvPline[line, phase, t] >= -m[:line_max_amps][line] * line_upgrade_options_each_line[line]["voltage_kv"] * multiphase_multiplier)
+                # Note: line amperage ratings are for each conductor in a multiphase system. The limit for each phase is the current rating multiplied by the line-to-neutral voltage from the PMD model
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], dvPline[line, phase, t] <= m[:line_max_amps][line] * LineInfo[line]["line_to_neutral_voltage_kv"])
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], dvPline[line, phase, t] >= -m[:line_max_amps][line] * LineInfo[line]["line_to_neutral_voltage_kv"])
 
             elseif line in keys(transformer_busses)
-                # Note: transformer power ratings are for power going through all phases combined, but for simplicity
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] .<= 100000000 / 1) # TODO: replace the 10000000 with the transformer power rating add maximum transformer power
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] .>= -100000000 / 1)
+                # Note: the transformer power rating is divided evenly across the phases of the transformer
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= transformer_limit_kw(line, phase))
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] >= -transformer_limit_kw(line, phase))
             else
                 if LineInfo[line]["maximum_power_kw"] == Inf
                     line_max_power = 1000000000 #LineInfo[line]["maximum_power_kw"]
@@ -1208,7 +1383,7 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
                         print("\n Line max power for line $(line) is infinite, setting the line_max_power for $(line) to $(line_max_power)")
                     end
                 else
-                    line_max_power = LineInfo[line]["maximum_power_kw"] * multiphase_multiplier
+                    line_max_power = LineInfo[line]["maximum_power_kw"]
                 end
                 
                 @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= line_max_power) # Defines the maximum real power flow through the line
@@ -1224,16 +1399,16 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
                 if Multinode_Inputs.display_information_during_modeling_run
                     print("  this is a line that was derived from a transformer")
                 end
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= 100000000 / 1) # TODO: replace the 10000000 with the transformer power rating add maximum transformer power
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] >= -100000000 / 1)
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= transformer_limit_kw(line, phase))
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] >= -transformer_limit_kw(line, phase))
             else
                 if LineInfo[line]["maximum_power_kw"] == Inf
                     line_max_power = 1000000000 #LineInfo[line]["maximum_power_kw"]
                 else
-                    line_max_power = LineInfo[line]["maximum_power_kw"] * multiphase_multiplier
+                    line_max_power = LineInfo[line]["maximum_power_kw"]
                 end
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= line_max_power) # LineInfo[line]["maximum_power_kw"] * multiphase_multiplier) # Defines the maximum real power flow through the line
-                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] >= -line_max_power) # LineInfo[line]["maximum_power_kw"] * multiphase_multiplier)
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] <= line_max_power) # Defines the maximum real power flow through the line
+                @constraint(m, [t in indeces, phase in phases_for_each_line[line]], m[:dvPline][line, phase, t] >= -line_max_power)
                 #@constraint(m, m[:dvQline][line, t] <= )
                 #@constraint(m, m[:dvQline][line, t] >= 0)
             end
@@ -1242,6 +1417,27 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
     end
     
     counter = 0
+
+    # ----- Start of section of code that was generated with the assistance of AI
+    # The phases that each REopt node uses. In a single phase model, the phase numbers are not used, so the node uses the phases of its bus. 
+    # In a multi-phase model, the node's power is split across the phases defined for the node (as is done when the node is linked to PMD), and the other phases of the bus have no injection
+    REopt_node_phases = Dict{String, Vector{Int}}()
+    for p in REoptInputs_Combined
+        node_name = string(p.s.site.node)
+        if node_name in string.(REopt_nodes)
+            bus_phases = BusPhasesForREoptNode(phases_for_each_bus, node_name)
+            if Multinode_Inputs.number_of_phases == 1
+                REopt_node_phases[node_name] = collect(bus_phases)
+            else
+                node_phases = collect(p.s.settings.phase_numbers)
+                if !all(phase -> phase in bus_phases, node_phases)
+                    throw(@error("REopt node $(node_name) has the phases $(node_phases), but the bus has the phases $(bus_phases). All of the phases of a REopt node must be phases of the bus."))
+                end
+                REopt_node_phases[node_name] = node_phases
+            end
+        end
+    end
+    # ----- End of section of code that was generated with the assistance of AI
 
     # Link this simple powerflow model to the REopt nodes
     Multinode_Inputs.display_information_during_modeling_run ? print("\n Information about connecting the REopt nodes to the simple powerflow model") : nothing
@@ -1252,15 +1448,17 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
                 if counter in [1,2] # print information only for the first two timesteps
                     Multinode_Inputs.display_information_during_modeling_run ? print("\n Connecting REopt node $(node) to the simple powerflow model") : nothing
                 end
-                for phase in phases_for_each_bus[string(node)]
-                    # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase
-                    @constraint(m, m[:dvP][string(node), phase, index] .== (1/length(phases_for_each_bus[string(node)])) .* ((m[Symbol("TotalExport_"*string(node))][t]) .- (m[Symbol("dvGridPurchase_"*string(node))][t])) ) # To do: double check that these variable names are correct
+                node_phases = REopt_node_phases[string(node)]
+                for phase in BusPhasesForREoptNode(phases_for_each_bus, node)
+                    # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase of the node. Phases of the bus that are not phases of the node have no power injection
+                    phase_fraction = phase in node_phases ? 1/length(node_phases) : 0.0
+                    @constraint(m, m[:dvP][string(node), phase, index] .== phase_fraction .* ((m[Symbol("TotalExport_"*string(node))][t]) .- TotalGridPurchaseAtNode(m, node, t)) ) # To do: double check that these variable names are correct
                     
                     if Multinode_Inputs.display_information_during_modeling_run 
                         if t in [1,2] # print out some information for the first couple timesteps
-                            print("\n For node $(node), the phases_for_each_bus are: $(phases_for_each_bus[string(node)]), with a length of $(length(phases_for_each_bus[string(node)]))")
+                            print("\n For node $(node), the phases_for_each_bus are: $(phases_for_each_bus[string(node)]), and the phases of the node are $(node_phases)")
                             print("\n    The index is $(index), and the t i $(t), and the phase is $(phase)")
-                            print("\n    (1/length(phases_for_each_bus[string(node)])) is $((1/length(phases_for_each_bus[string(node)])))")
+                            print("\n    The fraction of the node's power on the phase is $(phase_fraction)")
                         end
                     end
                 
@@ -1302,8 +1500,11 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
             end
         end
     end
-  print("\n The phases for each bus are: $(phases_for_each_bus)")
-  print("\n The REopt nodes are: $(REopt_nodes)")
+    if Multinode_Inputs.display_information_during_modeling_run
+        print("\n The phases for each bus are: $(phases_for_each_bus)")
+        print("\n The REopt nodes are: $(REopt_nodes)")
+    end
+    REopt_node_names = string.(REopt_nodes) # The busses are strings, and the REopt nodes can be integers or strings
     # Conservation of energy for each bus
     for bus in collect(keys(connections)) # all_busses #
         bus_connections = connections[bus]
@@ -1333,7 +1534,7 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
             end
             # End of code segment created by AI
             
-        elseif bus in REopt_nodes # parse(Int, bus) in REopt_nodes  # for buses that have an associated REopt node
+        elseif bus in REopt_node_names # for buses that have an associated REopt node
             Multinode_Inputs.display_information_during_modeling_run ? print("\n Adding constraint for REopt bus $(bus):") : nothing
             if length(connections_downstream[bus]) > 0
                 Multinode_Inputs.display_information_during_modeling_run ? print(" mid-branch") : nothing
@@ -1432,6 +1633,7 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
 
     REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node = LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REoptInputs_Combined; gen_name2ind=gen_name2ind, load_phase_dictionary=load_phase_dictionary, gen_ind_e_to_REopt_node=gen_ind_e_to_REopt_node)
     LineInfo = CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
+    AddTransformerPowerLimitsToPMDTimesteps(pm, data_eng, data_math_mn)
     REoptTimeSteps = collect(1:(Multinode_Inputs.time_steps_per_hour * 8760))
     
     line_upgrade_options_each_line = "N/A"
@@ -1546,7 +1748,7 @@ function add_bus_voltage_violation_to_the_model(pm, Multinode_Inputs)
     # Calculate the total cost of the bus voltage violations
     @variable(model, dvBusVoltageViolationCost, lower_bound = 0)
 
-    @constraint(model, model[:dvBusVoltageViolationCost] == sum(model[:binBusVoltageViolation][bus_name, PMD_time_step] for bus_name in bus_names, PMD_time_step in PMD_time_steps))
+    @constraint(model, model[:dvBusVoltageViolationCost] == Multinode_Inputs.cost_per_voltage_violation_per_timestep * sum(model[:binBusVoltageViolation][bus_name, PMD_time_step] for bus_name in bus_names, PMD_time_step in PMD_time_steps))
 
 end
 
@@ -1568,7 +1770,7 @@ function ApplyGridImportAndExportConstraints(Multinode_Inputs, REoptInputs_Combi
         RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Export_Limit = Multinode_Inputs.substation_export_limit, phases_for_each_line=phases_for_each_line)
     end 
     
-    if Multinode_Inputs.substation_import_limit != ""
+    if isfinite(Multinode_Inputs.substation_import_limit) # An infinite import limit means that there is no limit
         print("\n Applying a limit to the power import from the substation")
         RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, Multinode_Inputs.substation_line, REoptTimeSteps, LineInfo, data_eng; Substation_Import_Limit = Multinode_Inputs.substation_import_limit, phases_for_each_line=phases_for_each_line)
     end 
@@ -1664,7 +1866,7 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                             q_to = [PowerModelsDistribution.var(pm, PMD_time_step, :q, t_idx)[c] for c in t_connections]
                         end
 
-                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(p_fr[phase] for phase in f_connections))
+                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(p_fr))
                     
                     elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD      
                         simple_powerflow_timestep = simple_pf_index_of[timestep]
@@ -1673,14 +1875,15 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                     else
                         # Instead of using the line flow from PMD or the simple powerflow model, consider the total system inflow/outflow to be based on a lumped-element model, which sums all power inflows and outflows for each node
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] ==
-                            (-sum(m[Symbol("TotalExport_"*string(gen_ind_e_to_REopt_node[e]))][timestep] for e in REopt_gen_ind_e) + 
-                            sum(m[Symbol("dvGridPurchase_"*string(gen_ind_e_to_REopt_node[e]))][timestep] for e in REopt_gen_ind_e)))
+                            (-sum(m[Symbol("TotalExport_"*string(node))][timestep] for node in REopt_nodes) + 
+                            sum(TotalGridPurchaseAtNode(m, node, timestep) for node in REopt_nodes)))
                     end
 
                     @constraint(m, m[:dvSubstationPowerFlow][timestep] == (sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) - 
                                                                                 sum(m[Symbol("dvProductionToGrid_"*p.s.settings.facilitymeter_node)]["PV", u, timestep] for u in p.export_bins_by_tech["PV"]))) 
             
-                    @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) <= Multinode_Inputs.substation_import_limit * m[:binSubstationPositivePowerFlow][timestep])
+                    # The import limit is used with the binary to prevent simultaneous import and export. An infinite limit (no limit) is replaced with the same large number used for dvSubstationPowerFlow (Inf * a variable cannot be used in a constraint)
+                    @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) <= min(Multinode_Inputs.substation_import_limit, 1000000) * m[:binSubstationPositivePowerFlow][timestep])
                     
                     @constraint(m, sum(m[Symbol("dvProductionToGrid_"*p.s.settings.facilitymeter_node)]["PV", u, timestep] for u in p.export_bins_by_tech["PV"]) <= Multinode_Inputs.substation_export_limit * (1 - m[:binSubstationPositivePowerFlow][timestep]))
                     
@@ -1702,9 +1905,9 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                             q_to = [PowerModelsDistribution.var(pm, PMD_time_step, :q, t_idx)[c] for c in t_connections]
                         end
 
-                        @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) == sum(p_fr[phase] for phase in f_connections))
+                        @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) == sum(p_fr))
                         
-                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(p_fr[phase] for phase in f_connections)) 
+                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(p_fr)) 
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] >= 0) 
                     
                     elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
@@ -1712,14 +1915,14 @@ function LinkFacilityMeterNodeToSubstationPower(m, pm, Multinode_Inputs, REoptIn
                         
                         @constraint(m, sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers) == sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, simple_powerflow_timestep] for phase in phases_for_each_line[lowercase(Multinode_Inputs.substation_line)]))
                         
-                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == m[:dvPline][lowercase(Multinode_Inputs.substation_line), simple_powerflow_timestep])
+                        @constraint(m, m[:dvSubstationPowerFlow][timestep] == sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, simple_powerflow_timestep] for phase in phases_for_each_line[lowercase(Multinode_Inputs.substation_line)]))
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] >= 0) 
                         
                     else
                         # Instead of using the line flow from PMD or simple powerflow model, consider the total system inflow/outflow to be based on a lumped-element model, which sums all power inflows and outflows for each node
                         @constraint(m,
-                            (sum(m[Symbol("TotalExport_"*string(buses[e]))][timestep] for e in REopt_gen_ind_e)  - 
-                            sum(m[Symbol("dvGridPurchase_"*string(buses[e]))][timestep] for e in REopt_gen_ind_e)) == 
+                            (sum(m[Symbol("TotalExport_"*string(node))][timestep] for node in REopt_nodes)  - 
+                            sum(TotalGridPurchaseAtNode(m, node, timestep) for node in REopt_nodes)) == 
                             (sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers)))
                     
                         @constraint(m, m[:dvSubstationPowerFlow][timestep] == (sum(m[Symbol("dvGridPurchase_"*p.s.settings.facilitymeter_node)][timestep, tier] for tier in 1:p.s.electric_tariff.n_energy_tiers))) 
@@ -1751,23 +1954,23 @@ function CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
     LineInfo = Dict([])
     NumberOfBranches = length(PowerModelsDistribution.ref(pm,1,:branch))
 
-    if length(collect(values(data_math_mn["nw"]["1"]["settings"]["vbases_default"]))) != 1
-        throw(@error("The length of vbases_default is not 1"))
-    end
-
-    vbases_default = collect(values(data_math_mn["nw"]["1"]["settings"]["vbases_default"]))[1]
+    # The power base of the PMD model, which is 1 kW (see ApplyDataEngSettings), so a per unit power is equal to a power in kW
+    sbase = get(data_math_mn["nw"]["1"]["settings"], "sbase", 1.0)
    
     for i in 1:NumberOfBranches
         LineData = PowerModelsDistribution.ref(pm, 1, :branch, i)
         
-        branch_vbase = LineData["vbase"]
-        line_voltage = round(Multinode_Inputs.base_voltage_kv * (LineData["vbase"]/vbases_default), digits=3)
-        maximum_power = round((LineData["c_rating_a"][1]/branch_vbase) * line_voltage, digits=3)
+        branch_vbase = LineData["vbase"] # The line-to-neutral voltage base of the branch (kV)
+        c_rating_a = minimum(LineData["c_rating_a"]) # The current rating of the line in per unit (the smallest rating if the phases have different ratings)
+
+        # The maximum power for each phase of the line is the current rating multiplied by the line-to-neutral voltage. In per unit, the current rating is the 
+        # current (in amps) multiplied by vbase/sbase, so the maximum power for each phase (in kW) is the per unit current rating multiplied by sbase. 
         
-        c_rating_a = LineData["c_rating_a"][1]
+        maximum_power = round(c_rating_a * sbase, digits=3)
+        
         line_name = LineData["name"]
         if Multinode_Inputs.display_information_during_modeling_run
-            print("\n For line $(line_name), the data is max power: $(maximum_power), line voltage: $(line_voltage), c_rating_a: $(c_rating_a), branch_vbase: $(branch_vbase)")
+            print("\n For line $(line_name), the data is max power for each phase: $(maximum_power), c_rating_a: $(c_rating_a), branch_vbase (line-to-neutral): $(branch_vbase)")
         end
 
         LineInfo[LineData["name"]] = Dict(["index"=>LineData["index"], 
@@ -1775,8 +1978,8 @@ function CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
                                            "f_bus"=>LineData["f_bus"], 
                                            "c_rating_a"=>LineData["c_rating_a"], 
                                            "vbase"=>LineData["vbase"],
-                                           "line_voltage_kv"=>line_voltage,
-                                           "maximum_power_kw"=>maximum_power
+                                           "line_to_neutral_voltage_kv"=>branch_vbase,
+                                           "maximum_power_kw"=>maximum_power # The maximum power for each phase of the line
                                            ])
     end
     return LineInfo
@@ -1795,10 +1998,7 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
         set_optimizer_attribute(m, "MIPRELSTOP", Multinode_Inputs.optimizer_tolerance)
         set_optimizer_attribute(m, "OUTPUTLOG", Multinode_Inputs.log_solver_output_to_console ? 1 : 0)
 
-        # Save the Xpress log into the per-run timestamped folder created by CreateOutputsFolder.
-        # Use mkpath (idempotent) so this works even when generate_CSV_of_outputs/generate_results_plots
-        # are false (in which case CreateOutputsFolder did not create the folder) and on repeated
-        # solves within the same run (e.g. BAU case).
+        # Save the Xpress log into the per-run timestamped folder
         log_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
                      joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
         mkpath(log_folder)
@@ -1806,11 +2006,6 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
         log_filename = isfile(joinpath(log_folder, "xpress_log.txt")) ? "xpress_log_BAU.txt" : "xpress_log.txt"
         xpress_log_path = joinpath(log_folder, log_filename)
 
-        # Xpress.jl does NOT expose "LOGFILE" as a MOI RawOptimizerAttribute, so set_optimizer_attribute
-        # will throw MOI.UnsupportedAttribute. The log file has to be set via the Xpress C API on the
-        # inner problem handle (Xpress.setlogfile). We force JuMP to instantiate the backend optimizer
-        # first (so .inner exists), then call Xpress.setlogfile. If anything goes wrong, fall back
-        # quietly to console-only logging.
         log_file_set = false
         try
             JuMP.MOI.Utilities.attach_optimizer(m)
@@ -1999,10 +2194,12 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         end
 
         if Prevent_Export == true
-            # If the timesteps are part of the PMD model, then apply the constraints to the lines in PMD
+            # If the timesteps are part of the PMD model, then apply the constraints to the lines in PMD. The vectors are indexed by position
             if haskey(pmd_index_of, timestep)
-                JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .>= 0)
-                JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .>= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) # no restrictions on reactive power
+                JuMP.@constraint(m, [k in eachindex(p_fr)], p_fr[k] >= 0)
+                if Multinode_Inputs.model_subtype != "NFAUPowerModel"
+                    JuMP.@constraint(m, [k in eachindex(q_fr)], q_fr[k] >= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) # no restrictions on reactive power
+                end
             elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
                 for phase in phases_for_each_line[line]
                     @constraint(m, m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, timestep_for_simple_powerflow_model] .>= 0)
@@ -2012,31 +2209,28 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
             end
         end
 
+        # The substation export and import limits apply to the total power flow through the line (the sum of the phases)
         if Substation_Export_Limit != ""
             if haskey(pmd_index_of, timestep)
-                JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .>= -Substation_Export_Limit) 
+                JuMP.@constraint(m, sum(p_fr) >= -Substation_Export_Limit) 
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                    JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .>= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
+                    JuMP.@constraint(m, [k in eachindex(q_fr)], q_fr[k] >= -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
                 end
             elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
-                for phase in phases_for_each_line[line]
-                    @constraint(m, m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, timestep_for_simple_powerflow_model] .>= (1/length(phases_for_each_line[line])) * -Substation_Export_Limit) # Assume that the maximum export limit is evenly divided by each of the phases
-                end
+                @constraint(m, sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, timestep_for_simple_powerflow_model] for phase in phases_for_each_line[line]) >= -Substation_Export_Limit)
             else
                 @constraint(m, sum(m[Symbol("dvProductionToGrid_"*Multinode_Inputs.facilitymeter_node)]["PV", u, timestep] for u in FacilityMeterNode_REoptInputs.export_bins_by_tech["PV"]) <= Substation_Export_Limit)
             end
         end
 
-        if Substation_Import_Limit != ""
+        if isfinite(Substation_Import_Limit)
             if haskey(pmd_index_of, timestep)
-                JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .<= Substation_Import_Limit)
+                JuMP.@constraint(m, sum(p_fr) <= Substation_Import_Limit)
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"
-                    JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
+                    JuMP.@constraint(m, [k in eachindex(q_fr)], q_fr[k] <= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar)
                 end
             elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
-                for phase in phases_for_each_line[line]
-                    @constraint(m, sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, timestep_for_simple_powerflow_model]) .<= (1/length(phases_for_each_line[line])) * Substation_Import_Limit) # Assume that the maximum import limit is evenly divided by each of the phases
-                end
+                @constraint(m, sum(m[:dvPline][lowercase(Multinode_Inputs.substation_line), phase, timestep_for_simple_powerflow_model] for phase in phases_for_each_line[line]) <= Substation_Import_Limit)
             else
                 @constraint(m, sum(m[Symbol("dvGridPurchase_"*Multinode_Inputs.facilitymeter_node)][timestep, tier] for tier in 1:FacilityMeterNode_REoptInputs.s.electric_tariff.n_energy_tiers) <= Substation_Import_Limit)
             end
@@ -2045,16 +2239,16 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
         if Off_Grid == true || Grid_Outage == true || Switches_Open==true
             # Restrict all power flow
             if haskey(pmd_index_of, timestep)
-                JuMP.@constraint(m, [phase in f_connections], p_fr[phase] .== 0)  # The _fr and _to variables are just indicating power flow in either direction on the line. In PMD, there is a constraint that requires  p_to = -p_fr 
-                JuMP.@constraint(m, [phase in t_connections], p_to[phase] .== 0)  # TODO test removing the "fr" constraints here in order to reduce the # of constraints in the model
+                JuMP.@constraint(m, [k in eachindex(p_fr)], p_fr[k] == 0)  # The _fr and _to variables are just indicating power flow in either direction on the line. In PMD, there is a constraint that requires  p_to = -p_fr 
+                JuMP.@constraint(m, [k in eachindex(p_to)], p_to[k] == 0)  # TODO test removing the "fr" constraints here in order to reduce the # of constraints in the model
                 if Multinode_Inputs.model_subtype != "NFAUPowerModel"
                     if Multinode_Inputs.number_of_phases == 1                
-                        JuMP.@constraint(m, [phase in f_connections], q_fr[phase] .== 0.0)
-                        JuMP.@constraint(m, [phase in t_connections], q_to[phase] .== 0.0)
+                        JuMP.@constraint(m, [k in eachindex(q_fr)], q_fr[k] == 0.0)
+                        JuMP.@constraint(m, [k in eachindex(q_to)], q_to[k] == 0.0)
                     else
                         # Add small amount of reactive power support for multi-phase systems
-                        JuMP.@constraint(m, [phase in f_connections], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar .<= q_fr[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) 
-                        JuMP.@constraint(m, [phase in t_connections], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar .<= q_to[phase] .<= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) # no restrictions on reactive power
+                        JuMP.@constraint(m, [k in eachindex(q_fr)], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar <= q_fr[k] <= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) 
+                        JuMP.@constraint(m, [k in eachindex(q_to)], -Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar <= q_to[k] <= Multinode_Inputs.external_reactive_power_support_per_phase_maximum_kvar) # no restrictions on reactive power
                     end
                 end
             elseif Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD
@@ -2064,7 +2258,7 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
             elseif Switches_Open==false
                 @constraint(m, sum(m[Symbol("dvGridPurchase_"*Multinode_Inputs.facilitymeter_node)][timestep, tier] for tier in 1:FacilityMeterNode_REoptInputs.s.electric_tariff.n_energy_tiers) == 0)
                 @constraint(m, sum(m[Symbol("dvProductionToGrid_"*Multinode_Inputs.facilitymeter_node)]["PV", u, timestep] for u in FacilityMeterNode_REoptInputs.export_bins_by_tech["PV"]) == 0)
-            else Switches_Open==true # Note: the first elseif statement covers the situation where switches_open == true and the simple powerflow model is being used
+            else # The switches are open (Switches_Open == true) during a time step that is not modeled with PMD or the simple powerflow model
                 @warn "The switches were defined as open during a time period when the PMD model and simple powerflow model are not applied"
             end
         end
@@ -2114,7 +2308,7 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
         end
 
         # Checking that critical loads are defined, if running a resilience model and/or the outage simulator
-        if Multinode_Inputs.run_outage_simulator || Multinode_Inputs.model_outages_with_outages_vector || Multinode_Inputs.model_outages_with_outages_vector || ((Multinode_Inputs.single_outage_end_time_step - Multinode_Inputs.single_outage_start_time_step) > 0 )
+        if Multinode_Inputs.run_outage_simulator || Multinode_Inputs.model_outages_with_outages_vector || ((Multinode_Inputs.single_outage_end_time_step - Multinode_Inputs.single_outage_start_time_step) > 0 )
 
             if Multinode_Inputs.critical_load_method == "Fraction"
                 if string(p.s.site.node) ∉ keys(Multinode_Inputs.critical_load_fraction)
@@ -2132,36 +2326,48 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
                 end
             end
 
-        end
-        # TODO: add data check to ensure that if a critical load method is defined, then there must be either a critical load fraction or a critical load timeseries dictionary   
+        end  
         
         if Int(length(p.s.electric_load.loads_kw)) != Int(8760 * Multinode_Inputs.time_steps_per_hour)
             throw(@error("At REopt node $(node_temp), the length of the electric loads vector does not correlate with the time steps per hour defined in the Multinode_Inputs dictionary"))
         end
     end
     
-    if Multinode_Inputs.base_voltage_kv <= 0
-        throw(@error("the base_voltage_kv must be greater than zero. The default value of the base_voltage_kv is zero to ensure that the user defines the correct base voltage. The base voltage entered for base_voltage_kv should be the base voltage defined at the top of the .dss inputs file."))
-    end
-
     if Multinode_Inputs.number_of_phases ∉ [1,2,3]
         throw(@error("The number_of_phases input must be 1, 2, or 3"))
     end
 
-    if Multinode_Inputs.multinode_type ∉ ["CommunityDistrict", "BehindTheMeter", "OffGrid"]
-        throw(@error("An invalid multinode type was provided in the inputs"))
+    if Multinode_Inputs.multinode_type ∉ ["CommunityDistrict", "BehindTheMeter", "Offgrid"]
+        throw(@error("An invalid multinode type was provided in the inputs. The options are \"BehindTheMeter\", \"CommunityDistrict\", and \"Offgrid\"."))
     end
 
     if (Multinode_Inputs.multinode_type == "Offgrid") && (Multinode_Inputs.run_BAU_case == true)
         throw(@error("The BAU case cannot be run for an off-grid model because an off-grid model cannot solve without on-site generation."))
     end
     
-    if Multinode_Inputs.multinode_type != "CommunityDistrict"
+    if Multinode_Inputs.multinode_type == "CommunityDistrict"
         @warn("For the community district multinode type, the electricity tariff for the facility meter node should be 0")
+    end
+
+    # The facility meter node needs PV defined (it can have a size of zero) because the export through the facility meter is modeled using the PV export variables
+    for p in ps
+        if string(p.s.site.node) == Multinode_Inputs.facilitymeter_node
+            if !("PV" in p.techs.all) || !haskey(p.export_bins_by_tech, "PV")
+                throw(@error("The facility meter node, $(p.s.site.node), must have a PV defined in its REopt inputs (and a net metering or wholesale rate so that export bins exist), because the export through the facility meter is modeled using the PV export variables. The PV can have a maximum size of zero."))
+            end
+        end
+    end
+
+    # The outage simulator needs a critical load method to define the critical loads
+    if Multinode_Inputs.run_outage_simulator && (Multinode_Inputs.critical_load_method == "N/A")
+        throw(@error("The outage simulator requires the critical_load_method to be \"Fraction\" or \"TimeSeries\" (it cannot be \"N/A\")"))
     end
 
     if Multinode_Inputs.critical_load_method == "Fraction"
         for x in values(Multinode_Inputs.critical_load_fraction)
+            if x < 0
+                throw(@error("The critical_load_fraction values cannot be negative"))
+            end
             if x >= 5.0
                 throw(@error("The critical_load_fraction load fraction should be entered as a fraction, not a percent. The model currently limits the critical_load_fraction to 5.0 (or 500%) to reduce the possibility of user error. "))
             end
@@ -2190,7 +2396,7 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
     end
 
     if (Multinode_Inputs.allow_dropped_load) && (Multinode_Inputs.number_of_phases != 1)
-        throw(@error("When modeling a three-phase system, allowing dropped load in the outage simulator is not allowed. Please set the allowed_dropped_load input to false."))
+        throw(@error("When modeling a multi-phase system, allowing dropped load in the outage simulator is not allowed. Please set the allow_dropped_load input to false."))
     end
 
     # Currently the simple powerflow model does not work with outages and multiphase systems, so an error is caused if the user runs a multi-phase model where the outages do not occur during PMD timesteps
@@ -2212,7 +2418,22 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
     end
 
     # Check for internal loops
-    data_eng = PowerModelsDistribution.parse_file(Multinode_Inputs.PMD_network_input, transformations=[PowerModelsDistribution.remove_all_bounds!])
+    if Multinode_Inputs.PMD_network_input isa AbstractDict
+        data_eng = deepcopy(Multinode_Inputs.PMD_network_input) # The network input can be a dictionary that was already parsed
+    else
+        data_eng = PowerModelsDistribution.parse_file(Multinode_Inputs.PMD_network_input, transformations=[PowerModelsDistribution.remove_all_bounds!])
+    end
+
+    PowerModelsDistribution.remove_all_bounds!(data_eng; exclude = ["cm_ub","sm_ub","energy_ub"]) # Note: voltage bounds are manually applied later
+
+    # Check that each REopt node is a bus in the network (with the same capitalization)
+    CheckThatREoptNodesAreBusses(Multinode_Inputs, data_eng)
+
+    # The substation line is used to link the facility meter node to the network, so it must be a line in the network (the names of the lines are lowercase)
+    if !(lowercase(Multinode_Inputs.substation_line) in lowercase.(string.(keys(data_eng["line"]))))
+        throw(@error("The substation_line, \"$(Multinode_Inputs.substation_line)\", is not a line in the PMD network. The lines in the network are: $(sort(string.(collect(keys(data_eng["line"])))))"))
+    end
+
     has_loops, loop_edges = REopt.detect_network_loops(data_eng)
     has_islands, islanded_buses, island_groups = REopt.detect_islanded_buses(data_eng, Multinode_Inputs.substation_node)
 
@@ -2222,6 +2443,24 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
     if has_islands
         @warn("The following islands are present in the distribution system: $(island_groups)")
     end
+
+    # ----- Beginning of additional data checks generated by AI
+    if Multinode_Inputs.time_steps_per_hour <= 0
+        throw(@error("The time_steps_per_hour input must be defined in the multinode settings, and it must be greater than zero"))
+    end
+
+    # The PMD_time_steps are REopt time steps, so they need to be unique integers within the length of the year
+    number_of_time_steps_in_year = Int(8760 * Multinode_Inputs.time_steps_per_hour)
+    if !all(t -> t isa Integer, Multinode_Inputs.PMD_time_steps)
+        throw(@error("The PMD_time_steps input must be a vector of integers, for example collect(1:24) (and not [1:24], which is a vector that contains a range)"))
+    end
+    if !all(t -> 1 <= t <= number_of_time_steps_in_year, Multinode_Inputs.PMD_time_steps)
+        throw(@error("The PMD_time_steps must be between 1 and the number of time steps in the year, which is $(number_of_time_steps_in_year)"))
+    end
+    if length(unique(Multinode_Inputs.PMD_time_steps)) != length(Multinode_Inputs.PMD_time_steps)
+        throw(@error("The PMD_time_steps input can't list the same time step more than once"))
+    end
+    # ----- End of additional data checks generated by AI
 
 end
 
@@ -2244,7 +2483,6 @@ function run_diagnostics(model, Multinode_Inputs,  REopt_dictionary)
             push!(bad, (v, lb, ub, fx, :fix_outside_bounds))
         end
     end
-    length(bad), first(bad, 20)
 
     diagnostic_report["single_variable_contradictions"] = bad
     

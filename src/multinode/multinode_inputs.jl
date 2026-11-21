@@ -26,13 +26,12 @@
     substation_line::String="",
     allow_export_beyond_substation::Bool=false,
     substation_export_limit::Real=0,
-    substation_import_limit::Real=0,
-    base_voltage_kv::Real=0, # This must be redefined based on the base voltage defined in the dss inputs file in units of kV
+    substation_import_limit::Real=Inf, # The maximum total power imported through the substation line (kW). The default of Inf means that there is no limit
     external_reactive_power_support_per_phase_maximum_kvar::Real=1000000, # Because multi-node does not model reactive power, but reactive power may be needed for the power systems modeling, this value enables reactive power to flow from the substation to all parts of the network, regardless of if there is a grid outage or a switch is open
 
     model_switches::Bool=false,
     model_line_upgrades::Bool=false,
-    line_upgrade_options::Dict=Dict(), 
+    line_upgrade_options::Dict=Dict(), # Each option is a dictionary with the keys "locations" (the names of the lines that can be upgraded), "max_amps" (the current rating of each conductor), and "cost_per_meter".
     model_transformer_upgrades::Bool=false,
     transformer_upgrade_options::Dict=Dict(),
     switch_open_timesteps::Dict=Dict(),
@@ -55,7 +54,6 @@
     generators_only_run_during_grid_outage::Bool=false,
     battery_min_soc_fraction_during_non_outage_times::Real=0.2,
     battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
-    generate_CSV_of_outputs::Bool=false,
     generate_dictionary_for_plotting::Bool=false,
     number_of_plots_from_outage_simulator::Real=0,
   
@@ -104,7 +102,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
     allow_export_beyond_substation
     substation_export_limit
     substation_import_limit
-    base_voltage_kv
     external_reactive_power_support_per_phase_maximum_kvar
     model_switches
     model_line_upgrades
@@ -129,7 +126,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
     generators_only_run_during_grid_outage
     battery_min_soc_fraction_during_non_outage_times
     battery_min_soc_fraction_during_grid_outage_times
-    generate_CSV_of_outputs
     generate_dictionary_for_plotting
     number_of_plots_from_outage_simulator
     generate_same_pv_production_profile_for_each_node
@@ -172,8 +168,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
         substation_line::String="",
         allow_export_beyond_substation::Bool=false,
         substation_export_limit::Real=0,
-        substation_import_limit::Real=0,
-        base_voltage_kv::Real=0,
+        substation_import_limit::Real=Inf,
         external_reactive_power_support_per_phase_maximum_kvar::Real=1000000,
         model_switches::Bool=false,
         model_line_upgrades::Bool=false,
@@ -198,7 +193,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
         generators_only_run_during_grid_outage::Bool=false,
         battery_min_soc_fraction_during_non_outage_times::Real=0.2,
         battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
-        generate_CSV_of_outputs::Bool=false,  
         generate_dictionary_for_plotting::Bool=false,
         number_of_plots_from_outage_simulator::Real=0,
         generate_same_pv_production_profile_for_each_node::Bool=false,
@@ -299,7 +293,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
         allow_export_beyond_substation,
         substation_export_limit,
         substation_import_limit,
-        base_voltage_kv,
         external_reactive_power_support_per_phase_maximum_kvar,
         model_switches,
         model_line_upgrades,
@@ -324,7 +317,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
         generators_only_run_during_grid_outage,
         battery_min_soc_fraction_during_non_outage_times,
         battery_min_soc_fraction_during_grid_outage_times,
-        generate_CSV_of_outputs,
         generate_dictionary_for_plotting,
         number_of_plots_from_outage_simulator,
         generate_same_pv_production_profile_for_each_node,

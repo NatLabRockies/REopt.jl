@@ -82,7 +82,7 @@ end
 
 function combine_dss_files_into_aggregated_dss_file(folder, new_file_name, existing_dss_files_list)
 	# This function takes multiple separate dss files and combines them into one dss file
-	# note: this function was created with the assistance of ChatGPT
+	# note: this function was created with the assistance of AI
 
 	# The order of the files in the existing_dss_files_list matters
 	
@@ -129,7 +129,7 @@ end
 
 
 function modify_object_syntax(input_filepath::String, output_filepath::String)
-	# This function was generated with the assistance of ChatGPT
+	# This function was generated with the assistance of AI
 
 	open(output_filepath, "w") do output
 		for line in eachline(input_filepath)
@@ -142,7 +142,7 @@ end
 
 
 function change_object_syntax(line)
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 
 	new_object_syntax_pattern = r"(?i)^\s*new\s+object\s*=\s*(\S+)"
 
@@ -157,7 +157,7 @@ end
 
 
 function set_kw_and_kvar_loads_to_1_if_there_is_an_associated_REopt_node(Multinode_Inputs, input_dss_file, output_dss_file)
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 	
 	# REopt nodes can be defined as integers or strings, so they are converted to lowercase strings before they are compared with the bus names
 	REopt_nodes = String[]
@@ -199,7 +199,7 @@ end
 
 
 function get_bus_and_phases(line::String)
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 	m = match(r"(?i)Bus1=([^\s\.]+)((?:\.\d+)*)",line)
 	if m === nothing 
 		return  nothing, Int[]
@@ -215,7 +215,7 @@ end
 
 
 function replace_kw_and_kvar(line::String, kw::Float64, kvar::Float64)
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 	line = replace(line, r"(?i)kW=[^\s]+" => "kW=$(kw)")
 	line = replace(line, r"(?i)kvar=[^\s]+" => "kvar=$(kvar)")
 	return line
@@ -224,7 +224,7 @@ end
 
 function process_reactors(input_dss_filepath, output_dss_filepath)
 	# This function removes features that REopt multinode does not model
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 
 	# Convert the series reactors to lines (series reactors are show as reactor types with two busses listed in the .dss file)
 		# add code to remove shunt reactors (reactor types that only have one bus listed)
@@ -282,7 +282,7 @@ end
 
 
 function handle_reactor_block(block, x, prefix)
-	# This funcition was generated with the assistance of ChatGPT
+	# This funcition was generated with the assistance of AI
 	full = join(block, " ")
 	has_bus2 = occursin(r"(?i)bus2\s*=", full) # This detects if it is a series reactor (and not a shunt reactor, because shunt reactors won't have a bus 2)
 	if has_bus2
@@ -298,7 +298,7 @@ end
 
 
 function reactor_block_to_line(full::String, prefix::String)
-	# This function was generated with the assistance of ChatGPT
+	# This function was generated with the assistance of AI
 	
 	name = extract_reactor_name(full)
 	bus1 = extract_prop(full, "bus1", "UNKNOWN")
@@ -322,14 +322,14 @@ function extract_prop(text::String, key::String, default::String)
 end
 
 function extract_reactor_name(full::String)
-	# This function was generated with the assistance of ChatGPT
+	# This function was generated with the assistance of AI
 	m = match(r"(?i)new\s+reactor\.([^\s]+)",full)
 	return m == nothing ? "UNKNOWN" : m.captures[1]
 end
 
 
 function remove_redirect_lines(input_filepath::String, output_filepath::String)
-	# This function was generated with the assistance of ChatGPT
+	# This function was generated with the assistance of AI
 	open(output_filepath, "w") do output
 		open(input_filepath, "r") do input
 			for line in eachline(input)
@@ -349,7 +349,7 @@ end
 
 
 function split_multiphase_loads_into_separate_lines(input_filepath::String, output_filepath::String)
-	# This function was generated with assistance from ChatGPT
+	# This function was generated with assistance from AI
 
 	# This function handles how voltages will need to be adjusted, depending on if they are delta or wye connected
 	
@@ -425,7 +425,7 @@ end
 
 
 function rename_load_names_to_names_of_busses_with_phase_label(input_filepath::String, output_filepath::String)
-	# This function was generated with assistance from ChatGPT
+	# This function was generated with assistance from AI
 
 	# NOTE: this function will not handle multiphase busses (e.g. Bus1=9.1.2.3). This assumes that all loads have been assigned to a single phase bus (which is what currently is required for multinode)
 
@@ -479,7 +479,7 @@ end
 
 
 function replace_dss_load_name(line::String, new_name::String)
-	# This function was generated with the assistance of ChatGPT
+	# This function was generated with the assistance of AI
 
 	m = match(r"(?i)^(new\s+load\.)[^\s]+(.*)$", line)
 	if m == nothing
@@ -489,16 +489,10 @@ function replace_dss_load_name(line::String, new_name::String)
 	rest = m.captures[2] # everything after the name
 
 	return prefix*new_name*rest
-
 end
 
 
-"""
-is_load_connection_line(name) -> Bool
-Returns true for stub lines that connect a load to the network (lines whose name starts with `"loadconn_"`).
-This line of code was generated using AI
-"""
-is_load_connection_line(name) = startswith(lowercase(string(name)), "loadconn_")
+is_load_connection_line(name) = startswith(lowercase(string(name)), "loadconn_") # Returns true for stub lines that connect a load to the network (lines whose name starts with `"loadconn_"`). This line of code was generated using AI.
 
 
 """
@@ -545,9 +539,8 @@ function detect_network_loops(
     phase_filter::Union{Nothing, Int} = nothing,
     skip_load_connection_lines::Bool  = true,
 )
-    # ------------------------------------------------------------------ #
-    # 1.  Build edge list                                                  #
-    # ------------------------------------------------------------------ #
+
+    # 1.  Build edge list                                              
     # Each entry: NamedTuple (type, name, f_bus, t_bus, phases)
     # phases is a Vector{Int} using PMD convention: 1=A, 2=B, 3=C, 0=neutral
     Edge = NamedTuple{(:type, :name, :f_bus, :t_bus, :phases),
@@ -607,9 +600,7 @@ function detect_network_loops(
         end
     end
 
-    # ------------------------------------------------------------------ #
-    # 2.  Union-Find with path compression and union-by-rank               #
-    # ------------------------------------------------------------------ #
+    # 2.  Union-Find with path compression and union-by-rank         
     all_buses = unique(vcat(
         [e.f_bus for e in edges],
         [e.t_bus for e in edges],
@@ -637,9 +628,7 @@ function detect_network_loops(
         return true
     end
 
-    # ------------------------------------------------------------------ #
-    # 3.  Detect loop-closing edges                                         #
-    # ------------------------------------------------------------------ #
+    # 3.  Detect loop-closing edges                                       
     loop_edges = Edge[]
     for e in edges
         if !union!(e.f_bus, e.t_bus)
@@ -647,18 +636,14 @@ function detect_network_loops(
         end
     end
 
-    # ------------------------------------------------------------------ #
-    # Helper (defined here so it is available for the report below)        #
-    # ------------------------------------------------------------------ #
+    # Helper (defined here so it is available for the report below)       
     _phase_label_report = Dict(1 => "A", 2 => "B", 3 => "C", 0 => "N")
     phases_str_report(phases::Vector{Int}) =
         isempty(phases) ? "?" : join([get(_phase_label_report, p, string(p)) for p in sort(phases)])
 
     has_loops = !isempty(loop_edges)
 
-    # ------------------------------------------------------------------ #
-    # 4.  Report                                                            #
-    # ------------------------------------------------------------------ #
+    # 4.  Report                                                           
     if verbose
         println("\n" * "=" ^ 70)
         println("Network Loop Detection")
@@ -728,13 +713,10 @@ function detect_islanded_buses(
     phase_filter::Union{Nothing, Int} = nothing,
     skip_load_connection_lines::Bool  = false,
 )
-    # ------------------------------------------------------------------ #
-    # 1.  Collect all buses present in the model                           #
-    # ------------------------------------------------------------------ #
-    # When phase_filter is set, only include buses whose `terminals` field
-    # contains the filtered phase. Otherwise buses that physically exist on
-    # other phases only (e.g. a phase-2 battery) would appear as singleton
-    # islands on the phase-1 graph.
+
+    # 1.  Collect all buses present in the model                 
+    # When phase_filter is set, only include buses whose `terminals` field contains the filtered phase. Otherwise buses that physically exist on
+    # other phases only (e.g. a phase-2 battery) would appear as singleton islands on the phase-1 graph.
     all_buses = String[]
     for (bname, bdata) in get(data_eng, "bus", Dict())
         if phase_filter !== nothing
@@ -744,9 +726,7 @@ function detect_islanded_buses(
         push!(all_buses, string(bname))
     end
 
-    # ------------------------------------------------------------------ #
-    # 2.  Build edge list (same logic as detect_network_loops, except for the default of skip_load_connection_lines) #
-    # ------------------------------------------------------------------ #
+    # 2.  Build edge list (same logic as detect_network_loops, except for the default of skip_load_connection_lines) 
     function is_disabled(comp::Dict)
         only_enabled || return false
         status = get(comp, "status", nothing)
@@ -793,9 +773,8 @@ function detect_islanded_buses(
         end
     end
 
-    # ------------------------------------------------------------------ #
-    # 3.  Union-Find over ALL buses (not just those touched by edges)      #
-    # ------------------------------------------------------------------ #
+    # 3.  Union-Find over ALL buses (not just those touched by edges) 
+
     parent = Dict{String,String}(b => b for b in all_buses)
     rnk    = Dict{String,Int}(b => 0    for b in all_buses)
 
@@ -825,9 +804,8 @@ function detect_islanded_buses(
         union!(f, t)
     end
 
-    # ------------------------------------------------------------------ #
-    # 4.  Identify connected components                                     #
-    # ------------------------------------------------------------------ #
+    # 4.  Identify connected components 
+
     if !haskey(parent, source_bus)
         error("detect_islanded_buses: source_bus \"$source_bus\" not found in the model.")
     end
@@ -855,9 +833,8 @@ function detect_islanded_buses(
 
     has_islands = !isempty(islanded_buses)
 
-    # ------------------------------------------------------------------ #
-    # 5.  Report                                                            #
-    # ------------------------------------------------------------------ #
+    # 5.  Report  
+   
     if verbose
         println("\n" * "=" ^ 70)
         println("Islanded Bus Detection")
@@ -881,3 +858,30 @@ function detect_islanded_buses(
 
     return has_islands, islanded_buses, island_groups
 end
+
+
+
+# Function to check for commons issues in the model if the model fails to optimize
+function run_diagnostics(model)
+
+    diagnostic_report = Dict([])
+
+    # Evaluation 1: Check for single variable contradictions
+    # AI was used to generate the evaluation 1 code
+    bad = []
+    for v in all_variables(model)
+        lb = has_lower_bound(v) ? lower_bound(v) : -Inf
+        ub = has_upper_bound(v) ? upper_bound(v) :  Inf
+        fx = is_fixed(v) ? fix_value(v) : nothing
+        if lb > ub + 1e-9
+            push!(bad, (v, lb, ub, fx, :lb_gt_ub))
+        elseif fx !== nothing && (fx < lb - 1e-9 || fx > ub + 1e-9)
+            push!(bad, (v, lb, ub, fx, :fix_outside_bounds))
+        end
+    end
+
+    diagnostic_report["single_variable_contradictions"] = bad
+    
+    return diagnostic_report
+end
+

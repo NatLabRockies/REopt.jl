@@ -47,7 +47,15 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		m[Symbol(dv)] = @variable(m, [p.s.storage.types.elec, p.time_steps], base_name=dv, lower_bound=0)
 
 		dv = "dvGridPurchase"*_n
-		m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+		if string(p.s.site.node) == p.s.settings.facilitymeter_node
+			# The facility meter node is indexed by time step and energy tier, as in single node REopt, so that tiered energy rates can be used
+			m[Symbol(dv)] = @variable(m, [p.time_steps, 1:p.s.electric_tariff.n_energy_tiers], base_name=dv, lower_bound=0)
+		else
+			if p.s.electric_tariff.n_energy_tiers > 1
+				throw(@error("The electric tariff for node $(p.s.site.node) has tiered energy rates. Tiered energy rates are only supported at the facility meter node in the multinode model."))
+			end
+			m[Symbol(dv)] = @variable(m, [p.time_steps], base_name=dv, lower_bound=0)
+		end
 
 		dv = "dvPeakDemandTOU"*_n
 		m[Symbol(dv)] = @variable(m, [p.ratchets, 1], base_name=dv, lower_bound=0)
