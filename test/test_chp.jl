@@ -788,11 +788,16 @@ end
             @test getproperty(chp, Symbol(k)) == v
         end
 
-        # A custom fuel requires all of its escalation rate, renewable fraction and emissions factor inputs
+        # A custom fuel requires its escalation rate and emissions factor inputs, but not the renewable fraction
         for k in keys(all_custom_inputs)
             d_missing = deepcopy(d_custom)
             delete!(d_missing, k)
-            @test_throws ArgumentError build_chp(d_missing)
+            if occursin("renewable_energy_fraction", k)
+                chp = build_chp(d_missing)
+                @test getproperty(chp, Symbol(k)) == 0.0
+            else
+                @test_throws ArgumentError build_chp(d_missing)
+            end
         end
 
         # All of the input errors are reported together in a single error
@@ -1001,7 +1006,7 @@ end
         co2_cost_escalation_rate = 0.04
         d = chp_dual_fuel_inputs(heating=true)
         d["CHP"]["fuel2_switch_start_year"] = switch_year
-        # A custom fuel 2 with no emissions, e.g. renewable hydrogen, for which every input must be provided
+        # A custom fuel 2 with no emissions, e.g. renewable hydrogen, with its escalation rate, emissions factors and renewable fraction
         d["CHP"]["fuel2_type"] = "custom"
         d["CHP"]["fuel2_cost_escalation_rate_fraction"] = fuel2_escalation_rate
         d["CHP"]["fuel2_renewable_energy_fraction"] = 1.0

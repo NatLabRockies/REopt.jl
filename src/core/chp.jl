@@ -3,10 +3,9 @@
 prime_movers = ["recip_engine", "micro_turbine", "combustion_turbine", "fuel_cell"]
 conflict_res_min_allowable_fraction_of_max = 0.25
 const CHP_FUEL_MAX_PERIODS = ["hour", "day", "week", "month"]
-const CHP_FUEL_TYPES = [FUEL_TYPES; "custom"]  # "custom" requires the user to provide the cost escalation rate, renewable fraction and emissions factors
+const CHP_FUEL_TYPES = [FUEL_TYPES; "custom"]  # "custom" requires the user to provide the cost escalation rate and emissions factors (the renewable fraction defaults to 0.0)
 const CHP_CUSTOM_FUEL_INPUTS = [
     :fuel_cost_escalation_rate_fraction,
-    :fuel_renewable_energy_fraction,
     :emissions_factor_lb_CO2_per_mmbtu,
     :emissions_factor_lb_NOx_per_mmbtu,
     :emissions_factor_lb_SO2_per_mmbtu,
@@ -38,7 +37,7 @@ const CHP_CUSTOM_FUEL_INPUTS = [
     existing_kw::Float64 = 0.0 # Existing CHP electric capacity (based on rated electric power)
     min_kw::Float64 = 0.0 # Minimum NEW CHP size (based on electric) to add beyond existing_kw 
     max_kw::Float64 = NaN # Maximum NEW CHP size (based on electric) to add beyond existing_kw. Determined by heuristic sizing based on heating load or electric load.    
-    fuel_type::String = "natural_gas" # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil", "custom"]. If "custom", fuel_cost_escalation_rate_fraction, fuel_renewable_energy_fraction and all emissions_factor_lb_*_per_mmbtu inputs are required
+    fuel_type::String = "natural_gas" # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil", "custom"]. If "custom", fuel_cost_escalation_rate_fraction and all emissions_factor_lb_*_per_mmbtu inputs are required
     om_cost_per_kw::Float64 = 0.0 # Annual CHP fixed operations and maintenance costs in \$/kw-yr 
     om_cost_per_hr_per_kw_rated::Float64 = 0.0 # CHP non-fuel variable operations and maintenance costs in \$/hr/kw_rated
     ramp_rate_fraction_per_hour::Float64 = 1.0 # Maximum rate of change in electric production per hour as a fraction of size_kw [kW/size_kw/hour].
@@ -80,17 +79,17 @@ const CHP_CUSTOM_FUEL_INPUTS = [
     can_wholesale::Bool = false
     can_export_beyond_nem_limit::Bool = false
     can_curtail::Bool = false
-    fuel_renewable_energy_fraction::Float64 = FUEL_DEFAULTS["fuel_renewable_energy_fraction"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
+    fuel_renewable_energy_fraction::Float64 = FUEL_DEFAULTS["fuel_renewable_energy_fraction"][fuel_type] # defaults based on fuel_type (0.0 if fuel_type is "custom")
     emissions_factor_lb_CO2_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_CO2_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
     emissions_factor_lb_NOx_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
     emissions_factor_lb_SO2_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
     emissions_factor_lb_PM25_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_PM25_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
 
     # Dual-fuel CHP (optional): model a second fuel alongside fuel_type/fuel_cost_per_mmbtu ("fuel 1") using one of three mutually-exclusive modes
-    fuel2_type::Union{Nothing, String} = nothing # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil", "custom"]. Second fuel type; providing fuel2_type indicates that dual fuel is modeled and requires fuel2_cost_per_mmbtu. If any other fuel2 input (including fuel2_switch_start_year) is provided without fuel2_type, it defaults to "natural_gas". If "custom", fuel2_cost_escalation_rate_fraction, fuel2_renewable_energy_fraction and all fuel2_emissions_factor_lb_*_per_mmbtu inputs are required
+    fuel2_type::Union{Nothing, String} = nothing # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil", "custom"]. Second fuel type; providing fuel2_type indicates that dual fuel is modeled and requires fuel2_cost_per_mmbtu. If any other fuel2 input (including fuel2_switch_start_year) is provided without fuel2_type, it defaults to "natural_gas". If "custom", fuel2_cost_escalation_rate_fraction and all fuel2_emissions_factor_lb_*_per_mmbtu inputs are required
     fuel2_cost_per_mmbtu::Union{Nothing, <:Real, AbstractVector{<:Real}} = nothing # Cost of fuel2_type in today's dollars (like fuel_cost_per_mmbtu, it escalates from year 1 at fuel2_cost_escalation_rate_fraction, including before any fuel2_switch_start_year); same format options as fuel_cost_per_mmbtu. Required if fuel2_type is provided
     fuel2_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing # Escalation rate for fuel2_cost_per_mmbtu, applied from year 1 (use a low or negative value to represent an expected price decline); defaults to fuel_cost_escalation_rate_fraction if provided, otherwise Financial.chp_fuel_cost_escalation_rate_fraction. Required if fuel2_type is "custom"
-    fuel2_renewable_energy_fraction::Union{Nothing, Real} = nothing # defaults based on fuel2_type; required if fuel2_type is "custom"
+    fuel2_renewable_energy_fraction::Union{Nothing, Real} = nothing # defaults based on fuel2_type (0.0 if fuel2_type is "custom")
     fuel2_emissions_factor_lb_CO2_per_mmbtu::Union{Nothing, Real} = nothing # defaults based on fuel2_type; required if fuel2_type is "custom"
     fuel2_emissions_factor_lb_NOx_per_mmbtu::Union{Nothing, Real} = nothing # defaults based on fuel2_type; required if fuel2_type is "custom"
     fuel2_emissions_factor_lb_SO2_per_mmbtu::Union{Nothing, Real} = nothing # defaults based on fuel2_type; required if fuel2_type is "custom"
@@ -241,7 +240,7 @@ function CHP(d::Dict;
     # Input errors are collected so that they are all reported together
     errors = String[]
 
-    # A custom fuel has no defaults, so its cost escalation rate, renewable fraction and emissions factors must be provided
+    # A custom fuel has no default cost escalation rate or emissions factors, so they must be provided (the renewable fraction defaults to 0.0)
     if get(d, :fuel_type, "natural_gas") == "custom"
         missing_inputs = [k for k in CHP_CUSTOM_FUEL_INPUTS if isnothing(get(d, k, nothing))]
         if !isempty(missing_inputs)
@@ -525,7 +524,7 @@ function validate_chp_dual_fuel_inputs!(chp::CHP; errors::Vector{String}=String[
     if has_fuel2
         @assert chp.fuel2_type in CHP_FUEL_TYPES
         if chp.fuel2_type == "custom"
-            # A custom fuel has no defaults, so its cost escalation rate, renewable fraction and emissions factors must be provided.
+            # A custom fuel has no default cost escalation rate or emissions factors, so they must be provided (the renewable fraction defaults to 0.0).
             # The fuel2 input names are those of the fuel inputs, e.g. fuel_cost_... -> fuel2_cost_..., emissions_factor_... -> fuel2_emissions_factor_...
             custom_fuel2_inputs = [Symbol("fuel2_" * replace(String(k), r"^fuel_" => "")) for k in CHP_CUSTOM_FUEL_INPUTS]
             missing_inputs = [k for k in custom_fuel2_inputs if isnothing(getproperty(chp, k))]
