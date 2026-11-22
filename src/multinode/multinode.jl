@@ -66,7 +66,7 @@ function Multinode_Model(Multinode_Settings::Dict{String, Any})
 
         if Multinode_Inputs.run_BAU_case
             print("\n Running the BAU case")
-            Multinode_Settings_No_Techs = SetTechSizesToZero(Multinode_Settings_for_BAU)
+            Multinode_Settings_No_Techs = SetTechSizesForBAU(Multinode_Settings_for_BAU)
             Multinode_Inputs_No_Techs = REopt.MultinodeInputs(; REopt.dictkeys_tosymbols(Multinode_Settings_No_Techs)...)
             PrepareElectricLoads(Multinode_Inputs_No_Techs)
             REopt_inputs_combined_No_Techs = PrepareREoptInputs(Multinode_Inputs_No_Techs, Dict()) # The REopt inputs for the BAU case are generated from the inputs without the technologies
@@ -480,25 +480,48 @@ function PrepareREoptInputs(Multinode_Inputs, time_results)
 end
 
 
-function SetTechSizesToZero(Multinode_Settings)
+function LimitTechSizeToExisting!(tech_inputs)
+    # Note this function was generated with the assistance of AI.
+    existing_kw = get(tech_inputs, "existing_kw", 0.0)
+    tech_inputs["min_kw"] = existing_kw
+    tech_inputs["max_kw"] = existing_kw
+    return tech_inputs
+end
+
+
+function SetTechSizesForBAU(Multinode_Settings)
+    # PV and Generator are limited to their existing_kw (and are only included if existing_kw > 0) and ElectricStorage is removed.
     
     Multinode_Settings_No_Techs = deepcopy(Multinode_Settings)
     facilitymeter_node = string(Multinode_Settings["facilitymeter_node"])
 
-    for i in 1:length(Multinode_Settings_No_Techs["REopt_inputs_list"])
-        if ("PV" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])) && (string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != facilitymeter_node)
-            delete!(Multinode_Settings_No_Techs["REopt_inputs_list"][i], "PV")
+    for node_inputs in Multinode_Settings_No_Techs["REopt_inputs_list"]
+        is_facilitymeter_node = string(node_inputs["Site"]["node"]) == facilitymeter_node
+
+        if haskey(node_inputs, "PV")
+            # Note this if statement was generated with the assistance of AI.
+            pv_inputs_is_list = node_inputs["PV"] isa AbstractVector
+            pvs = pv_inputs_is_list ? node_inputs["PV"] : [node_inputs["PV"]]
+            # The facility meter node always keeps its PV because the export through the facility meter is modeled using the PV export variables
+            bau_pvs = [LimitTechSizeToExisting!(pv) for pv in pvs if is_facilitymeter_node || get(pv, "existing_kw", 0.0) > 0]
+            if isempty(bau_pvs)
+                delete!(node_inputs, "PV")
+            else
+                node_inputs["PV"] = pv_inputs_is_list ? bau_pvs : only(bau_pvs)
+            end
         end
-        if "ElectricStorage" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])
-            delete!(Multinode_Settings_No_Techs["REopt_inputs_list"][i], "ElectricStorage")
+
+        if haskey(node_inputs, "ElectricStorage")
+            delete!(node_inputs, "ElectricStorage")
         end
-        if "Generator" in keys(Multinode_Settings_No_Techs["REopt_inputs_list"][i])
-            delete!(Multinode_Settings_No_Techs["REopt_inputs_list"][i], "Generator")
-        end
-        if string(Multinode_Settings_No_Techs["REopt_inputs_list"][i]["Site"]["node"]) != facilitymeter_node
-            electric_utility_inputs["net_metering_limit_kw"] = 0
-            electric_utility_inputs["interconnection_limit_kw"] = 0
-            #Multinode_Settings_No_Techs["REopt_inputs_list"][i]["PV"]["can_net_meter"] = false
+
+        if haskey(node_inputs, "Generator")
+            # Note this if statement was generated with the assistance of AI.
+            if get(node_inputs["Generator"], "existing_kw", 0.0) > 0
+                LimitTechSizeToExisting!(node_inputs["Generator"])
+            else
+                delete!(node_inputs, "Generator")
+            end
         end
     end
     
