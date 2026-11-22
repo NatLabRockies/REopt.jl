@@ -1108,51 +1108,18 @@ function CreateDictionaryOfNodeConnections(Multinode_Inputs, data_eng)
                                             vcat(a, b)
                                         end
 
-    if Multinode_Inputs.display_information_during_modeling_run
-       # Save some text files showing connectivity from the simple powerflow model
-        open(Multinode_Inputs.folder_location*"/paths.txt","w") do input
-            for (key, val) in paths
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/neighbors.txt","w") do input
-            for (key, val) in neighbors
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/all_connections_lines_to_busses.txt","w") do input
-            for (key, val) in all_connections_lines_to_busses
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections_upstream_busses.txt","w") do input
-            for (key, val) in connections_upstream_busses
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections_downstream_busses.txt","w") do input
-            for (key, val) in connections_downstream_busses
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/bus_pair_to_line_conversion.txt","w") do input
-            for (key, val) in bus_pair_to_line_conversion
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections_downstream_lines.txt","w") do input
-            for (key, val) in connections_downstream_lines
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections_upstream_lines.txt","w") do input
-            for (key, val) in connections_upstream_lines
-                println(input, "$key => $val" ) 
-            end
-        end
-    end
-
-    return all_connections_lines_to_busses, connections_upstream_lines, connections_downstream_lines, lines, transformer_busses, line_names_to_sourcebus_dict_including_transformers, phases_for_each_line_and_transformer_line
+    return all_connections_lines_to_busses, 
+           connections_upstream_lines, 
+           connections_downstream_lines, 
+           lines, 
+           transformer_busses, 
+           line_names_to_sourcebus_dict_including_transformers, 
+           phases_for_each_line_and_transformer_line,
+           paths,
+           neighbors,
+           connections_upstream_busses,
+           connections_downstream_busses,
+           bus_pair_to_line_conversion
 end
 
 
@@ -1300,7 +1267,7 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
     indeces = collect(1:length(time_steps_without_PMD))
     print("\n Generated timesteps vector and indeces")
 
-    connections, connections_upstream, connections_downstream, lines, transformer_busses, line_names_to_sourcebus_dict_including_transformers, phases_for_each_line_and_transformer_line = CreateDictionaryOfNodeConnections(Multinode_Inputs, data_eng)  # Note: the lines variable here includes lines that represent the transformer
+    connections, connections_upstream, connections_downstream, lines, transformer_busses, line_names_to_sourcebus_dict_including_transformers, phases_for_each_line_and_transformer_line, paths, neighbors, connections_upstream_busses, connections_downstream_busses, bus_pair_to_line_conversion = CreateDictionaryOfNodeConnections(Multinode_Inputs, data_eng)  # Note: the lines variable here includes lines that represent the transformer
     print("\n Finished creating a dictionary of node connections")
 
     if Multinode_Inputs.display_information_during_modeling_run
@@ -1472,34 +1439,6 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
         end
     end
 
-    if Multinode_Inputs.display_information_during_modeling_run
-        # Save some text files showing connectivity from the simple powerflow model
-        open(Multinode_Inputs.folder_location*"/connections_upstream.txt","w") do input
-            for (key, val) in connections_upstream
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections_downstream.txt","w") do input
-            for (key, val) in connections_downstream
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/connections.txt","w") do input
-            for (key, val) in connections
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/phases_for_each_line.txt","w") do input
-            for (key, val) in phases_for_each_line
-                println(input, "$key => $val" ) 
-            end
-        end
-        open(Multinode_Inputs.folder_location*"/phases_for_each_line_and_transformer_line.txt","w") do input
-            for (key, val) in phases_for_each_line_and_transformer_line
-                println(input, "$key => $val" ) 
-            end
-        end
-    end
     if Multinode_Inputs.display_information_during_modeling_run
         print("\n The phases for each bus are: $(phases_for_each_bus)")
         print("\n The REopt nodes are: $(REopt_nodes)")
@@ -1998,13 +1937,9 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
         set_optimizer_attribute(m, "MIPRELSTOP", Multinode_Inputs.optimizer_tolerance)
         set_optimizer_attribute(m, "OUTPUTLOG", Multinode_Inputs.log_solver_output_to_console ? 1 : 0)
 
-        # Save the Xpress log into the per-run timestamped folder
-        log_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
-                     joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
-        mkpath(log_folder)
-        # Distinguish BAU vs main run logs within the same timestamped folder
-        log_filename = isfile(joinpath(log_folder, "xpress_log.txt")) ? "xpress_log_BAU.txt" : "xpress_log.txt"
-        xpress_log_path = joinpath(log_folder, log_filename)
+        # Distinguish BAU vs main run logs. The log is saved in the current working directory (the full path is used so the message below shows where the file is)
+        log_filename = isfile(timestamp*"_xpress_log.txt") ? timestamp*"_xpress_log_BAU.txt" : timestamp*"_xpress_log.txt"
+        xpress_log_path = abspath(log_filename)
 
         log_file_set = false
         try
@@ -2081,11 +2016,10 @@ function Run_REopt_PMD_Model(pm, Multinode_Inputs, timestamp="")
                     println("Conflict status: ", conflict_status)
 
                     if conflict_status == MOI.CONFLICT_FOUND
-                        iis_folder = isempty(timestamp) ? Multinode_Inputs.folder_location :
-                                    joinpath(Multinode_Inputs.folder_location, "results_"*timestamp)
-                        mkpath(iis_folder)
-                        iis_filename = isfile(joinpath(iis_folder, "iis_conflict.txt")) ? "iis_conflict_BAU.txt" : "iis_conflict.txt"
-                        iis_path = joinpath(iis_folder, iis_filename)
+                        # The file is saved in the current working directory, with the same naming approach as the Xpress log
+                        iis_filename = isfile(timestamp*"_iis_conflict.txt") ? timestamp*"_iis_conflict_BAU.txt" : timestamp*"_iis_conflict.txt"
+                        iis_path = abspath(iis_filename)
+                        println("Writing the IIS conflict file to $(iis_path)")
                         open(iis_path, "w") do io
                             # The typed all_constraints(model, F, S) overload already returns variable-in-set
                             # constraints (e.g. fix(...) or lower/upper bounds) when F is VariableRef, so no
@@ -2138,14 +2072,6 @@ function RestrictLinePowerFlow(Multinode_Inputs, REoptInputs_Combined, pm, m, li
     elseif OutageSimulator == true
         PMDTimeSteps_InREoptTimes = collect(1:OutageLength_Timesteps)
         PMDTimeSteps_Indeces = collect(1:OutageLength_Timesteps)
-    end
-
-    if Multinode_Inputs.display_information_during_modeling_run
-        open(Multinode_Inputs.folder_location*"/LineInfo.txt","w") do input
-            for (key, val) in LineInfo
-                println(input, "$key => $val" ) 
-            end
-        end
     end
 
     i = LineInfo[line]["index"]
@@ -2464,27 +2390,3 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
 
 end
 
-
-# Function to check for commons issues in the model if the model fails to optimize
-function run_diagnostics(model, Multinode_Inputs,  REopt_dictionary)
-
-    diagnostic_report = Dict([])
-
-    # Evaluation 1: Check for single variable contradictions
-    # AI was used to generate the evaluation 1 code
-    bad = []
-    for v in all_variables(model)
-        lb = has_lower_bound(v) ? lower_bound(v) : -Inf
-        ub = has_upper_bound(v) ? upper_bound(v) :  Inf
-        fx = is_fixed(v) ? fix_value(v) : nothing
-        if lb > ub + 1e-9
-            push!(bad, (v, lb, ub, fx, :lb_gt_ub))
-        elseif fx !== nothing && (fx < lb - 1e-9 || fx > ub + 1e-9)
-            push!(bad, (v, lb, ub, fx, :fix_outside_bounds))
-        end
-    end
-
-    diagnostic_report["single_variable_contradictions"] = bad
-    
-    return diagnostic_report
-end

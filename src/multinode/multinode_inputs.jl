@@ -3,7 +3,6 @@
 """
 `multinode` is an optional input with the following keys and default values:
 
-    folder_location::String="",
     bus_coordinates::String="",  # Location of the csv document with the bus coordinates
     PMD_network_input::Any,
     multinode_type::String="BehindTheMeter",  # Options: "BehindTheMeter", "CommunityDistrict", or "Offgrid"
@@ -79,7 +78,6 @@ The `grid_available_timesteps` and `grid_outage_timesteps` fields of the struct 
 """
 
 mutable struct MultinodeInputs <: AbstractMultinode
-    folder_location
     bus_coordinates
     PMD_network_input
     multinode_type
@@ -146,7 +144,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
     grid_outage_timesteps
    
     function MultinodeInputs(;
-        folder_location::String="",
         bus_coordinates::String="",  
         PMD_network_input::Any,
         multinode_type::String="BehindTheMeter", 
@@ -270,7 +267,6 @@ mutable struct MultinodeInputs <: AbstractMultinode
     grid_available_timesteps = setdiff(all_timesteps, grid_outage_timesteps)
 
     new(
-        folder_location,
         bus_coordinates,
         PMD_network_input,
         multinode_type,
