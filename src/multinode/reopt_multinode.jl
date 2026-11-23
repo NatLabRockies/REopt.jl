@@ -141,6 +141,23 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
             sum(p.s.storage.attr[b].om_cost_fraction_of_installed_cost * m[Symbol("ElectricStorageCapCost"*_n)] for b in p.s.storage.types.elec)
         )		
 
+		# Up-front capital costs before incentives for this node (reported as "initial_capital_costs" in the results).
+		# Note the code for this ex_name = "InitialCapexNoIncentives"*_n (the next about 14 lines) was generated with the assistance of AI.
+		# Multinode does not use cost curve segments, so each tech's cost is its installed cost per kW times its purchased (new) size
+		ex_name = "InitialCapexNoIncentives"*_n
+		m[Symbol(ex_name)] = @expression(m, m[Symbol("ElectricStorageCapCost"*_n)] + 0.0)
+		for pv in p.s.pvs
+			pv.name in p.techs.all || continue
+			pv_installed_cost_per_kw = pv.installed_cost_per_kw isa AbstractVector ? pv.installed_cost_per_kw[1] : pv.installed_cost_per_kw
+			add_to_expression!(m[Symbol(ex_name)], pv_installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)][pv.name])
+		end
+		if "Wind" in p.techs.all
+			add_to_expression!(m[Symbol(ex_name)], p.s.wind.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["Wind"])
+		end
+		if !isempty(p.techs.gen)
+			add_to_expression!(m[Symbol(ex_name)], p.s.generator.installed_cost_per_kw * m[Symbol("dvPurchaseSize"*_n)]["Generator"])
+		end
+
 		ex_name = "TotalPerUnitSizeOMCosts"*_n
 		m[Symbol(ex_name)] = @expression(m, p.third_party_factor * p.pwf_om * 
 			sum( p.om_cost_per_kw[t] * m[Symbol("dvSize"*_n)][t] for t in p.techs.all ) 

@@ -482,9 +482,9 @@ end
 
 function LimitTechSizeToExisting!(tech_inputs)
     # Note this function was generated with the assistance of AI.
-    existing_kw = get(tech_inputs, "existing_kw", 0.0)
-    tech_inputs["min_kw"] = existing_kw
-    tech_inputs["max_kw"] = existing_kw
+    # min_kw and max_kw are the capacity added beyond existing_kw, so setting them to zero limits the tech to its existing capacity
+    tech_inputs["min_kw"] = 0.0
+    tech_inputs["max_kw"] = 0.0
     return tech_inputs
 end
 
