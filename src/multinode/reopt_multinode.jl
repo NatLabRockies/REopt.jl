@@ -145,7 +145,9 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
 		# Note the code for this ex_name = "InitialCapexNoIncentives"*_n (the next about 14 lines) was generated with the assistance of AI.
 		# Multinode does not use cost curve segments, so each tech's cost is its installed cost per kW times its purchased (new) size
 		ex_name = "InitialCapexNoIncentives"*_n
-		m[Symbol(ex_name)] = @expression(m, m[Symbol("ElectricStorageCapCost"*_n)] + 0.0)
+		# Start from an empty affine expression, because ElectricStorageCapCost is a plain number (0.0) at nodes without electric storage
+		m[Symbol(ex_name)] = JuMP.AffExpr(0.0)
+		add_to_expression!(m[Symbol(ex_name)], m[Symbol("ElectricStorageCapCost"*_n)])
 		for pv in p.s.pvs
 			pv.name in p.techs.all || continue
 			pv_installed_cost_per_kw = pv.installed_cost_per_kw isa AbstractVector ? pv.installed_cost_per_kw[1] : pv.installed_cost_per_kw
