@@ -338,7 +338,7 @@ function build_reopt!(m::JuMP.AbstractModel, p::REoptInputs)
         end
 
 		if !isempty(p.techs.water_power)
-			add_water_power_constraints(m,p)
+			add_water_power_storage_constraints(m,p)
 		end
 
         if !isempty(p.ghp_options)
