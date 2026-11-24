@@ -54,7 +54,6 @@ limits: since those time steps' energy already sums correctly to the period's to
 `time_steps_per_hour`, `get_time_steps_by_period`'s grouped sum is correct for them as-is.
 """
 function add_chp_fuel1_capacity_limit_constraints!(m, p, chp::CHP, t::String, var_symbol::Symbol)
-    isnothing(chp.fuel_max_period) && return nothing
     cap_kwh = chp.fuel_max_mmbtu_per_period * KWH_PER_MMBTU
 
     if chp.fuel_max_period == "hour"
@@ -118,13 +117,15 @@ function add_chp_dual_fuel_constraints(m, p; _n="")
     dual_fuel_chps = chp_names_with_capacity_limited_dual_fuel(p)
     single_fuel_capped_chps = chp_names_with_capacity_limited_single_fuel(p)
 
-    if isempty(switch_chps) && isempty(dual_fuel_chps) && isempty(single_fuel_capped_chps)
-        return nothing
+    if !isempty(switch_chps)
+        add_chp_fuel_switch_costs(m, p, switch_chps; _n=_n)
     end
-
-    add_chp_fuel_switch_costs(m, p, switch_chps; _n=_n)
-    add_chp_capacity_limited_dual_fuel_constraints(m, p, dual_fuel_chps; _n=_n)
-    add_chp_capacity_limited_single_fuel_constraints(m, p, single_fuel_capped_chps; _n=_n)
+    if !isempty(dual_fuel_chps)
+        add_chp_capacity_limited_dual_fuel_constraints(m, p, dual_fuel_chps; _n=_n)
+    end
+    if !isempty(single_fuel_capped_chps)
+        add_chp_capacity_limited_single_fuel_constraints(m, p, single_fuel_capped_chps; _n=_n)
+    end
     return nothing
 end
 
@@ -154,7 +155,6 @@ from year 1 at their own escalation rates, so fuel 2's price in its first year o
 `fuel2_cost_per_mmbtu * (1 + esc2)^fuel2_switch_start_year`. Costs are discounted from year 1 as usual.
 """
 function add_chp_fuel_switch_costs(m, p, switch_chp_names; _n="")
-    isempty(switch_chp_names) && return nothing
     discount_rate = p.s.financial.offtaker_discount_rate_fraction
 
     for t in switch_chp_names
@@ -203,8 +203,6 @@ For each CHP with a fuel 1 rate/volume limit **and** `fuel2_type` set, split `dv
 model minimizes cost, the LP naturally fills the (typically cheaper) capped fuel 1 first.
 """
 function add_chp_capacity_limited_dual_fuel_constraints(m, p, chp_names; _n="")
-    isempty(chp_names) && return nothing
-
     dv1 = "dvFuelUsageFuel1"*_n
     dv2 = "dvFuelUsageFuel2"*_n
     m[Symbol(dv1)] = @variable(m, [chp_names, p.time_steps], base_name=dv1, lower_bound=0)
@@ -216,8 +214,9 @@ function add_chp_capacity_limited_dual_fuel_constraints(m, p, chp_names; _n="")
 
     for t in chp_names
         chp = get_chp_by_name(t, p.s.chps)
-
-        add_chp_fuel1_capacity_limit_constraints!(m, p, chp, t, Symbol(dv1))
+        if !isnothing(chp.fuel_max_period)
+            add_chp_fuel1_capacity_limit_constraints!(m, p, chp, t, Symbol(dv1))
+        end
 
         pwf_fuel2 = chp_fuel2_pwf(p, chp)
         fuel2_cost_per_kwh = chp_fuel2_cost_per_kwh(p, chp)
@@ -327,11 +326,11 @@ For each CHP with a fuel 1 rate/volume limit and **no** `fuel2_type`, simply cap
 blending, no cost/emissions changes — the limit constrains CHP's total fuel burn).
 """
 function add_chp_capacity_limited_single_fuel_constraints(m, p, chp_names; _n="")
-    isempty(chp_names) && return nothing
-
     for t in chp_names
         chp = get_chp_by_name(t, p.s.chps)
-        add_chp_fuel1_capacity_limit_constraints!(m, p, chp, t, Symbol("dvFuelUsage"*_n))
+        if !isnothing(chp.fuel_max_period)
+            add_chp_fuel1_capacity_limit_constraints!(m, p, chp, t, Symbol("dvFuelUsage"*_n))
+        end
     end
     return nothing
 end
