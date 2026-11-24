@@ -1515,6 +1515,27 @@ else  # run HiGHS tests
                 GC.gc()
             end
         end
+        
+        @testset "Pumped storage hydropower"
+            
+            # Grid-connected behind-the-meter pumped storage hydropower
+            m1 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            m2 = Model(optimizer_with_attributes(HiGHS.Optimizer, "output_flag" => false, "log_to_console" => false))
+            d = JSON.parsefile("scenarios/pumped_storage_hydropower.json");
+            results = run_reopt([m1,m2], d)
+
+            @test results["WaterPower"]["WaterPumps"]["pumps_power_rating_kw"] ≈ 243.329 rtol=1e-3
+            @test results["WaterPower"]["WaterTurbines"]["turbines_size_kw"] ≈ 281.651 rtol=1e-3
+            @test results["WaterPower"]["WaterTurbines"]["turbines_initial_capital_costs"] ≈ 1480.25 rtol=1e-3
+            @test results["WaterPower"]["Financial"]["npv"] ≈ 375099.9 rtol=1e-3
+            
+            finalize(backend(m1))
+            empty!(m1)
+            finalize(backend(m2))
+            empty!(m2)
+            GC.gc()
+
+        end
 
         #=
         add a time-of-export rate that is greater than retail rate for the month of January,

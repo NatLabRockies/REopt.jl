@@ -12,7 +12,10 @@ abstract type AbstractElectricStorage <: AbstractStorage end
 abstract type AbstractThermalStorageDefaults end
 abstract type AbstractGHP <: AbstractTech end
 abstract type AbstractSteamTurbine <: AbstractTech end
-
+abstract type AbstractWaterStorage end
+abstract type AbstractWaterStorageDefaults end
+abstract type AbstractWaterPower <: AbstractTech end
+abstract type AbstractWaterPowerDefaults end
 
 """
     Techs
@@ -46,6 +49,9 @@ mutable struct Techs
     can_serve_dhw::Vector{String}
     can_serve_process_heat::Vector{String}
     ghp::Vector{String}
+    water_power::Vector{String}
+    water_power_turbines::Vector{String}
+    water_power_pumps::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
 end
@@ -77,6 +83,9 @@ mutable struct Techs
     can_serve_dhw::Vector{String}
     can_serve_process_heat::Vector{String}
     ghp::Vector{String}
+    water_power::Vector{String}
+    water_power_turbines::Vector{String}
+    water_power_pumps::Vector{String}
     ashp::Vector{String}
     ashp_wh::Vector{String}
 end

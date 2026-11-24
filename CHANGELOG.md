@@ -25,6 +25,12 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## Develop 2026-11-09
+### Added
+- Added the capability to optimize the sizing and operation of a pumped storage hydropower (PSH) system 
+- New files are: `constraints/water_power_constraints.jl`, `core/water_power.jl`, `core/water_storage.jl`, `results/water_power.jl`, `results/water_storage`
+- The PSH code is compatible with the existing REopt techno-economic analysis architecture and allows for the optimization of hybrid systems that include PSH
+
 ## v0.59.3
 ### Changed
 - Updated Julia environment variable names from "NREL_DEVELOPER_API_KEY" and "NREL_DEVELOPER_EMAIL" to "NLR_DEVELOPER_API_KEY" and "NLR_DEVELOPER_EMAIL"
