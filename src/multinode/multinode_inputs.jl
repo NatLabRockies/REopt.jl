@@ -53,6 +53,7 @@
     generators_only_run_during_grid_outage::Bool=false,
     battery_min_soc_fraction_during_non_outage_times::Real=0.2,
     battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
+    battery_recharge_hours_after_grid_outage::Real=24, # Number of hours after each grid outage during which battery_min_soc_fraction_during_non_outage_times is not applied (battery_min_soc_fraction_during_grid_outage_times is applied instead), giving the battery time to recharge
     generate_dictionary_for_plotting::Bool=false,
     number_of_plots_from_outage_simulator::Real=0,
   
@@ -73,8 +74,8 @@
     run_IIS_on_nonoptimal_models::Bool=false,
     load_profiles_for_outage_sim_if_using_the_fraction_method::Array=[]
 
-The `grid_available_timesteps` and `grid_outage_timesteps` fields of the struct are not inputs. They are derived from 
-`single_outage_start_time_step`, `single_outage_end_time_step`, `model_outages_with_outages_vector`, and `outages_vector`.
+The `grid_available_timesteps`, `grid_outage_timesteps`, and `battery_recharge_timesteps_after_grid_outage` fields of the struct are not inputs. They are derived from 
+`single_outage_start_time_step`, `single_outage_end_time_step`, `model_outages_with_outages_vector`, `outages_vector`, and `battery_recharge_hours_after_grid_outage`.
 """
 
 mutable struct MultinodeInputs <: AbstractMultinode
@@ -124,6 +125,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
     generators_only_run_during_grid_outage
     battery_min_soc_fraction_during_non_outage_times
     battery_min_soc_fraction_during_grid_outage_times
+    battery_recharge_hours_after_grid_outage
     generate_dictionary_for_plotting
     number_of_plots_from_outage_simulator
     generate_same_pv_production_profile_for_each_node
@@ -142,6 +144,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
     load_profiles_for_outage_sim_if_using_the_fraction_method
     grid_available_timesteps
     grid_outage_timesteps
+    battery_recharge_timesteps_after_grid_outage
    
     function MultinodeInputs(;
         bus_coordinates::String="",  
@@ -190,6 +193,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
         generators_only_run_during_grid_outage::Bool=false,
         battery_min_soc_fraction_during_non_outage_times::Real=0.2,
         battery_min_soc_fraction_during_grid_outage_times::Real=0.0,
+        battery_recharge_hours_after_grid_outage::Real=24,
         generate_dictionary_for_plotting::Bool=false,
         number_of_plots_from_outage_simulator::Real=0,
         generate_same_pv_production_profile_for_each_node::Bool=false,
@@ -266,6 +270,19 @@ mutable struct MultinodeInputs <: AbstractMultinode
 
     grid_available_timesteps = setdiff(all_timesteps, grid_outage_timesteps)
 
+    # The grid-available time steps within battery_recharge_hours_after_grid_outage after the end of an outage, when the battery is allowed to recharge
+    # ----- Start of code generated with the assistance of AI
+    if battery_recharge_hours_after_grid_outage < 0
+        throw(@error("The battery_recharge_hours_after_grid_outage input must not be negative."))
+    end
+    recharge_window_time_steps = round(Int, battery_recharge_hours_after_grid_outage * time_steps_per_hour)
+    battery_recharge_timesteps_after_grid_outage = Int[]
+    for outage_time_step in grid_outage_timesteps
+        append!(battery_recharge_timesteps_after_grid_outage, (outage_time_step + 1):(outage_time_step + recharge_window_time_steps))
+    end
+    battery_recharge_timesteps_after_grid_outage = sort(intersect(grid_available_timesteps, battery_recharge_timesteps_after_grid_outage))
+    # ----- End of code generated with the assistance of AI
+
     new(
         bus_coordinates,
         PMD_network_input,
@@ -313,6 +330,7 @@ mutable struct MultinodeInputs <: AbstractMultinode
         generators_only_run_during_grid_outage,
         battery_min_soc_fraction_during_non_outage_times,
         battery_min_soc_fraction_during_grid_outage_times,
+        battery_recharge_hours_after_grid_outage,
         generate_dictionary_for_plotting,
         number_of_plots_from_outage_simulator,
         generate_same_pv_production_profile_for_each_node,
@@ -330,7 +348,8 @@ mutable struct MultinodeInputs <: AbstractMultinode
         run_IIS_on_nonoptimal_models,
         load_profiles_for_outage_sim_if_using_the_fraction_method,
         grid_available_timesteps,
-        grid_outage_timesteps
+        grid_outage_timesteps,
+        battery_recharge_timesteps_after_grid_outage
     )
    
     end
