@@ -84,6 +84,7 @@ const CHP_CUSTOM_FUEL_INPUTS = [
     emissions_factor_lb_NOx_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
     emissions_factor_lb_SO2_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
     emissions_factor_lb_PM25_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_PM25_per_mmbtu"][fuel_type] # defaults based on fuel_type; required if fuel_type is "custom"
+    fuel_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing # Defaults to Financial.chp_fuel_cost_escalation_rate_fraction (sector-based); if input, Financial.chp_fuel_cost_escalation_rate_fraction is set to this value
 
     # Dual-fuel CHP (optional): model a second fuel alongside fuel_type/fuel_cost_per_mmbtu ("fuel 1") using one of three mutually-exclusive modes
     fuel2_type::Union{Nothing, String} = nothing # "restrict_to": ["natural_gas", "landfill_bio_gas", "propane", "diesel_oil", "custom"]. Second fuel type; providing fuel2_type indicates that dual fuel is modeled and requires fuel2_cost_per_mmbtu. If any other fuel2 input (including fuel2_switch_start_year) is provided without fuel2_type, it defaults to "natural_gas". If "custom", fuel2_cost_escalation_rate_fraction and all fuel2_emissions_factor_lb_*_per_mmbtu inputs are required
