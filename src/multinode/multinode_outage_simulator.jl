@@ -398,6 +398,53 @@ function AddConstraintsOutageSimulator(Multinode_Inputs, m_outagesimulator, Time
 end
 
 
+function CreateUnbalancedPhasePowerForOutageSimulator(m, Multinode_Inputs, REopt_inputs_combined, REopt_nodes, TimeSteps)
+    # Note: this function was generated with the assistance of AI.
+    # The outage simulator version of CreateUnbalancedPhasePowerForNodes (see multinode.jl for the description of the approach)
+
+    node_phase_power = Dict{String, Any}()
+
+    for p in REopt_inputs_combined
+        node = p.s.site.node
+        if !(string(node) in string.(REopt_nodes)) || (PhaseBalancingApproachForNode(Multinode_Inputs, p) != "unbalanced")
+            continue
+        end
+
+        n = string(node)
+        node_phases = collect(p.s.settings.phase_numbers)
+        number_of_node_phases = length(node_phases)
+
+        pv_on_phase = "dvPVOnPhase_"*n
+        gen_on_phase = "dvGenOnPhase_"*n
+        discharge_on_phase = "dvBatDischargeOnPhase_"*n
+        charge_on_phase = "dvBatChargeOnPhase_"*n
+        for name in [pv_on_phase, gen_on_phase, discharge_on_phase, charge_on_phase]
+            m[Symbol(name)] = @variable(m, [ph in node_phases, ts in 1:TimeSteps], base_name=name, lower_bound=0)
+        end
+
+        @constraint(m, [ts in 1:TimeSteps], sum(m[Symbol(pv_on_phase)][ph, ts] for ph in node_phases) == 
+                        m[Symbol("dvPVToGrid_"*n)][ts] + m[Symbol("dvPVToBat_"*n)][ts] + m[Symbol("dvPVToLoad_"*n)][ts])
+        @constraint(m, [ts in 1:TimeSteps], sum(m[Symbol(gen_on_phase)][ph, ts] for ph in node_phases) == 
+                        m[Symbol("dvGenToGrid_"*n)][ts] + m[Symbol("dvGenToLoad_"*n)][ts])
+        @constraint(m, [ts in 1:TimeSteps], sum(m[Symbol(discharge_on_phase)][ph, ts] for ph in node_phases) == 
+                        m[Symbol("dvBatToGridWithEfficiency_"*n)][ts] + m[Symbol("dvBatToLoadWithEfficiency_"*n)][ts])
+        @constraint(m, [ts in 1:TimeSteps], sum(m[Symbol(charge_on_phase)][ph, ts] for ph in node_phases) == 
+                        m[Symbol("dvPVToBat_"*n)][ts] + m[Symbol("dvGridToBat_"*n)][ts])
+
+        technology_and_battery_power = @expression(m, [ph in node_phases, ts in 1:TimeSteps],
+            m[Symbol(pv_on_phase)][ph, ts] + m[Symbol(gen_on_phase)][ph, ts] + m[Symbol(discharge_on_phase)][ph, ts] - m[Symbol(charge_on_phase)][ph, ts]
+        )
+
+        node_phase_power[n] = @expression(m, [ph in node_phases, ts in 1:TimeSteps],
+            (m[Symbol("TotalExport_"*n)][ts] - m[Symbol("dvGridPurchase_"*n)][ts]) / number_of_node_phases +
+            technology_and_battery_power[ph, ts] - sum(technology_and_battery_power[ph2, ts] for ph2 in node_phases) / number_of_node_phases
+        )
+    end
+
+    return node_phase_power
+end
+
+
 function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_TimeSteps_Input, LineInfo_PMD, REopt_inputs_combined;
                               cached_pmd_info=nothing)
     # Link the power export decision variables to the PMD model
@@ -412,6 +459,10 @@ function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_T
         gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = cached_pmd_info
     end
 
+    # Allocate the power of the nodes that use the "unbalanced" phase_balancing_approach_for_multiphase_node_export to the phases of the node
+    node_phase_power = CreateUnbalancedPhasePowerForOutageSimulator(pm.model, Multinode_Inputs, REopt_inputs_combined, REopt_nodes, OutageLength_TimeSteps_Input)
+    p_for_node = Dict(string(p.s.site.node) => p for p in REopt_inputs_combined)
+    phase_of_generator = Dict{Int, Int}() # The phase that each PMD generator is for (used for the multiphase nodes)
 
     #gen_name2ind = Dict(gen["name"] => gen["index"] for (_,gen) in data_math_mn["nw"]["1"]["gen"])
     
@@ -432,6 +483,7 @@ function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_T
 
                 gen_ind_e_temp = gen_name2ind["REopt_gen_node$(e)_phase$(phase)"]
                 push!(REopt_gen_ind_e, gen_ind_e_temp)
+                phase_of_generator[gen_ind_e_temp] = phase
 
             end
         end
@@ -441,12 +493,19 @@ function Connect_To_PMD_Model(pm, Multinode_Inputs, data_math_mn, OutageLength_T
                            
     for e in REopt_gen_ind_e  #Note: the REopt_gen_ind_e does not contain the facility meter
         
-        number_of_phases_at_load = ""
-        number_of_phases_at_load = length(load_phase_dictionary[gen_ind_e_to_REopt_node[e]])
+        node = gen_ind_e_to_REopt_node[e]
+        number_of_phases_at_load = length(load_phase_dictionary[node])
 
-        JuMP.@constraint(pm.model, [k in outage_timesteps],  
-                            PowerModelsDistribution.var(pm, k, :pg, e).data[1] == (1/number_of_phases_at_load) * (pm.model[Symbol("TotalExport_"*string(gen_ind_e_to_REopt_node[e]))][k] - pm.model[Symbol("dvGridPurchase_"*string(gen_ind_e_to_REopt_node[e]))][k])   # negative power "generation" is a load
-        )
+        if PhaseBalancingApproachForNode(Multinode_Inputs, p_for_node[string(node)]) == "balanced"
+            JuMP.@constraint(pm.model, [k in outage_timesteps],  
+                                PowerModelsDistribution.var(pm, k, :pg, e).data[1] == (1/number_of_phases_at_load) * (pm.model[Symbol("TotalExport_"*string(node))][k] - pm.model[Symbol("dvGridPurchase_"*string(node))][k])   # negative power "generation" is a load
+            )
+        else
+            # "unbalanced": the power of the PMD generator for this phase is the net power that the node's technologies and batteries allocate to the phase (each PMD generator has one conductor, so .data[1] is for the generator's own phase)
+            JuMP.@constraint(pm.model, [k in outage_timesteps],  
+                                PowerModelsDistribution.var(pm, k, :pg, e).data[1] == node_phase_power[string(node)][phase_of_generator[e], k]
+            )
+        end
         # TODO: add reactive power to the REopt nodes
         if Multinode_Inputs.model_subtype != "NFAUPowerModel"
             JuMP.@constraint(pm.model, [k in outage_timesteps],

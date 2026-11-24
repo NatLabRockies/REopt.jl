@@ -895,7 +895,83 @@ function generate_PMD_information(Multinode_Inputs, REopt_nodes, REopt_inputs_co
 end
 
     
-function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REopt_inputs_combined; gen_name2ind=nothing, load_phase_dictionary=nothing, gen_ind_e_to_REopt_node=nothing)
+function PhaseBalancingApproachForNode(Multinode_Inputs, p)
+    # This function was generated with the assistance of AI.
+    # Returns "balanced" or "unbalanced" for a REopt node, based on the phase_balancing_approach_for_multiphase_node_export setting of the node. 
+    # A node with one phase (or a model with one phase) has only one phase to supply, so it is "balanced"
+    approach = p.s.settings.phase_balancing_approach_for_multiphase_node_export
+    if !(approach in ["balanced", "unbalanced"])
+        throw(@error("The phase_balancing_approach_for_multiphase_node_export for node $(p.s.site.node), \"$(approach)\", is invalid. The options available in the multinode model are \"balanced\" and \"unbalanced\"."))
+    end
+    if approach == "unbalanced" && !(Multinode_Inputs.number_of_phases > 1 && length(p.s.settings.phase_numbers) > 1)
+        return "balanced"
+    end
+    return approach
+end
+
+
+function CreateUnbalancedPhasePowerForNodes(m, Multinode_Inputs, REopt_inputs_combined, REopt_nodes, time_steps)
+    # Note: this function was generated with the assistance of AI.
+    # For each REopt node that uses the "unbalanced" phase_balancing_approach_for_multiphase_node_export, allocate the power of the node's technologies and batteries to the phases of the node. Positive is power exported into the network.
+
+    node_phase_power = Dict{String, Any}()
+
+    for p in REopt_inputs_combined
+        node = p.s.site.node
+        if !(string(node) in string.(REopt_nodes)) || (PhaseBalancingApproachForNode(Multinode_Inputs, p) != "unbalanced")
+            continue
+        end
+
+        _n = string("_", node)
+        node_phases = collect(p.s.settings.phase_numbers)
+        number_of_node_phases = length(node_phases)
+        steps = collect(intersect(time_steps, p.time_steps))
+        techs = p.techs.elec
+        batteries = p.s.storage.types.elec
+
+        production_on_phase = "dvProductionOnPhase"*_n
+        discharge_on_phase = "dvDischargeOnPhase"*_n
+        charge_on_phase = "dvChargeOnPhase"*_n
+        m[Symbol(production_on_phase)] = @variable(m, [t in techs, ph in node_phases, ts in steps], base_name=production_on_phase, lower_bound=0)
+        m[Symbol(discharge_on_phase)] = @variable(m, [b in batteries, ph in node_phases, ts in steps], base_name=discharge_on_phase, lower_bound=0)
+        m[Symbol(charge_on_phase)] = @variable(m, [b in batteries, ph in node_phases, ts in steps], base_name=charge_on_phase, lower_bound=0)
+
+        # The production on the phases adds up to the production of each technology that is not curtailed
+        @constraint(m, [t in techs, ts in steps],
+            sum(m[Symbol(production_on_phase)][t, ph, ts] for ph in node_phases) ==
+            (p.production_factor[t, ts] * p.levelization_factor[t] * m[Symbol("dvRatedProduction"*_n)][t, ts]) - m[Symbol("dvCurtail"*_n)][t, ts]
+        )
+
+        # The discharge on the phases adds up to the total discharge of each battery
+        @constraint(m, [b in batteries, ts in steps],
+            sum(m[Symbol(discharge_on_phase)][b, ph, ts] for ph in node_phases) == m[Symbol("dvDischargeFromStorage"*_n)][b, ts]
+        )
+
+        # The charge on the phases adds up to the total charge of each battery (the charge from the node's technologies and from the grid)
+        @constraint(m, [b in batteries, ts in steps],
+            sum(m[Symbol(charge_on_phase)][b, ph, ts] for ph in node_phases) ==
+            sum(m[Symbol("dvProductionToStorage"*_n)][b, t, ts] for t in techs) + m[Symbol("dvGridToStorage"*_n)][b, ts]
+        )
+
+        # The power from the technologies and batteries on each phase (positive is power into the network)
+        technology_and_battery_power = @expression(m, [ph in node_phases, ts in steps],
+            sum(m[Symbol(production_on_phase)][t, ph, ts] for t in techs) +
+            sum(m[Symbol(discharge_on_phase)][b, ph, ts] - m[Symbol(charge_on_phase)][b, ph, ts] for b in batteries)
+        )
+
+        # The net power on each phase: an even split of the node's net power, adjusted by how the technologies and batteries differ from an even split
+        node_phase_power[string(node)] = @expression(m, [ph in node_phases, ts in steps],
+            (m[Symbol("TotalExport"*_n)][ts] - TotalGridPurchaseAtNode(m, node, ts)) / number_of_node_phases +
+            technology_and_battery_power[ph, ts] - sum(technology_and_battery_power[ph2, ts] for ph2 in node_phases) / number_of_node_phases
+        )
+        m[Symbol("PowerOnEachPhase"*_n)] = node_phase_power[string(node)]
+    end
+
+    return node_phase_power
+end
+
+
+function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REopt_inputs_combined; gen_name2ind=nothing, load_phase_dictionary=nothing, gen_ind_e_to_REopt_node=nothing, node_phase_power=Dict{String, Any}())
     # Link the PMD and REopt variables through constraints
     
     if gen_name2ind === nothing || load_phase_dictionary === nothing || gen_ind_e_to_REopt_node === nothing
@@ -909,6 +985,7 @@ function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REo
     end
 
     REopt_gen_ind_e = ""
+    phase_of_generator = Dict{Int, Int}() # The phase that each PMD generator is for (used for the multiphase nodes)
 
     if Multinode_Inputs.number_of_phases == 1
         REopt_gen_ind_e = [gen_name2ind["REopt_gen_$(e)"] for e in REopt_nodes];
@@ -927,6 +1004,7 @@ function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REo
                 # Add the gen index to the REopt_gen_ind_e list
                 gen_ind_e_temp = gen_name2ind["REopt_gen_node$(e)_phase$(phase)"]
                 push!(REopt_gen_ind_e, gen_ind_e_temp)
+                phase_of_generator[gen_ind_e_temp] = phase
 
             end
         end
@@ -936,33 +1014,38 @@ function LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REo
     
     PMDTimeSteps_InREoptTimes = Multinode_Inputs.PMD_time_steps
     PMDTimeSteps_Indeces = collect(1:length(PMDTimeSteps_InREoptTimes))
-         
-    # Get the gen indeces this way: gen_name2ind = Dict(gen["name"] => gen["index"] for (_,gen) in data_math_mn["nw"]["1"]["gen"])
-
-    #=
-    dv = "dvFreeReactivePower"
-    m[Symbol(dv)] = @variable(m, [REopt_gen_ind_e, PMDTimeSteps_Indeces], base_name=dv)
-
-    @constraint(m, [k in PMDTimeSteps_Indeces, e in REopt_gen_ind_e], m[:dvFreeReactivePower][e,k] .<= 0), #500 )
-    @constraint(m, [k in PMDTimeSteps_Indeces, e in REopt_gen_ind_e], m[:dvFreeReactivePower][e,k] .>= 0), #-500 )                                                 
-    =#                                                    
+    
+    p_for_node = Dict(string(p.s.site.node) => p for p in REopt_inputs_combined)
 
     for e in REopt_gen_ind_e  #Note: the REopt_gen_ind_e does not contain the facility meter
-       
-        number_of_phases_at_load = ""
-        number_of_phases_at_load = length(load_phase_dictionary[gen_ind_e_to_REopt_node[e]])
         
-        # Note: evenly split the total export and import across each phase associated with that load (aka REopt node, aka PMD generator)
-        JuMP.@constraint(m, [k in PMDTimeSteps_Indeces],  
-                            PowerModelsDistribution.var(pm, k, :pg, e).data[1] .== round((1/number_of_phases_at_load), digits = 6) * (m[Symbol("TotalExport_"*string(gen_ind_e_to_REopt_node[e]))][PMDTimeSteps_InREoptTimes[k]] - TotalGridPurchaseAtNode(m, gen_ind_e_to_REopt_node[e], PMDTimeSteps_InREoptTimes[k]))   # negative power "generation" is a load
-        )
-        
+        node = gen_ind_e_to_REopt_node[e]
+        number_of_phases_at_load = length(load_phase_dictionary[node])
+        phase_balancing_approach = PhaseBalancingApproachForNode(Multinode_Inputs, p_for_node[string(node)])
+         
+        if phase_balancing_approach == "balanced"
+            # Note: evenly split the total export and import across each phase associated with that load (aka REopt node, aka PMD generator)
+            JuMP.@constraint(m, [k in PMDTimeSteps_Indeces],  
+                                PowerModelsDistribution.var(pm, k, :pg, e).data[1] .== round((1/number_of_phases_at_load), digits = 6) * (m[Symbol("TotalExport_"*string(node))][PMDTimeSteps_InREoptTimes[k]] - TotalGridPurchaseAtNode(m, node, PMDTimeSteps_InREoptTimes[k]))   # negative power "generation" is a load
+            )
+        else
+            # "unbalanced": the power of the PMD generator for this phase is the net power that the node's technologies and batteries allocate to the phase (see CreateUnbalancedPhasePowerForNodes). 
+            # Note: each PMD generator has one conductor (the neutral is removed), so the generator's variable (.data[1]) is for the generator's own phase
+            if !haskey(node_phase_power, string(node))
+                throw(@error("The node_phase_power was not created for node $(node), which uses the unbalanced phase_balancing_approach_for_multiphase_node_export"))
+            end
+            JuMP.@constraint(m, [k in PMDTimeSteps_Indeces],  
+                                PowerModelsDistribution.var(pm, k, :pg, e).data[1] .== node_phase_power[string(node)][phase_of_generator[e], PMDTimeSteps_InREoptTimes[k]]
+            )
+        end
+
         # TODO: add reactive power to the REopt nodes
         if Multinode_Inputs.model_subtype != "NFAUPowerModel"
             JuMP.@constraint(m, [k in PMDTimeSteps_Indeces],
                                 PowerModelsDistribution.var(pm, k, :qg, e).data[1] .== 0.0 # m[:dvFreeReactivePower][e,k]  # (1/number_of_phases_at_load) * m[Symbol("TotalExport_"*string(buses[e]))][PMDTimeSteps_InREoptTimes[k]] - m[Symbol("dvGridPurchase_"*string(buses[e]))][PMDTimeSteps_InREoptTimes[k]] 
             )
         end
+
     end
 
     return REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node
@@ -1283,7 +1366,7 @@ function AddTransformerPowerLimitsToPMDTimesteps(pm, data_eng, data_math_mn)
 end
 
 
-function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=nothing, phases_for_each_bus=nothing)
+function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=nothing, phases_for_each_bus=nothing, node_phase_power=Dict{String, Any}())
     print("\n Adding Simple Powerflow Constraints to Non-PMD Timesteps: This can take a few minutes for very large models")
     
     time_steps_without_PMD = setdiff(REoptTimeSteps, Multinode_Inputs.PMD_time_steps)
@@ -1439,16 +1522,23 @@ function AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptI
                     Multinode_Inputs.display_information_during_modeling_run ? print("\n Connecting REopt node $(node) to the simple powerflow model") : nothing
                 end
                 node_phases = REopt_node_phases[string(node)]
+                node_uses_unbalanced_phases = haskey(node_phase_power, string(node))
                 for phase in BusPhasesForREoptNode(phases_for_each_bus, node)
-                    # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase of the node. Phases of the bus that are not phases of the node have no power injection
-                    phase_fraction = phase in node_phases ? 1/length(node_phases) : 0.0
-                    @constraint(m, m[:dvP][string(node), phase, index] .== phase_fraction .* ((m[Symbol("TotalExport_"*string(node))][t]) .- TotalGridPurchaseAtNode(m, node, t)) ) # To do: double check that these variable names are correct
-                    
+                    if node_uses_unbalanced_phases
+                        # "unbalanced": the power on the phase is the net power that the node's technologies and batteries allocate to the phase (see CreateUnbalancedPhasePowerForNodes). Phases of the bus that are not phases of the node have no power injection
+                        phase_power = phase in node_phases ? node_phase_power[string(node)][phase, t] : 0.0
+                        @constraint(m, m[:dvP][string(node), phase, index] == phase_power)
+                    else
+                        # This constraint assumes that multiphase nodes with loads (or generators) consume (or distribute) power evenly across each phase of the node. Phases of the bus that are not phases of the node have no power injection
+                        phase_fraction = phase in node_phases ? 1/length(node_phases) : 0.0
+                        @constraint(m, m[:dvP][string(node), phase, index] .== phase_fraction .* ((m[Symbol("TotalExport_"*string(node))][t]) .- TotalGridPurchaseAtNode(m, node, t)) ) # To do: double check that these variable names are correct
+                    end
+
                     if Multinode_Inputs.display_information_during_modeling_run 
                         if t in [1,2] # print out some information for the first couple timesteps
                             print("\n For node $(node), the phases_for_each_bus are: $(phases_for_each_bus[string(node)]), and the phases of the node are $(node_phases)")
                             print("\n    The index is $(index), and the t i $(t), and the phase is $(phase)")
-                            print("\n    The fraction of the node's power on the phase is $(phase_fraction)")
+                            print("\n    The node uses unbalanced phase power: $(node_uses_unbalanced_phases)")
                         end
                     end
                 
@@ -1593,10 +1683,17 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
     phases_for_each_bus = create_dictionary_of_phases_for_each_bus(data_eng)
     gen_name2ind, load_phase_dictionary, gen_ind_e_to_REopt_node = generate_PMD_information(Multinode_Inputs, REopt_nodes, REoptInputs_Combined, data_math_mn)
 
-    REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node = LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REoptInputs_Combined; gen_name2ind=gen_name2ind, load_phase_dictionary=load_phase_dictionary, gen_ind_e_to_REopt_node=gen_ind_e_to_REopt_node)
+    REoptTimeSteps = collect(1:(Multinode_Inputs.time_steps_per_hour * 8760))
+
+    # For the nodes that use the "unbalanced" phase_balancing_approach_for_multiphase_node_export, allocate the node's power to its phases. The phase powers are needed at the PMD time steps, 
+    # and at the other time steps if the simple powerflow model is used
+    use_simple_powerflow = Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD && (OutageSimulator == false)
+    time_steps_for_phase_power = use_simple_powerflow ? REoptTimeSteps : Multinode_Inputs.PMD_time_steps
+    node_phase_power = CreateUnbalancedPhasePowerForNodes(m, Multinode_Inputs, REoptInputs_Combined, REopt_nodes, time_steps_for_phase_power)
+
+    REopt_gen_ind_e, load_phase_dictionary, gen_ind_e_to_REopt_node = LinkREoptAndPMD(pm, m, data_math_mn, Multinode_Inputs, REopt_nodes, REoptInputs_Combined; gen_name2ind=gen_name2ind, load_phase_dictionary=load_phase_dictionary, gen_ind_e_to_REopt_node=gen_ind_e_to_REopt_node, node_phase_power=node_phase_power)
     LineInfo = CreateLineInfoDictionary(Multinode_Inputs, pm, data_math_mn)
     AddTransformerPowerLimitsToPMDTimesteps(pm, data_eng, data_math_mn)
-    REoptTimeSteps = collect(1:(Multinode_Inputs.time_steps_per_hour * 8760))
     
     line_upgrade_options_each_line = "N/A"
     
@@ -1612,9 +1709,9 @@ function Build_REopt_and_Link_To_PMD(pm, Multinode_Inputs, REopt_inputs_combined
         end
     end
         
-    if Multinode_Inputs.apply_simple_powerflow_model_to_timesteps_that_do_not_use_PMD && (OutageSimulator == false)
+    if use_simple_powerflow
         # Don't apply these constraints if the outage simulator is being used because the outage simulator applies PMD constraints to all time steps
-        connections, connections_upstream, connections_downstream = AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=phases_for_each_line, phases_for_each_bus=phases_for_each_bus)
+        connections, connections_upstream, connections_downstream = AddSimplePowerFlowConstraintsToNonPMDTimesteps(Multinode_Inputs, REoptInputs_Combined, pm, m, REoptTimeSteps, LineInfo, REopt_nodes, data_eng; phases_for_each_line=phases_for_each_line, phases_for_each_bus=phases_for_each_bus, node_phase_power=node_phase_power)
     else
         connections = "N/A"
         connections_upstream = "N/A" 
@@ -2242,6 +2339,9 @@ function RunDataChecks(Multinode_Inputs,  REopt_dictionary)
                 throw(@error("Phase $(phase) can't be listed more than once for node $(node_temp)"))
             end
         end
+
+        # Check the phase balancing approach of the node (this throws an error if the approach is not valid)
+        PhaseBalancingApproachForNode(Multinode_Inputs, p)
 
         if p.s.settings.facilitymeter_node != Multinode_Inputs.facilitymeter_node
             throw(@error("The facilitymeter_node input for each REopt node must equal the facilitymeter_node defined in the multinode settings, which is $(Multinode_Inputs.facilitymeter_node)"))

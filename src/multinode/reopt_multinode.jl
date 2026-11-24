@@ -184,6 +184,10 @@ function add_variables!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}
         		add_export_constraints(m, p; _n=_n)
 		end
 
+		if !isempty(p.s.electric_tariff.coincpeak_periods)
+			add_coincident_peak_charge_constraints(m, p; _n=_n)
+		end
+
 		add_elec_utility_expressions(m, p; _n=_n)
 
 		# Existing HVAC Cost NOT hooked up for multi-node; this is a patch to avoid errors
@@ -295,10 +299,6 @@ function build_reopt!(m::JuMP.AbstractModel, ps::AbstractVector{REoptInputs{T}},
 
         if p.s.electric_tariff.demand_lookback_percent > 0
             add_demand_lookback_constraints(m, p; _n=_n)
-        end
-
-        if !isempty(p.s.electric_tariff.coincpeak_periods)
-            add_coincident_peak_charge_constraints(m, p; _n=_n)
         end
     
     end

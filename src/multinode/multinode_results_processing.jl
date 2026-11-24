@@ -617,8 +617,88 @@ function Results_Compilation(model, results, PMD_Results, Outage_Results, Multin
             @warn "The dataframes of results could not be completely generated: $(sprint(showerror, dataframe_error))"
         end 
 
+        # Summary of the power on each phase for the nodes that use the unbalanced phase_balancing_approach_for_multiphase_node_export
+        try
+            unbalanced_node_summary = UnbalancedNodePhaseSummary(model, Multinode_Inputs)
+            if nrow(unbalanced_node_summary) > 0
+                dataframes["Unbalanced_Node_Phase_Summary"] = unbalanced_node_summary
+            end
+        catch unbalanced_summary_error
+            @warn "The summary of the unbalanced REopt nodes could not be generated: $(sprint(showerror, unbalanced_summary_error))"
+        end
+
     end
     return system_results, dataframes
+end
+
+
+function UnbalancedNodePhaseSummary(model, Multinode_Inputs)
+    # Note: this function was generated with the assistance of AI.
+
+    node_column = String[]
+    technology_column = String[]
+    phase_column = Int[]
+    rating_column = Union{Missing, Float64}[]
+    minimum_column = Float64[]
+    average_column = Float64[]
+    maximum_column = Float64[]
+    maximum_discharge_column = Union{Missing, Float64}[]
+    maximum_charge_column = Union{Missing, Float64}[]
+
+    add_row!(node, technology, phase, rating, series; maximum_discharge = missing, maximum_charge = missing) = begin
+        push!(node_column, string(node))
+        push!(technology_column, string(technology))
+        push!(phase_column, phase)
+        push!(rating_column, rating)
+        push!(minimum_column, round(minimum(series), digits = 4))
+        push!(average_column, round(sum(series)/length(series), digits = 4))
+        push!(maximum_column, round(maximum(series), digits = 4))
+        push!(maximum_discharge_column, maximum_discharge)
+        push!(maximum_charge_column, maximum_charge)
+    end
+
+    for node_inputs in Multinode_Inputs.REopt_inputs_list
+        node = node_inputs["Site"]["node"]
+        _n = "_"*string(node)
+        if !haskey(model, Symbol("PowerOnEachPhase"*_n))
+            continue # The node does not use the unbalanced approach
+        end
+
+        production = value.(model[Symbol("dvProductionOnPhase"*_n)])
+        discharge = value.(model[Symbol("dvDischargeOnPhase"*_n)])
+        charge = value.(model[Symbol("dvChargeOnPhase"*_n)])
+        node_power = value.(model[Symbol("PowerOnEachPhase"*_n)])
+
+        technologies, phases, time_steps = production.axes
+        batteries = discharge.axes[1]
+
+        for t in technologies, ph in phases
+            rating = value(model[Symbol("dvSize"*_n)][t])
+            add_row!(node, t, ph, rating, [production[t, ph, ts] for ts in time_steps])
+        end
+
+        for b in batteries, ph in phases
+            rating = value(model[Symbol("dvStoragePower"*_n)][b])
+            net_power = [discharge[b, ph, ts] - charge[b, ph, ts] for ts in time_steps]
+            add_row!(node, b, ph, rating, net_power;
+                     maximum_discharge = round(maximum(discharge[b, ph, ts] for ts in time_steps), digits = 4),
+                     maximum_charge = round(maximum(charge[b, ph, ts] for ts in time_steps), digits = 4))
+        end
+
+        for ph in phases
+            add_row!(node, "Node_Net_Power", ph, missing, [node_power[ph, ts] for ts in time_steps])
+        end
+    end
+
+    return DataFrame(Node = node_column,
+                     Technology = technology_column,
+                     Phase = phase_column,
+                     Rating_kW_Shared_By_All_Phases = rating_column,
+                     Minimum_Power_kW = minimum_column,
+                     Average_Power_kW = average_column,
+                     Maximum_Power_kW = maximum_column,
+                     Maximum_Battery_Discharge_kW = maximum_discharge_column,
+                     Maximum_Battery_Charge_kW = maximum_charge_column)
 end
 
 
