@@ -171,7 +171,7 @@ include("constraints/ghp_constraints.jl")
 include("constraints/steam_turbine_constraints.jl")
 include("constraints/renewable_energy_constraints.jl")
 include("constraints/emissions_constraints.jl")
-include("constraints/water_power_constraints.jl")
+include("constraints/water_power_storage_constraints.jl")
 
 include("mpc/structs.jl")
 include("mpc/scenario.jl")
