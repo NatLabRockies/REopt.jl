@@ -500,7 +500,8 @@ function validate_chp_dual_fuel_inputs!(chp::CHP; errors::Vector{String}=String[
         push!(errors, "CHP.fuel_max_period and CHP.fuel_max_mmbtu_per_period must be set together.")
     end
 
-    if has_capacity_limit && chp.fuel2_cost_per_mmbtu <= chp.fuel_cost_per_mmbtu
+    if has_capacity_limit && !isnothing(chp.fuel2_cost_per_mmbtu) &&
+            chp.fuel2_cost_per_mmbtu <= chp.fuel_cost_per_mmbtu
         @warn("CHP.fuel2_cost_per_mmbtu is less than CHP.fuel_cost_per_mmbtu, so the first fuel will never be used " *
             "under the provided capacity limit unless emissions, renewables targets or escalators make it favorable."
         )
