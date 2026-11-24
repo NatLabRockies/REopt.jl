@@ -470,7 +470,11 @@ function validate_chp_dual_fuel_inputs!(chp::CHP; errors::Vector{String}=String[
         chp.fuel2_emissions_factor_lb_PM25_per_mmbtu
     )
     if isnothing(chp.fuel2_type) && !all(isnothing, other_fuel2_inputs)
+        @warn("CHP.fuel2_type not provided but other inputs specified for dual fuel, defaulting second fuel type to \"natural_gas\"")
         chp.fuel2_type = "natural_gas"
+    end
+    if chp.fuel2_type == chp.fuel_type
+        @warn("CHP.fuel2_type is the same as CHP.fuel_type; consider using a different fuel for dual-fuel modeling.")
     end
 
     has_fuel2 = !isnothing(chp.fuel2_type)
@@ -493,6 +497,12 @@ function validate_chp_dual_fuel_inputs!(chp::CHP; errors::Vector{String}=String[
 
     if has_capacity_limit && (isnothing(chp.fuel_max_period) || isnothing(chp.fuel_max_mmbtu_per_period))
         push!(errors, "CHP.fuel_max_period and CHP.fuel_max_mmbtu_per_period must be set together.")
+    end
+
+    if has_capacity_limit && chp.fuel2_cost_per_mmbtu <= chp.fuel_cost_per_mmbtu
+        @warn("CHP.fuel2_cost_per_mmbtu is less than CHP.fuel_cost_per_mmbtu, so the first fuel will never be used " *
+            "under the provided capacity limit unless emissions, renewables targets or escalators make it favorable."
+        )
     end
 
     if !isnothing(chp.fuel_max_period) && !(chp.fuel_max_period in CHP_FUEL_MAX_PERIODS)
