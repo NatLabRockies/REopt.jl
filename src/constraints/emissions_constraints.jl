@@ -227,7 +227,9 @@ function add_lifecycle_emissions_calcs(m,p)
 	)
 	m[:Lifecycle_Emissions_Cost_Health] = m[:Lifecycle_Emissions_Cost_NOx] + m[:Lifecycle_Emissions_Cost_SO2] + m[:Lifecycle_Emissions_Cost_PM25]
 
-	add_chp_fuel_switch_emissions_corrections(m, p)
+	if !isempty(chp_names_with_fuel_switch(p))
+		add_chp_fuel_switch_emissions_corrections(m, p)
+	end
 
 	nothing
 end
@@ -244,7 +246,6 @@ year-1-repeating dispatch (`dvFuelUsage`) both before and after, consistent with
 """
 function add_chp_fuel_switch_emissions_corrections(m, p)
 	switch_chps = chp_names_with_fuel_switch(p)
-	isempty(switch_chps) && return nothing
 
 	discount_rate = p.s.financial.offtaker_discount_rate_fraction
 	# (onsite $/tonne field name, cost-escalation-rate field name) per pollutant
