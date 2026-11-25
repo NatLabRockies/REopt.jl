@@ -1750,7 +1750,18 @@ function add_objective(pm, Multinode_Inputs, REoptInputs_Combined)
         add_to_expression!(Costs, pm.model[:dvBusVoltageViolationCost])
     end
     
-    @objective(pm.model, Min, pm.model[:Costs]) # Define the optimization objective
+    # Account for any add_soc_incentive inputs that are set to true for the REopt inputs
+    @expression(pm.model, ObjectivePenalties, JuMP.AffExpr(0.0))
+    for p in REoptInputs_Combined
+        # Note: this for statement and the ObjectivePenalties expression were added with the assistance of AI
+        if !isempty(p.s.storage.types.elec) && p.s.settings.add_soc_incentive
+            add_to_expression!(pm.model[:ObjectivePenalties], -1 * sum(
+                pm.model[Symbol("dvStoredEnergy_"*string(p.s.site.node))][b, ts] for b in p.s.storage.types.elec, ts in p.time_steps
+            ) / (8760. / p.hours_per_time_step))
+        end
+    end
+
+    @objective(pm.model, Min, pm.model[:Costs] + pm.model[:ObjectivePenalties]) # Define the optimization objective
 
 end
 
