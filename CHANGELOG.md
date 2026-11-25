@@ -24,6 +24,17 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## financial-updates-2026
+### Changed
+- Updated defaults for `Financial` inputs based on 2025 ATB and the EIA's 2026 AEO. Old --> New values listed below 
+    - `elec_cost_escalation_rate_fraction`: 0.0166 --> 0.0253
+    - `existing_boiler_fuel_cost_escalation_rate_fraction`: 0.0348 --> 0.0464
+    - `boiler_fuel_cost_escalation_rate_fraction`: 0.0348 --> 0.0464
+    - `chp_fuel_cost_escalation_rate_fraction`: 0.0348 --> 0.0464
+    - `generator_fuel_cost_escalation_rate_fraction`: 0.0197 --> 0.0206
+    - `offtaker_discount_rate_fraction`: 0.0624 --> 0.0586
+    - `owner_discount_rate_fraction`: 0.0624 --> 0.0586
+
 ## v1.0.1
 ### Changed
 - Combined CompatHelper updates (#523, #592, #606, #629, #632, #634) in Project.toml: widened compat for **ArchGDAL**, **JSON**, **Roots**, **HTTP**, **CoolProp**, **LinDistFlow**, and **CSV**; updated Manifest.toml to **Roots** 3, **HTTP** 2, **CoolProp** 0.2, and **LinDistFlow** 0.5.

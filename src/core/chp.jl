@@ -75,6 +75,7 @@ conflict_res_min_allowable_fraction_of_max = 0.25
     emissions_factor_lb_NOx_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_NOx_per_mmbtu"][fuel_type]
     emissions_factor_lb_SO2_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_SO2_per_mmbtu"][fuel_type]
     emissions_factor_lb_PM25_per_mmbtu::Float64 = FUEL_DEFAULTS["emissions_factor_lb_PM25_per_mmbtu"][fuel_type]
+    fuel_cost_escalation_rate_fraction::Union{Nothing, Float64} = nothing # Defaults to Financial.chp_fuel_cost_escalation_rate_fraction (sector-based); if input, Financial.chp_fuel_cost_escalation_rate_fraction is set to this value
 ```
 
 !!! note "Defaults and required inputs"
