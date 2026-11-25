@@ -55,6 +55,7 @@ using CoolProp
 using LinearAlgebra
 using CSV
 using DataFrames
+using SQLite
 
 function __init__()
     @require GhpGhx="7ce85f02-24a8-4d69-a3f0-14b5daa7d30c" println("using GhpGhx module in REopt")
@@ -151,7 +152,9 @@ include("core/reopt_inputs.jl")
 include("core/bau_inputs.jl")
 include("core/cost_curve.jl")
 include("core/simulated_load.jl")
+include("core/dsire_incentives.jl")
 include("core/battery_ssc.jl")
+include("core/reopt_multi_solutions.jl")
 
 include("constraints/outage_constraints.jl")
 include("constraints/storage_constraints.jl")

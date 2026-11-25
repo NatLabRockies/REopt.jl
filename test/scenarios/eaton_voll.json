@@ -1,0 +1,35 @@
+{
+    "Site": {
+        "longitude": -118.1164613,
+        "latitude": 34.5794343
+    },
+    "ElectricLoad": {
+        "doe_reference_name": "LargeOffice",
+        "critical_load_fraction": 1.0
+    },    
+    "PV": {
+    },
+    "ElectricStorage": {
+    },
+    "Generator": {
+        "max_kw": 1000000.0,
+        "fuel_avail_gal": 1e8,
+        "min_turn_down_fraction": 0.0,
+        "only_runs_during_grid_outage": true,
+        "sells_energy_back_to_grid": false
+    },
+    "ElectricUtility": {
+        "outage_start_time_steps": [4600, 5000, 5400, 5800],
+        "outage_durations": [10]
+    },
+    "ElectricTariff": {
+        "urdb_label": "5ed6c1a15457a3367add15ae"
+    },
+    "Financial": {
+        "value_of_lost_load_per_kwh": 5.0,
+        "microgrid_upgrade_cost_fraction": 0.3,
+        "owner_discount_rate_fraction": 0.1,
+        "elec_cost_escalation_rate_fraction": 0.0,
+        "om_cost_escalation_rate_fraction": 0.0        
+    }    
+}
