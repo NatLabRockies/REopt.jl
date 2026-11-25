@@ -29,6 +29,8 @@ elseif "Dev" in ARGS
     end
 else  # run HiGHS tests
     @testset verbose = true "REopt test set using HiGHS solver" begin
+        include("test_generator_replacement_proforma.jl")
+
         @testset "Sector defaults" begin
             input_data = JSON.parsefile("scenarios/sector_defaults.json")
 

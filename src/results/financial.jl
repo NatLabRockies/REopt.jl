@@ -159,6 +159,13 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
 end
 
 
+function generator_replacement_cost(m::JuMP.AbstractModel, p::REoptInputs; _n="")
+    if isempty(p.techs.gen) || p.s.generator.replacement_year >= p.s.financial.analysis_years
+        return 0.0
+    end
+    return p.s.generator.replace_cost_per_kw * value(m[Symbol("dvPurchaseSize"*_n)]["Generator"])
+end
+
 """
     replacement_costs_future_and_present(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 
@@ -215,11 +222,7 @@ function replacement_costs_future_and_present(m::JuMP.AbstractModel, p::REoptInp
     end
 
     if !isempty(p.techs.gen) # Generator replacement 
-        if p.s.generator.replacement_year >= p.s.financial.analysis_years 
-            future_cost_generator = 0.0
-        else 
-            future_cost_generator = p.s.generator.replace_cost_per_kw * value.(m[Symbol("dvPurchaseSize"*_n)])["Generator"]
-        end
+        future_cost_generator = generator_replacement_cost(m, p; _n=_n)
         future_cost += future_cost_generator
         present_cost += future_cost_generator * (1 - p.s.financial.owner_tax_rate_fraction) / 
             ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.generator.replacement_year)
