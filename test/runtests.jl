@@ -14,17 +14,7 @@ using DataFrames
 Random.seed!(42)
 using PowerModelsDistribution
 
-if "Xpress" in ARGS
-    @testset "test_with_xpress" begin
-        # @test true  #skipping Xpress while import to HiGHS takes place
-        include("test_with_xpress.jl")
-    end
-
-elseif "CPLEX" in ARGS
-    @testset "test_with_cplex" begin
-        include("test_with_cplex.jl")
-    end
-elseif "Dev" in ARGS
+if "Dev" in ARGS
     @testset "test development" begin
         include("development_tests.jl")
     end
