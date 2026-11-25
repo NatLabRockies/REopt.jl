@@ -33,6 +33,15 @@
 - `offgrid_microgrid_lcoe_dollars_per_kwh` Levelized cost of electricity for modeled off-grid system.
 - `lifecycle_emissions_cost_climate` LCC component if Settings input include_climate_in_objective is true. Present value of CO2 emissions cost over the analysis period.
 - `lifecycle_emissions_cost_health` LCC component if Settings input include_health_in_objective is true. Present value of NOx, SO2, and PM2.5 emissions cost over the analysis period.
+- `pwf_e` Present worth factor for electricity costs: the annuity over the analysis period at the electricity cost escalation rate and the offtaker discount rate.
+- `pwf_om` Present worth factor for O&M costs: the annuity at the O&M cost escalation rate and the owner discount rate.
+- `pwf_offtaker` Present worth factor at the offtaker discount rate with no escalation.
+- `pwf_owner` Present worth factor at the owner discount rate with no escalation.
+- `third_party_factor` Ratio of the offtaker's to the owner's after-tax present worth factors with third party ownership, 1.0 otherwise.
+- `pwf_fuel_existing_boiler`, `pwf_fuel_boiler`, `pwf_fuel_generator` Present worth factor for fuel costs: the annuity at the fuel cost escalation rate for the technology and the offtaker discount rate. Only included for technologies that are modeled. The `CHP` fuel present worth factors are in the `CHP` results since there can be multiple CHPs.
+- `pwf_emissions_cost_CO2_grid`, `pwf_emissions_cost_NOx_grid`, `pwf_emissions_cost_SO2_grid`, `pwf_emissions_cost_PM25_grid` Present worth factors for the cost of emissions from grid electricity, accounting for the emissions cost escalation rate and the grid emissions factor decrease.
+- `pwf_emissions_cost_CO2_onsite`, `pwf_emissions_cost_NOx_onsite`, `pwf_emissions_cost_SO2_onsite`, `pwf_emissions_cost_PM25_onsite` Present worth factors for the cost of emissions from onsite fuel burn, accounting for the emissions cost escalation rate.
+- `pwf_grid_emissions_CO2`, `pwf_grid_emissions_NOx`, `pwf_grid_emissions_SO2`, `pwf_grid_emissions_PM25` Present worth factors for lifecycle grid emissions (lbs), accounting for the grid emissions factor decrease.
 
 calculated in combine_results function if BAU scenario is run:
 - `breakeven_cost_of_emissions_reduction_per_tonne_CO2`
@@ -152,6 +161,24 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
     if _n==""
         r["lifecycle_emissions_cost_climate"] = round(value(m[:Lifecycle_Emissions_Cost_CO2]), digits=2)
         r["lifecycle_emissions_cost_health"] = round(value(m[:Lifecycle_Emissions_Cost_Health]), digits=2)
+    end
+
+    # Present worth factors used in the lifecycle cost calculations (CHP fuel present worth factors are in the CHP results)
+    r["pwf_e"] = p.pwf_e
+    r["pwf_om"] = p.pwf_om
+    r["pwf_offtaker"] = p.pwf_offtaker
+    r["pwf_owner"] = p.pwf_owner
+    r["third_party_factor"] = p.third_party_factor
+    for (tech, key) in [("ExistingBoiler", "existing_boiler"), ("Boiler", "boiler"), ("Generator", "generator")]
+        if haskey(p.pwf_fuel, tech)
+            r["pwf_fuel_"*key] = p.pwf_fuel[tech]
+        end
+    end
+    for (key, pwf) in p.pwf_emissions_cost  # keys are e.g. "CO2_grid", "CO2_onsite"
+        r["pwf_emissions_cost_"*key] = pwf
+    end
+    for (key, pwf) in p.pwf_grid_emissions  # keys are e.g. "CO2"
+        r["pwf_grid_emissions_"*key] = pwf
     end
 
     d["Financial"] = Dict{String,Float64}(k => round(v, digits=4) for (k,v) in r)
