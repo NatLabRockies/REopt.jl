@@ -266,7 +266,7 @@ struct with inner constructor:
 ```julia
 function MPCGenerator(;
     size_kw::Real,
-    fuel_cost_per_gallon::Real = 3.0,
+    fuel_cost_per_gallon::Real = 3.75,
     electric_efficiency_full_load::Real = 0.3233,
     electric_efficiency_half_load::Real = electric_efficiency_full_load,
     fuel_avail_gal::Real = 1.0e9,
@@ -298,7 +298,7 @@ struct MPCGenerator <: AbstractGenerator
 
     function MPCGenerator(;
         size_kw::Real,
-        fuel_cost_per_gallon::Real = 3.0,
+        fuel_cost_per_gallon::Real = 3.75,
         electric_efficiency_full_load::Real = 0.3233,
         electric_efficiency_half_load::Real = electric_efficiency_full_load,
         fuel_avail_gal::Real = 1.0e9,
