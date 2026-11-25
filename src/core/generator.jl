@@ -10,7 +10,7 @@
     om_cost_per_kw::Real = off_grid_flag ? 10.0 : 20.0,
     om_cost_per_kwh::Real = 0.0,
     om_cost_per_hr_per_kw_rated::Float64 = 0.0, # Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated
-    fuel_cost_per_gallon::Real = 2.25,
+    fuel_cost_per_gallon::Real = 3.75,
     electric_efficiency_full_load::Real = 0.322,
     electric_efficiency_half_load::Real = electric_efficiency_full_load,
     fuel_avail_gal::Real = 1.0e9,
@@ -107,7 +107,7 @@ struct Generator <: AbstractGenerator
         om_cost_per_kw::Real= off_grid_flag ? 10.0 : 20.0,
         om_cost_per_kwh::Real = 0.0,
         om_cost_per_hr_per_kw_rated::Float64 = 0.0, # Generator non-fuel variable operations and maintenance costs in \$/hr/kw_rated
-        fuel_cost_per_gallon::Real = 2.25,
+        fuel_cost_per_gallon::Real = 3.75,
         electric_efficiency_full_load::Real = 0.322,
         electric_efficiency_half_load::Real = electric_efficiency_full_load,
         fuel_avail_gal::Real = 1.0e9,

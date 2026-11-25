@@ -1892,7 +1892,7 @@ else  # run HiGHS tests
                          "production_factor_series" => fill(0.5, 8760),
                          "outage_production_fraction" => 0.0)
                 ],
-                "Generator" => Dict("min_kw" => 30.0, "max_kw" => 30.0, "fuel_avail_gal" => 1.0e6),
+                "Generator" => Dict("min_kw" => 30.0, "max_kw" => 30.0, "fuel_avail_gal" => 1.0e6, "fuel_cost_per_gallon" => 2.25),
                 "ElectricStorage" => Dict("max_kw" => 0.0, "max_kwh" => 0.0)
             )
             p = REoptInputs(Scenario(d))

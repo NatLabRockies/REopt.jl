@@ -26,6 +26,7 @@
     },
     "Generator": {
         "installed_cost_per_kw": 700,
+        "fuel_cost_per_gallon": 2.25,
         "min_kw": 20,
         "max_kw": 20,
         "replacement_year": 10,

@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## diesel-cost
+### Changed
+- Updated default **Generator** **fuel_cost_per_gallon** from 2.25 to 3.75 $/gal and default **MPCGenerator** **fuel_cost_per_gallon** from 3.0 to 3.75 $/gal. Test scenarios that relied on the old defaults now set them explicitly.
+
 ## financial-updates-2026
 ### Changed
 - Updated defaults for `Financial` inputs based on 2025 ATB and the EIA's 2026 AEO. Old --> New values listed below 
