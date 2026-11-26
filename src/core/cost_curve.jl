@@ -348,12 +348,18 @@ function cost_curve(tech::AbstractTech, financial::Financial)
                 replacement_cost = replacement_cost_1 + replacement_cost_2
                 replacement_year = min(tech.replacement_year_1, tech.replacement_year_2)
             else
-                if tech.replacement_year >= financial.analysis_years # assume no replacement in final year of project
-                    replacement_cost = 0.0
+                if tech.replacement_year_1 >= financial.analysis_years # assume no replacement in final year of project
+                    replacement_cost_1 = 0.0
                 else
-                    replacement_cost = tech.replace_cost_per_kw
+                    replacement_cost_1 = tech.replace_cost_per_kw_1
                 end
-                replacement_year = tech.replacement_year
+                if tech.replacement_year_2 >= financial.analysis_years # assume no replacement in final year of project
+                    replacement_cost_2 = 0.0
+                else
+                    replacement_cost_2 = tech.replace_cost_per_kw_2
+                end
+                replacement_cost = replacement_cost_1 + replacement_cost_2
+                replacement_year = min(tech.replacement_year_1, tech.replacement_year_2)
             end
             
         end

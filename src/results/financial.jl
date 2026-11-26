@@ -242,14 +242,23 @@ function replacement_costs_future_and_present(m::JuMP.AbstractModel, p::REoptInp
     end
 
     if !isempty(p.techs.gen) # Generator replacement 
-        if p.s.generator.replacement_year >= p.s.financial.analysis_years 
-            future_cost_generator = 0.0
+        if p.s.generator.replacement_year_1 >= p.s.financial.analysis_years 
+            future_cost_generator_1 = 0.0
         else 
-            future_cost_generator = p.s.generator.replace_cost_per_kw * value.(m[Symbol("dvPurchaseSize"*_n)])["Generator"]
+            future_cost_generator_1 = p.s.generator.replace_cost_per_kw_1 * value.(m[Symbol("dvPurchaseSize"*_n)])["Generator"]
         end
-        future_cost += future_cost_generator
-        present_cost += future_cost_generator * (1 - p.s.financial.owner_tax_rate_fraction) / 
-            ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.generator.replacement_year)
+        future_cost += future_cost_generator_1
+        present_cost += future_cost_generator_1 * (1 - p.s.financial.owner_tax_rate_fraction) / 
+            ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.generator.replacement_year_1)
+
+        if p.s.generator.replacement_year_2 >= p.s.financial.analysis_years 
+            future_cost_generator_2 = 0.0
+        else 
+            future_cost_generator_2 = p.s.generator.replace_cost_per_kw_2 * value.(m[Symbol("dvPurchaseSize"*_n)])["Generator"]
+        end
+        future_cost += future_cost_generator_2
+        present_cost += future_cost_generator_2 * (1 - p.s.financial.owner_tax_rate_fraction) / 
+            ((1 + p.s.financial.owner_discount_rate_fraction)^p.s.generator.replacement_year_2)
     end
     
     #write("/Users/apham/Documents/Projects/REopt_Projects/FY27/GHP replacement cost/test/p.json",JSON.json(p))

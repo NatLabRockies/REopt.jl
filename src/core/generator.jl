@@ -93,8 +93,10 @@ struct Generator <: AbstractGenerator
     emissions_factor_lb_NOx_per_gal
     emissions_factor_lb_SO2_per_gal
     emissions_factor_lb_PM25_per_gal
-    replacement_year
-    replace_cost_per_kw
+    replacement_year_1
+    replacement_year_2
+    replace_cost_per_kw_1
+    replace_cost_per_kw_2
 
     function Generator(;
         off_grid_flag::Bool = false,
@@ -140,11 +142,13 @@ struct Generator <: AbstractGenerator
         emissions_factor_lb_NOx_per_gal::Real = 0.0775544,
         emissions_factor_lb_SO2_per_gal::Real = 0.040020476,
         emissions_factor_lb_PM25_per_gal::Real = 0.0,
-        replacement_year::Int = off_grid_flag ? 10 : analysis_years, # Project year in which generator capacity will be replaced at a cost of replace_cost_per_kw.
-        replace_cost_per_kw::Real = off_grid_flag ? installed_cost_per_kw : 0.0 # Per kW replacement cost for generator capacity. Replacement costs are considered tax deductible.
-    )
+        replacement_year_1::Int = off_grid_flag ? 50 : analysis_years, # Project year in which generator capacity will be replaced at a cost of replace_cost_per_kw.
+        replacement_year_2::Int = off_grid_flag ? 50 : analysis_years,
+        replace_cost_per_kw_1::Real = off_grid_flag ? installed_cost_per_kw : 0.0, # Per kW replacement cost for generator capacity. Replacement costs are considered tax deductible.
+        replace_cost_per_kw_2::Real = off_grid_flag ? installed_cost_per_kw : 0.0
+    )  
 
-        if (replacement_year >= analysis_years) && !(replace_cost_per_kw == 0.0)
+        if (replacement_year_1 >= analysis_years) && (replacement_year_2 >= analysis_years) && !(replace_cost_per_kw_1 == 0.0) && !(replace_cost_per_kw_2 == 0.0)
             @warn "Generator replacement costs will not be considered because replacement_year >= analysis_years."
         end
 
@@ -190,8 +194,10 @@ struct Generator <: AbstractGenerator
             emissions_factor_lb_NOx_per_gal,
             emissions_factor_lb_SO2_per_gal,
             emissions_factor_lb_PM25_per_gal,
-            replacement_year,
-            replace_cost_per_kw
+            replacement_year_1,
+            replacement_year_2,
+            replace_cost_per_kw_1,
+            replace_cost_per_kw_2
         )
     end
 end
