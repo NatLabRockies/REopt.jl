@@ -493,6 +493,7 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
 
     chps = CHP[]
     chp_prime_mover = nothing
+    chp_escalation_input_set = false
     if haskey(d, "CHP")
         chp_array = isa(d["CHP"], AbstractArray) ? d["CHP"] : [d["CHP"]]
         for (i, chp_dict) in enumerate(chp_array)
@@ -547,7 +548,20 @@ function Scenario(d::Dict; flex_hvac_from_json=false)
                         federal_procurement_type = site.federal_procurement_type,
                         off_grid_flag = settings.off_grid_flag)
             end
+            # Financial.chp_fuel_cost_escalation_rate_fraction holds the sector-based default; user-input CHP value overrides it and is synced back to Financial
+            if haskey(chp_dict, "fuel_cost_escalation_rate_fraction") && !isnothing(chp_dict["fuel_cost_escalation_rate_fraction"])
+                if chp_escalation_input_set && financial.chp_fuel_cost_escalation_rate_fraction != chp.fuel_cost_escalation_rate_fraction
+                    @warn "Multiple CHPs have different fuel_cost_escalation_rate_fraction inputs; Financial.chp_fuel_cost_escalation_rate_fraction is set to the value from the last CHP."
+                end
+                financial.chp_fuel_cost_escalation_rate_fraction = chp.fuel_cost_escalation_rate_fraction
+                chp_escalation_input_set = true
+            end
             push!(chps, chp)
+        end
+        for chp in chps
+            if isnothing(chp.fuel_cost_escalation_rate_fraction)
+                chp.fuel_cost_escalation_rate_fraction = financial.chp_fuel_cost_escalation_rate_fraction
+            end
         end
         # Store first CHP's prime mover for AbsorptionChiller construction below
         if !isempty(chps)

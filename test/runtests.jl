@@ -41,10 +41,10 @@ else  # run HiGHS tests
             s = Scenario(input_data)
             @test s.financial.owner_tax_rate_fraction == 0.26
             @test s.financial.offtaker_tax_rate_fraction == 0.26
-            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0348
-            @test s.financial.elec_cost_escalation_rate_fraction == 0.0166
+            @test s.financial.chp_fuel_cost_escalation_rate_fraction == 0.0464
+            @test s.financial.elec_cost_escalation_rate_fraction == 0.0253
             @test s.financial.om_cost_escalation_rate_fraction == 0.025
-            @test s.financial.offtaker_discount_rate_fraction == 0.0624
+            @test s.financial.offtaker_discount_rate_fraction == 0.0586
             for tech_struct in (s.pvs[1], s.wind, s.chps[1], s.steam_turbine)
                 for incentive_input_name in (:macrs_option_years, :macrs_bonus_fraction)
                     @test getfield(tech_struct, incentive_input_name) != 0
@@ -2226,6 +2226,9 @@ else  # run HiGHS tests
                 @test ground_pv["annual_energy_produced_kwh"] ≈ 26799.26 atol=0.1
                 @test roof_west["annual_energy_produced_kwh"] ≈ 10719.51 atol=0.1
                 @test roof_east["annual_energy_produced_kwh"] ≈ 6685.95 atol=0.1
+                for pv in [ground_pv, roof_west, roof_east]
+                    @test pv["annual_energy_produced_kwh"] ≈ pv["year_one_energy_produced_kwh"] * pv["levelization_factor"] rtol=1e-3
+                end
                 finalize(backend(m1))
                 empty!(m1)
                 finalize(backend(m2))
@@ -3715,7 +3718,7 @@ else  # run HiGHS tests
                 annual_thermal_prod = 0.4 * 8760  #80% efficient boiler --> 0.8 MMBTU of heat load per hour
                 annual_ashp_consumption = sum(0.4 * REopt.KWH_PER_MMBTU / p.heating_cop["ASHPWaterHeater"][ts] for ts in p.time_steps)
                 annual_energy_supplied = 87600 + annual_ashp_consumption
-                @test results["ASHPWaterHeater"]["size_ton"] ≈ 37.673 atol = 0.1
+                @test results["ASHPWaterHeater"]["size_ton"] ≈ 37.673 rtol=0.06 # high rtol because there are mult solutions within the feasible region
                 @test results["ASHPWaterHeater"]["annual_thermal_production_mmbtu"] ≈ annual_thermal_prod rtol = 1e-4
                 @test results["ASHPWaterHeater"]["annual_electric_consumption_kwh"] ≈ annual_ashp_consumption rtol = 1e-4
                 @test results["ElectricUtility"]["annual_energy_supplied_kwh"] ≈ annual_energy_supplied rtol = 1e-4

@@ -1,0 +1,70 @@
+{
+    "Settings": {
+        "time_steps_per_hour": 1
+    },
+    "Site": {
+        "latitude": 37.78,
+        "longitude": -122.45
+    },
+    "Financial": {
+        "analysis_years": 10,
+        "om_cost_escalation_rate_fraction": 0.025,
+        "elec_cost_escalation_rate_fraction": 0.023,
+        "chp_fuel_cost_escalation_rate_fraction": 0.034,
+        "offtaker_discount_rate_fraction": 0.083,
+        "offtaker_tax_rate_fraction": 0.26,
+        "third_party_ownership": false
+    },
+    "ElectricTariff": {
+        "blended_annual_energy_rate": 0.15,
+        "blended_annual_demand_rate": 0.0
+    },
+    "ElectricUtility": {
+        "emissions_factor_series_lb_CO2_per_kwh": [0.0],
+        "emissions_factor_series_lb_NOx_per_kwh": [0.0],
+        "emissions_factor_series_lb_SO2_per_kwh": [0.0],
+        "emissions_factor_series_lb_PM25_per_kwh": [0.0],
+        "renewable_energy_fraction_series": [0.0]
+    },
+    "CHP": {
+        "prime_mover": "recip_engine",
+        "fuel_type": "landfill_bio_gas",
+        "fuel_cost_per_mmbtu": 5.0,
+        "emissions_factor_lb_CO2_per_mmbtu": 100.0,
+        "emissions_factor_lb_NOx_per_mmbtu": 0.1,
+        "emissions_factor_lb_SO2_per_mmbtu": 0.01,
+        "emissions_factor_lb_PM25_per_mmbtu": 0.02,
+        "fuel_renewable_energy_fraction": 1.0,
+        "min_kw": 0.0,
+        "max_kw": 2000.0,
+        "installed_cost_per_kw": 1000.0,
+        "om_cost_per_kw": 0.0,
+        "om_cost_per_kwh": 0.01,
+        "om_cost_per_hr_per_kw_rated": 0.0,
+        "electric_efficiency_full_load": 0.34,
+        "electric_efficiency_half_load": 0.34,
+        "thermal_efficiency_full_load": 0.45,
+        "thermal_efficiency_half_load": 0.45,
+        "unavailability_periods": [{"month": 1, "start_week_of_month": 2, "start_day_of_week": 1, "start_hour": 1, "duration_hours": 0}],
+        "min_turn_down_fraction": 0.0,
+        "min_allowable_kw": 0.0,
+        "standby_rate_per_kw_per_month": 0.0,
+        "can_serve_dhw": true,
+        "can_serve_space_heating": true,
+        "can_serve_process_heat": true,
+        "can_net_meter": false,
+        "can_wholesale": false,
+        "can_export_beyond_nem_limit": false,
+        "can_curtail": false,
+        "macrs_option_years": 0,
+        "macrs_bonus_fraction": 0.0,
+        "macrs_itc_reduction": 0.0,
+        "federal_itc_fraction": 0.0,
+        "federal_rebate_per_kw": 0.0,
+        "state_ibi_fraction": 0.0,
+        "state_rebate_per_kw": 0.0,
+        "utility_ibi_fraction": 0.0,
+        "utility_rebate_per_kw": 0.0,
+        "production_incentive_per_kwh": 0.0
+    }
+}
