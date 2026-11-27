@@ -18,7 +18,7 @@ end
 
 
 """
-    calculate_proforma_metrics(p::REoptInputs, d::Dict)
+    proforma_results(p::REoptInputs, d::Dict; generator_replacement_cost=0.0)
 
 Recreates the ProForma spreadsheet calculations to get the simple payback period, irr, net present cost (3rd
 party case), and payment to third party (3rd party case).
@@ -37,7 +37,7 @@ return Dict(
     "capital_costs_after_non_discounted_incentives" => 0.0 # Capital costs after ibi, cbi, ITC, and MACRS incentives but without discounting out-year ITC and MACRS
 )
 """
-function proforma_results(p::REoptInputs, d::Dict)
+function proforma_results(p::REoptInputs, d::Dict; generator_replacement_cost::Real=0.0)
     r = Dict(
         "simple_payback_years" => 0.0,
         "internal_rate_of_return" => 0.0,
@@ -105,6 +105,10 @@ function proforma_results(p::REoptInputs, d::Dict)
     end
 
     # calculate Generator o+m costs, incentives, and depreciation
+    generator_replacement_year = p.s.generator.replacement_year
+    if 1 <= generator_replacement_year < years
+        m.om_series[generator_replacement_year] -= generator_replacement_cost
+    end
     if "Generator" in keys(d) && d["Generator"]["size_kw"] > 0
         # In the two party case the developer does not include the fuel cost or O&M costs for existing assets in their costs
         # It is assumed that the offtaker will pay for this at a rate that is not marked up to cover developer profits
@@ -248,11 +252,11 @@ function proforma_results(p::REoptInputs, d::Dict)
     if third_party
         total_operating_expenses = m.om_series
         tax_rate_fraction = p.s.financial.owner_tax_rate_fraction
-        discount_rate_for_battery_replacement_pv = p.s.financial.owner_discount_rate_fraction
+        replacement_discount_rate = p.s.financial.owner_discount_rate_fraction
     else
         total_operating_expenses = electricity_bill_series + export_credit_series + m.om_series + m.fuel_cost_series + standby_charges_series
         tax_rate_fraction = p.s.financial.offtaker_tax_rate_fraction
-        discount_rate_for_battery_replacement_pv = p.s.financial.offtaker_discount_rate_fraction
+        replacement_discount_rate = p.s.financial.offtaker_discount_rate_fraction
     end
 
     # Apply taxes to operating expenses
@@ -267,11 +271,17 @@ function proforma_results(p::REoptInputs, d::Dict)
     total_cash_incentives = m.total_pbi * (1 - tax_rate_fraction)
     free_cashflow_without_year_zero = m.total_depreciation * tax_rate_fraction + total_cash_incentives + operating_expenses_after_tax
     free_cashflow_without_year_zero[1] += m.federal_itc
-    battery_replacement_net_present_cost = -1*battery_replacement_cost * (1 - tax_rate_fraction) / (1 + discount_rate_for_battery_replacement_pv) ^ battery_replacement_year  # battery_replacement_cost is negative, from above
-    r["capital_costs_after_non_discounted_incentives_without_macrs"] = d["Financial"]["initial_capital_costs"] - m.total_ibi_and_cbi - m.federal_itc + battery_replacement_net_present_cost
+    battery_replacement_net_present_cost = -battery_replacement_cost * (1 - tax_rate_fraction) / (1 + replacement_discount_rate)^battery_replacement_year
+    generator_replacement_after_tax = generator_replacement_cost * (1 - tax_rate_fraction)
+    generator_replacement_pv = iszero(generator_replacement_after_tax) ? 0.0 :
+        generator_replacement_after_tax / (1 + replacement_discount_rate)^generator_replacement_year
+    r["capital_costs_after_non_discounted_incentives_without_macrs"] = d["Financial"]["initial_capital_costs"] - m.total_ibi_and_cbi - m.federal_itc + battery_replacement_net_present_cost + generator_replacement_pv
     r["capital_costs_after_non_discounted_incentives"] = r["capital_costs_after_non_discounted_incentives_without_macrs"] - sum(m.total_depreciation * tax_rate_fraction)
     # Note, free_cashflow_bau[1] (below) now has possible non-zero costs from ExistingBoiler/Chiller
-    free_cashflow = append!([(-1 * d["Financial"]["initial_capital_costs"]) + m.total_ibi_and_cbi], free_cashflow_without_year_zero)
+    # Replacement costs at or before year zero enter the opening cash flow at their present value.
+    initial_replacement_cost = generator_replacement_year <= 0 ? generator_replacement_pv : 0.0
+    initial_cashflow = -d["Financial"]["initial_capital_costs"] + m.total_ibi_and_cbi - initial_replacement_cost
+    free_cashflow = append!([initial_cashflow], free_cashflow_without_year_zero)
 
     # At this point the logic branches based on third-party ownership or not - see comments    
     if third_party  # get cumulative cashflow for developer

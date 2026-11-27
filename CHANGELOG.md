@@ -24,6 +24,10 @@ Classify the change according to the following categories:
     ### Deprecated
     ### Removed
 
+## fix/generator-replacement-proforma
+### Fixed
+- `src/results`: Include generator replacement costs in proforma cash flows, payback, and capital cost metrics.
+
 ## financial-updates-2026
 ### Changed
 - Updated defaults for `Financial` inputs based on 2025 ATB and the EIA's 2026 AEO. Old --> New values listed below 
