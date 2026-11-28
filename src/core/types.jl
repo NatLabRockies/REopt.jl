@@ -12,6 +12,7 @@ abstract type AbstractElectricStorage <: AbstractStorage end
 abstract type AbstractThermalStorageDefaults end
 abstract type AbstractGHP <: AbstractTech end
 abstract type AbstractSteamTurbine <: AbstractTech end
+abstract type AbstractMultinode end
 
 
 """

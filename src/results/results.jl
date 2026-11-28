@@ -54,9 +54,9 @@ function reopt_results(m::JuMP.AbstractModel, p::REoptInputs; _n="")
 	time_elapsed = time() - tstart
 	@debug "Base results processing took $(round(time_elapsed, digits=3)) seconds."
 	
-	if !isempty(p.techs.gen) && isempty(_n)  # generators not included in multinode model
-        tstart = time()
-		add_generator_results(m, p, d)
+	if !isempty(p.techs.gen)
+        tstart = time() 
+		add_generator_results(m, p, d; _n)
         time_elapsed = time() - tstart
         @debug "Generator results processing took $(round(time_elapsed, digits=3)) seconds."
 	end

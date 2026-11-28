@@ -10,6 +10,7 @@ Inputs related to the physical location:
     roof_squarefeet::Union{Real, Nothing} = nothing,
     min_resil_time_steps::Int=0, # The minimum number consecutive timesteps that load must be fully met once an outage begins. Only applies to multiple outage modeling using inputs outage_start_time_steps and outage_durations.
     mg_tech_sizes_equal_grid_sizes::Bool = true,
+    node::Union{Int,String} = 1,
     sector::String = "commercial/industrial", # available options: ["commercial/industrial", "federal"]
     federal_sector_state::String = "",
     federal_procurement_type::String = "",
@@ -69,7 +70,7 @@ mutable struct Site
         include_exported_elec_emissions_in_total::Bool = true,
         include_exported_renewable_electricity_in_total::Bool = true,
         outdoor_air_temperature_degF::Union{Nothing, Array{<:Real,1}} = nothing,
-        node::Int = 1, 
+        node::Union{Int,String} = 1, 
         )
         invalid_args = String[]
         if !(-90 <= latitude < 90)

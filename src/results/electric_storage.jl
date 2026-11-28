@@ -79,7 +79,8 @@ function add_electric_storage_results(m::JuMP.AbstractModel, p::REoptInputs, d::
                 end
             end
             r["residual_value"] = value(m[:residual_value])
-        end
+         end
+
     else
         r["soc_series_fraction"] = []
         r["storage_to_load_series_kw"] = []

@@ -99,9 +99,9 @@ function add_financial_results(m::JuMP.AbstractModel, p::REoptInputs, d::Dict; _
     r["lifecycle_storage_capital_costs"] = value(m[Symbol("TotalStorageCapCosts"*_n)]) # Storage capital costs (including replacements)
     r["lifecycle_om_costs_after_tax"] = r["lifecycle_om_costs_before_tax"] * (1 - p.s.financial.owner_tax_rate_fraction)  # Fixed & Variable O&M 
     if !isempty(p.techs.fuel_burning)
-        r["lifecycle_fuel_costs_after_tax"] = value(m[:TotalFuelCosts]) * (1 - p.s.financial.offtaker_tax_rate_fraction)
-    else
-        r["lifecycle_fuel_costs_after_tax"] = 0.0
+        r["lifecycle_fuel_costs_after_tax"] = value(m[Symbol("TotalFuelCosts"*_n)]) * (1 - p.s.financial.offtaker_tax_rate_fraction)
+    else 
+        r["lifecycle_fuel_costs_after_tax"] = 0.0 
     end
     if !(Symbol("TotalCHPStandbyCharges"*_n) in keys(m.obj_dict)) # CHP standby charges not currently included in multi-node modeling
         m[Symbol("TotalCHPStandbyCharges"*_n)] = 0.0

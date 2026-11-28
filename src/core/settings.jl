@@ -10,8 +10,11 @@ Captures high-level inputs affecting the optimization.
     include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model's objective function
     include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model's objective function
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
+    facilitymeter_node::String = ""
+    phase_numbers::Array=[1] # indicates the phase numbers for the load (relevant for multinode models only); default is single phase using phase 1; three phase is represented by [1,2,3]
+    phase_balancing_approach_for_multiphase_node_export::String="balanced" # dictates how the exported power is divided between phases for a multiphase node. Available options: "balanced","unbalanced"
 ```
-"""
+""" 
 Base.@kwdef struct Settings
     time_steps_per_hour::Int = 1 # corresponds to the time steps per hour for user-provided time series (e.g., `ElectricLoad.loads_kw` and `DomesticHotWaterLoad.fuel_loads_mmbtu_per_hour`) 
     add_soc_incentive::Bool = true # when true, an incentive is added to the model's objective function to keep the ElectricStorage SOC high
@@ -19,5 +22,8 @@ Base.@kwdef struct Settings
     include_climate_in_objective::Bool = false # true if climate costs of emissions should be included in the model's objective function
     include_health_in_objective::Bool = false # true if health costs of emissions should be included in the model's objective function
     solver_name::String = "HiGHS" # solver used to obtain a solution to model instance. available options: ["HiGHS", "Cbc", "CPLEX", "Xpress"]
-    include_export_cost_series_in_results::Bool = false # set to true to add electricity export compensation rate timeseries under electric tariff results.
+    facilitymeter_node::String = ""
+    phase_numbers::Array=[1] # indicates the phase numbers for the load (relevant for multinode models only); default is single phase using phase 1; three phase is represented by [1,2,3]
+    phase_balancing_approach_for_multiphase_node_export::String="balanced" # dictates how the exported power is divided between phases for a multiphase node. Available options: "balanced","unbalanced"
+    include_export_cost_series_in_results::Bool = false # set to true to add electricity export compensation rate timeseries under electric tariff results.  
 end
